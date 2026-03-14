@@ -1,0 +1,346 @@
+import 'package:flutter/material.dart';
+
+import '../../../../core/constants/app_colors.dart';
+import '../../domain/entities/view_task_entity.dart';
+
+class ViewTaskCard extends StatelessWidget {
+  final ViewTaskEntity task;
+  final bool showEmployee;
+  final bool showDivision;
+  final VoidCallback? onTap;
+  final Widget? actionArea;
+  final bool isHighlighted;
+  final ValueChanged<TaskCheckpointSession>? onCheckpointTap;
+  final EdgeInsetsGeometry margin;
+
+  const ViewTaskCard({
+    super.key,
+    required this.task,
+    this.showEmployee = true,
+    this.showDivision = true,
+    this.onTap,
+    this.actionArea,
+    this.isHighlighted = false,
+    this.onCheckpointTap,
+    this.margin = const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        border: Border.all(
+          color: isHighlighted ? AppColors.gold : AppColors.border,
+          width: isHighlighted ? 1.2 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeaderRow(),
+          _buildMetaRows(),
+          if (task.checkpointHistory.isNotEmpty) _buildCheckpointTable(),
+          if (task.finalValidations.isNotEmpty) _buildFinalValidationTable(),
+          if (actionArea != null) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: actionArea!,
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, child: content);
+  }
+
+  Widget _buildHeaderRow() {
+    return Container(
+      color: AppColors.background,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.unit.unitName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  task.task.jobName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            _statusLabel(task.status),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: _statusColor(task.status),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMetaRows() {
+    final rows = <List<String>>[
+      ['Panel/Part', task.task.namaPanel],
+      ['Deskripsi', task.task.jobDescription],
+      ['Jam Plan', '${task.task.startTime} - ${task.task.targetFinishTime}'],
+      ['Checkpoint', '${task.checkpointHistory.length}/${task.maxCheckpointSessions} sesi'],
+    ];
+
+    if (showDivision) {
+      rows.insert(0, ['Divisi', task.division.divisionName]);
+    }
+    if (showEmployee) {
+      rows.insert(1, ['Personil', task.employee.employeeName]);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Table(
+        columnWidths: const {
+          0: FixedColumnWidth(84),
+          1: FlexColumnWidth(),
+        },
+        defaultVerticalAlignment: TableCellVerticalAlignment.top,
+        children: rows
+            .map(
+              (row) => TableRow(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      row[0],
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textMuted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      row[1],
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildCheckpointTable() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _tableTitle('Check Point'),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowHeight: 30,
+                dataRowMinHeight: 30,
+                dataRowMaxHeight: 42,
+                columnSpacing: 16,
+                horizontalMargin: 8,
+                columns: const [
+                  DataColumn(label: Text('Sesi')),
+                  DataColumn(label: Text('Start')),
+                  DataColumn(label: Text('Finish')),
+                  DataColumn(label: Text('Check')),
+                  DataColumn(label: Text('Durasi')),
+                  DataColumn(label: Text('Prog %')),
+                  DataColumn(label: Text('Status')),
+                ],
+                rows: task.checkpointHistory.map((session) {
+                  final row = DataRow(
+                    cells: [
+                      DataCell(Text('${session.sessionNumber}')),
+                      DataCell(Text(session.startWorkTime)),
+                      DataCell(Text(session.finishWorkTime)),
+                      DataCell(Text(session.checkpointTime)),
+                      DataCell(Text(session.workedDurationLabel)),
+                      DataCell(Text('${session.progress}%')),
+                      DataCell(Text(session.jobStatusLabel)),
+                    ],
+                  );
+
+                  if (onCheckpointTap == null) {
+                    return row;
+                  }
+
+                  return DataRow.byIndex(
+                    index: session.sessionNumber,
+                    onSelectChanged: (_) => onCheckpointTap!(session),
+                    cells: row.cells,
+                  );
+                }).toList(),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Text(
+                onCheckpointTap == null
+                    ? 'Riwayat checkpoint tersimpan.'
+                    : 'Klik baris sesi untuk review/edit.',
+                style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFinalValidationTable() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _tableTitle('Validasi Akhir'),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: DataTable(
+                headingRowHeight: 30,
+                dataRowMinHeight: 30,
+                dataRowMaxHeight: 42,
+                columnSpacing: 16,
+                horizontalMargin: 8,
+                columns: const [
+                  DataColumn(label: Text('Role')),
+                  DataColumn(label: Text('Nama')),
+                  DataColumn(label: Text('Catatan')),
+                  DataColumn(label: Text('Waktu')),
+                ],
+                rows: task.finalValidations
+                    .map(
+                      (validation) => DataRow(
+                        cells: [
+                          DataCell(Text(validation.roleLabel)),
+                          DataCell(Text(validation.name)),
+                          DataCell(Text(
+                            validation.note.isEmpty ? '-' : validation.note,
+                            overflow: TextOverflow.ellipsis,
+                          )),
+                          DataCell(Text(_formatIsoTime(validation.time))),
+                        ],
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tableTitle(String title) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.background,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
+      ),
+    );
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'DONE':
+        return 'Selesai';
+      case 'SUBMITTED':
+        return 'Menunggu Checkpoint';
+      case 'PROSES':
+        return 'Proses';
+      case 'CHECK_PROGRESS':
+        return 'Sudah Checkpoint';
+      case 'CANCEL':
+        return 'Batal';
+      case 'VALIDATED':
+        return 'Tervalidasi';
+      case 'REWORK':
+        return 'Rework';
+      case 'ASSIGNED':
+        return 'Belum Mulai';
+      default:
+        return status;
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'DONE':
+      case 'VALIDATED':
+        return AppColors.statusDone;
+      case 'SUBMITTED':
+      case 'ASSIGNED':
+        return AppColors.orange;
+      case 'PROSES':
+      case 'CHECK_PROGRESS':
+        return AppColors.gold;
+      case 'CANCEL':
+      case 'REWORK':
+        return AppColors.statusLocked;
+      default:
+        return AppColors.textMuted;
+    }
+  }
+
+  String _formatIsoTime(String value) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+
+    final day = parsed.day.toString().padLeft(2, '0');
+    final month = parsed.month.toString().padLeft(2, '0');
+    final year = parsed.year.toString();
+    final hour = parsed.hour.toString().padLeft(2, '0');
+    final minute = parsed.minute.toString().padLeft(2, '0');
+    return '$day/$month/$year $hour:$minute';
+  }
+}
