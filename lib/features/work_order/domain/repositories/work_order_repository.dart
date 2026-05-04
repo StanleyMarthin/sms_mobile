@@ -3,67 +3,67 @@ import 'package:fpdart/fpdart.dart';
 import '../../../../core/errors/failures.dart';
 import '../entities/work_order.dart';
 
-/// Repository contract for Work Order operations.
-///
-/// Unified for all roles — RBAC controls which actions are available.
 abstract class WorkOrderRepository {
-  /// Get all work orders (for KD/ADV/PM management view).
-  Future<Either<Failure, List<WorkOrder>>> getAllWorkOrders();
+  /// List WO (ACTIVE atau DONE)
+  Future<Either<Failure, List<WorkOrder>>> getWorkOrders({
+    String view = 'ACTIVE',
+    int page = 1,
+    int limit = 30,
+  });
 
-  /// Get work orders owned by the current user (for OP view).
-  Future<Either<Failure, List<WorkOrder>>> getMyWorkOrders();
+  /// Detail WO by ID (merge Redis state)
+  Future<Either<Failure, WorkOrder>> getWorkOrderById(String woId);
 
-  /// Submit a new Work Order (WO or WOV).
-  Future<Either<Failure, WorkOrder>> submitWorkOrder(WorkOrder wo);
+  /// Buat WO baru
+  Future<Either<Failure, WorkOrder>> createWorkOrder({
+    required String carId,
+    required String targetDivId,
+    required String jobDetail,
+    required String targetDate,
+    String? panelName,
+    String? sectionName,
+    String? panelCategory,
+    bool    addPanelToMaster = false,
+    double? targetHours,
+  });
 
-  /// Update a draft WO before submission.
-  Future<Either<Failure, WorkOrder>> updateWorkOrder(WorkOrder wo);
+  /// Approve WO di stage saat ini
+  Future<Either<Failure, Map<String, dynamic>>> approveWorkOrder({
+    required String woId,
+    double? estimatedHours,
+    String? notes,
+  });
 
-  /// Delete a draft WO (only DRAFT status allowed).
-  Future<Either<Failure, void>> deleteWorkOrder(String woId);
+  /// Reject WO dengan alasan wajib
+  Future<Either<Failure, void>> rejectWorkOrder({
+    required String woId,
+    required String rejectReason,
+  });
 
-  /// Approve a WO (advisor: PENDING_ADVISOR→PENDING_PM, pm: PENDING_PM→APPROVED).
-  Future<Either<Failure, WorkOrder>> approveWorkOrder(
-      String woId, String approverName);
+  // Extension (countdown)
+  Future<Either<Failure, void>> requestDeadlineExtension({
+    required String woId,
+    required String newDeadline,
+    required String reason,
+  });
 
-  /// Reject a WO at any approval step.
-  Future<Either<Failure, WorkOrder>> rejectWorkOrder(
-      String woId, String rejectedBy, String? reason);
+  Future<Either<Failure, void>> respondDeadlineExtension({
+    required String woId,
+    required bool approve,
+    String? note,
+  });
 
-  /// Extend deadline (only requesting KD).
-  Future<Either<Failure, WorkOrder>> extendDeadline(
-      String woId, String newDeadline, String reason);
+  Future<Either<Failure, void>> requestHourExtension({
+    required String woId,
+    required double requestedHours,
+    required String reason,
+  });
 
-    /// Request revision from advisor/pm with new estimate + deadline.
-    Future<Either<Failure, WorkOrder>> requestRevision({
-        required String woId,
-        required double requestedEstimatedHours,
-        required String requestedDeadline,
-        required String reason,
-        required String reviewerName,
-    });
+  Future<Either<Failure, void>> respondHourExtension({
+    required String woId,
+    required bool approve,
+  });
 
-    /// Approve/reject requested revision at current stage.
-    Future<Either<Failure, WorkOrder>> respondRevision({
-        required String woId,
-        required bool approve,
-        required String reviewerName,
-        String? note,
-    });
-
-    /// Request deadline extension by KD.
-    Future<Either<Failure, WorkOrder>> requestDeadlineExtension({
-        required String woId,
-        required String newDeadline,
-        required String reason,
-        required String requesterName,
-    });
-
-    /// Approve/reject extension request by advisor/pm.
-    Future<Either<Failure, WorkOrder>> respondDeadlineExtension({
-        required String woId,
-        required bool approve,
-        required String reviewerName,
-        String? note,
-    });
+  /// Dropdown master data (cars, panels, divisions)
+  Future<Either<Failure, Map<String, dynamic>>> getDropdowns();
 }

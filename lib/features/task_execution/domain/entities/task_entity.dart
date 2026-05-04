@@ -142,6 +142,15 @@ class TaskEntity extends Equatable {
   /// Once set, OP can no longer reopen or resubmit this task from the mobile flow.
   final bool hasMonitoringRecord;
 
+  /// Indicates if this task is a rework
+  final bool isRework;
+
+  /// Indicates if this task was performed during overtime
+  final bool isOvertime;
+
+  /// Indicates if this task is marked as priority
+  final bool isPriority;
+
   const TaskEntity({
     required this.plandailyId,
     required this.coreId,
@@ -165,6 +174,9 @@ class TaskEntity extends Equatable {
     required this.ownerName,
     required this.totalActualHours,
     this.hasMonitoringRecord = false,
+    this.isRework = false,
+    this.isOvertime = false,
+    this.isPriority = false,
   });
 
   /// Returns true if the mechanic can start this task now.
@@ -174,22 +186,31 @@ class TaskEntity extends Equatable {
     final normalizedStatus = status.trim().toUpperCase();
     final blockedByOtherWorker = isPanelLocked && lockedByName != null;
     return !blockedByOtherWorker &&
-        (normalizedStatus == 'ASSIGNED' || normalizedStatus == 'PROSES') &&
+        (normalizedStatus == 'PLAN' ||
+            normalizedStatus == 'ASSIGNED' ||
+            normalizedStatus == 'PROSES') &&
         !hasMonitoringRecord &&
         !isInProgress &&
         !isCompleted;
   }
 
-      /// Returns true when OP has already submitted the monitoring form.
-      bool get isMonitoringLocked => hasMonitoringRecord && !isCompleted;
+  /// Returns true when OP has already submitted the monitoring form.
+  bool get isMonitoringLocked => hasMonitoringRecord && !isCompleted;
 
   /// Returns true if work has started on this task.
-  bool get isInProgress => startedAt != null && completedAt == null;
+  bool get isInProgress {
+    final normalizedStatus = status.trim().toUpperCase();
+    return (startedAt != null && completedAt == null) ||
+        normalizedStatus == 'ONPROGRESS' ||
+        normalizedStatus == 'ON_PROGRESS' ||
+        normalizedStatus == 'PROSES';
+  }
 
   /// Returns true if work has been completed.
   bool get isCompleted {
     final normalizedStatus = status.trim().toUpperCase();
     return completedAt != null ||
+        normalizedStatus == 'READY_QC' ||
         normalizedStatus == 'DONE' ||
         normalizedStatus == 'CANCEL';
   }
@@ -212,27 +233,30 @@ class TaskEntity extends Equatable {
   /// This is critical for BLoC state comparisons and UI rebuilds.
   @override
   List<Object?> get props => [
-    plandailyId,
-    coreId,
-    carId,
-    unitName,
-    panelName,
-    jobName,
-    divisionName,
-    status,
-    isPanelLocked,
-    dailyTargetHours,
-    targetHoursRevised,
-    remainingHours,
-    taskDate,
-    createdAt,
-    startedAt,
-    completedAt,
-    taskCategory,
-    customDescription,
-    lockedByName,
-    ownerName,
-    totalActualHours,
-    hasMonitoringRecord,
-  ];
+        plandailyId,
+        coreId,
+        carId,
+        unitName,
+        panelName,
+        jobName,
+        divisionName,
+        status,
+        isPanelLocked,
+        dailyTargetHours,
+        targetHoursRevised,
+        remainingHours,
+        taskDate,
+        createdAt,
+        startedAt,
+        completedAt,
+        taskCategory,
+        customDescription,
+        lockedByName,
+        ownerName,
+        totalActualHours,
+        hasMonitoringRecord,
+        isRework,
+        isOvertime,
+        isPriority,
+      ];
 }

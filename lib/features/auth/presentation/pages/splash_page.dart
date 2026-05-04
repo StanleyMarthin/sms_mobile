@@ -1,11 +1,14 @@
 import 'dart:io' show Platform;
 
+import 'package:android_id/android_id.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/security/device_signing_service.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../bloc/auth_bloc.dart';
@@ -39,6 +42,7 @@ class _SplashPageState extends State<SplashPage>
   bool _hasError = false;
   String? _errorTitle;
   String? _downloadUrl;
+  String? _currentDeviceId;
 
   @override
   void initState() {
@@ -74,20 +78,42 @@ class _SplashPageState extends State<SplashPage>
   }
 
   // ── Device Attestation Flow ────────────────────────────
-  void _startDeviceInit() {
+  Future<void> _startDeviceInit() async {
     if (!mounted) return;
+    if (sl<SessionManager>().isLoggedIn) {
+      context.go('/home');
+      return;
+    }
     setState(() => _statusMessage = 'Verifikasi perangkat...');
-    _authBloc.add(DeviceInitRequested(deviceInfo: _collectDeviceInfo()));
+
+    final deviceInfo = await _collectDeviceInfo();
+    if (!mounted) return;
+
+    _currentDeviceId = deviceInfo['deviceId'] as String?;
+    _authBloc.add(DeviceInitRequested(deviceInfo: deviceInfo));
   }
 
   void _onAuthState(BuildContext context, AuthState state) {
     if (state is DeviceInitSuccess) {
       final result = state.result;
       if (result.isLatest) {
+        final tempToken = (result.tempToken ?? '').trim();
+        if (tempToken.isEmpty) {
+          setState(() {
+            _hasError = true;
+            _errorTitle = 'Gagal Verifikasi';
+            _statusMessage =
+                'Token verifikasi perangkat tidak valid. Silakan coba lagi.';
+            _downloadUrl = null;
+          });
+          return;
+        }
+
         sl<SessionManager>().setDeviceAttestation(
-          tempToken: result.tempToken ?? '',
-          deviceId: 'device-${DateTime.now().millisecondsSinceEpoch}',
+          tempToken: tempToken,
+          deviceId: _currentDeviceId ?? '',
         );
+        DeviceSigningService().markRegistered();
         setState(() => _statusMessage = 'Perangkat terverifikasi ✓');
         Future.delayed(const Duration(milliseconds: 500), () {
           if (!mounted) return;
@@ -102,6 +128,21 @@ class _SplashPageState extends State<SplashPage>
         });
       }
     } else if (state is AuthError) {
+      if (state.errorCode == 'FORCE_UPDATE') {
+        setState(() {
+          _hasError = true;
+          _errorTitle = 'Update Diperlukan';
+          _statusMessage = state.message;
+          _downloadUrl = 'required';
+        });
+        AppNotification.showError(context, state.message);
+        return;
+      }
+
+      if (state.errorCode == 'DEVICE_NOT_REGISTERED') {
+        // Ensure next retry sends public key again for pinning flow.
+        DeviceSigningService().resetRegistration();
+      }
       setState(() {
         _hasError = true;
         _errorTitle = 'Gagal Verifikasi';
@@ -112,15 +153,40 @@ class _SplashPageState extends State<SplashPage>
   }
 
   /// Collects device information.
-  Map<String, dynamic> _collectDeviceInfo() {
+  Future<Map<String, dynamic>> _collectDeviceInfo() async {
+    const androidIdPlugin = AndroidId();
+    final signingService = DeviceSigningService();
+    final nowUtc = DateTime.now().toUtc();
+    final timestamp = nowUtc.toIso8601String();
+    const appVersion = '1.0.1';
+
+    String? androidId;
+    if (Platform.isAndroid) {
+      try {
+        androidId = await androidIdPlugin.getId();
+      } catch (_) {
+        androidId = null;
+      }
+    }
+
+    final deviceId =
+        await signingService.buildDeviceIdentity(androidId: androidId);
+    final signatureExtra = await signingService.buildDeviceInitExtra(
+      deviceId: deviceId,
+      appVersion: appVersion,
+      timestamp: timestamp,
+    );
+
     return {
-      'deviceId': 'device-${DateTime.now().millisecondsSinceEpoch}',
+      'deviceId': deviceId,
       'deviceModel': Platform.isAndroid ? 'Android Device' : 'iOS Device',
       'osVersion': Platform.operatingSystemVersion,
-      'appVersion': '1.0.1',
-      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'appVersion': appVersion,
+      'timestamp': timestamp,
       'location': {'lat': -6.200000, 'lng': 106.816666},
-      'hmacSignature': 'demo-hmac-signature',
+      'eddsaSignature': signatureExtra['eddsaSignature'],
+      if (signatureExtra['devicePublicKey'] != null)
+        'devicePublicKey': signatureExtra['devicePublicKey'],
     };
   }
 
@@ -131,103 +197,103 @@ class _SplashPageState extends State<SplashPage>
       listener: _onAuthState,
       child: Scaffold(
         body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: AppColors.backgroundGradient,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Spacer(flex: 3),
+          width: double.infinity,
+          height: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: AppColors.backgroundGradient,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Spacer(flex: 3),
 
-            // ── Animated Logo ────────────────────────────────
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Container(
-                  width: 130,
-                  height: 130,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.gold, width: 2.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.gold.withValues(alpha: 0.3),
-                        blurRadius: 30,
-                        spreadRadius: 5,
+              // ── Animated Logo ────────────────────────────────
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Container(
+                    width: 130,
+                    height: 130,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.gold, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.gold.withValues(alpha: 0.3),
+                          blurRadius: 30,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/sm.jpeg',
+                        width: 130,
+                        height: 130,
+                        fit: BoxFit.cover,
                       ),
-                    ],
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/images/sm.jpeg',
-                      width: 130,
-                      height: 130,
-                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 28),
+              const SizedBox(height: 28),
 
-            // ── Company Name ─────────────────────────────────
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: const Column(
-                children: [
-                  Text(
-                    'Stanley Marthin System',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.gold,
-                      letterSpacing: 1.5,
+              // ── Company Name ─────────────────────────────────
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: const Column(
+                  children: [
+                    Text(
+                      'Stanley Marthin System',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.gold,
+                        letterSpacing: 1.5,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Classic Car Restoration',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textMuted,
-                      letterSpacing: 0.5,
+                    SizedBox(height: 8),
+                    Text(
+                      'Classic Car Restoration',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textMuted,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
 
-            const Spacer(flex: 2),
+              const Spacer(flex: 2),
 
-            // ── Status / Loading ─────────────────────────────
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: _hasError ? _buildErrorState() : _buildLoadingState(),
-            ),
+              // ── Status / Loading ─────────────────────────────
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: _hasError ? _buildErrorState() : _buildLoadingState(),
+              ),
 
-            const Spacer(flex: 1),
+              const Spacer(flex: 1),
 
-            // ── Footer ───────────────────────────────────────
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: const Padding(
-                padding: EdgeInsets.only(bottom: 32),
-                child: Text(
-                  'v1.0.1',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textDisabled,
+              // ── Footer ───────────────────────────────────────
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: const Padding(
+                  padding: EdgeInsets.only(bottom: 32),
+                  child: Text(
+                    'v1.0.1',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textDisabled,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

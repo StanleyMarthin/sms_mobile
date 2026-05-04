@@ -1,85 +1,136 @@
 library;
 
-import '../../../../core/data/dummy_data.dart';
+import 'warehouse_request_datasource.dart';
 
-abstract class WarehouseDataSource {
-  Future<List<Map<String, dynamic>>> getLogs();
-
-  Future<void> createTransaction({
-    required String transactionType,
-    required String itemCategory,
-    required String itemName,
-    required int qty,
-    required String requester,
-    required String division,
-    required int divisionId,
-    required String employeeId,
-    required String notes,
-  });
-
-  Future<void> returnItem({required String logId});
-
-  Future<void> setApprovalStatus({required String logId, required bool approved});
-}
-
+/// Dummy datasource — hanya untuk keperluan testing offline.
 class LocalWarehouseDataSource implements WarehouseDataSource {
-  LocalWarehouseDataSource()
-      : _logs = DummyWarehouseData.seedLogs();
-
-  final List<Map<String, dynamic>> _logs;
+  const LocalWarehouseDataSource();
 
   @override
-  Future<List<Map<String, dynamic>>> getLogs() async =>
-      _logs.map((item) => Map<String, dynamic>.from(item)).toList();
+  Future<List<Map<String, dynamic>>> getLogs({
+    String? approvalStatus,
+    String? itemStatus,
+    String? transactionType,
+  }) async =>
+      [
+        {
+          'id': 'LOCAL-001',
+          'transactionType': 'PEMINJAMAN',
+          'itemCategory': 'TOOLS',
+          'itemName': 'Kunci Torsi',
+          'qty': 1,
+          'uom': 'PCS',
+          'requester': 'Dummy User',
+          'division': 'Bengkel',
+          'divisionId': 1,
+          'employeeId': 'EMP001',
+          'requestDate': DateTime.now().toIso8601String(),
+          'itemStatus': 'OPEN',
+          'approvalStatus': 'PENDING_KD',
+          'notes': null,
+          'photoUrls': [],
+        }
+      ];
+
+  @override
+  Future<List<Map<String, dynamic>>> getMyItems() async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> getPendingApprovals() async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> getStockCard({String? carId}) async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> getStorageLocations() async => [];
+
+  @override
+  Future<List<Map<String, dynamic>>> searchItems({
+    required String query,
+    String? category,
+  }) async =>
+      [];
 
   @override
   Future<void> createTransaction({
     required String transactionType,
     required String itemCategory,
     required String itemName,
-    required int qty,
+    required double qty,
+    required String uom,
     required String requester,
     required String division,
     required int divisionId,
     required String employeeId,
-    required String notes,
-  }) async {
-    final needsApproval = itemCategory != 'TOOLS';
-    _logs.insert(0, {
-      'id': 'wh-${DateTime.now().millisecondsSinceEpoch}',
-      'transactionType': transactionType,
-      'itemCategory': itemCategory,
-      'carId': null,
-      'coreId': null,
-      'employeeId': employeeId,
-      'requester': requester,
-      'divisionId': divisionId,
-      'division': division,
-      'itemName': itemName,
-      'qty': qty,
-      'uom': 'PCS',
-      'requestDate': DateTime.now(),
-      'itemStatus': needsApproval ? 'OPEN' : 'RELEASED',
-      'approvalStatus': needsApproval ? 'PENDING_KD' : 'APPROVED',
-      'notes': notes,
-    });
-  }
+    String? carId,
+    String? coreId,
+    String? unitName,
+    String? panelName,
+    String? jobdesc,
+    String? stockCardId,
+    required bool installToUnit,
+    DateTime? targetSearchDate,
+    DateTime? deadlineDate,
+    String? notes,
+    String? itemCondition,
+    double? qtyReturned,
+    List<String>? photoUrls,
+    String? sourceTransactionId,
+  }) async {}
 
   @override
-  Future<void> returnItem({required String logId}) async {
-    final log = _findById(logId);
-    log['itemStatus'] = 'RETURNED';
-    log['returnDate'] = DateTime.now();
-  }
+  Future<void> setApprovalStatus({
+    required String logId,
+    required bool approved,
+    String? notes,
+    int? storageLocationId,
+    String? locationDetail,
+  }) async {}
 
   @override
-  Future<void> setApprovalStatus({required String logId, required bool approved}) async {
-    final log = _findById(logId);
-    log['approvalStatus'] = approved ? 'APPROVED' : 'REJECTED';
-    log['itemStatus'] = approved ? 'RELEASED' : 'REJECTED';
-  }
+  Future<void> installItem({required String logId, String? notes}) async {}
 
-  Map<String, dynamic> _findById(String logId) {
-    return _logs.firstWhere((item) => item['id'] == logId);
-  }
+  @override
+  Future<void> markReady({
+    required String logId,
+    String? notes,
+    int? storageLocationId,
+    String? locationDetail,
+    List<String>? photoUrls,
+  }) async {}
+
+  @override
+  Future<void> releaseItem({required String logId, String? notes}) async {}
+
+  @override
+  Future<void> returnItem({
+    required String logId,
+    String? notes,
+    String? itemCondition,
+    double? qtyReturned,
+  }) async {}
+
+  @override
+  Future<void> storeItem({
+    required String logId,
+    String? notes,
+    int? storageLocationId,
+    String? locationDetail,
+  }) async {}
+
+  @override
+  Future<void> locateItem({
+    required String logId,
+    String? notes,
+    int? storageLocationId,
+    String? locationDetail,
+  }) async {}
+
+  @override
+  Future<String?> uploadPhoto({
+    required String userId,
+    required String filePath,
+    String? logId,
+  }) async =>
+      null;
 }

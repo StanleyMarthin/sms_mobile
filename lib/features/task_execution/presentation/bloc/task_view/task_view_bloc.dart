@@ -46,6 +46,24 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
 
   String get _role => sl<SessionManager>().role ?? 'op';
 
+  String _normalizeCheckpointFailureMessage(String? message) {
+    final raw = (message ?? '').trim();
+    final lower = raw.toLowerCase();
+    if (lower.contains('belum') &&
+        (lower.contains('mulai') ||
+            lower.contains('dimulai') ||
+            lower.contains('start') ||
+            lower.contains('proses'))) {
+      return 'jobdesc belum dimulai';
+    }
+    if (lower.contains('not started') ||
+        lower.contains('not in progress') ||
+        lower.contains('must be started')) {
+      return 'jobdesc belum dimulai';
+    }
+    return raw.isNotEmpty ? raw : 'Gagal menyimpan monitoring';
+  }
+
   Future<void> _onLoadViewTasks(
     LoadViewTasks event,
     Emitter<TaskViewState> emit,
@@ -149,7 +167,7 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
       (failure) async {
         emit(currentState.copyWith(
           clearActionTaskId: true,
-          feedbackMessage: failure.message ?? 'Gagal menyimpan check progress',
+          feedbackMessage: _normalizeCheckpointFailureMessage(failure.message),
           isFeedbackError: true,
         ));
       },

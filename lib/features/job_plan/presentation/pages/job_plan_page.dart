@@ -28,7 +28,10 @@ class JobPlanPage extends StatefulWidget {
   State<JobPlanPage> createState() => _JobPlanPageState();
 }
 
-class _JobPlanPageState extends State<JobPlanPage> {
+class _JobPlanPageState extends State<JobPlanPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late bool _showPlanTab;
+  late bool _canCreate;
   late final JobPlanRepository _repository;
   late DateTime _selectedDate;
   List<JobPlan> _plans = [];

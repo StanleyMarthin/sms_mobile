@@ -8,7 +8,7 @@ import 'package:equatable/equatable.dart';
 /// - Start / finish times (manual time pickers)
 /// - Break duration in minutes
 /// - Progress percentage (manual number input)
-/// - Status dropdown: pending | onprogress | done | cancel
+/// - Status dropdown: pending | done
 /// - Photos: Before (optional), Process (optional), After (required)
 /// - Daily notes (optional free text)
 ///
@@ -33,7 +33,7 @@ class TaskExecutionLog extends Equatable {
   /// Self-reported by the mechanic via manual number input.
   final double progressPercent;
 
-  /// Task status: ENUM('pending', 'onprogress', 'done', 'cancel') DEFAULT 'pending'.
+  /// Task status aligned with backend submit flow: `pending` or `done`.
   final String status;
 
   /// File path to the "Before" photo (optional).
@@ -63,6 +63,32 @@ class TaskExecutionLog extends Equatable {
 
   /// Whether this submission marks the job as done.
   bool get isDone => status == 'done';
+
+  TaskExecutionLog copyWith({
+    String? plandailyId,
+    String? startTime,
+    String? finishTime,
+    int? breakDurationMinutes,
+    double? progressPercent,
+    String? status,
+    String? photoBefore,
+    String? photoProcess,
+    String? photoAfter,
+    String? dailyNotes,
+  }) {
+    return TaskExecutionLog(
+      plandailyId: plandailyId ?? this.plandailyId,
+      startTime: startTime ?? this.startTime,
+      finishTime: finishTime ?? this.finishTime,
+      breakDurationMinutes: breakDurationMinutes ?? this.breakDurationMinutes,
+      progressPercent: progressPercent ?? this.progressPercent,
+      status: status ?? this.status,
+      photoBefore: photoBefore ?? this.photoBefore,
+      photoProcess: photoProcess ?? this.photoProcess,
+      photoAfter: photoAfter ?? this.photoAfter,
+      dailyNotes: dailyNotes ?? this.dailyNotes,
+    );
+  }
 
   @override
   List<Object?> get props => [

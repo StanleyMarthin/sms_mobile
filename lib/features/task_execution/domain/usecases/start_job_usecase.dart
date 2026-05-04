@@ -28,6 +28,8 @@ class StartJobParams {
   /// The daily assignment ID (from trx_jobdesc_plandaily.id).
   /// This is the primary identifier for mechanic work assignments in the ERP.
   final String plandailyId;
+  final String? photoBefore1Path;
+  final String? photoBefore2Path;
 
   /// Creates a new StartJobParams instance.
   ///
@@ -35,6 +37,8 @@ class StartJobParams {
   ///   - plandailyId: Must not be empty. Backend will validate existence.
   StartJobParams({
     required this.plandailyId,
+    this.photoBefore1Path,
+    this.photoBefore2Path,
   });
 }
 
@@ -126,6 +130,10 @@ class StartJobUseCase {
     // - Data transformation
     // - ERP integration
     // The use case simply delegates and returns the result.
-    return await repository.startJobExecution(params.plandailyId);
+    return await repository.startJobExecution(
+      params.plandailyId,
+      photoBefore1Path: params.photoBefore1Path,
+      photoBefore2Path: params.photoBefore2Path,
+    );
   }
 }

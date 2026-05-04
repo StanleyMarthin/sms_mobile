@@ -9,6 +9,7 @@ class CountdownUnit {
     required this.status,
     required this.division,
     this.deliveryDate,
+    this.contractDeliveryDate,
   });
 
   final String carId;
@@ -18,12 +19,51 @@ class CountdownUnit {
   final String status;
   final String division;
   final String? deliveryDate;
+  /// Alias for [deliveryDate] — used in grouped monitoring pages.
+  final String? contractDeliveryDate;
+}
+
+/// Level 2 response: list divisi per unit.
+class CountdownDivision {
+  const CountdownDivision({
+    required this.divisionId,
+    required this.divisionName,
+    required this.code,
+    required this.divisionProgress,
+  });
+  final int divisionId;
+  final String divisionName;
+  final String code;
+  final double divisionProgress;
+}
+
+/// Level 3 response: list section/panel per divisi.
+class CountdownSection {
+  const CountdownSection({
+    required this.panelId,
+    required this.sectionName,
+    required this.section,
+    required this.totalJobdesc,
+    required this.totalRemainingHours,
+    required this.totalTargetHours,
+    required this.sectionProgress,
+    required this.sectionStatus,
+  });
+  final int panelId;
+  final String sectionName;
+  final String section;
+  final int totalJobdesc;
+  final double totalRemainingHours;
+  final double totalTargetHours;
+  final double sectionProgress;
+  final String sectionStatus;
 }
 
 class CountdownJobdesc {
   const CountdownJobdesc({
     required this.id,
     required this.carId,
+    required this.divisionId,
     required this.panelName,
     required this.sectionName,
     required this.jobdesc,
@@ -47,14 +87,20 @@ class CountdownJobdesc {
     this.requestedRevisionHours,
     this.requestedRevisionDeadline,
     this.requestedRevisionReason,
+    this.requestedRevisionByName,
+    this.requestedRevisionAt,
     this.approvedRevisionHours,
     this.approvedRevisionDeadline,
     this.approvedRevisionByName,
+    this.approvedRevisionAt,
     this.rejectedRevisionByName,
+    this.rejectedRevisionAt,
+    this.isLockedByOtherDivision = false,
   });
 
   final String id;
   final String carId;
+  final String divisionId;
   final String panelName;
   final String sectionName;
   final String jobdesc;
@@ -78,10 +124,15 @@ class CountdownJobdesc {
   final double? requestedRevisionHours;
   final String? requestedRevisionDeadline;
   final String? requestedRevisionReason;
+  final String? requestedRevisionByName;
+  final DateTime? requestedRevisionAt;
   final double? approvedRevisionHours;
   final String? approvedRevisionDeadline;
   final String? approvedRevisionByName;
+  final DateTime? approvedRevisionAt;
   final String? rejectedRevisionByName;
+  final DateTime? rejectedRevisionAt;
+  final bool isLockedByOtherDivision;
 }
 
 class CountdownDetailItem {

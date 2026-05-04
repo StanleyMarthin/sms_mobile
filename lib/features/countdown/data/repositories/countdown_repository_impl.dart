@@ -8,11 +8,11 @@ import '../datasources/local_countdown_datasource.dart';
 class CountdownRepositoryImpl implements CountdownRepository {
   const CountdownRepositoryImpl({
     required this.dataSource,
-    required this.qcDataSource,
+    this.qcDataSource,
   });
 
   final CountdownDataSource dataSource;
-  final QcDataSource qcDataSource;
+  final QcDataSource? qcDataSource;
 
   @override
   Future<List<CountdownUnit>> getUnits({
@@ -21,26 +21,73 @@ class CountdownRepositoryImpl implements CountdownRepository {
   }) async {
     final units = await dataSource.getUnits();
     final normalizedDivision = division?.trim().toUpperCase();
-    final canSeeAll = role == 'pm' || role == 'adv' || normalizedDivision == 'MANAGEMENT';
+    final canSeeAll =
+        role == 'pm' || role == 'adv' || normalizedDivision == 'MANAGEMENT';
     final filtered = canSeeAll
         ? units
         : units.where((item) {
-            final unitDivision = (item['division'] as String?)?.trim().toUpperCase();
+            final unitDivision =
+                (item['division'] as String?)?.trim().toUpperCase();
             return unitDivision == normalizedDivision;
           }).toList();
     final visibleUnits = filtered.isEmpty ? units : filtered;
     return visibleUnits.map(_mapUnit).toList();
   }
 
+
+
   @override
-  Future<List<CountdownJobdesc>> getCountdowns(String carId) async {
-    final rows = await dataSource.getCountdowns(carId);
-    return Future.wait(
-      rows.map((item) async {
-        final qcItem = await qcDataSource.findQcItemByCoreId(item['id'] as String);
-        return _mapCountdown(item, qcItem);
-      }),
+  Future<List<CountdownDivision>> getDivisions(String carId) async {
+    final rows = await dataSource.getDivisions(carId);
+    return rows.map((item) => CountdownDivision(
+      divisionId: (item['divisionId'] as num?)?.toInt() ?? 0,
+      divisionName: (item['divisionName'] as String?) ?? '-',
+      code: (item['code'] as String?) ?? '',
+      divisionProgress: ((item['divisionProgress'] as num?) ?? 0).toDouble(),
+    )).toList();
+  }
+
+  @override
+  Future<List<CountdownSection>> getSections({
+    required String carId,
+    required int divisionId,
+    String? search,
+    String? status,
+  }) async {
+    final rows = await dataSource.getSections(carId: carId, divisionId: divisionId, search: search, status: status);
+    return rows.map((item) => CountdownSection(
+      panelId: (item['panelId'] as num?)?.toInt() ?? 0,
+      sectionName: (item['sectionName'] as String?) ?? '-',
+      section: (item['section'] as String?) ?? '-',
+      totalJobdesc: (item['totalJobdesc'] as int?) ?? 0,
+      totalRemainingHours: ((item['totalRemainingHours'] as num?) ?? 0).toDouble(),
+      totalTargetHours: ((item['totalTargetHours'] as num?) ?? 0).toDouble(),
+      sectionProgress: ((item['sectionProgress'] as num?) ?? 0).toDouble(),
+      sectionStatus: (item['sectionStatus'] as String?) ?? 'PLAN',
+    )).toList();
+  }
+
+  @override
+  Future<List<CountdownJobdesc>> getJobdescs({
+    required String carId,
+    required int divisionId,
+    required int panelId,
+    String? search,
+    String? status,
+  }) async {
+    final rows = await dataSource.getJobdescs(
+      carId: carId,
+      divisionId: divisionId,
+      panelId: panelId,
+      search: search,
+      status: status,
     );
+    return Future.wait(rows.map((item) async {
+      final qcItem = qcDataSource != null
+          ? await qcDataSource!.findQcItemByCoreId(item['id'] as String? ?? '')
+          : null;
+      return _mapCountdown(item, qcItem);
+    }));
   }
 
   @override
@@ -65,43 +112,47 @@ class CountdownRepositoryImpl implements CountdownRepository {
     Map<String, dynamic> item,
     Map<String, dynamic>? qcItem,
   ) {
-    final qcValidationStatus = qcItem?['validationStatus'] as String?;
-    final qcResultStatus = qcItem?['resultStatus'] as String?;
-    final kdCheckpointDone = qcItem?['kdCheckpointBy'] != null || qcValidationStatus == 'KD_DONE';
-    final qcLastStatus = kdCheckpointDone && qcResultStatus == 'LOLOS'
+    final qcLastStatusFromItem = (qcItem?['qcLastStatus'] as String?)?.toUpperCase();
+    final qcLevel = qcItem?['qcLevel'] as String?;
+    final kdCheckpointDone = qcLastStatusFromItem == 'LOLOS' || qcLastStatusFromItem == 'TIDAK_LOLOS';
+    final qcLastStatus = kdCheckpointDone && qcLastStatusFromItem == 'LOLOS'
         ? 'LOLOS'
-        : item['qcLastStatus'] as String?;
+        : (qcLastStatusFromItem ?? item['qcLastStatus'] as String?);
 
     return CountdownJobdesc(
-      id: item['id'] as String,
-      carId: item['carId'] as String,
-      panelName: item['panelName'] as String,
-      sectionName: item['sectionName'] as String,
-      jobdesc: item['jobdesc'] as String,
-      taskCategory: item['taskCategory'] as String,
-      progress: item['actualProgressPercent'] as int,
-      status: item['status'] as String,
-      targetHoursInitial: (item['targetHoursInitial'] as num).toDouble(),
-      timeExtensionHours: (item['timeExtensionHours'] as num).toDouble(),
-      targetHoursRevised: (item['targetHoursRevised'] as num).toDouble(),
-      totalActualHours: (item['totalActualHours'] as num).toDouble(),
-      remainingHours: (item['remainingHours'] as num).toDouble(),
-      startDate: item['startDate'] as String,
-      deadlineDate: item['deadlineDate'] as String,
+      id: (item['id'] as String?) ?? '',
+      carId: (item['carId'] as String?) ?? '',
+      divisionId: (item['divisionId'] ?? item['division_id'] ?? '').toString(),
+      panelName: (item['panelName'] as String?) ?? '-',
+      sectionName: (item['sectionName'] as String?) ?? '-',
+      jobdesc: (item['jobdesc'] as String?) ?? '-',
+      taskCategory: (item['taskCategory'] as String?) ?? 'MAIN',
+      progress: (item['actualProgressPercent'] as int?) ?? 0,
+      status: (item['status'] as String?) ?? 'PLAN',
+      targetHoursInitial: ((item['targetHoursInitial'] as num?) ?? 0).toDouble(),
+      timeExtensionHours: ((item['timeExtensionHours'] as num?) ?? 0).toDouble(),
+      targetHoursRevised: ((item['targetHoursRevised'] as num?) ?? 0).toDouble(),
+      totalActualHours: ((item['totalActualHours'] as num?) ?? 0).toDouble(),
+      remainingHours: ((item['remainingHours'] as num?) ?? 0).toDouble(),
+      startDate: (item['startDate'] as String?) ?? DateTime.now().toIso8601String().split('T').first,
+      deadlineDate: (item['deadlineDate'] as String?) ?? '-',
       qcLastStatus: qcLastStatus,
-      qcValidationStatus: qcValidationStatus,
-      qcResultStatus: qcResultStatus,
-      qcEstimatedReworkHours: (qcItem?['estimatedReworkHours'] as num?)?.toDouble(),
-      qcReworkDeadlineDate: qcItem?['reworkDeadlineDate'] as String?,
-      qcAdvisorNotes: (qcItem?['pmNotes'] as String?) ?? (qcItem?['advNotes'] as String?),
+      qcValidationStatus: qcLevel, // gunakan qcLevel sebagai validationStatus
+      qcResultStatus: qcLastStatusFromItem,
+      qcEstimatedReworkHours: null,
+      qcReworkDeadlineDate: qcItem?['reworkDate'] as String?,
+      qcAdvisorNotes: qcItem?['qcNotes'] as String?,
       revisionRequestStatus: item['extensionRequestStatus'] as String?,
-      requestedRevisionHours: (item['extensionRequestedHours'] as num?)?.toDouble(),
+      requestedRevisionHours:
+          (item['extensionRequestedHours'] as num?)?.toDouble(),
       requestedRevisionDeadline: item['extensionRequestedDeadline'] as String?,
       requestedRevisionReason: item['extensionRequestReason'] as String?,
-      approvedRevisionHours: (item['extensionApprovedHours'] as num?)?.toDouble(),
+      approvedRevisionHours:
+          (item['extensionApprovedHours'] as num?)?.toDouble(),
       approvedRevisionDeadline: item['extensionApprovedDeadline'] as String?,
       approvedRevisionByName: item['extensionApprovedByName'] as String?,
       rejectedRevisionByName: item['extensionRejectedByName'] as String?,
+      isLockedByOtherDivision: item['isLockedByOtherDivision'] as bool? ?? false,
     );
   }
 
@@ -121,6 +172,91 @@ class CountdownRepositoryImpl implements CountdownRepository {
       overtimeHours: (item['overtimeHours'] as num).toDouble(),
       percentage: (item['percentage'] as num).toDouble(),
       status: item['status'] as String,
+    );
+  }
+
+  @override
+  Future<List<CountdownJobdesc>> getRevisionRequests({String? carId}) async {
+    final rows = await dataSource.getRevisionRequests(carId: carId);
+    return rows.map((item) {
+      return CountdownJobdesc(
+        id: item['countdownId'] as String? ?? '',
+        carId: item['carId'] as String? ?? '',
+        divisionId: (item['divisionId'] ?? '').toString(),
+        panelName: item['panelName'] as String? ?? '-',
+        sectionName: '-',
+        jobdesc: item['jobdesc'] as String? ?? '-',
+        taskCategory: '-',
+        progress: 0,
+        status: item['status'] as String? ?? 'REQUESTED',
+        targetHoursInitial: 0.0,
+        timeExtensionHours: 0.0,
+        targetHoursRevised: (item['currentHours'] as num?)?.toDouble() ?? 0.0,
+        totalActualHours: 0.0,
+        remainingHours: 0.0,
+        startDate: '-',
+        deadlineDate: item['currentDeadline'] as String? ?? '-',
+        qcLastStatus: null,
+        qcValidationStatus: null,
+        qcResultStatus: null,
+        qcEstimatedReworkHours: null,
+        qcReworkDeadlineDate: null,
+        qcAdvisorNotes: null,
+        revisionRequestStatus: item['status'] as String?,
+        requestedRevisionHours: (item['requestedHours'] as num?)?.toDouble(),
+        requestedRevisionDeadline: item['requestedDeadline'] as String?,
+        requestedRevisionReason: item['reason'] as String?,
+        requestedRevisionByName: item['requestedByName'] as String?,
+        requestedRevisionAt: DateTime.tryParse(item['requestedAt']?.toString() ?? ''),
+      );
+    }).toList();
+  }
+
+  @override
+  Future<void> requestRevision({
+    required String countdownId,
+    required double requestedHours,
+    required String requestedDeadline,
+    required String reason,
+  }) {
+    return dataSource.requestRevision(
+      countdownId: countdownId,
+      requestedHours: requestedHours,
+      requestedDeadline: requestedDeadline,
+      reason: reason,
+    );
+  }
+
+  @override
+  Future<void> processRevisionRequest({
+    required String requestId,
+    required bool approved,
+    required double approvedHours,
+    required String approvedDeadline,
+  }) {
+    return dataSource.processRevisionRequest(
+      requestId: requestId,
+      approved: approved,
+      approvedHours: approvedHours,
+      approvedDeadline: approvedDeadline,
+    );
+  }
+
+  @override
+  Future<void> markAsQcReady(String countdownId) {
+    return dataSource.markAsQcReady(countdownId);
+  }
+
+  @override
+  Future<void> moApproveRevision({
+    required String requestId,
+    required bool approved,
+    String? notes,
+  }) {
+    return dataSource.moApproveRevision(
+      requestId: requestId,
+      approved: approved,
+      notes: notes,
     );
   }
 }

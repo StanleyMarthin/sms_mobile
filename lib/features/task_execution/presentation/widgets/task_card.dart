@@ -200,14 +200,18 @@ class TaskCard extends StatelessWidget {
 
   // ── Category + Division badges ──────────────────────────
   Widget _buildBadgeRow() {
-    return Row(
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         _badge(
           _categoryLabel(task.taskCategory),
           _categoryColor(task.taskCategory),
         ),
-        const SizedBox(width: 8),
         _badge(task.divisionName, AppColors.textDisabled),
+        if (task.isPriority) _badge('Priority', AppColors.statusLocked),
+        if (task.isRework) _badge('Rework', AppColors.orange),
+        if (task.isOvertime) _badge('Overtime', AppColors.gold),
       ],
     );
   }

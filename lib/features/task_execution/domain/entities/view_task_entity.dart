@@ -235,6 +235,10 @@ class ViewTaskEntity extends Equatable {
 
   final int maxCheckpointSessions;
 
+  final List<String> photosBefore;
+  final List<String> photosProcess;
+  final List<String> photosAfter;
+
   const ViewTaskEntity({
     required this.planDailyId,
     required this.division,
@@ -245,6 +249,9 @@ class ViewTaskEntity extends Equatable {
     this.checkpointHistory = const [],
     this.finalValidations = const [],
     this.maxCheckpointSessions = 3,
+    this.photosBefore = const [],
+    this.photosProcess = const [],
+    this.photosAfter = const [],
   });
 
   /// Whether the task is completed.
@@ -286,6 +293,9 @@ class ViewTaskEntity extends Equatable {
         checkpointHistory,
         finalValidations,
         maxCheckpointSessions,
+        photosBefore,
+        photosProcess,
+        photosAfter,
       ];
 }
 

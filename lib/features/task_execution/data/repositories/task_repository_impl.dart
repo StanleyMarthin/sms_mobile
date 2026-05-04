@@ -129,8 +129,7 @@ class TaskRepositoryImpl implements TaskRepository {
       /// Special handling for 423 Locked status code
       if (exception.statusCode == 423) {
         return LockingFailure(
-          message: exception.message ??
-              'Panel is locked by another worker',
+          message: exception.message ?? 'Panel is locked by another worker',
         );
       }
       return ClientFailure(
@@ -164,9 +163,7 @@ class TaskRepositoryImpl implements TaskRepository {
       );
 
       /// Convert all models to entities and return success
-      final taskEntities = taskModels
-          .map((model) => model.toEntity())
-          .toList();
+      final taskEntities = taskModels.map((model) => model.toEntity()).toList();
 
       return Right(taskEntities);
     } catch (e) {
@@ -189,7 +186,11 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<Either<Failure, TaskEntity>> startJobExecution(String plandailyId) async {
+  Future<Either<Failure, TaskEntity>> startJobExecution(
+    String plandailyId, {
+    String? photoBefore1Path,
+    String? photoBefore2Path,
+  }) async {
     try {
       /// Call data source to start job on backend
       /// Backend will:
@@ -197,7 +198,11 @@ class TaskRepositoryImpl implements TaskRepository {
       /// 2. ATOMICALLY lock the panel
       /// 3. Create execution log entry
       /// 4. Return updated task with isPanelLocked=true, startedAt=now
-      final taskModel = await remoteDataSource.startJobExecution(plandailyId);
+      final taskModel = await remoteDataSource.startJobExecution(
+        plandailyId,
+        photoBefore1Path: photoBefore1Path,
+        photoBefore2Path: photoBefore2Path,
+      );
 
       /// Convert model to entity and return success
       return Right(taskModel.toEntity());
@@ -211,7 +216,8 @@ class TaskRepositoryImpl implements TaskRepository {
   }
 
   @override
-  Future<Either<Failure, TaskEntity>> finishJobExecution(String plandailyId) async {
+  Future<Either<Failure, TaskEntity>> finishJobExecution(
+      String plandailyId) async {
     try {
       /// Call data source to finish job (unlock panel)
       final taskModel = await remoteDataSource.finishJobExecution(plandailyId);
@@ -232,6 +238,54 @@ class TaskRepositoryImpl implements TaskRepository {
       final taskModel =
           await remoteDataSource.submitTaskExecution(executionLog);
       return Right(taskModel.toEntity());
+    } catch (e) {
+      return Left(_mapExceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, TaskEntity>> recordBreak(
+    String plandailyId, {
+    required int breakDurationMinutes,
+  }) async {
+    try {
+      final taskModel = await remoteDataSource.recordBreak(
+        plandailyId,
+        breakDurationMinutes: breakDurationMinutes,
+      );
+      return Right(taskModel.toEntity());
+    } catch (e) {
+      return Left(_mapExceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, TaskEntity>> uploadProgressPhoto(
+    String plandailyId, {
+    required String photoUrl,
+    String photoType = 'PROCESS',
+  }) async {
+    try {
+      final taskModel = await remoteDataSource.uploadProgressPhoto(
+        plandailyId,
+        photoUrl: photoUrl,
+        photoType: photoType,
+      );
+      return Right(taskModel.toEntity());
+    } catch (e) {
+      return Left(_mapExceptionToFailure(e));
+    }
+  }
+
+  @override
+  Future<Either<Failure, String>> getUploadTicket({
+    required String filename,
+  }) async {
+    try {
+      final uploadUrl = await remoteDataSource.getUploadTicket(
+        filename: filename,
+      );
+      return Right(uploadUrl);
     } catch (e) {
       return Left(_mapExceptionToFailure(e));
     }

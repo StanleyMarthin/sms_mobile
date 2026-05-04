@@ -23,10 +23,10 @@ enum UserRole {
   static UserRole? fromString(String? value) {
     if (value == null) return null;
     return switch (value.toLowerCase()) {
-      'op' => UserRole.op,
-      'kd' => UserRole.kd,
-      'adv' => UserRole.adv,
-      'pm' => UserRole.pm,
+      'op' || 'team_lapangan' => UserRole.op,
+      'kd' || 'ketua_divisi' => UserRole.kd,
+      'adv' || 'advisor' => UserRole.adv,
+      'pm' || 'mp' || 'manager_produksi' || 'admin' || 'kepala_produksi' || 'manager_operational' || 'mis' => UserRole.pm,
       _ => null,
     };
   }
@@ -55,6 +55,11 @@ enum Permission {
   countdownView,
   countdownDetailView,
   monitoringView,
+
+  // ── Purchase Request (PR) ──────────────────────────────
+  prView,
+  prCreate,
+  prApprove,
 
   // ── Task Execution ─────────────────────────────────────
   taskExecute, // Start/finish jobs (mechanic only)
@@ -92,6 +97,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.woReject,
     Permission.woView,
     Permission.qcView,
+    Permission.qcSubmit,   // MO/MP/Admin bisa submit QC secara independen
     Permission.qcValidate,
     Permission.taskView,
     Permission.taskAssign,
@@ -101,6 +107,8 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.countdownDetailView,
     Permission.monitoringView,
     Permission.notificationsView,
+    Permission.prView,
+    Permission.prApprove,
     Permission.profileView,
     Permission.dashboardKd,
   },
@@ -110,11 +118,14 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.woReject,
     Permission.woView,
     Permission.qcView,
+    Permission.qcSubmit,   // ADV bisa submit QC secara independen
     Permission.qcValidate,
     Permission.taskView,
     Permission.taskCheckpoint,
     Permission.monitoringView,
     Permission.notificationsView,
+    Permission.prView,
+    Permission.prApprove,
     Permission.profileView,
     Permission.dashboardKd,
   },
@@ -134,12 +145,15 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.warehouseApprove,
     Permission.warehouseLogsView,
     Permission.notificationsView,
+    Permission.prView,
+    Permission.prCreate,
     Permission.profileView,
     Permission.dashboardKd,
   },
   'op': {
     Permission.taskExecute,
     Permission.taskView,
+    Permission.taskCheckpoint,
     Permission.warehouseRequest,
     Permission.warehouseLogsView,
     Permission.notificationsView,
@@ -151,11 +165,24 @@ const Map<String, Set<Permission>> rolePermissions = {
 /// Checks if the given [role] has the specified [permission].
 bool hasPermission(String? role, Permission permission) {
   if (role == null) return false;
-  return rolePermissions[role]?.contains(permission) ?? false;
+  return getPermissions(role).contains(permission);
 }
 
 /// Returns all permissions for a given [role].
 Set<Permission> getPermissions(String? role) {
   if (role == null) return {};
-  return rolePermissions[role] ?? {};
+  final normalized = role.toLowerCase();
+  
+  // Alias new BE roles to legacy FE roles to maintain UI mappings
+  if (normalized == 'manager_produksi' || normalized == 'mp' || normalized == 'admin' || normalized == 'kepala_produksi' || normalized == 'manager_operational' || normalized == 'mis') {
+    return rolePermissions['pm'] ?? {};
+  } else if (normalized == 'ketua_divisi') {
+    return rolePermissions['kd'] ?? {};
+  } else if (normalized == 'advisor') {
+    return rolePermissions['adv'] ?? {};
+  } else if (normalized == 'team_lapangan') {
+    return rolePermissions['op'] ?? {};
+  }
+
+  return rolePermissions[normalized] ?? {};
 }

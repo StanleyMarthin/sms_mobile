@@ -6,6 +6,39 @@ library;
 
 import '../../domain/entities/view_task_entity.dart';
 
+String _asString(dynamic value, {String fallback = ''}) {
+  if (value == null) return fallback;
+  final text = value.toString();
+  return text.isEmpty ? fallback : text;
+}
+
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value == null) return fallback;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is bool) return value ? 1 : 0;
+  if (value is String) {
+    final parsed = int.tryParse(value.trim());
+    if (parsed != null) return parsed;
+    final lower = value.trim().toLowerCase();
+    if (lower == 'true') return 1;
+    if (lower == 'false') return 0;
+  }
+  return fallback;
+}
+
+bool _asBool(dynamic value, {bool fallback = false}) {
+  if (value == null) return fallback;
+  if (value is bool) return value;
+  if (value is num) return value != 0;
+  if (value is String) {
+    final lower = value.trim().toLowerCase();
+    if (lower == 'true' || lower == '1') return true;
+    if (lower == 'false' || lower == '0') return false;
+  }
+  return fallback;
+}
+
 class TaskCheckpointReviewerModel {
   final String role;
   final String name;
@@ -27,7 +60,8 @@ class TaskCheckpointReviewerModel {
         'name': name,
       };
 
-  TaskCheckpointReviewer toEntity() => TaskCheckpointReviewer(role: role, name: name);
+  TaskCheckpointReviewer toEntity() =>
+      TaskCheckpointReviewer(role: role, name: name);
 }
 
 class TaskCheckpointSessionModel {
@@ -63,11 +97,12 @@ class TaskCheckpointSessionModel {
     final legacyValidated = json['isValidated'] == true;
 
     return TaskCheckpointSessionModel(
-      sessionNumber: (json['sessionNumber'] as num?)?.toInt() ?? 1,
+      sessionNumber: _asInt(json['sessionNumber'], fallback: 1),
       startWorkTime: json['startWorkTime'] as String? ?? '--:--',
-      finishWorkTime:
-          json['finishWorkTime'] as String? ?? json['checkpointTime'] as String? ?? '--:--',
-      progress: (json['progress'] as num?)?.toInt() ?? 0,
+      finishWorkTime: json['finishWorkTime'] as String? ??
+          json['checkpointTime'] as String? ??
+          '--:--',
+      progress: _asInt(json['progress']),
       checkpointTime: json['checkpointTime'] as String? ?? '--:--',
       jobStatus: json['jobStatus'] as String? ?? 'ON_PROGRESS',
       actorRole: json['actorRole'] as String? ?? 'kd',
@@ -75,7 +110,10 @@ class TaskCheckpointSessionModel {
       reviewers: reviewerItems.isNotEmpty
           ? reviewerItems
           : (legacyValidated && legacyRole != null && legacyName != null)
-              ? [TaskCheckpointReviewerModel(role: legacyRole, name: legacyName)]
+              ? [
+                  TaskCheckpointReviewerModel(
+                      role: legacyRole, name: legacyName)
+                ]
               : const [],
     );
   }
@@ -160,8 +198,8 @@ class TaskDivisionModel {
 
   factory TaskDivisionModel.fromJson(Map<String, dynamic> json) {
     return TaskDivisionModel(
-      divisionId: json['divisionId'] as String,
-      divisionName: json['divisionName'] as String,
+      divisionId: _asString(json['divisionId']),
+      divisionName: _asString(json['divisionName'], fallback: '-'),
     );
   }
 
@@ -188,8 +226,8 @@ class TaskUnitModel {
 
   factory TaskUnitModel.fromJson(Map<String, dynamic> json) {
     return TaskUnitModel(
-      unitId: json['unitId'] as String,
-      unitName: json['unitName'] as String,
+      unitId: _asString(json['unitId']),
+      unitName: _asString(json['unitName'], fallback: '-'),
     );
   }
 
@@ -216,8 +254,8 @@ class TaskEmployeeModel {
 
   factory TaskEmployeeModel.fromJson(Map<String, dynamic> json) {
     return TaskEmployeeModel(
-      employeeId: json['employeeId'] as String,
-      employeeName: json['employeeName'] as String,
+      employeeId: _asString(json['employeeId']),
+      employeeName: _asString(json['employeeName'], fallback: '-'),
     );
   }
 
@@ -254,14 +292,13 @@ class TaskDetailModel {
 
   factory TaskDetailModel.fromJson(Map<String, dynamic> json) {
     return TaskDetailModel(
-      namaPanel: json['namaPanel'] as String,
-      jobName: json['jobName'] as String,
-      jobDescription: json['jobDescription'] as String,
-      startTime: json['startTime'] as String,
-      targetFinishTime: json['targetFinishTime'] as String,
-      isRework: (json['is_rework'] as num?)?.toInt() == 1 ||
-          json['isRework'] == true,
-      breakDuration: (json['breakDuration'] as num?)?.toInt() ?? 0,
+      namaPanel: _asString(json['namaPanel'], fallback: '-'),
+      jobName: _asString(json['jobName'], fallback: '-'),
+      jobDescription: _asString(json['jobDescription']),
+      startTime: _asString(json['startTime'], fallback: '-'),
+      targetFinishTime: _asString(json['targetFinishTime'], fallback: '-'),
+      isRework: _asBool(json['is_rework']) || _asBool(json['isRework']),
+      breakDuration: _asInt(json['breakDuration']),
     );
   }
 
@@ -297,6 +334,9 @@ class ViewTaskModel {
   final List<TaskCheckpointSessionModel> checkpointHistory;
   final List<TaskFinalValidationModel> finalValidations;
   final int maxCheckpointSessions;
+  final List<String> photosBefore;
+  final List<String> photosProcess;
+  final List<String> photosAfter;
 
   const ViewTaskModel({
     required this.planDailyId,
@@ -308,6 +348,9 @@ class ViewTaskModel {
     required this.checkpointHistory,
     required this.finalValidations,
     required this.maxCheckpointSessions,
+    this.photosBefore = const [],
+    this.photosProcess = const [],
+    this.photosAfter = const [],
   });
 
   factory ViewTaskModel.fromJson(Map<String, dynamic> json) {
@@ -316,10 +359,11 @@ class ViewTaskModel {
         .whereType<Map<String, dynamic>>()
         .map(TaskCheckpointSessionModel.fromJson)
         .toList();
-    final finalValidationItems = (json['finalValidations'] as List<dynamic>? ?? [])
-      .whereType<Map<String, dynamic>>()
-      .map(TaskFinalValidationModel.fromJson)
-      .toList();
+    final finalValidationItems =
+        (json['finalValidations'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(TaskFinalValidationModel.fromJson)
+            .toList();
     final legacyValidation = json['validation'] as Map<String, dynamic>?;
     final legacyApproved = legacyValidation?['approved'] == true;
     final legacyRole = legacyValidation?['role'] as String?;
@@ -327,15 +371,20 @@ class ViewTaskModel {
     final legacyNote = legacyValidation?['note'] as String? ?? '';
     final legacyTime = legacyValidation?['time'] as String? ?? '';
 
+    final photosJson = json['photos'] as Map<String, dynamic>? ?? {};
+    final pBefore = (photosJson['before'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final pProcess = (photosJson['process'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final pAfter = (photosJson['after'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+
     return ViewTaskModel(
-      planDailyId: json['planDailyId'] as String,
-      division: TaskDivisionModel.fromJson(
-          json['division'] as Map<String, dynamic>),
+      planDailyId: _asString(json['planDailyId']),
+      division:
+          TaskDivisionModel.fromJson(json['division'] as Map<String, dynamic>),
       unit: TaskUnitModel.fromJson(json['unit'] as Map<String, dynamic>),
-      employee: TaskEmployeeModel.fromJson(
-          json['employee'] as Map<String, dynamic>),
+      employee:
+          TaskEmployeeModel.fromJson(json['employee'] as Map<String, dynamic>),
       task: TaskDetailModel.fromJson(taskJson),
-      status: json['status'] as String,
+      status: _asString(json['status'], fallback: 'PLAN'),
       checkpointHistory: checkpointItems,
       finalValidations: finalValidationItems.isNotEmpty
           ? finalValidationItems
@@ -350,7 +399,11 @@ class ViewTaskModel {
                   ),
                 ]
               : const [],
-      maxCheckpointSessions: (json['maxCheckpointSessions'] as num?)?.toInt() ?? 3,
+      maxCheckpointSessions:
+          _asInt(json['maxCheckpointSessions'], fallback: 3),
+      photosBefore: pBefore,
+      photosProcess: pProcess,
+      photosAfter: pAfter,
     );
   }
 
@@ -361,11 +414,12 @@ class ViewTaskModel {
         'employee': employee.toJson(),
         'task': task.toJson(),
         'status': status,
-        'checkpointHistory': checkpointHistory.map((item) => item.toJson()).toList(),
-        'finalValidations': finalValidations.map((item) => item.toJson()).toList(),
-        'validation': finalValidations.isNotEmpty
-            ? finalValidations.last.toJson()
-            : null,
+        'checkpointHistory':
+            checkpointHistory.map((item) => item.toJson()).toList(),
+        'finalValidations':
+            finalValidations.map((item) => item.toJson()).toList(),
+        'validation':
+            finalValidations.isNotEmpty ? finalValidations.last.toJson() : null,
         'maxCheckpointSessions': maxCheckpointSessions,
       };
 
@@ -376,8 +430,10 @@ class ViewTaskModel {
         employee: employee.toEntity(),
         task: task.toEntity(),
         status: status,
-        checkpointHistory: checkpointHistory.map((item) => item.toEntity()).toList(),
-        finalValidations: finalValidations.map((item) => item.toEntity()).toList(),
+        checkpointHistory:
+            checkpointHistory.map((item) => item.toEntity()).toList(),
+        finalValidations:
+            finalValidations.map((item) => item.toEntity()).toList(),
         maxCheckpointSessions: maxCheckpointSessions,
       );
 }

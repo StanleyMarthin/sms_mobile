@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/entities/task_entity.dart';
 
@@ -12,7 +14,7 @@ import '../../domain/entities/task_entity.dart';
 ///
 /// Only captures:
 /// - Start time (auto-filled with current time, editable)
-/// - Photo Before (optional)
+/// - Photo Before (required by backend)
 ///
 /// On "Mulai", creates a [TaskDraft] and passes it to [onStart].
 /// This draft is saved locally — NO API call at this step.
@@ -128,7 +130,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
               _sectionLabel('Foto Before', Icons.camera_alt_outlined),
               const SizedBox(height: 4),
               const Text(
-                'Ambil foto kondisi sebelum mulai (opsional)',
+                'Ambil foto kondisi sebelum mulai.',
                 style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
               const SizedBox(height: 10),
@@ -304,6 +306,8 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                     borderRadius: BorderRadius.circular(9),
                     child: Image.file(
                       File(_photoBeforePath!),
+                      cacheWidth: 360,
+                      cacheHeight: 360,
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -311,8 +315,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                     top: 6,
                     right: 6,
                     child: GestureDetector(
-                      onTap: () =>
-                          setState(() => _photoBeforePath = null),
+                      onTap: () => setState(() => _photoBeforePath = null),
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
@@ -344,67 +347,37 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   }
 
   Future<void> _pickPhoto() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.camera_alt, color: AppColors.gold),
-                title: const Text('Kamera',
-                    style: TextStyle(color: AppColors.textPrimary)),
-                onTap: () => Navigator.pop(ctx, ImageSource.camera),
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.photo_library, color: AppColors.gold),
-                title: const Text('Galeri',
-                    style: TextStyle(color: AppColors.textPrimary)),
-                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-              ),
-            ],
-          ),
+    // Save context before entering camera
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentRoute = GoRouterState.of(context).uri.toString();
+      String targetRoute = currentRoute;
+      if (!targetRoute.contains('taskId=')) {
+        targetRoute += targetRoute.contains('?') ? '&' : '?';
+        targetRoute += 'taskId=${widget.task.plandailyId}';
+      }
+      await prefs.setString('pending_camera_route', targetRoute);
+      await prefs.setString('pending_camera_slot', 'before');
+    } catch (_) {}
+
+    final path = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => const InAppCameraPage(
+          slot: 'before',
+          label: 'Foto Before (Sebelum Pekerjaan)',
         ),
+        fullscreenDialog: true,
       ),
     );
 
-    if (source == null) return;
-
     try {
-      final picked = await _picker.pickImage(
-        source: source,
-        maxWidth: 1280,
-        maxHeight: 1280,
-        imageQuality: 80,
-      );
-      if (!mounted || picked == null) return;
-      setState(() => _photoBeforePath = picked.path);
-    } on PlatformException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Gagal membuka ${source == ImageSource.camera ? 'kamera' : 'galeri'}: ${error.message ?? error.code}',
-          ),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Terjadi kendala saat mengambil foto.'),
-        ),
-      );
-    }
-  }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('pending_camera_slot');
+    } catch (_) {}
 
+    if (!mounted || path == null) return;
+    setState(() => _photoBeforePath = path);
+  }
   Widget _startButton() {
     return SizedBox(
       width: double.infinity,
@@ -428,6 +401,15 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   }
 
   void _doStart() {
+    if (_photoBeforePath == null || _photoBeforePath!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Foto wajib diambil sebelum mulai pekerjaan.'),
+        ),
+      );
+      return;
+    }
+
     final now = DateTime.now();
     final startDt = DateTime(
       now.year,

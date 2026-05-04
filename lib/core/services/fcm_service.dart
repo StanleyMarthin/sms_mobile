@@ -1,0 +1,174 @@
+import 'dart:io' show Platform;
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Color;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+// ──────────────────────────────────────────────────────────────────
+// Navigator key — diisi oleh app_router, dipakai untuk navigasi
+// dari notifikasi ketika app sedang background/terminated.
+// ──────────────────────────────────────────────────────────────────
+import '../router/app_router.dart';
+import '../di/injection.dart';
+import 'notification_inbox_service.dart';
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp();
+  }
+  await NotificationInboxService.persistBackgroundMessage(message);
+  debugPrint(
+      '[FCM] Background message: ${message.messageId} | title=${message.notification?.title}');
+}
+
+// Channel Android
+const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+  'sm_system_channel',
+  'SM System Notifications',
+  description: 'Notifikasi sistem Stanley Marthin Workshop',
+  importance: Importance.max,
+  playSound: true,
+);
+
+class FCMService {
+  static final FCMService _instance = FCMService._internal();
+  factory FCMService() => _instance;
+  FCMService._internal();
+
+  FirebaseMessaging? _messaging;
+  bool _initialized = false;
+
+  final FlutterLocalNotificationsPlugin _localNotif =
+      FlutterLocalNotificationsPlugin();
+
+  Future<void> init() async {
+    try {
+      if (Firebase.apps.isEmpty) {
+        await Firebase.initializeApp();
+      }
+
+      _messaging = FirebaseMessaging.instance;
+      _initialized = true;
+
+      await _messaging!.setAutoInitEnabled(true);
+
+      // ── Izin notifikasi (Android 13+ & iOS) ─────────────────────
+      await _messaging!.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+
+      // ── Setup local notifications (foreground android) ──────────
+      if (Platform.isAndroid) {
+        await _localNotif
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.createNotificationChannel(_channel);
+      }
+
+      await _localNotif.initialize(
+        const InitializationSettings(
+          android: AndroidInitializationSettings('@drawable/ic_notification'),
+          iOS: DarwinInitializationSettings(),
+        ),
+        onDidReceiveNotificationResponse: (details) {
+          // User tap notif lokal (foreground)
+          _handleMessageData(details.payload ?? '');
+        },
+      );
+
+      // ── Background messages ──────────────────────────────────────
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
+
+      // ── Foreground messages: tampilkan sebagai local notification ─
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint('[FCM] Foreground | title=${message.notification?.title}');
+        sl<NotificationInboxService>().saveRemoteMessage(message);
+        final notif = message.notification;
+        final android = message.notification?.android;
+        if (notif != null && android != null) {
+          _localNotif.show(
+            notif.hashCode,
+            notif.title,
+            notif.body,
+            NotificationDetails(
+              android: AndroidNotificationDetails(
+                _channel.id,
+                _channel.name,
+                channelDescription: _channel.description,
+                icon: '@drawable/ic_notification',
+                importance: Importance.max,
+                priority: Priority.high,
+                color: const Color(0xFFFFCF40),
+              ),
+            ),
+            payload: _buildPayload(message.data),
+          );
+        }
+      });
+
+      // ── App dibuka dari notif (saat background) ──────────────────
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+        debugPrint('[FCM] Opened from background | data=${message.data}');
+        _navigateFromMessage(message);
+      });
+
+      // ── App dibuka dari notif (saat terminated) ──────────────────
+      final initialMessage = await _messaging!.getInitialMessage();
+      if (initialMessage != null) {
+        debugPrint(
+            '[FCM] Opened from terminated | data=${initialMessage.data}');
+        // Delay sedikit agar router sudah siap
+        Future<void>.delayed(const Duration(milliseconds: 600), () {
+          _navigateFromMessage(initialMessage);
+        });
+      }
+
+      // ── Token refresh ────────────────────────────────────────────
+      _messaging!.onTokenRefresh.listen((token) {
+        debugPrint('[FCM] Token refreshed: ${token.substring(0, 20)}...');
+      });
+    } catch (e) {
+      debugPrint('[FCM] Init Error: $e');
+    }
+  }
+
+  // ── Navigasi berdasarkan payload data dari notifikasi ─────────
+  void _navigateFromMessage(RemoteMessage message) {
+    final data = message.data;
+    final route = NotificationInboxService.resolveRoute(data);
+    if (appRouter.routerDelegate.navigatorKey.currentContext != null) {
+      appRouter.go(route);
+    }
+  }
+
+  void _handleMessageData(String payload) {
+    if (payload.isEmpty) return;
+    // payload == route string yang sudah di-encode oleh _buildPayload
+    if (appRouter.routerDelegate.navigatorKey.currentContext != null) {
+      appRouter.go(payload);
+    }
+  }
+
+  String _buildPayload(Map<String, dynamic> data) {
+    return NotificationInboxService.resolveRoute(data);
+  }
+
+  Future<String?> getToken() async {
+    if (!_initialized || _messaging == null) {
+      return null;
+    }
+    try {
+      return await _messaging!.getToken();
+    } catch (e) {
+      debugPrint('[FCM] GetToken Error: $e');
+      return null;
+    }
+  }
+}

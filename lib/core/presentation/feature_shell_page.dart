@@ -20,11 +20,13 @@ class FeatureShellPage extends StatelessWidget {
     final session = sl<SessionManager>();
     final subtitle = session.jabatan ?? session.divisionName ?? '';
 
+    final canPopRoute = context.canPop();
+
     return PopScope(
-      canPop: false,
+      canPop: canPopRoute,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          _handleBack(context);
+          context.go('/home');
         }
       },
       child: Scaffold(

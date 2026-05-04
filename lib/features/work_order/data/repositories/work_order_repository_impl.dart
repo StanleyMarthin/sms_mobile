@@ -6,170 +6,138 @@ import '../datasources/work_order_datasource.dart';
 import '../../domain/entities/work_order.dart';
 import '../../domain/repositories/work_order_repository.dart';
 
-/// Implementation of [WorkOrderRepository].
-///
 class WorkOrderRepositoryImpl implements WorkOrderRepository {
   const WorkOrderRepositoryImpl({
     required this.dataSource,
     required this.sessionManager,
   });
 
-  final WorkOrderDataSource dataSource;
+  final WorkOrderRemoteDataSource dataSource;
   final SessionManager sessionManager;
 
-  String get _userId => sessionManager.employeeId ?? '';
-
-  @override
-  Future<Either<Failure, List<WorkOrder>>> getAllWorkOrders() async {
-    try {
-      final items = await dataSource.getAllWorkOrders();
-      return Right(items);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 404));
-    }
+  Either<Failure, T> _handle<T>(Object e, StackTrace s) {
+    final msg = e is StateError ? e.message : e.toString();
+    return Left(ClientFailure(message: msg, statusCode: 400));
   }
 
   @override
-  Future<Either<Failure, List<WorkOrder>>> getMyWorkOrders() async {
-    final allItems = await dataSource.getAllWorkOrders();
-    final myWOs = allItems.where((wo) => wo.requestedById == _userId).toList();
-    return Right(myWOs);
-  }
-
-  @override
-  Future<Either<Failure, WorkOrder>> submitWorkOrder(WorkOrder wo) async {
-    final saved = await dataSource.submitWorkOrder(wo);
-    return Right(saved);
-  }
-
-  @override
-  Future<Either<Failure, WorkOrder>> updateWorkOrder(WorkOrder wo) async {
-    try {
-      final updated = await dataSource.updateWorkOrder(wo);
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 404));
-    }
-  }
-
-  @override
-  Future<Either<Failure, void>> deleteWorkOrder(String woId) async {
-    await dataSource.deleteWorkOrder(woId);
-    return const Right(null);
-  }
-
-  @override
-  Future<Either<Failure, WorkOrder>> approveWorkOrder(
-      String woId, String approverName) async {
-    try {
-      final updated = await dataSource.approveWorkOrder(woId, approverName);
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 400));
-    }
-  }
-
-  @override
-  Future<Either<Failure, WorkOrder>> rejectWorkOrder(
-      String woId, String rejectedBy, String? reason) async {
-    try {
-      final updated = await dataSource.rejectWorkOrder(woId, rejectedBy, reason);
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 404));
-    }
-  }
-
-  @override
-  Future<Either<Failure, WorkOrder>> extendDeadline(
-      String woId, String newDeadline, String reason) async {
-    try {
-      final updated = await dataSource.extendDeadline(woId, newDeadline, reason);
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 404));
-    }
-  }
-
-  @override
-  Future<Either<Failure, WorkOrder>> requestRevision({
-    required String woId,
-    required double requestedEstimatedHours,
-    required String requestedDeadline,
-    required String reason,
-    required String reviewerName,
+  Future<Either<Failure, List<WorkOrder>>> getWorkOrders({
+    String view = 'ACTIVE',
+    int page = 1,
+    int limit = 30,
   }) async {
     try {
-      final updated = await dataSource.requestRevision(
-        woId: woId,
-        requestedEstimatedHours: requestedEstimatedHours,
-        requestedDeadline: requestedDeadline,
-        reason: reason,
-        reviewerName: reviewerName,
-      );
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 400));
-    }
+      return Right(await dataSource.getWorkOrders(view: view, page: page, limit: limit));
+    } catch (e, s) { return _handle(e, s); }
   }
 
   @override
-  Future<Either<Failure, WorkOrder>> respondRevision({
-    required String woId,
-    required bool approve,
-    required String reviewerName,
-    String? note,
+  Future<Either<Failure, WorkOrder>> getWorkOrderById(String woId) async {
+    try {
+      return Right(await dataSource.getWorkOrderById(woId));
+    } catch (e, s) { return _handle(e, s); }
+  }
+
+  @override
+  Future<Either<Failure, WorkOrder>> createWorkOrder({
+    required String carId,
+    required String targetDivId,
+    required String jobDetail,
+    required String targetDate,
+    String? panelName,
+    String? sectionName,
+    String? panelCategory,
+    bool    addPanelToMaster = false,
+    double? targetHours,
   }) async {
     try {
-      final updated = await dataSource.respondRevision(
-        woId: woId,
-        approve: approve,
-        reviewerName: reviewerName,
-        note: note,
-      );
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 400));
-    }
+      return Right(await dataSource.createWorkOrder(
+        carId:            carId,
+        targetDivId:      targetDivId,
+        jobDetail:        jobDetail,
+        targetDate:       targetDate,
+        panelName:        panelName,
+        sectionName:      sectionName,
+        panelCategory:    panelCategory,
+        addPanelToMaster: addPanelToMaster,
+        targetHours:      targetHours,
+      ));
+    } catch (e, s) { return _handle(e, s); }
   }
 
   @override
-  Future<Either<Failure, WorkOrder>> requestDeadlineExtension({
+  Future<Either<Failure, Map<String, dynamic>>> approveWorkOrder({
+    required String woId,
+    double? estimatedHours,
+    String? notes,
+  }) async {
+    try {
+      return Right(await dataSource.approveWorkOrder(woId: woId, estimatedHours: estimatedHours, notes: notes));
+    } catch (e, s) { return _handle(e, s); }
+  }
+
+  @override
+  Future<Either<Failure, void>> rejectWorkOrder({
+    required String woId,
+    required String rejectReason,
+  }) async {
+    try {
+      await dataSource.rejectWorkOrder(woId: woId, rejectReason: rejectReason);
+      return const Right(null);
+    } catch (e, s) { return _handle(e, s); }
+  }
+
+  @override
+  Future<Either<Failure, void>> requestDeadlineExtension({
     required String woId,
     required String newDeadline,
     required String reason,
-    required String requesterName,
   }) async {
     try {
-      final updated = await dataSource.requestDeadlineExtension(
-        woId: woId,
-        newDeadline: newDeadline,
-        reason: reason,
-        requesterName: requesterName,
-      );
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 400));
-    }
+      await dataSource.requestDeadlineExtension(woId: woId, newDeadline: newDeadline, reason: reason);
+      return const Right(null);
+    } catch (e, s) { return _handle(e, s); }
   }
 
   @override
-  Future<Either<Failure, WorkOrder>> respondDeadlineExtension({
+  Future<Either<Failure, void>> respondDeadlineExtension({
     required String woId,
     required bool approve,
-    required String reviewerName,
     String? note,
   }) async {
     try {
-      final updated = await dataSource.respondDeadlineExtension(
-        woId: woId,
-        approve: approve,
-        reviewerName: reviewerName,
-        note: note,
-      );
-      return Right(updated);
-    } on StateError catch (e) {
-      return Left(ClientFailure(message: e.message, statusCode: 400));
-    }
+      await dataSource.respondDeadlineExtension(woId: woId, approve: approve, note: note);
+      return const Right(null);
+    } catch (e, s) { return _handle(e, s); }
+  }
+
+  @override
+  Future<Either<Failure, void>> requestHourExtension({
+    required String woId,
+    required double requestedHours,
+    required String reason,
+  }) async {
+    try {
+      await dataSource.requestHourExtension(woId: woId, hours: requestedHours, reason: reason);
+      return const Right(null);
+    } catch (e, s) { return _handle(e, s); }
+  }
+
+  @override
+  Future<Either<Failure, void>> respondHourExtension({
+    required String woId,
+    required bool approve,
+  }) async {
+    try {
+      await dataSource.respondHourExtension(woId: woId, approve: approve);
+      return const Right(null);
+    } catch (e, s) { return _handle(e, s); }
+  }
+
+  @override
+  Future<Either<Failure, Map<String, dynamic>>> getDropdowns() async {
+    try {
+      return Right(await dataSource.getDropdowns());
+    } catch (e, s) { return _handle(e, s); }
   }
 }

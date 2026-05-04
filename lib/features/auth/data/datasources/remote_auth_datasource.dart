@@ -18,12 +18,7 @@ class RemoteAuthDataSource implements AuthDataSource {
       data: deviceInfo,
     );
     final data = response.data as Map<String, dynamic>? ?? {};
-    // versionStatus can be at top level or inside data
-    return DeviceInitModel.fromJson({
-      ...data,
-      'versionStatus': data['versionStatus'] ?? response.data?['versionStatus'],
-      'tempToken': data['tempToken'] ?? response.data?['tempToken'],
-    });
+    return DeviceInitModel.fromJson(data);
   }
 
   /// POST /auth/login
@@ -41,12 +36,11 @@ class RemoteAuthDataSource implements AuthDataSource {
         if (fcmToken != null) 'fcmToken': fcmToken,
       },
     );
-    final rawData = response.data as Map<String, dynamic>? ?? {};
-    // Token may be at top level of response or inside data
-    final token = rawData['token'] as String? ?? '';
-    final user = rawData['user'] as Map<String, dynamic>? ?? rawData;
+    final data = response.data as Map<String, dynamic>? ?? {};
+    final user = data['user'] as Map<String, dynamic>? ?? {};
     return LoginModel.fromJson({
-      'token': token,
+      'token': data['token'],
+      'refreshToken': data['refreshToken'],
       'user': user,
     });
   }

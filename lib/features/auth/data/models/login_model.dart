@@ -2,6 +2,7 @@ import '../../domain/entities/login_result.dart';
 
 class LoginModel {
   final String token;
+  final String refreshToken;
   final String userId;
   final String fullname;
   final String division;
@@ -12,6 +13,7 @@ class LoginModel {
 
   const LoginModel({
     required this.token,
+    required this.refreshToken,
     required this.userId,
     required this.fullname,
     required this.division,
@@ -25,6 +27,7 @@ class LoginModel {
     final user = json['user'] as Map<String, dynamic>? ?? json;
     return LoginModel(
       token: json['token'] as String? ?? '',
+      refreshToken: json['refreshToken'] as String? ?? '',
       userId: user['userId'] as String? ?? user['id'] as String? ?? '',
       fullname: user['fullname'] as String? ?? '',
       division: user['division'] as String? ?? '',
@@ -40,6 +43,7 @@ class LoginModel {
 
   LoginResult toEntity() => LoginResult(
         token: token,
+        refreshToken: refreshToken,
         userId: userId,
         fullname: fullname,
         division: division,

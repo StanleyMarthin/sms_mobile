@@ -21,6 +21,8 @@ class JobPlan {
     required this.deadline,
     required this.status,
     required this.note,
+    this.panelCustomNote,
+    this.rejectNote,
   });
 
   final String planId;
@@ -42,4 +44,6 @@ class JobPlan {
   final String deadline;
   final String status;
   final String note;
+  final String? panelCustomNote;
+  final String? rejectNote;
 }

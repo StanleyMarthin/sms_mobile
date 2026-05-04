@@ -79,7 +79,11 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
   }
 
   @override
-  Future<TaskModel> startJobExecution(String plandailyId) async {
+  Future<TaskModel> startJobExecution(
+    String plandailyId, {
+    String? photoBefore1Path,
+    String? photoBefore2Path,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     final tasks = await _loadTasks();
     final index = tasks.indexWhere((t) => t['plandailyId'] == plandailyId);
@@ -154,7 +158,8 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
   Future<TaskModel> submitTaskExecution(TaskExecutionLog executionLog) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     final tasks = await _loadTasks();
-    final index = tasks.indexWhere((t) => t['plandailyId'] == executionLog.plandailyId);
+    final index =
+        tasks.indexWhere((t) => t['plandailyId'] == executionLog.plandailyId);
     if (index == -1) {
       throw DataFormatException(
           message: 'Task tidak ditemukan: ${executionLog.plandailyId}');
@@ -166,7 +171,8 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     if (task.hasMonitoringRecord) {
       throw ClientException(
         statusCode: 409,
-        message: 'Progress task ini sudah tercatat dan tidak bisa diinput ulang.',
+        message:
+            'Progress task ini sudah tercatat dan tidak bisa diinput ulang.',
       );
     }
 
@@ -182,11 +188,12 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
 
     final normalizedStatus = executionLog.status.trim().toLowerCase();
     final isCancelled = normalizedStatus == 'cancel';
-    final isCompleted = normalizedStatus == 'done' || executionLog.progressPercent >= 100;
+    final isCompleted =
+        normalizedStatus == 'done' || executionLog.progressPercent >= 100;
 
     // Calculate new remaining hours based on progress
-    final newRemaining = task.targetHoursRevised *
-        (1 - executionLog.progressPercent / 100);
+    final newRemaining =
+        task.targetHoursRevised * (1 - executionLog.progressPercent / 100);
 
     final TaskModel updated;
     if (isCancelled || isCompleted) {
@@ -227,6 +234,31 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     return updated;
   }
 
+  @override
+  Future<TaskModel> recordBreak(
+    String plandailyId, {
+    required int breakDurationMinutes,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return getTaskById(plandailyId);
+  }
+
+  @override
+  Future<TaskModel> uploadProgressPhoto(
+    String plandailyId, {
+    required String photoUrl,
+    String photoType = 'progress',
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    return getTaskById(plandailyId);
+  }
+
+  @override
+  Future<String> getUploadTicket({required String filename}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    return 'https://example.local/upload/$filename';
+  }
+
   Future<List<Map<String, dynamic>>> _loadTasks() {
     return store.readList(
       key: LocalMockApiStore.taskExecutionKey,
@@ -249,7 +281,8 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
       key: LocalMockApiStore.taskViewKey,
       seedBuilder: DummyTaskViewData.seedTasks,
     );
-    final index = viewTasks.indexWhere((item) => item['planDailyId'] == plandailyId);
+    final index =
+        viewTasks.indexWhere((item) => item['planDailyId'] == plandailyId);
     if (index == -1) return;
     viewTasks[index]['status'] = status;
     await store.writeList(
@@ -285,18 +318,25 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
       if (matchIndex >= 0) {
         carId = entry.key;
         countdownItem = entry.value[matchIndex];
-        final targetHours = (countdownItem['targetHoursRevised'] as num).toDouble();
+        final targetHours =
+            (countdownItem['targetHoursRevised'] as num).toDouble();
         final durationHours = _calculateWorkedHours(executionLog);
-        final actualHours = executionLog.isDone || executionLog.progressPercent >= 100
-            ? targetHours
-            : (targetHours * (executionLog.progressPercent / 100)).clamp(0.0, targetHours);
-        countdownItem['totalActualHours'] = actualHours > 0 ? actualHours : durationHours;
-        countdownItem['remainingHours'] =
-            (targetHours - (countdownItem['totalActualHours'] as num).toDouble()).clamp(0.0, targetHours);
-        countdownItem['actualProgressPercent'] = executionLog.progressPercent.round().clamp(0, 100);
-        countdownItem['status'] = executionLog.isDone || executionLog.progressPercent >= 100
-            ? 'DONE'
-            : 'PROSES';
+        final actualHours =
+            executionLog.isDone || executionLog.progressPercent >= 100
+                ? targetHours
+                : (targetHours * (executionLog.progressPercent / 100))
+                    .clamp(0.0, targetHours);
+        countdownItem['totalActualHours'] =
+            actualHours > 0 ? actualHours : durationHours;
+        countdownItem['remainingHours'] = (targetHours -
+                (countdownItem['totalActualHours'] as num).toDouble())
+            .clamp(0.0, targetHours);
+        countdownItem['actualProgressPercent'] =
+            executionLog.progressPercent.round().clamp(0, 100);
+        countdownItem['status'] =
+            executionLog.isDone || executionLog.progressPercent >= 100
+                ? 'DONE'
+                : 'PROSES';
 
         final detailList = details[coreId] ?? <Map<String, dynamic>>[];
         detailList.add({
@@ -308,10 +348,12 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
           'workDate': taskRow['taskDate'] as String? ?? '',
           'startTime': _clockFromIso(executionLog.startTime),
           'finishTime': _clockFromIso(executionLog.finishTime),
-          'targetHours': (taskRow['dailyTargetHours'] as num?)?.toDouble() ?? 0.0,
+          'targetHours':
+              (taskRow['dailyTargetHours'] as num?)?.toDouble() ?? 0.0,
           'durationHours': durationHours,
           'remainingHours': countdownItem['remainingHours'],
-          'overtimeHours': (taskRow['isOvertime'] == true) ? durationHours : 0.0,
+          'overtimeHours':
+              (taskRow['isOvertime'] == true) ? durationHours : 0.0,
           'percentage': executionLog.progressPercent,
           'status': executionLog.isDone ? 'DONE' : 'PROSES',
         });
@@ -362,13 +404,15 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     if (unitIndex == -1 || countdownItems.isEmpty) return;
     final totalProgress = countdownItems.fold<int>(
       0,
-      (sum, item) => sum + ((item['actualProgressPercent'] as num?)?.toInt() ?? 0),
+      (sum, item) =>
+          sum + ((item['actualProgressPercent'] as num?)?.toInt() ?? 0),
     );
     final average = (totalProgress / countdownItems.length).round();
     units[unitIndex]['progress'] = average;
-    units[unitIndex]['status'] = countdownItems.every((item) => item['status'] == 'DONE')
-        ? 'DONE'
-        : 'PROSES';
+    units[unitIndex]['status'] =
+        countdownItems.every((item) => item['status'] == 'DONE')
+            ? 'DONE'
+            : 'PROSES';
   }
 
   Map<String, dynamic> _qcItemFromTask(Map<String, dynamic> taskRow) {
@@ -394,8 +438,10 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
       'inspectorId': kd['id'] as String?,
       'advisorId': advisor['id'] as String?,
       'inspectionDate': DateTime.now().toIso8601String(),
-      'totalActualHours': (taskRow['targetHoursRevised'] as num?)?.toDouble() ?? 0.0,
-      'targetHoursRevised': (taskRow['targetHoursRevised'] as num?)?.toDouble() ?? 0.0,
+      'totalActualHours':
+          (taskRow['targetHoursRevised'] as num?)?.toDouble() ?? 0.0,
+      'targetHoursRevised':
+          (taskRow['targetHoursRevised'] as num?)?.toDouble() ?? 0.0,
       'qcStatus': 'PENDING',
       'date': taskRow['taskDate'] as String? ?? '',
       'qcChecklist': [
@@ -413,7 +459,8 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     if (start == null || finish == null || !finish.isAfter(start)) {
       return 0.0;
     }
-    final workedMinutes = finish.difference(start).inMinutes - log.breakDurationMinutes;
+    final workedMinutes =
+        finish.difference(start).inMinutes - log.breakDurationMinutes;
     return (workedMinutes <= 0 ? 0 : workedMinutes / 60).toDouble();
   }
 

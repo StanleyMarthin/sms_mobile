@@ -332,6 +332,7 @@ class _DashboardPageState extends State<DashboardPage>
   // ── Top Tab Body (KD/Advisor/PM) ─────────────────────────
   Widget _buildTopTabBody() {
     return TabBarView(
+              key: const PageStorageKey("dashboardTab"),
       controller: _tabController,
       children: _tabs.map((t) => t.builder()).toList(),
     );

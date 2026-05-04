@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/services/notification_inbox_service.dart';
 import '../../../../core/session/session_manager.dart';
 
 /// Grid-style home menu page — first screen after login.
@@ -145,26 +146,7 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
-          // Notification bell
-          IconButton(
-            onPressed: () {
-              context.push('/notifications');
-            },
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.gold,
-              size: 22,
-            ),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.gold.withValues(alpha: 0.1),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(color: AppColors.gold.withValues(alpha: 0.25)),
-              ),
-            ),
-          ),
+          const _NotificationBell(),
         ],
       ),
     );
@@ -174,12 +156,13 @@ class HomePage extends StatelessWidget {
   Widget _buildGreeting(SessionManager session) {
     final name = session.fullName ?? 'User';
     // Use jabatan from BE login response; fallback to role-based label.
-    final role = session.jabatan ?? switch (session.role) {
-      'kd' => 'Kepala Divisi',
-      'pm' => 'Project Manager',
-      'adv' => 'Advisor',
-      _ => 'Operator / Lapangan',
-    };
+    final role = session.jabatan ??
+        switch (session.role) {
+          'kd' => 'Kepala Divisi',
+          'pm' => 'Project Manager',
+          'adv' => 'Advisor',
+          _ => 'Operator / Lapangan',
+        };
     final div = session.divisionName ?? '';
 
     return Container(
@@ -311,6 +294,104 @@ class HomePage extends StatelessWidget {
   }
 }
 
+class _NotificationBell extends StatefulWidget {
+  const _NotificationBell();
+
+  @override
+  State<_NotificationBell> createState() => _NotificationBellState();
+}
+
+class _NotificationBellState extends State<_NotificationBell>
+    with WidgetsBindingObserver {
+  late final NotificationInboxService _inbox;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _inbox = sl<NotificationInboxService>();
+    _inbox.ensureLoaded();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _inbox.ensureLoaded();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _inbox,
+      builder: (context, _) {
+        final unreadCount = _inbox.unreadCount;
+        return IconButton(
+          onPressed: () async {
+            await _inbox.markAllRead();
+            if (!context.mounted) return;
+            context.push('/notifications');
+          },
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(
+                Icons.notifications_outlined,
+                color: AppColors.gold,
+                size: 22,
+              ),
+              if (unreadCount > 0)
+                Positioned(
+                  right: -6,
+                  top: -6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.statusLocked,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: AppColors.background,
+                        width: 1.2,
+                      ),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 18),
+                    child: Text(
+                      unreadCount > 99 ? '99+' : '$unreadCount',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.gold.withValues(alpha: 0.1),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: AppColors.gold.withValues(alpha: 0.25)),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Menu Tile Widget
 // ═══════════════════════════════════════════════════════════════
@@ -355,8 +436,7 @@ class _MenuTile extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: item.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: item.color.withValues(alpha: 0.25)),
+                  border: Border.all(color: item.color.withValues(alpha: 0.25)),
                 ),
                 child: Icon(item.icon, size: 22, color: item.color),
               ),
@@ -527,6 +607,15 @@ List<_MenuItem> _buildMenusForRole(String? role) {
     ));
   }
 
+  if (perms.contains(Permission.prView)) {
+    menus.add(_MenuItem(
+      icon: Icons.shopping_cart_outlined,
+      label: 'Purchase\nRequest',
+      route: '/pr',
+      color: alt(),
+    ));
+  }
+
   // ── Profil (PROFILE_VIEW) ──
   if (perms.contains(Permission.profileView)) {
     menus.add(_MenuItem(
@@ -539,4 +628,3 @@ List<_MenuItem> _buildMenusForRole(String? role) {
 
   return menus;
 }
-

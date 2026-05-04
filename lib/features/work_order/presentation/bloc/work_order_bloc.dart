@@ -3,231 +3,137 @@ import '../../domain/repositories/work_order_repository.dart';
 import 'work_order_event.dart';
 import 'work_order_state.dart';
 
-/// Unified BLoC for Work Order management.
-///
-/// Handles loading (all or own), CRUD, approve, reject, and extend deadline.
 class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
   final WorkOrderRepository repository;
 
-  /// Tracks whether we loaded all WOs or just the user's own.
-  bool _isManagementView = false;
+  String _currentView = 'ACTIVE';
 
-  WorkOrderBloc({required this.repository})
-      : super(const WorkOrderInitial()) {
-    on<LoadAllWorkOrders>(_onLoadAll);
-    on<LoadMyWorkOrders>(_onLoadMy);
-    on<SubmitWorkOrder>(_onSubmit);
-    on<UpdateWorkOrder>(_onUpdate);
-    on<DeleteWorkOrder>(_onDelete);
+  WorkOrderBloc({required this.repository}) : super(const WorkOrderInitial()) {
+    on<LoadWorkOrders>(_onLoad);
+    on<RefreshWorkOrders>(_onRefresh);
+    on<LoadWorkOrderDetail>(_onLoadDetail);
+    on<CreateWorkOrder>(_onCreate);
     on<ApproveWo>(_onApprove);
     on<RejectWo>(_onReject);
-    on<ExtendWoDeadline>(_onExtend);
-    on<RequestWoRevision>(_onRequestRevision);
-    on<RespondWoRevision>(_onRespondRevision);
-    on<RequestWoExtension>(_onRequestExtension);
-    on<RespondWoExtension>(_onRespondExtension);
+    on<RequestDlExtension>(_onRequestDl);
+    on<RespondDlExtension>(_onRespondDl);
+    on<RequestHourExtension>(_onRequestHours);
+    on<RespondHourExtension>(_onRespondHours);
   }
 
-  Future<void> _onLoadAll(
-    LoadAllWorkOrders event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    _isManagementView = true;
+  Future<void> _onLoad(LoadWorkOrders e, Emitter<WorkOrderState> emit) async {
+    _currentView = e.view;
     emit(const WorkOrderLoading());
-    final result = await repository.getAllWorkOrders();
+    final result = await repository.getWorkOrders(view: e.view);
     result.fold(
-      (failure) =>
-          emit(WorkOrderError(message: failure.message ?? 'Gagal memuat WO')),
-      (wos) => emit(WorkOrderLoaded(workOrders: wos)),
+      (f) => emit(WorkOrderError(message: f.message ?? 'Gagal memuat WO')),
+      (wos) => emit(WorkOrderLoaded(workOrders: wos, view: e.view)),
     );
   }
 
-  Future<void> _onLoadMy(
-    LoadMyWorkOrders event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    _isManagementView = false;
+  Future<void> _onRefresh(RefreshWorkOrders e, Emitter<WorkOrderState> emit) async {
+    final result = await repository.getWorkOrders(view: _currentView);
+    result.fold(
+      (f) => emit(WorkOrderError(message: f.message ?? 'Gagal memuat WO')),
+      (wos) => emit(WorkOrderLoaded(workOrders: wos, view: _currentView)),
+    );
+  }
+
+  Future<void> _onLoadDetail(LoadWorkOrderDetail e, Emitter<WorkOrderState> emit) async {
     emit(const WorkOrderLoading());
-    final result = await repository.getMyWorkOrders();
+    final result = await repository.getWorkOrderById(e.woId);
     result.fold(
-      (failure) =>
-          emit(WorkOrderError(message: failure.message ?? 'Gagal memuat WO')),
-      (wos) => emit(WorkOrderLoaded(workOrders: wos)),
+      (f) => emit(WorkOrderError(message: f.message ?? 'Gagal memuat detail WO')),
+      (wo) => emit(WorkOrderDetailLoaded(wo)),
     );
   }
 
-  Future<void> _refreshAndEmit(
-      Emitter<WorkOrderState> emit, String message) async {
-    final refresh = _isManagementView
-        ? await repository.getAllWorkOrders()
-        : await repository.getMyWorkOrders();
-    refresh.fold(
-      (f) => emit(WorkOrderActionSuccess(workOrders: const [], message: message)),
-      (wos) => emit(WorkOrderActionSuccess(workOrders: wos, message: message)),
+  Future<void> _refreshAfter(Emitter<WorkOrderState> emit, String msg) async {
+    final result = await repository.getWorkOrders(view: _currentView);
+    result.fold(
+      (f) => emit(WorkOrderActionSuccess(workOrders: const [], message: msg, view: _currentView)),
+      (wos) => emit(WorkOrderActionSuccess(workOrders: wos, message: msg, view: _currentView)),
     );
   }
 
-  Future<void> _onSubmit(
-    SubmitWorkOrder event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.submitWorkOrder(event.workOrder);
+  Future<void> _onCreate(CreateWorkOrder e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.createWorkOrder(
+      carId:            e.carId,
+      targetDivId:      e.targetDivId,
+      jobDetail:        e.jobDetail,
+      targetDate:       e.targetDate,
+      panelName:        e.panelName,
+      sectionName:      e.sectionName,
+      panelCategory:    e.panelCategory,
+      addPanelToMaster: e.addPanelToMaster,
+      targetHours:      e.targetHours,
+    );
     await result.fold(
-      (failure) async => emit(
-          WorkOrderError(message: failure.message ?? 'Gagal mengirim WO')),
-      (wo) async =>
-          _refreshAndEmit(emit, 'WO berhasil dibuat: ${wo.woNumber}'),
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal membuat WO')),
+      (wo) async => _refreshAfter(emit, 'WO ${wo.woNumber} berhasil dibuat'),
     );
   }
 
-  Future<void> _onUpdate(
-    UpdateWorkOrder event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.updateWorkOrder(event.workOrder);
-    await result.fold(
-      (failure) async => emit(
-          WorkOrderError(message: failure.message ?? 'Gagal memperbarui WO')),
-      (_) async => _refreshAndEmit(emit, 'WO berhasil diperbarui'),
+  Future<void> _onApprove(ApproveWo e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.approveWorkOrder(
+      woId: e.woId,
+      estimatedHours: e.estimatedHours,
+      notes: e.notes,
     );
-  }
-
-  Future<void> _onDelete(
-    DeleteWorkOrder event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.deleteWorkOrder(event.woId);
     await result.fold(
-      (failure) async => emit(
-          WorkOrderError(message: failure.message ?? 'Gagal menghapus WO')),
-      (_) async => _refreshAndEmit(emit, 'WO berhasil dihapus'),
-    );
-  }
-
-  Future<void> _onApprove(
-    ApproveWo event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result =
-        await repository.approveWorkOrder(event.woId, event.approverName);
-    await result.fold(
-      (failure) async =>
-          emit(WorkOrderError(message: failure.message ?? 'Gagal approve WO')),
-      (wo) async {
-        final msg = wo.isPendingPm
-            ? 'Advisor approved — menunggu PM'
-            : 'PM approved — WO disetujui ✓';
-        await _refreshAndEmit(emit, msg);
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal approve WO')),
+      (data) async {
+        final nextStage = data['newStage']?.toString() ?? '';
+        final msg = nextStage == 'APPROVED' ? 'WO disetujui final ✓' : 'Diteruskan ke $nextStage';
+        await _refreshAfter(emit, msg);
       },
     );
   }
 
-  Future<void> _onReject(
-    RejectWo event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.rejectWorkOrder(
-        event.woId, event.rejectedBy, event.reason);
+  Future<void> _onReject(RejectWo e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.rejectWorkOrder(woId: e.woId, rejectReason: e.rejectReason);
     await result.fold(
-      (failure) async =>
-          emit(WorkOrderError(message: failure.message ?? 'Gagal reject WO')),
-      (_) async => _refreshAndEmit(emit, 'WO ditolak'),
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal reject WO')),
+      (_) async => _refreshAfter(emit, 'WO berhasil ditolak'),
     );
   }
 
-  Future<void> _onExtend(
-    ExtendWoDeadline event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.extendDeadline(
-        event.woId, event.newDeadline, event.reason);
+  Future<void> _onRequestDl(RequestDlExtension e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.requestDeadlineExtension(woId: e.woId, newDeadline: e.newDeadline, reason: e.reason);
     await result.fold(
-      (failure) async => emit(WorkOrderError(
-          message: failure.message ?? 'Gagal perpanjang deadline')),
-      (_) async => _refreshAndEmit(emit, 'Deadline berhasil diperpanjang'),
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal ajukan perpanjangan DL')),
+      (_) async => _refreshAfter(emit, 'Pengajuan perpanjangan deadline dikirim'),
     );
   }
 
-  Future<void> _onRequestRevision(
-    RequestWoRevision event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.requestRevision(
-      woId: event.woId,
-      requestedEstimatedHours: event.requestedEstimatedHours,
-      requestedDeadline: event.requestedDeadline,
-      reason: event.reason,
-      reviewerName: event.reviewerName,
-    );
+  Future<void> _onRespondDl(RespondDlExtension e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.respondDeadlineExtension(woId: e.woId, approve: e.approve, note: e.note);
     await result.fold(
-      (failure) async => emit(
-        WorkOrderError(message: failure.message ?? 'Gagal kirim revisi WO'),
-      ),
-      (_) async => _refreshAndEmit(emit, 'Permintaan revisi dikirim ke KD'),
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal proses perpanjangan DL')),
+      (_) async => _refreshAfter(emit, e.approve ? 'Perpanjangan DL disetujui' : 'Perpanjangan DL ditolak'),
     );
   }
 
-  Future<void> _onRespondRevision(
-    RespondWoRevision event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.respondRevision(
-      woId: event.woId,
-      approve: event.approve,
-      reviewerName: event.reviewerName,
-      note: event.note,
-    );
+  Future<void> _onRequestHours(RequestHourExtension e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.requestHourExtension(woId: e.woId, requestedHours: e.requestedHours, reason: e.reason);
     await result.fold(
-      (failure) async => emit(
-        WorkOrderError(message: failure.message ?? 'Gagal proses revisi WO'),
-      ),
-      (_) async => _refreshAndEmit(
-        emit,
-        event.approve ? 'Revisi disetujui' : 'Revisi ditolak',
-      ),
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal ajukan tambahan jam')),
+      (_) async => _refreshAfter(emit, 'Pengajuan tambahan jam dikirim'),
     );
   }
 
-  Future<void> _onRequestExtension(
-    RequestWoExtension event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.requestDeadlineExtension(
-      woId: event.woId,
-      newDeadline: event.newDeadline,
-      reason: event.reason,
-      requesterName: event.requesterName,
-    );
+  Future<void> _onRespondHours(RespondHourExtension e, Emitter<WorkOrderState> emit) async {
+    emit(const WorkOrderActionLoading());
+    final result = await repository.respondHourExtension(woId: e.woId, approve: e.approve);
     await result.fold(
-      (failure) async => emit(
-        WorkOrderError(message: failure.message ?? 'Gagal ajukan perpanjangan'),
-      ),
-      (_) async => _refreshAndEmit(emit, 'Pengajuan perpanjangan dikirim'),
-    );
-  }
-
-  Future<void> _onRespondExtension(
-    RespondWoExtension event,
-    Emitter<WorkOrderState> emit,
-  ) async {
-    final result = await repository.respondDeadlineExtension(
-      woId: event.woId,
-      approve: event.approve,
-      reviewerName: event.reviewerName,
-      note: event.note,
-    );
-    await result.fold(
-      (failure) async => emit(
-        WorkOrderError(
-          message: failure.message ?? 'Gagal proses perpanjangan deadline',
-        ),
-      ),
-      (_) async => _refreshAndEmit(
-        emit,
-        event.approve
-            ? 'Perpanjangan deadline disetujui'
-            : 'Perpanjangan deadline ditolak',
-      ),
+      (f) async => emit(WorkOrderError(message: f.message ?? 'Gagal proses tambahan jam')),
+      (_) async => _refreshAfter(emit, e.approve ? 'Tambahan jam disetujui' : 'Tambahan jam ditolak'),
     );
   }
 }

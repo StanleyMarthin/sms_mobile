@@ -30,8 +30,7 @@ class ServerException implements Exception {
   });
 
   @override
-  String toString() =>
-      'ServerException(statusCode: $statusCode): $message';
+  String toString() => 'ServerException(statusCode: $statusCode): $message';
 }
 
 /// Exception thrown when API response indicates a client error.
@@ -48,8 +47,7 @@ class ClientException implements Exception {
   });
 
   @override
-  String toString() =>
-      'ClientException(statusCode: $statusCode): $message';
+  String toString() => 'ClientException(statusCode: $statusCode): $message';
 }
 
 /// Abstract interface for remote task data operations.
@@ -191,7 +189,11 @@ abstract class RemoteTaskDataSource {
   ///   "lockedSince": "2026-02-20T08:00:00Z"
   /// }
   /// ```
-  Future<TaskModel> startJobExecution(String plandailyId);
+  Future<TaskModel> startJobExecution(
+    String plandailyId, {
+    String? photoBefore1Path,
+    String? photoBefore2Path,
+  });
 
   /// Finishes job execution and unlocks the panel.
   ///
@@ -216,7 +218,8 @@ abstract class RemoteTaskDataSource {
   ///   - DioException: If network error occurs
   ///
   /// Expected API endpoint: POST /api/mechanic/tasks/{plandailyId}/finish
-  Future<TaskModel> finishJobExecution(String plandailyId, {int breakDurationMinutes = 60});
+  Future<TaskModel> finishJobExecution(String plandailyId,
+      {int breakDurationMinutes = 60});
 
   /// Submits a full task execution log with times, progress, and photos.
   ///
@@ -227,5 +230,26 @@ abstract class RemoteTaskDataSource {
   ///
   /// Expected API endpoint: POST /api/mechanic/tasks/{plandailyId}/execute
   Future<TaskModel> submitTaskExecution(TaskExecutionLog executionLog);
-}
 
+  /// Records break duration while task is running.
+  ///
+  /// Backend endpoint: PUT /sm/tasks with action=break.
+  Future<TaskModel> recordBreak(
+    String plandailyId, {
+    required int breakDurationMinutes,
+  });
+
+  /// Saves progress photo metadata during execution.
+  ///
+  /// Backend endpoint: POST /sm/tasks with action=progress.
+  Future<TaskModel> uploadProgressPhoto(
+    String plandailyId, {
+    required String photoUrl,
+    String photoType = 'PROCESS',
+  });
+
+  /// Gets pre-signed upload URL for direct object storage upload.
+  ///
+  /// Backend endpoint: GET /sm/tasks/upload-ticket?filename=...
+  Future<String> getUploadTicket({required String filename});
+}

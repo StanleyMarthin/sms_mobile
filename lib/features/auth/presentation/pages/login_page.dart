@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../../core/services/fcm_service.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../bloc/auth_bloc.dart';
 import '../bloc/auth_event.dart';
@@ -46,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   // ── Login via BLoC ─────────────────────────────────────────
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     final id = _idController.text.trim().toUpperCase();
     final password = _passwordController.text;
 
@@ -59,7 +60,22 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = null;
       _isLoading = true;
     });
-    _authBloc.add(LoginRequested(employeeId: id, password: password));
+
+    String? fcmToken;
+    try {
+      // Retry sampai 3x dengan jeda 1 detik agar Firebase punya waktu init
+      for (int attempt = 0; attempt < 3; attempt++) {
+        fcmToken = await FCMService().getToken();
+        if (fcmToken != null && fcmToken.isNotEmpty) break;
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    } catch (_) {
+      fcmToken = null;
+    }
+
+    if (!mounted) return;
+    _authBloc.add(
+        LoginRequested(employeeId: id, password: password, fcmToken: fcmToken));
   }
 
   void _onAuthState(BuildContext context, AuthState state) {
@@ -67,6 +83,7 @@ class _LoginPageState extends State<LoginPage> {
       final result = state.result;
       sl<SessionManager>().login(
         token: result.token,
+        refreshToken: result.refreshToken,
         userId: result.userId,
         employeeId: _idController.text.trim().toUpperCase(),
         fullName: result.fullname,
@@ -95,7 +112,8 @@ class _LoginPageState extends State<LoginPage> {
       listener: _onAuthState,
       child: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(gradient: AppColors.backgroundGradient),
+          decoration:
+              const BoxDecoration(gradient: AppColors.backgroundGradient),
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -181,8 +199,9 @@ class _LoginPageState extends State<LoginPage> {
             textCapitalization: TextCapitalization.characters,
             decoration: const InputDecoration(
               labelText: 'Employee ID',
-              hintText: 'e.g. EMP002',
-              prefixIcon: Icon(Icons.badge_outlined, color: AppColors.textMuted),
+              hintText: 'e.g. SM-00.000',
+              prefixIcon:
+                  Icon(Icons.badge_outlined, color: AppColors.textMuted),
             ),
           ),
           const SizedBox(height: 16),
@@ -214,7 +233,8 @@ class _LoginPageState extends State<LoginPage> {
           if (_errorMessage != null) ...[
             Text(
               _errorMessage!,
-              style: const TextStyle(color: AppColors.statusLocked, fontSize: 13),
+              style:
+                  const TextStyle(color: AppColors.statusLocked, fontSize: 13),
             ),
             const SizedBox(height: 8),
           ],

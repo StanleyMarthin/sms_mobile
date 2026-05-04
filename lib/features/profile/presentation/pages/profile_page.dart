@@ -52,12 +52,6 @@ class ProfilePage extends StatelessWidget {
               // Role card intentionally hidden from UI.
               // Permissions section intentionally hidden from UI.
               const SizedBox(height: 32),
-              _buildInfoCard(
-                icon: Icons.smartphone_outlined,
-                label: 'Device ID',
-                value: profile.deviceId,
-              ),
-              const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(

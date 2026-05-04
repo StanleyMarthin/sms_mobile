@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
@@ -18,7 +19,7 @@ import '../widgets/task_start_sheet.dart';
 /// Each instance gets its own [BlocProvider]<[TaskBloc]> from the dashboard.
 ///
 /// No Scaffold; the parent dashboard provides AppBar and bottom nav.
-class TaskListPage extends StatelessWidget {
+class TaskListPage extends StatefulWidget {
   final bool isOvertime;
   final DateTime selectedDate;
   final String title;
@@ -31,6 +32,41 @@ class TaskListPage extends StatelessWidget {
     required this.title,
     this.focusTaskId,
   });
+
+  @override
+  State<TaskListPage> createState() => _TaskListPageState();
+}
+
+class _TaskListPageState extends State<TaskListPage> {
+  bool _hasAutoNavigated = false;
+
+  void _checkAutoNavigate(List<TaskEntity>? tasks) {
+    if (widget.focusTaskId == null || _hasAutoNavigated || tasks == null || tasks.isEmpty) return;
+    
+    try {
+      final targetTask = tasks.firstWhere((t) => t.plandailyId == widget.focusTaskId);
+      _hasAutoNavigated = true;
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final taskBloc = context.read<TaskBloc>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => BlocProvider.value(
+              value: taskBloc,
+              child: _MechanicJobdescPage(
+                title: targetTask.unitName,
+                unitName: targetTask.unitName,
+                focusTaskId: widget.focusTaskId,
+              ),
+            ),
+          ),
+        );
+      });
+    } catch (_) {
+      // Task not found
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,19 +82,17 @@ class TaskListPage extends StatelessWidget {
         if (state is TaskError) {
           return _ErrorView(
             message: state.message,
-            onRetry: () => context
-                .read<TaskBloc>()
-                .add(LoadTodaysTasksEvent(
-                  isOvertime: isOvertime,
-                  date: selectedDate,
+            onRetry: () => context.read<TaskBloc>().add(LoadTodaysTasksEvent(
+                  isOvertime: widget.isOvertime,
+                  date: widget.selectedDate,
                 )),
           );
         }
 
         final tasks = _sortedTasks(_extractTasks(state));
-        final drafts = _extractDrafts(state);
-        final actionTaskId =
-            state is TaskActionLoading ? state.actionTaskId : null;
+        
+        // Auto navigate if needed
+        _checkAutoNavigate(tasks);
 
         if (tasks == null || tasks.isEmpty) {
           return _EmptyView(
@@ -82,7 +116,8 @@ class TaskListPage extends StatelessWidget {
                 (unitEntry) => _DrilldownTile(
                   icon: Icons.directions_car_filled_outlined,
                   title: unitEntry.key,
-                  subtitle: '${unitEntry.value.first.ownerName} • ${unitEntry.value.length} jobdesc',
+                  subtitle:
+                      '${unitEntry.value.first.ownerName} • ${unitEntry.value.length} jobdesc',
                   trailingLabel: _statusSummary(unitEntry.value),
                   onTap: () {
                     final taskBloc = context.read<TaskBloc>();
@@ -93,7 +128,7 @@ class TaskListPage extends StatelessWidget {
                           child: _MechanicJobdescPage(
                             title: unitEntry.key,
                             unitName: unitEntry.key,
-                            focusTaskId: focusTaskId,
+                            focusTaskId: widget.focusTaskId,
                           ),
                         ),
                       ),
@@ -110,18 +145,19 @@ class TaskListPage extends StatelessWidget {
 
   List<TaskEntity>? _sortedTasks(List<dynamic>? rawTasks) {
     final tasks = rawTasks?.cast<TaskEntity>();
-    if (tasks == null || focusTaskId == null) return tasks;
+    if (tasks == null || widget.focusTaskId == null) return tasks;
 
     final ordered = List<TaskEntity>.from(tasks);
     ordered.sort((a, b) {
-      final aFocus = a.plandailyId == focusTaskId ? 1 : 0;
-      final bFocus = b.plandailyId == focusTaskId ? 1 : 0;
+      final aFocus = a.plandailyId == widget.focusTaskId ? 1 : 0;
+      final bFocus = b.plandailyId == widget.focusTaskId ? 1 : 0;
       return bFocus.compareTo(aFocus);
     });
     return ordered;
   }
 
-  List<MapEntry<String, List<TaskEntity>>> _groupByUnit(List<TaskEntity> tasks) {
+  List<MapEntry<String, List<TaskEntity>>> _groupByUnit(
+      List<TaskEntity> tasks) {
     final grouped = <String, List<TaskEntity>>{};
     for (final task in tasks) {
       grouped.putIfAbsent(task.unitName, () => []).add(task);
@@ -143,16 +179,33 @@ class TaskListPage extends StatelessWidget {
   Widget _buildSectionHeader(int count) {
     final session = sl<SessionManager>();
     final name = session.fullName ?? 'MECHANIC';
-    final date = selectedDate;
+    final date = widget.selectedDate;
     final dayNames = [
-      'Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'
+      'Minggu',
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu'
     ];
     final monthNames = [
-      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember'
     ];
     final dateStr =
-      '${dayNames[date.weekday % 7]}, ${date.day} ${monthNames[date.month]} ${date.year}';
+        '${dayNames[date.weekday % 7]}, ${date.day} ${monthNames[date.month]} ${date.year}';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -164,7 +217,7 @@ class TaskListPage extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  '$title — $name',
+                  '${widget.title} — $name',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -199,7 +252,7 @@ class TaskListPage extends StatelessWidget {
               const Icon(Icons.today, size: 14, color: AppColors.gold),
               const SizedBox(width: 6),
               Text(
-                title,
+                widget.title,
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -254,65 +307,6 @@ class TaskListPage extends StatelessWidget {
     if (state is TaskActionError) return state.tasks;
     return null;
   }
-
-  Map<String, TaskDraft> _extractDrafts(TaskState state) {
-    if (state is TaskLoaded) return state.drafts;
-    if (state is TaskActionLoading) return state.drafts;
-    if (state is TaskActionSuccess) return state.drafts;
-    if (state is TaskActionError) return state.drafts;
-    return const {};
-  }
-
-  // ── Open Task Start / Finish Sheet (draft-aware) ─────────
-  void _showExecutionSheet(BuildContext context, TaskEntity task) {
-    if (task.isCompleted) return; // Completed tasks are read-only
-    if (task.isMonitoringLocked) return; // Submitted once: monitoring only
-    if (task.isPanelLocked && task.lockedByName != null && !task.isInProgress) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Panel dikunci oleh ${task.lockedByName ?? "mekanik lain"}. '
-            'Tidak dapat memulai pekerjaan.',
-          ),
-          backgroundColor: AppColors.statusLocked.withValues(alpha: 0.9),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    final drafts = _extractDrafts(context.read<TaskBloc>().state);
-    final existingDraft = drafts[task.plandailyId];
-    final shouldOpenFinishSheet = task.isInProgress || existingDraft != null;
-
-    if (shouldOpenFinishSheet) {
-      // Draft exists → open "Selesai" sheet (full form, pre-filled from draft)
-      TaskExecutionSheet.show(
-        context: context,
-        task: task,
-        draft: existingDraft,
-        onSubmit: (executionLog) {
-          context
-              .read<TaskBloc>()
-              .add(SubmitExecutionEvent(executionLog: executionLog));
-        },
-      );
-    } else {
-      // No draft → open "Mulai" sheet (minimal: startTime + photoBefore)
-      TaskStartSheet.show(
-        context: context,
-        task: task,
-        onStart: (draft) {
-          context.read<TaskBloc>().add(
-                StartTaskFlowEvent(
-                  plandailyId: task.plandailyId,
-                  draft: draft,
-                ),
-              );
-        },
-      );
-    }
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -354,8 +348,8 @@ class _ErrorView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, color: AppColors.gold),
-              label:
-                  const Text('Coba Lagi', style: TextStyle(color: AppColors.gold)),
+              label: const Text('Coba Lagi',
+                  style: TextStyle(color: AppColors.gold)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
@@ -407,8 +401,8 @@ class _EmptyView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh, color: AppColors.gold),
-              label:
-                  const Text('Refresh', style: TextStyle(color: AppColors.gold)),
+              label: const Text('Refresh',
+                  style: TextStyle(color: AppColors.gold)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
@@ -468,7 +462,8 @@ class _DrilldownTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: const TextStyle(
+                        fontSize: 12, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -486,7 +481,8 @@ class _DrilldownTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Icon(Icons.chevron_right_rounded, size: 20, color: AppColors.textMuted),
+                const Icon(Icons.chevron_right_rounded,
+                    size: 20, color: AppColors.textMuted),
               ],
             ),
           ],
@@ -496,7 +492,7 @@ class _DrilldownTile extends StatelessWidget {
   }
 }
 
-class _MechanicJobdescPage extends StatelessWidget {
+class _MechanicJobdescPage extends StatefulWidget {
   const _MechanicJobdescPage({
     required this.title,
     required this.unitName,
@@ -508,22 +504,55 @@ class _MechanicJobdescPage extends StatelessWidget {
   final String? focusTaskId;
 
   @override
+  State<_MechanicJobdescPage> createState() => _MechanicJobdescPageState();
+}
+
+class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
+  bool _hasAutoOpened = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAutoOpen();
+  }
+
+  void _checkAutoOpen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.focusTaskId == null || _hasAutoOpened || !mounted) return;
+      
+      final taskBloc = context.read<TaskBloc>();
+      final state = taskBloc.state;
+      final tasks = _extractTasks(state);
+      
+      try {
+        final task = tasks.firstWhere((t) => t.plandailyId == widget.focusTaskId);
+        _hasAutoOpened = true;
+        _showExecutionSheet(context, task);
+      } catch (_) {
+        // focusTaskId not found in this unit list
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
-        title: Text(title),
+        title: Text(widget.title),
       ),
       body: BlocBuilder<TaskBloc, TaskState>(
         builder: (context, state) {
           final tasks = _extractTasks(state)
-              .where((task) => task.unitName == unitName)
+              .where((task) => task.unitName == widget.unitName)
               .toList()
-            ..sort((a, b) => a.customDescription.compareTo(b.customDescription));
+            ..sort(
+                (a, b) => a.customDescription.compareTo(b.customDescription));
           final drafts = _extractDrafts(state);
-          final actionTaskId = state is TaskActionLoading ? state.actionTaskId : null;
+          final actionTaskId =
+              state is TaskActionLoading ? state.actionTaskId : null;
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -548,7 +577,7 @@ class _MechanicJobdescPage extends StatelessWidget {
               ...tasks.map(
                 (task) => TaskCard(
                   task: task,
-                  isHighlighted: task.plandailyId == focusTaskId,
+                  isHighlighted: task.plandailyId == widget.focusTaskId,
                   isActionLoading: actionTaskId == task.plandailyId,
                   hasDraft: drafts.containsKey(task.plandailyId),
                   onTap: () => _showExecutionSheet(context, task),
@@ -608,6 +637,9 @@ class _MechanicJobdescPage extends StatelessWidget {
           context
               .read<TaskBloc>()
               .add(SubmitExecutionEvent(executionLog: executionLog));
+        },
+        onDraftSave: (draft) {
+          context.read<TaskBloc>().add(SaveDraftEvent(draft: draft));
         },
       );
     } else {

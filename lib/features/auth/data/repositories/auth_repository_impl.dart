@@ -1,6 +1,8 @@
 import 'package:fpdart/fpdart.dart';
+import 'package:dio/dio.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/network/api_client.dart';
 import '../../domain/entities/device_init_result.dart';
 import '../../domain/entities/login_result.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -18,6 +20,8 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final model = await dataSource.deviceInit(deviceInfo);
       return Right(model.toEntity());
+    } on DioException catch (e) {
+      return Left(ApiClient.mapDioError(e));
     } catch (e) {
       return Left(UnknownFailure(message: 'Device init gagal: $e'));
     }
@@ -36,6 +40,8 @@ class AuthRepositoryImpl implements AuthRepository {
         fcmToken: fcmToken,
       );
       return Right(model.toEntity());
+    } on DioException catch (e) {
+      return Left(ApiClient.mapDioError(e));
     } on Exception catch (e) {
       final msg = e.toString();
       if (msg.contains('INVALID_CREDENTIALS')) {

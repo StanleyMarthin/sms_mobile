@@ -1,520 +1,1403 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../../core/widgets/in_app_camera_page.dart';
+import '../../data/datasources/remote_qc_datasource.dart';
 import '../../domain/entities/qc_item.dart';
 import '../../domain/repositories/qc_repository.dart';
-import '../../../task_execution/presentation/widgets/date_filter_bar.dart';
+import '../../../job_plan/data/datasources/job_plan_datasource.dart';
 
-/// Unified checkpoint page.
-///
-/// KD submits checkpoint results and ADV/PM validates them,
-/// while users without access only see the queue.
+// ─── PAGE 1: LIST DIVISI (TAB UTAMA) ──────────────────────────────────────────
+
 class QcTab extends StatefulWidget {
-  const QcTab({super.key, this.focusQcId, this.initialDate});
+  const QcTab({super.key, this.focusCoreId});
 
-  final String? focusQcId;
-  final DateTime? initialDate;
+  final String? focusCoreId;
 
   @override
   State<QcTab> createState() => _QcTabState();
 }
 
 class _QcTabState extends State<QcTab> {
-  late DateTime _selectedDate;
-  late final QcRepository _repository;
-  List<QcItem> _qcItems = [];
+  late final QcRepository _repo;
+  List<QcDivision> _divisions = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _selectedDate = widget.initialDate ?? DateTime.now();
-    _repository = sl<QcRepository>();
-    _reloadItems();
+    _repo = sl<QcRepository>();
+    _loadDivisions();
+    _checkAutoRecover();
   }
 
-  String get _dateStr =>
-      '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
-
-  String _formatDateLabel(DateTime date) => DateFormat('d MMM yyyy', 'id_ID').format(date);
-
-  String _formatStoredDate(String value) {
-    final parsed = DateTime.tryParse(value);
-    if (parsed == null) return value;
-    return _formatDateLabel(parsed);
+  Future<void> _checkAutoRecover() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final itemStr = prefs.getString('pending_qc_item');
+      final passed = prefs.getBool('pending_qc_passed') ?? true;
+      
+      if (itemStr != null) {
+        final item = QcItem.fromJson(itemStr);
+        if (!mounted) return;
+        
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => QcSubmitPage(
+                item: item,
+                passed: passed,
+              ),
+            ),
+          );
+        });
+      }
+    } catch (_) {}
   }
 
-  Future<void> _reloadItems() async {
-    final session = sl<SessionManager>();
-    final canValidate = hasPermission(session.role, Permission.qcValidate);
-    final division = session.divisionName ?? 'MECHANIC';
-    final items = await _repository.getQcItems(
-      date: _dateStr,
-      division: division,
-      canValidate: canValidate,
+  Future<void> _loadDivisions() async {
+    final divs = await _repo.getDivisions();
+    if (!mounted) return;
+    setState(() {
+      _divisions = divs;
+      _isLoading = false;
+    });
+
+    // Pindah otomatis jika dipanggil lewat notifikasi (ada focusCoreId)
+    // Walaupun user menekan notifikasi, logic notif mungkin di handle di main.
+    // Tapi jika ada focusCoreId, idealnya BE sudah return Divisi.
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_divisions.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.domain_disabled,
+                size: 56, color: AppColors.textDisabled),
+            SizedBox(height: 16),
+            Text('Tidak ada data divisi QC',
+                style: TextStyle(fontSize: 15, color: AppColors.textMuted)),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: _divisions.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, i) {
+        final div = _divisions[i];
+        return InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => QcUnitsPage(
+                  divisionId: div.divisionId,
+                  divisionName: div.divisionName,
+                ),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceCard,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.handyman_outlined,
+                      color: AppColors.gold, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(div.divisionName,
+                          style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary)),
+                      const SizedBox(height: 4),
+                      Text(
+                          div.totalItem > 0
+                              ? '${div.totalItem} antrian pekerjaan'
+                              : 'Ketuk untuk memuat antrian QC',
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.textMuted)),
+                    ],
+                  ),
+                ),
+                const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textMuted),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── PAGE 2: LIST UNIT PROGRESS (DALAM DIVISI) ───────────────────────────────
+
+class QcUnitsPage extends StatefulWidget {
+  final String divisionId;
+  final String divisionName;
+
+  const QcUnitsPage({
+    super.key,
+    required this.divisionId,
+    required this.divisionName,
+  });
+
+  @override
+  State<QcUnitsPage> createState() => _QcUnitsPageState();
+}
+
+class _QcUnitsPageState extends State<QcUnitsPage> {
+  late final QcRepository _repo;
+  List<QcUnitGroup> _unitGroups = [];
+  bool _isLoading = true;
+  bool _isFetchingMore = false;
+  
+  // Pagination States
+  int _page = 1;
+  bool _hasMore = true;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _repo = sl<QcRepository>();
+    _scrollController.addListener(_onScroll);
+    _loadUnits();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoading && !_isFetchingMore && _hasMore) {
+        _loadMoreUnits();
+      }
+    }
+  }
+
+  Future<void> _loadUnits() async {
+    _page = 1;
+    final response = await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
+    if (!mounted) return;
+    setState(() {
+      _unitGroups = response.groups;
+      _hasMore = response.hasMore;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _loadMoreUnits() async {
+    setState(() {
+      _isFetchingMore = true;
+    });
+    
+    _page++;
+    final response = await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
+    if (!mounted) return;
+    
+    setState(() {
+      _hasMore = response.hasMore;
+      
+      // Append data by unit Id grouping
+      for (final newGroup in response.groups) {
+        final existingIdx = _unitGroups.indexWhere((g) => g.unitId == newGroup.unitId);
+        if (existingIdx >= 0) {
+          // Add jobdescs into existing unit group
+          final existingJobdescs = List<QcItem>.from(_unitGroups[existingIdx].jobdescs);
+          existingJobdescs.addAll(newGroup.jobdescs);
+          
+          _unitGroups[existingIdx] = QcUnitGroup(
+            unitId: newGroup.unitId,
+            unitName: newGroup.unitName,
+            jobdescs: existingJobdescs,
+          );
+        } else {
+          // Add entirely new unit group entry
+          _unitGroups.add(newGroup);
+        }
+      }
+      
+      _isFetchingMore = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('Divisi ${widget.divisionName}'),
+        backgroundColor: AppColors.surfaceCard,
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _unitGroups.isEmpty
+              ? const Center(
+                  child: Text('Tidak ada unit menunggu QC.',
+                      style: TextStyle(color: AppColors.textMuted)))
+              : ListView.separated(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _unitGroups.length + (_hasMore ? 1 : 0),
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (ctx, i) {
+                    if (i == _unitGroups.length) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!_isLoading && !_isFetchingMore && _hasMore) {
+                          _loadMoreUnits();
+                        }
+                      });
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                            child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2))),
+                      );
+                    }
+
+                    final unit = _unitGroups[i];
+
+                    return InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => QcItemsPage(
+                              divisionId: widget.divisionId,
+                              divisionName: widget.divisionName,
+                              unitId: unit.unitId,
+                              unitName: unit.unitName,
+                              initialItems: unit.jobdescs,
+                            ),
+                          ),
+                        ).then((_) => _loadUnits()); // Reload when going back
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceCard,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.directions_car_filled_outlined,
+                                size: 28, color: AppColors.textSecondary),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(unit.unitName,
+                                      style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.textPrimary)),
+                                  const SizedBox(height: 4),
+                                  const Text('Ketuk untuk memuat jobdesc QC',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textMuted)),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded,
+                                color: AppColors.textMuted),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+    );
+  }
+}
+
+// ─── PAGE 3: ITEMS + DEBOUNCE SEARCH (DALAM UNIT) ─────────────────────────
+
+class QcItemsPage extends StatefulWidget {
+  final String divisionId;
+  final String divisionName;
+  final String unitId;
+  final String unitName;
+  final List<QcItem> initialItems;
+
+  const QcItemsPage({
+    super.key,
+    required this.divisionId,
+    required this.divisionName,
+    required this.unitId,
+    required this.unitName,
+    required this.initialItems,
+  });
+
+  @override
+  State<QcItemsPage> createState() => _QcItemsPageState();
+}
+
+class _QcItemsPageState extends State<QcItemsPage> {
+  late final QcRepository _repo;
+  List<QcItem> _items = [];
+  bool _isLoading = true;
+  String _selectedPanel = 'all';
+  String _sortMode = 'panel_asc';
+
+  Timer? _debounce;
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _repo = sl<QcRepository>();
+    _items = widget.initialItems;
+    _loadItems();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      if (query.isNotEmpty && query.length >= 3) {
+        _loadItems(search: query);
+      } else if (query.isEmpty) {
+        _loadItems();
+      }
+    });
+  }
+
+  Future<void> _loadItems({String? search}) async {
+    setState(() => _isLoading = true);
+    final groups = await _repo.getQcItems(
+      divisionId: widget.divisionId,
+      unitId: widget.unitId,
+      search: search,
     );
     if (!mounted) return;
     setState(() {
-      _qcItems = items;
       _isLoading = false;
+      _items = groups.groups.expand((g) => g.jobdescs).toList();
+      if (_selectedPanel != 'all' &&
+          !_items.any((item) => item.panelName == _selectedPanel)) {
+        _selectedPanel = 'all';
+      }
     });
+  }
+
+  List<QcItem> get _antrianItems => _items
+      .where((i) =>
+          i.countdownStatus == 'READY_QC' ||
+          i.countdownStatus == 'WAITING_QC' ||
+          i.countdownStatus == 'QC_READY')
+      .toList();
+
+  List<String> get _panelOptions {
+    final panels = _antrianItems.map((item) => item.panelName).toSet().toList()
+      ..sort();
+    return ['all', ...panels];
+  }
+
+  List<QcItem> get _visibleItems {
+    final items = _antrianItems.where((item) {
+      if (_selectedPanel != 'all' && item.panelName != _selectedPanel) {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    items.sort((a, b) {
+      switch (_sortMode) {
+        case 'hours_desc':
+          return (b.remainingHours ?? 0).compareTo(a.remainingHours ?? 0);
+        case 'hours_asc':
+          return (a.remainingHours ?? 0).compareTo(b.remainingHours ?? 0);
+        case 'job_asc':
+          return a.jobName.compareTo(b.jobName);
+        case 'panel_asc':
+        default:
+          final panelCompare = a.panelName.compareTo(b.panelName);
+          return panelCompare != 0
+              ? panelCompare
+              : a.jobName.compareTo(b.jobName);
+      }
+    });
+    return items;
+  }
+
+  String _sortLabel(String value) {
+    switch (value) {
+      case 'hours_desc':
+        return 'Jam terbesar';
+      case 'hours_asc':
+        return 'Jam terkecil';
+      case 'job_asc':
+        return 'Job A-Z';
+      case 'panel_asc':
+      default:
+        return 'Panel A-Z';
+    }
+  }
+
+  void _resetFilters() {
+    _searchCtrl.clear();
+    setState(() {
+      _selectedPanel = 'all';
+      _sortMode = 'panel_asc';
+    });
+    _loadItems();
   }
 
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
     final canSubmit = hasPermission(session.role, Permission.qcSubmit);
-    final canValidate = hasPermission(session.role, Permission.qcValidate);
-    final currentRole = session.role ?? '';
+    final activeFilterCount =
+        (_selectedPanel == 'all' ? 0 : 1) + (_sortMode == 'panel_asc' ? 0 : 1);
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: DateFilterBar(
-            selectedDate: _selectedDate,
-            onDateChanged: (d) {
-              setState(() {
-                _selectedDate = d;
-                _isLoading = true;
-              });
-              _reloadItems();
-            },
-            label: 'Checkpoint',
-          ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.unitName, style: const TextStyle(fontSize: 16)),
+            Text('Divisi ${widget.divisionName}',
+                style:
+                    const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          ],
         ),
-        Expanded(
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : _qcItems.isEmpty
-              ? _buildEmpty()
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    // Role hint card intentionally hidden from UI.
-                    _buildSummary(_qcItems),
-                    const SizedBox(height: 16),
-                      ..._sortedQcItems().map((item) => _QcCard(
-                          item: item,
-                        isHighlighted: item.qcId == widget.focusQcId,
-                          canSubmit: canSubmit,
-                          canValidate: canValidate,
-                          currentRole: currentRole,
-                          onSubmitPass: () => _submitQc(context, item, passed: true),
-                          onSubmitFail: () => _submitQc(context, item, passed: false),
-                          onValidate: () => _validateQc(context, item),
-                        )),
-                  ],
+        backgroundColor: AppColors.surfaceCard,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchCtrl,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'Cari panel/section/pekerjaan...',
+                    prefixIcon:
+                        const Icon(Icons.search, color: AppColors.textMuted),
+                    suffixIcon: _searchCtrl.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Bersihkan pencarian',
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            color: AppColors.textMuted,
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              _loadItems();
+                            },
+                          ),
+                    filled: true,
+                    fillColor: AppColors.surfaceInput,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  ),
+                  onChanged: (value) {
+                    setState(() {});
+                    _onSearchChanged(value);
+                  },
                 ),
-        ),
-      ],
+                const SizedBox(height: 8),
+                _buildCompactFilters(activeFilterCount),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildList(_visibleItems, canSubmit),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildSummary(List<QcItem> items) {
-    final waitingKd = items.where((i) => i.kdCheckpointBy == null).length;
-    final doneKd = items.where((i) => i.kdCheckpointBy != null).length;
-    final doneAdv = items.where((i) => i.advValidatedBy != null).length;
-    final donePm = items.where((i) => i.pmValidatedBy != null).length;
-
+  Widget _buildCompactFilters(int activeFilterCount) {
+    final panelOptions = _panelOptions;
     return Row(
       children: [
         Expanded(
-            child: _Tile(
-                count: waitingKd,
-            label: 'Menunggu QC KD',
-                color: AppColors.orange)),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _MiniFilterButton(
+                  icon: Icons.fact_check_rounded,
+                  label: 'Ready QC',
+                  selected: true,
+                  onTap: () {},
+                ),
+                const SizedBox(width: 8),
+                PopupMenuButton<String>(
+                  tooltip: 'Filter panel',
+                  onSelected: (value) => setState(() => _selectedPanel = value),
+                  itemBuilder: (_) => panelOptions
+                      .map(
+                        (panel) => PopupMenuItem<String>(
+                          value: panel,
+                          child: Text(panel == 'all' ? 'Semua panel' : panel),
+                        ),
+                      )
+                      .toList(),
+                  child: _MiniFilterButton(
+                    icon: Icons.filter_alt_rounded,
+                    label: _selectedPanel == 'all' ? 'Panel' : _selectedPanel,
+                    selected: _selectedPanel != 'all',
+                    onTap: null,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                PopupMenuButton<String>(
+                  tooltip: 'Urutkan',
+                  onSelected: (value) => setState(() => _sortMode = value),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'panel_asc', child: Text('Panel A-Z')),
+                    PopupMenuItem(value: 'job_asc', child: Text('Job A-Z')),
+                    PopupMenuItem(value: 'hours_desc', child: Text('Jam terbesar')),
+                    PopupMenuItem(value: 'hours_asc', child: Text('Jam terkecil')),
+                  ],
+                  child: _MiniFilterButton(
+                    icon: Icons.sort_rounded,
+                    label: _sortLabel(_sortMode),
+                    selected: _sortMode != 'panel_asc',
+                    onTap: null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(width: 8),
-        Expanded(
-            child: _Tile(
-          count: doneKd,
-          label: 'Sudah QC KD',
-            color: AppColors.gold)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _Tile(
-          count: doneAdv,
-          label: 'Sudah QC ADV',
-                color: AppColors.gold)),
-        const SizedBox(width: 8),
-        Expanded(
-            child: _Tile(
-            count: donePm,
-            label: 'Sudah QC PM',
-                color: AppColors.statusDone)),
+        IconButton(
+          tooltip: activeFilterCount > 0 ? 'Reset filter' : 'Refresh data',
+          onPressed: activeFilterCount > 0 ? _resetFilters : () => _loadItems(),
+          icon: Icon(
+            activeFilterCount > 0
+                ? Icons.filter_alt_off_rounded
+                : Icons.refresh_rounded,
+            size: 20,
+          ),
+          color: activeFilterCount > 0 ? AppColors.gold : AppColors.textMuted,
+          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          padding: EdgeInsets.zero,
+        ),
       ],
     );
   }
 
-  Widget _buildEmpty() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.verified_outlined,
-              size: 56, color: AppColors.textDisabled),
-          SizedBox(height: 16),
-            Text('Tidak ada antrian checkpoint',
-              style: TextStyle(
-                  fontSize: 15,
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-
-  List<QcItem> _sortedQcItems() {
-    if (widget.focusQcId == null) return _qcItems;
-    final ordered = List<QcItem>.from(_qcItems);
-    ordered.sort((a, b) {
-      final aFocus = a.qcId == widget.focusQcId ? 1 : 0;
-      final bFocus = b.qcId == widget.focusQcId ? 1 : 0;
-      return bFocus.compareTo(aFocus);
-    });
-    return ordered;
-  }
-
-  Future<void> _submitQc(BuildContext context, QcItem item,
-      {required bool passed}) async {
-    final session = sl<SessionManager>();
-    final notesCtrl = TextEditingController(
-      text: item.qcNotes ?? '',
-    );
-    final reworkCtrl = TextEditingController(
-      text: passed ? '0' : '2',
-    );
-    final remainingCtrl = TextEditingController(
-      text: passed ? '0' : '2',
-    );
-    DateTime? reworkDeadline = !passed
-        ? DateTime.tryParse(item.reworkDeadlineDate ?? '') ?? _selectedDate.add(const Duration(days: 2))
-        : null;
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surfaceCard,
-          title: Text(
-            passed ? 'Checkpoint KD Lolos' : 'Checkpoint KD Reject',
-            style: const TextStyle(color: AppColors.textPrimary),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: notesCtrl,
-                minLines: 2,
-                maxLines: 3,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: passed ? 'Catatan checkpoint KD' : 'Alasan reject KD',
-                ),
-              ),
-              if (!passed) ...[
-                const SizedBox(height: 10),
-                TextField(
-                  controller: reworkCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(labelText: 'Jam kerja rework'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: remainingCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(labelText: 'Remaining hours setelah checkpoint'),
-                ),
-                const SizedBox(height: 10),
-                InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: ctx,
-                      initialDate: reworkDeadline ?? _selectedDate.add(const Duration(days: 2)),
-                      firstDate: DateTime(2025),
-                      lastDate: DateTime(2027),
-                    );
-                    if (picked != null) {
-                      setDialogState(() => reworkDeadline = picked);
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: InputDecorator(
-                    decoration: const InputDecoration(labelText: 'Deadline rework'),
-                    child: Text(
-                      reworkDeadline == null ? 'Pilih deadline rework' : _formatDateLabel(reworkDeadline!),
-                      style: TextStyle(
-                        color: reworkDeadline == null ? AppColors.textMuted : AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-            FilledButton(
-              onPressed: () {
-                if (!passed) {
-                  final reworkHours = double.tryParse(reworkCtrl.text.trim());
-                  if (reworkHours == null || reworkHours <= 0 || reworkDeadline == null) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('Reject checkpoint wajib isi jam kerja rework dan deadline.')),
-                    );
-                    return;
-                  }
-                }
-                Navigator.pop(ctx, true);
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: passed ? AppColors.statusDone : AppColors.statusLocked,
-                foregroundColor: AppColors.background,
-              ),
-              child: const Text('Simpan'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (result != true || !context.mounted) return;
-
-    await _repository.submitQc(
-      qcId: item.qcId,
-      passed: passed,
-      notes: notesCtrl.text.trim(),
-      kdRemainingHours: double.tryParse(remainingCtrl.text.trim()) ?? 0.0,
-      estimatedReworkHours: double.tryParse(reworkCtrl.text.trim()) ?? 0.0,
-      reworkDeadlineDate: reworkDeadline == null ? null : _formatDate(reworkDeadline!),
-      kdCheckpointBy: session.fullName ?? 'KD',
-      kdCheckpointAt: _formatDateTime(DateTime.now()),
-    );
-    if (!context.mounted) return;
-    setState(() => _isLoading = true);
-    await _reloadItems();
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(passed
-          ? 'QC KD berhasil disimpan.'
-          : 'QC KD reject berhasil disimpan dengan rencana rework.'),
-        backgroundColor: AppColors.surfaceCard,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  Future<void> _validateQc(BuildContext context, QcItem item) async {
-    final session = sl<SessionManager>();
-    final role = session.role ?? '';
-    if (role != 'adv' && role != 'pm') {
-      return;
+  Widget _buildList(List<QcItem> items, bool canSubmit) {
+    if (items.isEmpty) {
+      return const Center(
+        child: Text('Tidak ada data.',
+            style: TextStyle(color: AppColors.textMuted)),
+      );
     }
-    final advisorCtrl = TextEditingController(
-      text: role == 'pm' ? (item.pmNotes ?? '') : (item.advNotes ?? ''),
-    );
-
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceCard,
-        title: const Text(
-          'Validasi Checkpoint',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                item.resultStatus == 'TIDAK_LOLOS'
-                    ? 'KD sudah mengajukan rework ${item.estimatedReworkHours?.toStringAsFixed(1) ?? '-'} jam sampai ${item.reworkDeadlineDate == null ? '-' : _formatStoredDate(item.reworkDeadlineDate!)}.'
-                    : role == 'adv'
-                        ? 'QC ADV bersifat tambahan. QC KD tetap yang wajib.'
-                        : 'QC PM bersifat tambahan. Jika belum dilakukan, QC KD tetap dianggap cukup.',
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: items.length,
+      itemBuilder: (ctx, i) {
+        final item = items[i];
+        return _QcCard(
+          item: item,
+          canSubmit: canSubmit,
+          onAction: (passed) async {
+            // Push ke form submit
+            final res = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => QcSubmitPage(
+                  item: item,
+                  passed: passed,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: advisorCtrl,
-              minLines: 2,
-              maxLines: 3,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: InputDecoration(labelText: role == 'adv' ? 'Catatan ADV' : 'Catatan PM'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.background,
-            ),
-            child: const Text('Validasi'),
-          ),
-        ],
-      ),
+            );
+            if (res == true) {
+              // Jika submit sukses (T/F return true untuk sukses flow), load ulang flat list.
+              final query = _searchCtrl.text.trim();
+              _loadItems(search: query.length >= 3 ? query : null);
+            }
+          },
+        );
+      },
     );
-
-    if (result != true || !context.mounted) return;
-
-    await _repository.validateQc(
-      qcId: item.qcId,
-      validatorRole: role,
-      validatorName: session.fullName ?? role.toUpperCase(),
-      validatorAt: _formatDateTime(DateTime.now()),
-      notes: advisorCtrl.text.trim(),
-    );
-    if (!context.mounted) return;
-    setState(() => _isLoading = true);
-    await _reloadItems();
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(role == 'adv'
-          ? 'QC ADV berhasil disimpan.'
-          : 'QC PM berhasil disimpan.'),
-        backgroundColor: AppColors.surfaceCard,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDateTime(DateTime date) {
-    return '${_formatDate(date)} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
 
-// ── Mini tile ─────────────────────────────────────────
-class _Tile extends StatelessWidget {
-  final int count;
-  final String label;
-  final Color color;
+class _MiniFilterButton extends StatelessWidget {
+  const _MiniFilterButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
-  const _Tile(
-      {required this.count, required this.label, required this.color});
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        children: [
-          Text('$count',
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.w700, color: color)),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 10,
-                  color: color.withValues(alpha: 0.8),
-                  fontWeight: FontWeight.w500)),
-        ],
+    final color = selected ? AppColors.gold : AppColors.textMuted;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        height: 36,
+        constraints: const BoxConstraints(maxWidth: 132),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.gold.withValues(alpha: 0.12)
+              : AppColors.surfaceInput,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? AppColors.gold.withValues(alpha: 0.45)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── QC Card ───────────────────────────────────────────
-class _QcCard extends StatelessWidget {
-  final QcItem item;
-  final bool isHighlighted;
-  final bool canSubmit;
-  final bool canValidate;
-  final String currentRole;
-  final VoidCallback onSubmitPass;
-  final VoidCallback onSubmitFail;
-  final VoidCallback onValidate;
+// ─── PAGE 4: FORM SUBMIT FULL SCREEN ───────────────────────────────────────
 
-  const _QcCard({
+class QcSubmitPage extends StatefulWidget {
+  final QcItem item;
+  final bool passed;
+
+  const QcSubmitPage({
+    super.key,
     required this.item,
-    required this.isHighlighted,
-    required this.canSubmit,
-    required this.canValidate,
-    required this.currentRole,
-    required this.onSubmitPass,
-    required this.onSubmitFail,
-    required this.onValidate,
+    required this.passed,
+  });
+
+  @override
+  State<QcSubmitPage> createState() => _QcSubmitPageState();
+}
+
+class _QcSubmitPageState extends State<QcSubmitPage> {
+  final _notesCtrl = TextEditingController();
+  final _durationCtrl = TextEditingController();
+  final _reworkHoursCtrl = TextEditingController(text: '07:00');
+
+  String? _selectedUserId;
+  List<Map<String, dynamic>> _availableUsers = [];
+
+  DateTime? _reworkDate;
+  String? _photoBeforeUrl;
+  String? _evidencePhotoUrl;
+  File? _photoBeforeLocal;
+  File? _evidencePhotoLocal;
+
+  bool _isUploadingBefore = false;
+  bool _isUploadingEvidence = false;
+  bool _isSubmitting = false;
+  final ImagePicker _picker = ImagePicker();
+  bool? _pendingIsBefore;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.passed) {
+      _loadUsers();
+    }
+    _loadDraft();
+  }
+
+  Future<void> _loadDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draftStr = prefs.getString('pending_qc_form');
+      if (draftStr != null) {
+        final map = jsonDecode(draftStr) as Map<String, dynamic>;
+        if (map['notes'] != null) _notesCtrl.text = map['notes'];
+        if (map['duration'] != null) _durationCtrl.text = map['duration'];
+        if (map['reworkHours'] != null) _reworkHoursCtrl.text = map['reworkHours'];
+        if (map['selectedUserId'] != null) _selectedUserId = map['selectedUserId'];
+        if (map['reworkDate'] != null) _reworkDate = DateTime.tryParse(map['reworkDate']);
+        if (map['photoBeforeUrl'] != null) _photoBeforeUrl = map['photoBeforeUrl'];
+        if (map['evidencePhotoUrl'] != null) _evidencePhotoUrl = map['evidencePhotoUrl'];
+        if (map['photoBeforeLocal'] != null) _photoBeforeLocal = File(map['photoBeforeLocal']);
+        if (map['evidencePhotoLocal'] != null) _evidencePhotoLocal = File(map['evidencePhotoLocal']);
+        setState(() {});
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _triggerAutoSave() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Save Item and Passed boolean
+      await prefs.setString('pending_qc_item', widget.item.toJson());
+      await prefs.setBool('pending_qc_passed', widget.passed);
+
+      // Save Form data
+      final draftMap = {
+        'notes': _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
+        'duration': _durationCtrl.text.isNotEmpty ? _durationCtrl.text : null,
+        'reworkHours': _reworkHoursCtrl.text.isNotEmpty ? _reworkHoursCtrl.text : null,
+        'selectedUserId': _selectedUserId,
+        'reworkDate': _reworkDate?.toIso8601String(),
+        'photoBeforeUrl': _photoBeforeUrl,
+        'evidencePhotoUrl': _evidencePhotoUrl,
+        'photoBeforeLocal': _photoBeforeLocal?.path,
+        'evidencePhotoLocal': _evidencePhotoLocal?.path,
+      };
+      await prefs.setString('pending_qc_form', jsonEncode(draftMap));
+    } catch (_) {}
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final jobDs = sl<JobPlanDataSource>();
+      final data = await jobDs.getDropdowns();
+      if (!mounted) return;
+      setState(() {
+        _availableUsers = data['users'] ?? [];
+      });
+    } catch (_) {}
+  }
+
+  String _formatDate(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  String _formatDateLabel(DateTime date) =>
+      DateFormat('d MMM yyyy', 'id_ID').format(date);
+
+  Future<String?> _uploadPhoto(File file, String type) async {
+    final remoteDs = sl<RemoteQcDataSource>();
+    final session = sl<SessionManager>();
+
+    final now = DateTime.now();
+    final monthNames = [
+      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+    ];
+    final monthFolder = monthNames[now.month];
+    final tanggal = DateFormat('yyyy-MM-dd').format(now);
+
+    final unit = _sanitizePath(widget.item.unitName);
+    final div = _sanitizePath(session.divisionName ?? 'DIVISI');
+    final job = _sanitizePath(widget.item.jobName);
+    final panel = _sanitizePath(widget.item.panelName);
+    final safeType = _sanitizePath(type);
+
+    // Path: unit/divisi/Bulan/tanggal/{jobdesc} {panel}_{type} QC.jpg
+    final filename =
+        '$unit/$div/$monthFolder/$tanggal/${job} ${panel}_${safeType} QC.jpg';
+
+    try {
+      final ticket = await remoteDs.getQcUploadTicket(filename);
+      final uploadUrl = ticket['upload_url'] ?? '';
+      final publicUrl = ticket['public_url'] ?? '';
+
+      // Simple PUT — much more reliable than StreamedRequest on mobile networks
+      final bytes = await file.readAsBytes();
+      final response = await http.put(
+        Uri.parse(uploadUrl),
+        headers: {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': bytes.length.toString(),
+        },
+        body: bytes,
+      ).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return publicUrl;
+      }
+
+      throw Exception(
+          'HTTP ${response.statusCode}: ${response.body}');
+    } catch (e) {
+      debugPrint("UPLOAD S3 ERROR: $e");
+      rethrow;
+    }
+  }
+
+  static String _sanitizePath(String value) {
+    return value
+        .replaceAll('/', '-')
+        .replaceAll(RegExp(r'[^a-zA-Z0-9_\- ]'), '_')
+        .trim();
+  }
+
+  Future<void> _pickAndUpload(bool isBefore) async {
+    final slot = isBefore ? 'before' : 'evidence';
+    final label = isBefore ? 'Foto QC 1 (Before)' : 'Foto QC 2 (Evidence)';
+
+    // Auto-save context
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final currentRoute = GoRouterState.of(context).uri.toString();
+      String targetRoute = currentRoute;
+      if (!targetRoute.contains('qcId=')) {
+        targetRoute += targetRoute.contains('?') ? '&' : '?';
+        targetRoute += 'qcId=${widget.item.coreId}';
+      }
+      await prefs.setString('pending_camera_route', targetRoute);
+      await prefs.setString('pending_camera_slot', slot);
+    } catch (_) {}
+    await _triggerAutoSave();
+
+    // Open In-App Camera (no OOM risk)
+    final path = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => InAppCameraPage(slot: slot, label: label),
+        fullscreenDialog: true,
+      ),
+    );
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('pending_camera_slot');
+    } catch (_) {}
+
+    if (!mounted || path == null) return;
+
+    final xfile = XFile(path);
+    await _uploadPickedFile(xfile, isBefore);
+    _pendingIsBefore = null;
+  }
+
+  Future<void> _uploadPickedFile(XFile pickedFile, bool isBefore) async {
+
+    if (!mounted) return;
+    setState(() {
+      if (isBefore)
+        _isUploadingBefore = true;
+      else
+        _isUploadingEvidence = true;
+    });
+
+    try {
+      final url =
+          await _uploadPhoto(File(pickedFile.path), isBefore ? 'QC 1' : 'QC 2');
+
+      if (!mounted) return;
+      setState(() {
+        if (isBefore) {
+          _photoBeforeUrl = url;
+          _photoBeforeLocal = File(pickedFile.path);
+          _isUploadingBefore = false;
+        } else {
+          _evidencePhotoUrl = url;
+          _evidencePhotoLocal = File(pickedFile.path);
+          _isUploadingEvidence = false;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (isBefore)
+          _isUploadingBefore = false;
+        else
+          _isUploadingEvidence = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal: $e'),
+        backgroundColor: AppColors.statusLocked,
+        duration: const Duration(seconds: 4),
+      ));
+    }
+  }
+
+  Future<void> _submitData() async {
+    if (!widget.passed) {
+      if (_reworkDate == null ||
+          _selectedUserId == null ||
+          _reworkHoursCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Tanggal, pekerja, dan jam rework wajib diisi.'),
+        ));
+        return;
+      }
+    }
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final repo = sl<QcRepository>();
+      await repo.submitQc(
+        coreId: widget.item.coreId,
+        action: widget.passed ? 'lolos' : 'tidak_lolos',
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        inspectionDurationMinutes: int.tryParse(_durationCtrl.text.trim()),
+        photoBeforeUrl: _photoBeforeUrl,
+        evidencePhotoUrl: _evidencePhotoUrl,
+        reworkDate: widget.passed ? null : _formatDate(_reworkDate!),
+        reworkAssignedUser: widget.passed ? null : _selectedUserId,
+        reworkDailyHours: widget.passed ? null : _reworkHoursCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('pending_qc_item');
+        await prefs.remove('pending_qc_passed');
+        await prefs.remove('pending_qc_form');
+      } catch (_) {}
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(widget.passed
+            ? 'QC Lolos berhasil disimpan.'
+            : 'QC Tidak Lolos — rework dijadwalkan.'),
+        backgroundColor: AppColors.statusDone,
+      ));
+      Navigator.pop(context, true); // Success
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Gagal submit: $e'),
+        backgroundColor: AppColors.statusLocked,
+      ));
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(widget.passed ? 'Lolos QC' : 'Tidak Lolos QC'),
+        backgroundColor: AppColors.surfaceCard,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Pekerjaan
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: widget.passed
+                    ? AppColors.statusDone.withValues(alpha: 0.1)
+                    : AppColors.statusLocked.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: widget.passed
+                      ? AppColors.statusDone.withValues(alpha: 0.3)
+                      : AppColors.statusLocked.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(widget.item.panelName,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(widget.item.jobName,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Form
+            TextField(
+              controller: _notesCtrl,
+              minLines: 2,
+              maxLines: 4,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Catatan QC',
+                filled: true,
+                fillColor: AppColors.surfaceInput,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _durationCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                labelText: 'Durasi inspeksi (menit)',
+                filled: true,
+                fillColor: AppColors.surfaceInput,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none),
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Foto
+            const Text('Dokumentasi Foto',
+                style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 8),
+
+            _PhotoPickerRow(
+              label: 'Foto QC 1 ',
+              url: _photoBeforeUrl,
+              localFile: _photoBeforeLocal,
+              isUploading: _isUploadingBefore,
+              onPick: () => _pickAndUpload(true),
+            ),
+            const SizedBox(height: 12),
+            _PhotoPickerRow(
+              label: 'Foto QC 2 ',
+              url: _evidencePhotoUrl,
+              localFile: _evidencePhotoLocal,
+              isUploading: _isUploadingEvidence,
+              onPick: () => _pickAndUpload(false),
+            ),
+
+            if (!widget.passed) ...[
+              const SizedBox(height: 24),
+              const Text('Jadwal Pengerjaan Ulang',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.statusLocked)),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: DateTime.now().add(const Duration(days: 1)),
+                    firstDate: DateTime(2025),
+                    lastDate: DateTime(2028),
+                  );
+                  if (picked != null) {
+                    setState(() => _reworkDate = picked);
+                  }
+                },
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Tanggal Pengerjaan Ulang',
+                    filled: true,
+                    fillColor: AppColors.surfaceInput,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none),
+                  ),
+                  child: Text(
+                    _reworkDate == null
+                        ? 'Pilih tanggal'
+                        : _formatDateLabel(_reworkDate!),
+                    style: TextStyle(
+                        color: _reworkDate == null
+                            ? AppColors.textMuted
+                            : AppColors.textPrimary),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _selectedUserId,
+                decoration: InputDecoration(
+                  labelText: 'Pekerja',
+                  filled: true,
+                  fillColor: AppColors.surfaceInput,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none),
+                ),
+                dropdownColor: AppColors.surfaceCard,
+                items: _availableUsers.map((u) {
+                  final id = '${u['id'] ?? ''}'.trim();
+                  final name = '${u['name'] ?? u['full_name'] ?? id}';
+                  return DropdownMenuItem<String>(
+                    value: id.isNotEmpty ? id : null,
+                    child: Text(name,
+                        style: const TextStyle(color: AppColors.textPrimary)),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() => _selectedUserId = val);
+                },
+                hint: const Text('Pilih anggota',
+                    style: TextStyle(color: AppColors.textMuted)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _reworkHoursCtrl,
+                style: const TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Jam Kerja (HH:MM)',
+                  filled: true,
+                  fillColor: AppColors.surfaceInput,
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none),
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 40),
+
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton(
+                onPressed: (_isUploadingBefore ||
+                        _isUploadingEvidence ||
+                        _isSubmitting)
+                    ? null
+                    : _submitData,
+                style: FilledButton.styleFrom(
+                  backgroundColor: widget.passed
+                      ? AppColors.statusDone
+                      : AppColors.statusLocked,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Text('Kirim Hasil QC',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── REUSABLE WIDGETS ────────────────────────────────────────────────────────
+
+class _PhotoPickerRow extends StatelessWidget {
+  final String label;
+  final String? url;
+  final File? localFile;
+  final bool isUploading;
+  final VoidCallback onPick;
+
+  const _PhotoPickerRow({
+    required this.label,
+    required this.url,
+    this.localFile,
+    required this.isUploading,
+    required this.onPick,
   });
 
   @override
   Widget build(BuildContext context) {
-    final validationStatus = item.validationStatus;
-    final resultStatus = item.resultStatus;
-    final checklist = item.qcChecklist;
-    final notes = item.qcNotes;
-    final kdDone = item.kdCheckpointBy != null;
-    final advDone = item.advValidatedBy != null;
-    final pmDone = item.pmValidatedBy != null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  url != null ? '✅ Berhasil Dilampirkan' : label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: url != null
+                        ? AppColors.statusDone
+                        : AppColors.textMuted,
+                  ),
+                ),
+              ),
+              if (isUploading)
+                const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+              else if (url == null)
+                InkWell(
+                  onTap: onPick,
+                  child: const Icon(Icons.camera_alt_outlined,
+                      color: AppColors.gold, size: 24),
+                )
+              else
+                InkWell(
+                  onTap: onPick,
+                  child: const Icon(Icons.refresh_rounded,
+                      color: AppColors.textMuted, size: 24),
+                ),
+            ],
+          ),
+        ),
+        if (url != null && localFile != null) ...[
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              localFile!,
+              cacheWidth: 1080,
+              cacheHeight: 720,
+              width: double.infinity,
+              height: 180,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: double.infinity,
+                height: 180,
+                color: AppColors.background,
+                alignment: Alignment.center,
+                child: const Icon(Icons.broken_image,
+                    color: AppColors.textMuted, size: 32),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _QcCard extends StatelessWidget {
+  final QcItem item;
+  final bool canSubmit;
+  final Function(bool) onAction; // true=Lolos, false=Reject
+
+  const _QcCard({
+    required this.item,
+    required this.canSubmit,
+    required this.onAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isAntrian = item.countdownStatus == 'READY_QC' ||
+        item.countdownStatus == 'WAITING_QC' ||
+        item.countdownStatus == 'QC_READY';
+    final isLolos = item.qcLastStatus == 'LOLOS';
+    final isReject = item.qcLastStatus == 'TIDAK_LOLOS';
 
     Color statusColor;
     String statusLabel;
-    if (!kdDone || validationStatus == 'WAITING_KD') {
-      statusColor = AppColors.orange;
-      statusLabel = 'Menunggu QC KD';
-    } else if (resultStatus == 'TIDAK_LOLOS') {
+
+    if (isLolos) {
+      statusColor = AppColors.statusDone;
+      statusLabel = 'Lolos (${item.qcLevel ?? 'QC'})';
+    } else if (isReject) {
       statusColor = AppColors.statusLocked;
-      statusLabel = 'Reject QC KD';
-    } else if (pmDone) {
-      statusColor = AppColors.statusDone;
-      statusLabel = 'Lolos QC PM';
-    } else if (advDone) {
-      statusColor = AppColors.gold;
-      statusLabel = 'Lolos QC ADV';
+      statusLabel = 'Reject (${item.qcLevel ?? 'QC'})';
+    } else if (isAntrian) {
+      statusColor = AppColors.orange;
+      statusLabel = 'Antrian QC';
     } else {
-      statusColor = AppColors.statusDone;
-      statusLabel = 'Lolos QC KD';
+      statusColor = AppColors.textMuted;
+      statusLabel = 'Monitoring';
     }
 
-    final canSubmitThis = canSubmit && !kdDone && validationStatus == 'WAITING_KD';
-    final canValidateThis = canValidate &&
-        kdDone &&
-        ((currentRole == 'adv' && !advDone) || (currentRole == 'pm' && !pmDone));
+    final canAct = canSubmit && isAntrian;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isHighlighted ? AppColors.gold : statusColor.withValues(alpha: 0.3),
-          width: isHighlighted ? 1.4 : 1,
-        ),
+        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Notification target label intentionally hidden from UI.
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
             child: Row(
               children: [
-                const Icon(Icons.directions_car_filled_outlined,
-                    size: 16, color: AppColors.gold),
-                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${item.unitName} — ${item.panelName}',
+                    item.panelName,
                     style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -546,54 +1429,15 @@ class _QcCard extends StatelessWidget {
                     fontSize: 12, color: AppColors.textSecondary)),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Row(
-              children: [
-                Text('Mekanik: ${item.mechanicName}',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
-                const Spacer(),
-                Text(
-                  '${item.totalActualHours.toStringAsFixed(1)}/${item.targetHoursRevised.toStringAsFixed(1)} jam',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
-              ],
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Text(
+              'Sisa Jam: ${(item.remainingHours ?? 0).toStringAsFixed(1)} h',
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
           ),
-          const Divider(color: AppColors.border, height: 1),
-          ...checklist.map((cl) {
-            final passed = cl.passed;
-            return Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              child: Row(
-                children: [
-                  Icon(
-                    passed == true
-                        ? Icons.check_circle
-                        : passed == false
-                            ? Icons.cancel
-                            : Icons.radio_button_unchecked,
-                    size: 18,
-                    color: passed == true
-                        ? AppColors.statusDone
-                        : passed == false
-                            ? AppColors.statusLocked
-                            : AppColors.textDisabled,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(cl.item,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.textPrimary)),
-                  ),
-                ],
-              ),
-            );
-          }),
-          if (notes != null && notes.isNotEmpty)
+          if (item.qcNotes != null && item.qcNotes!.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
               child: Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
@@ -601,145 +1445,46 @@ class _QcCard extends StatelessWidget {
                   color: AppColors.surfaceInput,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text('Catatan KD: $notes',
+                child: Text('Catatan Pengecekan: ${item.qcNotes}',
                     style: const TextStyle(
                         fontSize: 11,
-                        color: AppColors.textSecondary,
+                        color: AppColors.textPrimary,
                         fontStyle: FontStyle.italic)),
               ),
             ),
-          if (resultStatus != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-              child: Text(
-                resultStatus == 'TIDAK_LOLOS'
-                    ? 'Hasil QC KD: reject • Rework ${item.estimatedReworkHours ?? 0}h • DL ${item.reworkDeadlineDate ?? '-'}'
-                    : 'Hasil QC KD: lolos • Remaining ${item.finalRemainingHours ?? item.kdRemainingHours ?? 0}h',
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  kdDone
-                      ? (resultStatus == 'TIDAK_LOLOS' ? 'Reject QC KD' : 'Lolos QC KD')
-                      : 'Belum QC KD',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: kdDone
-                        ? (resultStatus == 'TIDAK_LOLOS' ? AppColors.statusLocked : AppColors.statusDone)
-                        : AppColors.textMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  advDone ? 'Lolos QC ADV' : 'Belum QC ADV',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: advDone ? AppColors.gold : AppColors.textMuted,
-                    fontWeight: advDone ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  pmDone ? 'Lolos QC PM' : 'Belum QC PM',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: pmDone ? AppColors.statusDone : AppColors.textMuted,
-                    fontWeight: pmDone ? FontWeight.w600 : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (item.kdCheckpointBy != null || item.advValidatedBy != null || item.pmValidatedBy != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (item.kdCheckpointBy != null)
-                    Text(
-                      'KD: ${item.kdCheckpointBy} • ${item.kdCheckpointAt ?? '-'}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                    ),
-                  if (item.advValidatedBy != null)
-                    Text(
-                      'ADV: ${item.advValidatedBy} • ${item.advValidatedAt ?? '-'}${item.advNotes?.isNotEmpty == true ? ' • ${item.advNotes}' : ''}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                    ),
-                  if (item.pmValidatedBy != null)
-                    Text(
-                      'PM: ${item.pmValidatedBy} • ${item.pmValidatedAt ?? '-'}${item.pmNotes?.isNotEmpty == true ? ' • ${item.pmNotes}' : ''}',
-                      style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-                    ),
-                ],
-              ),
-            ),
-          if (canSubmitThis || canValidateThis)
+          if (canAct)
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
               child: Row(
                 children: [
-                  if (canSubmitThis) ...[
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: onSubmitFail,
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.statusLocked),
-                          foregroundColor: AppColors.statusLocked,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        child: const Text('Reject',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => onAction(false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.statusLocked),
+                        foregroundColor: AppColors.statusLocked,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
+                      child: const Text('Tidak Lolos'),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onSubmitPass,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.statusDone,
-                          foregroundColor: AppColors.background,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        child: const Text('Submit Checkpoint',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => onAction(true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.statusDone,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
+                      child: const Text('Lolos'),
                     ),
-                  ],
-                  if (canValidateThis)
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: onValidate,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: AppColors.background,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                        ),
-                        child: Text(currentRole == 'adv' ? 'Validasi ADV' : 'Validasi PM',
-                          style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ),
+                  ),
                 ],
               ),
             ),
+          if (!canAct) const SizedBox(height: 6),
         ],
       ),
     );

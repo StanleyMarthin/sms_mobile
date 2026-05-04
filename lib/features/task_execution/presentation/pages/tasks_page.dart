@@ -11,16 +11,34 @@ import 'task_view_page.dart';
 ///
 /// Operator sees Daily / Overtime execution tabs.
 /// Management sees Daily / Overtime / Review tabs.
-class TasksPage extends StatelessWidget {
+class TasksPage extends StatefulWidget {
   const TasksPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  State<TasksPage> createState() => _TasksPageState();
+}
+
+class _TasksPageState extends State<TasksPage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late bool _isOperator;
+
+  @override
+  void initState() {
+    super.initState();
     final session = sl<SessionManager>();
-    final isOperator = hasPermission(session.role, Permission.dashboardMechanic);
-    return DefaultTabController(
-      length: isOperator ? 2 : 3,
-      child: Column(
+    _isOperator = hasPermission(session.role, Permission.dashboardMechanic);
+    _tabController = TabController(length: _isOperator ? 2 : 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+      return Column(
         children: [
           Container(
             margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -30,6 +48,7 @@ class TasksPage extends StatelessWidget {
               border: Border.all(color: AppColors.border),
             ),
             child: TabBar(
+              controller: _tabController,
               indicator: BoxDecoration(
                 color: AppColors.gold.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(8),
@@ -38,7 +57,7 @@ class TasksPage extends StatelessWidget {
               unselectedLabelColor: AppColors.textMuted,
               dividerHeight: 0,
               labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              tabs: isOperator
+              tabs: _isOperator
                   ? const [
                       Tab(text: 'Harian'),
                       Tab(text: 'Lembur'),
@@ -52,7 +71,9 @@ class TasksPage extends StatelessWidget {
           ),
           Expanded(
             child: TabBarView(
-              children: isOperator
+              controller: _tabController,
+              key: const PageStorageKey("tasksTab"),
+              children: _isOperator
                   ? const [
                       MechanicTaskPage(isOvertime: false, title: 'Task'),
                       MechanicTaskPage(isOvertime: true, title: 'Lembur'),
@@ -66,6 +87,5 @@ class TasksPage extends StatelessWidget {
           ),
         ],
       ),
-    );
   }
 }

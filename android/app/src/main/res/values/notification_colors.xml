@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Warna aksen notifikasi FCM (emas sesuai tema app) -->
+    <color name="notification_color">#FFCF40</color>
+</resources>

@@ -29,6 +29,9 @@ TaskModel _$TaskModelFromJson(Map<String, dynamic> json) => TaskModel(
       ownerName: json['ownerName'] as String,
       totalActualHours: (json['totalActualHours'] as num).toDouble(),
       hasMonitoringRecord: json['hasMonitoringRecord'] as bool? ?? false,
+      isRework: json['isRework'] as bool? ?? false,
+      isOvertime: json['isOvertime'] as bool? ?? false,
+      isPriority: json['isPriority'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$TaskModelToJson(TaskModel instance) => <String, dynamic>{
@@ -54,4 +57,7 @@ Map<String, dynamic> _$TaskModelToJson(TaskModel instance) => <String, dynamic>{
       'ownerName': instance.ownerName,
       'totalActualHours': instance.totalActualHours,
       'hasMonitoringRecord': instance.hasMonitoringRecord,
+      'isRework': instance.isRework,
+      'isOvertime': instance.isOvertime,
+      'isPriority': instance.isPriority,
     };

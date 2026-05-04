@@ -11,20 +11,19 @@ import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/qc/presentation/pages/qc_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
+import '../../features/pr/presentation/pages/pr_page.dart';
 import '../../features/task_execution/presentation/pages/task_section_page.dart';
 import '../../features/warehouse_request/presentation/pages/warehouse_request_page.dart';
 import '../../features/work_order/presentation/pages/work_order_page.dart';
 
-/// Creates the GoRouter instance for declarative navigation.
-///
-/// Routes:
-/// - /splash       → Splash screen
-/// - /login        → Login page
-/// - /home         → Grid home menu (role-adaptive via RBAC)
-/// Flow: splash → login → /home → tap menu → direct feature page
+/// Top-level GoRouter instance — diakses oleh FCMService untuk navigasi dari notifikasi.
+late GoRouter appRouter;
+
+/// Creates and assigns the GoRouter instance for declarative navigation.
 GoRouter createRouter() {
-  return GoRouter(
+  appRouter = GoRouter(
     initialLocation: '/splash',
+    refreshListenable: sl<SessionManager>(),
     redirect: (context, state) {
       final session = sl<SessionManager>();
       final isLoggedIn = session.isLoggedIn;
@@ -32,9 +31,16 @@ GoRouter createRouter() {
 
       if (loc == '/splash') return null;
 
-      final isLoginRoute = loc == '/login';
-      if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/home';
+      if (!isLoggedIn) {
+        // Jika belum login dan tidak punya tempToken, wajib ke splash dulu
+        if (session.tempToken == null) return '/splash';
+        
+        // Jika sudah punya tempToken tapi bukan di halaman login, arahkan ke login
+        if (loc != '/login') return '/login';
+      } else {
+        // Jika sudah login tapi mencoba ke halaman login atau splash, arahkan ke home
+        if (loc == '/login' || loc == '/splash') return '/home';
+      }
 
       return null;
     },
@@ -86,7 +92,8 @@ GoRouter createRouter() {
             initialDate: _parseDate(state.uri.queryParameters['date']),
             planSourceType: state.uri.queryParameters['source'],
             planSourceRefId: state.uri.queryParameters['sourceRefId'],
-            planAutoOpenCreate: state.uri.queryParameters['autoOpenCreate'] == '1',
+            planAutoOpenCreate:
+                state.uri.queryParameters['autoOpenCreate'] == '1',
           ),
         ),
       ),
@@ -113,8 +120,7 @@ GoRouter createRouter() {
         builder: (context, state) => FeatureShellPage(
           title: 'QC',
           child: QcTab(
-            focusQcId: state.uri.queryParameters['qcId'],
-            initialDate: _parseDate(state.uri.queryParameters['date']),
+            focusCoreId: state.uri.queryParameters['qcId'],
           ),
         ),
       ),
@@ -123,7 +129,7 @@ GoRouter createRouter() {
         builder: (context, state) => FeatureShellPage(
           title: 'Work Order',
           child: WorkOrderPage(
-            focusWorkOrderId: state.uri.queryParameters['woId'],
+            focusWoId: state.uri.queryParameters['woId'],
           ),
         ),
       ),
@@ -132,6 +138,13 @@ GoRouter createRouter() {
         builder: (context, state) => const FeatureShellPage(
           title: 'Warehouse',
           child: WarehouseRequestPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/pr',
+        builder: (context, state) => const FeatureShellPage(
+          title: 'Purchase Request',
+          child: PrPage(),
         ),
       ),
       GoRoute(
@@ -150,6 +163,7 @@ GoRouter createRouter() {
       ),
     ],
   );
+  return appRouter;
 }
 
 DateTime? _parseDate(String? value) {

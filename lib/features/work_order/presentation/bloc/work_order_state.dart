@@ -1,10 +1,8 @@
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/work_order.dart';
 
-/// States for the Mechanic Work Order BLoC.
 abstract class WorkOrderState extends Equatable {
   const WorkOrderState();
-
   @override
   List<Object?> get props => [];
 }
@@ -19,31 +17,35 @@ class WorkOrderLoading extends WorkOrderState {
 
 class WorkOrderLoaded extends WorkOrderState {
   final List<WorkOrder> workOrders;
-
-  const WorkOrderLoaded({required this.workOrders});
-
+  final String view;
+  const WorkOrderLoaded({required this.workOrders, this.view = 'ACTIVE'});
   @override
-  List<Object?> get props => [workOrders];
+  List<Object?> get props => [workOrders, view];
 }
 
-class WorkOrderError extends WorkOrderState {
-  final String message;
-
-  const WorkOrderError({required this.message});
-
+class WorkOrderDetailLoaded extends WorkOrderState {
+  final WorkOrder workOrder;
+  const WorkOrderDetailLoaded(this.workOrder);
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [workOrder];
+}
+
+class WorkOrderActionLoading extends WorkOrderState {
+  const WorkOrderActionLoading();
 }
 
 class WorkOrderActionSuccess extends WorkOrderState {
   final List<WorkOrder> workOrders;
   final String message;
-
-  const WorkOrderActionSuccess({
-    required this.workOrders,
-    required this.message,
-  });
-
+  final String view;
+  const WorkOrderActionSuccess({required this.workOrders, required this.message, this.view = 'ACTIVE'});
   @override
   List<Object?> get props => [workOrders, message];
+}
+
+class WorkOrderError extends WorkOrderState {
+  final String message;
+  const WorkOrderError({required this.message});
+  @override
+  List<Object?> get props => [message];
 }

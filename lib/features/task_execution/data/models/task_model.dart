@@ -75,6 +75,9 @@ class TaskModel {
   final String ownerName;
   final double totalActualHours;
   final bool hasMonitoringRecord;
+  final bool isRework;
+  final bool isOvertime;
+  final bool isPriority;
 
   TaskModel({
     required this.plandailyId,
@@ -99,6 +102,9 @@ class TaskModel {
     required this.ownerName,
     required this.totalActualHours,
     this.hasMonitoringRecord = false,
+    this.isRework = false,
+    this.isOvertime = false,
+    this.isPriority = false,
   });
 
   /// Factory constructor for deserializing JSON from API responses.
@@ -174,6 +180,9 @@ class TaskModel {
     ownerName: ownerName,
     totalActualHours: totalActualHours,
     hasMonitoringRecord: hasMonitoringRecord,
+    isRework: isRework,
+    isOvertime: isOvertime,
+    isPriority: isPriority,
   );
 
   /// Creates a copy of this model with some fields replaced.
@@ -202,6 +211,9 @@ class TaskModel {
     String? ownerName,
     double? totalActualHours,
     bool? hasMonitoringRecord,
+    bool? isRework,
+    bool? isOvertime,
+    bool? isPriority,
   }) {
     return TaskModel(
       plandailyId: plandailyId ?? this.plandailyId,
@@ -226,6 +238,9 @@ class TaskModel {
       ownerName: ownerName ?? this.ownerName,
       totalActualHours: totalActualHours ?? this.totalActualHours,
       hasMonitoringRecord: hasMonitoringRecord ?? this.hasMonitoringRecord,
+      isRework: isRework ?? this.isRework,
+      isOvertime: isOvertime ?? this.isOvertime,
+      isPriority: isPriority ?? this.isPriority,
     );
   }
 }

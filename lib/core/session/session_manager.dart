@@ -1,21 +1,26 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/dummy_data.dart';
 
 /// Manages the authenticated user's session state.
 ///
-/// Stores JWT token, user profile, and BE-driven permissions.
+/// Stores the Redis session token, refresh token, user profile,
+/// and BE-driven permissions.
 /// The splash screen first obtains a [tempToken] via device attestation
 /// (POST /auth/device-init) which is only valid for the login endpoint.
 /// After login, the backend returns the full session payload:
-/// JWT, divisionName, jabatan (position), and permissions[].
+/// session token, refresh token, divisionName, jabatan (position),
+/// and permissions[].
 class SessionManager extends ChangeNotifier {
   // ── Device attestation ─────────────────────────────────
   String? _tempToken;
   String? _deviceId;
 
   // ── Auth ───────────────────────────────────────────────
-  String? _token; // JWT
+  String? _token; // Redis session token from sm_login
+  String? _refreshToken;
   String? _userId;
   String? _employeeId;
   String? _fullName;
@@ -30,6 +35,7 @@ class SessionManager extends ChangeNotifier {
   String? get tempToken => _tempToken;
   String? get deviceId => _deviceId;
   String? get token => _token;
+  String? get refreshToken => _refreshToken;
   String? get userId => _userId;
   String? get employeeId => _employeeId;
   String? get fullName => _fullName;
@@ -39,6 +45,31 @@ class SessionManager extends ChangeNotifier {
   int? get divisionId => _divisionId;
   List<String> get permissions => List.unmodifiable(_permissions);
 
+  Future<void> init() async {
+    final prefs = await SharedPreferences.getInstance();
+    _token = prefs.getString('session_token');
+    _refreshToken = prefs.getString('session_refreshToken');
+    _deviceId = prefs.getString('session_deviceId');   // restored on cold start
+    _userId = prefs.getString('session_userId');
+    _employeeId = prefs.getString('session_employeeId');
+    _fullName = prefs.getString('session_fullName');
+    _role = prefs.getString('session_role');
+    _divisionName = prefs.getString('session_divisionName');
+    _jabatan = prefs.getString('session_jabatan');
+    _divisionId = prefs.getInt('session_divisionId');
+
+    final permsStr = prefs.getString('session_permissions');
+    if (permsStr != null) {
+      try {
+        final decoded = jsonDecode(permsStr);
+        if (decoded is List) {
+          _permissions = decoded.cast<String>();
+        }
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
   /// Store temp token from device attestation (splash screen).
   /// This token is ONLY valid for calling POST /auth/login.
   void setDeviceAttestation({
@@ -47,16 +78,21 @@ class SessionManager extends ChangeNotifier {
   }) {
     _tempToken = tempToken;
     _deviceId = deviceId;
+    // Persist so auto-refresh works after cold start
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setString('session_deviceId', deviceId),
+    );
     notifyListeners();
   }
 
   /// Store full session from login response.
   ///
-  /// [token] JWT bearer token for all subsequent API calls.
+  /// [token] Redis session token for all authenticated API calls.
   /// [permissions] BE-driven permission codes like
   ///   'TASK_VIEW', 'TASK_SUBMIT', 'WAREHOUSE_REQUEST', etc.
-  void login({
+  Future<void> login({
     required String token,
+    required String refreshToken,
     required String userId,
     required String employeeId,
     required String fullName,
@@ -65,8 +101,9 @@ class SessionManager extends ChangeNotifier {
     required String jabatan,
     required int divisionId,
     required List<String> permissions,
-  }) {
+  }) async {
     _token = token;
+    _refreshToken = refreshToken;
     _userId = userId;
     _employeeId = employeeId;
     _fullName = fullName;
@@ -77,6 +114,19 @@ class SessionManager extends ChangeNotifier {
     _permissions = List<String>.from(permissions);
     // Clear temp token after successful login
     _tempToken = null;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('session_token', token);
+    await prefs.setString('session_refreshToken', refreshToken);
+    await prefs.setString('session_userId', userId);
+    await prefs.setString('session_employeeId', employeeId);
+    await prefs.setString('session_fullName', fullName);
+    await prefs.setString('session_role', role);
+    await prefs.setString('session_divisionName', divisionName);
+    await prefs.setString('session_jabatan', jabatan);
+    await prefs.setInt('session_divisionId', divisionId);
+    await prefs.setString('session_permissions', jsonEncode(_permissions));
+
     notifyListeners();
   }
 
@@ -90,9 +140,11 @@ class SessionManager extends ChangeNotifier {
     return codes.any((c) => _permissions.contains(c));
   }
 
-  void logout() {
+  Future<void> logout() async {
     _token = null;
-    _tempToken = null;
+    _refreshToken = null;
+    // Do NOT clear _tempToken and _deviceId here so the user can login again
+    // _tempToken = null;
     _userId = null;
     _employeeId = null;
     _fullName = null;
@@ -101,6 +153,19 @@ class SessionManager extends ChangeNotifier {
     _jabatan = null;
     _divisionId = null;
     _permissions = [];
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('session_token');
+    await prefs.remove('session_refreshToken');
+    await prefs.remove('session_userId');
+    await prefs.remove('session_employeeId');
+    await prefs.remove('session_fullName');
+    await prefs.remove('session_role');
+    await prefs.remove('session_divisionName');
+    await prefs.remove('session_jabatan');
+    await prefs.remove('session_divisionId');
+    await prefs.remove('session_permissions');
+
     notifyListeners();
   }
 }
@@ -158,56 +223,80 @@ class DemoAccounts {
   /// Permission sets per role (simulates BE role_permission join).
   static const _rolePerms = <String, List<String>>{
     'pm': [
-      Perms.taskView, Perms.taskAssign, Perms.taskCheckpoint,
-      Perms.jobPlanCreate, Perms.jobPlanReview, Perms.jobPlanUpdate,
-      Perms.unitsView, Perms.countdownView, Perms.countdownDetailView,
-      Perms.woApprove, Perms.woApprovePm, Perms.woView,
+      Perms.taskView,
+      Perms.taskAssign,
+      Perms.taskCheckpoint,
+      Perms.jobPlanCreate,
+      Perms.jobPlanReview,
+      Perms.jobPlanUpdate,
+      Perms.unitsView,
+      Perms.countdownView,
+      Perms.countdownDetailView,
+      Perms.woApprove,
+      Perms.woApprovePm,
+      Perms.woView,
       Perms.qcValidate,
-      Perms.monitoringView, Perms.monitoringDetail,
-      Perms.notificationsView, Perms.profileView,
+      Perms.monitoringView,
+      Perms.monitoringDetail,
+      Perms.notificationsView,
+      Perms.profileView,
     ],
     'adv': [
-      Perms.taskView, Perms.taskCheckpoint,
+      Perms.taskView,
+      Perms.taskCheckpoint,
       Perms.jobPlanReview,
-      Perms.woApprove, Perms.woApproveAdvisor, Perms.woView,
+      Perms.woApprove,
+      Perms.woApproveAdvisor,
+      Perms.woView,
       Perms.qcValidate,
-      Perms.monitoringView, Perms.monitoringDetail,
-      Perms.notificationsView, Perms.profileView,
+      Perms.monitoringView,
+      Perms.monitoringDetail,
+      Perms.notificationsView,
+      Perms.profileView,
     ],
     'kd': [
-      Perms.taskView, Perms.taskAssign, Perms.taskCheckpoint,
-      Perms.jobPlanCreate, Perms.jobPlanUpdate,
-      Perms.unitsView, Perms.countdownView, Perms.countdownDetailView,
-      Perms.woCreate, Perms.woView,
+      Perms.taskView,
+      Perms.taskAssign,
+      Perms.taskCheckpoint,
+      Perms.jobPlanCreate,
+      Perms.jobPlanUpdate,
+      Perms.unitsView,
+      Perms.countdownView,
+      Perms.countdownDetailView,
+      Perms.woCreate,
+      Perms.woView,
       Perms.qcSubmit,
-      Perms.warehouseApprove, Perms.warehouseLogs,
-      Perms.notificationsView, Perms.profileView,
+      Perms.warehouseApprove,
+      Perms.warehouseLogs,
+      Perms.notificationsView,
+      Perms.profileView,
     ],
     'op': [
-      Perms.taskView, Perms.taskSubmit,
-      Perms.warehouseRequest, Perms.warehouseLogs,
-      Perms.notificationsView, Perms.profileView,
+      Perms.taskView,
+      Perms.taskSubmit,
+      Perms.warehouseRequest,
+      Perms.warehouseLogs,
+      Perms.notificationsView,
+      Perms.profileView,
     ],
   };
 
   /// All demo-login-capable users (built from DummyEmployees.all).
   /// Simulates the full POST /auth/login response payload.
   /// Login ID is `employee_id` (short name like ADAM, KANDI, YUDHA).
-  static final List<Map<String, dynamic>> users = DummyEmployees.all
-      .map((e) {
-        final role = e['role'] as String;
-        return {
-          'token': 'demo-jwt-${e['id']}', // simulated JWT
-          'userId': e['id'] as String,
-          'employeeId': e['employee_id'] as String,
-          'fullName': e['full_name'] as String,
-          'password': e['password'] as String,
-          'role': role,
-          'divisionName': e['division'] as String,
-          'jabatan': (e['grade'] as String?) ?? role.toUpperCase(),
-          'divisionId': e['divisionId'] as int,
-          'permissions': _rolePerms[role] ?? <String>[],
-        };
-      })
-      .toList();
+  static final List<Map<String, dynamic>> users = DummyEmployees.all.map((e) {
+    final role = e['role'] as String;
+    return {
+      'token': 'demo-jwt-${e['id']}', // simulated JWT
+      'userId': e['id'] as String,
+      'employeeId': e['employee_id'] as String,
+      'fullName': e['full_name'] as String,
+      'password': e['password'] as String,
+      'role': role,
+      'divisionName': e['division'] as String,
+      'jabatan': (e['grade'] as String?) ?? role.toUpperCase(),
+      'divisionId': e['divisionId'] as int,
+      'permissions': _rolePerms[role] ?? <String>[],
+    };
+  }).toList();
 }

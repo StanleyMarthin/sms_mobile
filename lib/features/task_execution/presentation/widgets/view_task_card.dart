@@ -42,6 +42,7 @@ class ViewTaskCard extends StatelessWidget {
           _buildHeaderRow(),
           _buildMetaRows(),
           if (task.checkpointHistory.isNotEmpty) _buildCheckpointTable(),
+          if (task.photosBefore.isNotEmpty || task.photosProcess.isNotEmpty || task.photosAfter.isNotEmpty) _buildPhotosGallery(),
           if (task.finalValidations.isNotEmpty) _buildFinalValidationTable(),
           if (actionArea != null) ...[
             const SizedBox(height: 8),
@@ -106,7 +107,7 @@ class ViewTaskCard extends StatelessWidget {
       ['Panel/Part', task.task.namaPanel],
       ['Deskripsi', task.task.jobDescription],
       ['Jam Plan', '${task.task.startTime} - ${task.task.targetFinishTime}'],
-      ['Checkpoint', '${task.checkpointHistory.length}/${task.maxCheckpointSessions} sesi'],
+      ['Monitoring', '${task.checkpointHistory.length}/${task.maxCheckpointSessions}'],
     ];
 
     if (showDivision) {
@@ -218,6 +219,144 @@ class ViewTaskCard extends StatelessWidget {
                     ? 'Riwayat checkpoint tersimpan.'
                     : 'Klik baris sesi untuk review/edit.',
                 style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotosGallery() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _tableTitle('Dokumentasi Pekerjaan'),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (task.photosBefore.isNotEmpty)
+                      _buildPhotoSection('Before', task.photosBefore),
+                    if (task.photosProcess.isNotEmpty)
+                      _buildPhotoSection('Progress', task.photosProcess),
+                    if (task.photosAfter.isNotEmpty)
+                      _buildPhotoSection('After', task.photosAfter),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoSection(String label, List<String> urls) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: urls.map((url) => _buildPhotoThumbnail(url)).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPhotoThumbnail(String url) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6.0),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Container(
+          width: 50,
+          height: 50,
+          color: AppColors.border,
+          child: Builder(
+            builder: (context) => InkWell(
+              onTap: () => _showFullImage(context, url),
+              child: Image.network(
+                url,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.broken_image,
+                  color: AppColors.textMuted,
+                  size: 24,
+                ),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return const Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFullImage(BuildContext context, String url) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              boundaryMargin: const EdgeInsets.all(20),
+              minScale: 1.0,
+              maxScale: 3.0,
+              child: Image.network(
+                url,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.all(16),
+                  child: const Text('Gagal memuat gambar', style: TextStyle(color: Colors.red)),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, shadows: [
+                  Shadow(color: Colors.black54, blurRadius: 4, offset: Offset(1, 1))
+                ]),
+                onPressed: () => Navigator.of(ctx).pop(),
               ),
             ),
           ],

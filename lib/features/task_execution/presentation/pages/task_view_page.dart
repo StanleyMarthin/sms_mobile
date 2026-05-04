@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../core/session/session_manager.dart';
 import '../../domain/entities/task_filter.dart';
 import '../../domain/entities/view_task_entity.dart';
 import '../bloc/task_view/task_view_bloc.dart';
@@ -38,7 +37,8 @@ class TaskViewPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => sl<TaskViewBloc>()
         ..add(LoadViewTasks(
-            filter: TaskFilter(type: taskType, date: initialDate ?? DateTime.now()))),
+            filter: TaskFilter(
+                type: taskType, date: initialDate ?? DateTime.now()))),
       child: _TaskViewContent(taskType: taskType, focusTaskId: focusTaskId),
     );
   }
@@ -70,8 +70,9 @@ class _TaskViewContent extends StatelessWidget {
 
   Widget _buildContent(BuildContext context, TaskViewState state) {
     if (state is TaskViewInitial || state is TaskViewLoading) {
-      final filter =
-          state is TaskViewLoading ? state.filter : TaskFilter(date: DateTime.now());
+      final filter = state is TaskViewLoading
+          ? state.filter
+          : TaskFilter(date: DateTime.now());
       return _buildLoadingView(context, filter);
     }
 
@@ -218,7 +219,8 @@ class _TaskViewContent extends StatelessWidget {
     return sorted;
   }
 
-  List<MapEntry<String, List<ViewTaskEntity>>> _groupByDivision(List<ViewTaskEntity> tasks) {
+  List<MapEntry<String, List<ViewTaskEntity>>> _groupByDivision(
+      List<ViewTaskEntity> tasks) {
     final grouped = <String, List<ViewTaskEntity>>{};
     for (final task in tasks) {
       grouped.putIfAbsent(task.division.divisionName, () => []).add(task);
@@ -233,11 +235,11 @@ class _TaskViewContent extends StatelessWidget {
 
   String _statusSummary(List<ViewTaskEntity> tasks) {
     final active = tasks
-      .where((task) =>
-        task.status == 'PROSES' ||
-        task.status == 'CHECK_PROGRESS' ||
-        task.status == 'SUBMITTED')
-      .length;
+        .where((task) =>
+            task.status == 'PROSES' ||
+            task.status == 'CHECK_PROGRESS' ||
+            task.status == 'SUBMITTED')
+        .length;
     if (active > 0) {
       return '$active berjalan';
     }
@@ -278,7 +280,8 @@ class _TaskViewContent extends StatelessWidget {
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
                         _activeFilterLabel(filter),
-                        style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textMuted),
                       ),
                     ),
                   InkWell(
@@ -294,13 +297,15 @@ class _TaskViewContent extends StatelessWidget {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          const Icon(Icons.tune_rounded, size: 18, color: AppColors.gold),
+                          const Icon(Icons.tune_rounded,
+                              size: 18, color: AppColors.gold),
                           if (_activeFilterCount(filter) > 0)
                             Positioned(
                               top: -6,
                               right: -6,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 5, vertical: 1),
                                 decoration: BoxDecoration(
                                   color: AppColors.gold,
                                   borderRadius: BorderRadius.circular(999),
@@ -388,8 +393,12 @@ class _TaskViewContent extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          context.read<TaskViewBloc>().add(const ChangeTaskDivision(divisionId: null));
-                          context.read<TaskViewBloc>().add(const ChangeTaskUnit(unitId: null));
+                          context
+                              .read<TaskViewBloc>()
+                              .add(const ChangeTaskDivision(divisionId: null));
+                          context
+                              .read<TaskViewBloc>()
+                              .add(const ChangeTaskUnit(unitId: null));
                         },
                         icon: const Icon(Icons.refresh_rounded, size: 16),
                         label: const Text('Reset'),
@@ -436,13 +445,6 @@ class _TaskViewContent extends StatelessWidget {
                 ),
                 // Context subtitle intentionally hidden from UI.
                 const SizedBox(height: 4),
-                const Text(
-                  'Pilih divisi, lalu pilih kendaraan untuk melihat pekerjaan.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
-                ),
               ],
             ),
           ),
@@ -488,31 +490,42 @@ class _TaskViewContent extends StatelessWidget {
     dynamic task,
   ) {
     final isBusy = state.actionTaskId == task.planDailyId;
+    final checkpointClosed =
+        task.isDone || !task.hasRemainingCheckpointSessions;
     final canInputCheckpoint =
         hasPermission(state.role, Permission.taskCheckpoint) &&
-        _canCheckpoint(task.status) &&
-        task.hasRemainingCheckpointSessions;
+            _canCheckpoint(task.status) &&
+            !checkpointClosed;
     final canReviewCheckpoint =
-      hasPermission(state.role, Permission.taskCheckpoint) &&
-      task.checkpointHistory.isNotEmpty;
+        hasPermission(state.role, Permission.taskCheckpoint) &&
+            task.checkpointHistory.isNotEmpty;
     final canFinalValidate =
-      hasPermission(state.role, Permission.taskCheckpoint) &&
-      _canFinalValidate(task.status);
+        hasPermission(state.role, Permission.taskCheckpoint) &&
+            _canFinalValidate(task.status);
 
-    if (!canInputCheckpoint && !canReviewCheckpoint && !canFinalValidate) return null;
+    if (!canInputCheckpoint && !canReviewCheckpoint && !canFinalValidate) {
+      return null;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (canInputCheckpoint) ...[
-          _buildCheckpointActionPanel(context, state, task, isBusy),
+          _buildCheckpointActionPanel(
+            context,
+            state,
+            task,
+            isBusy,
+            checkpointClosed: checkpointClosed,
+          ),
         ],
         if (canReviewCheckpoint) ...[
           if (canInputCheckpoint) const SizedBox(height: 10),
           _buildCheckpointReviewPanel(state, task, isBusy),
         ],
         if (canFinalValidate) ...[
-          if (canInputCheckpoint || canReviewCheckpoint) const SizedBox(height: 10),
+          if (canInputCheckpoint || canReviewCheckpoint)
+            const SizedBox(height: 10),
           _buildFinalValidationPanel(context, state, task, isBusy),
         ],
       ],
@@ -542,7 +555,8 @@ class _TaskViewContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_outlined, size: 16, color: AppColors.statusDone),
+              const Icon(Icons.verified_outlined,
+                  size: 16, color: AppColors.statusDone),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -559,8 +573,8 @@ class _TaskViewContent extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             validatorCount > 0
-                ? 'Pekerjaan ini sudah divalidasi minimal oleh satu role. KD, ADV, dan PM tetap bisa menambah validasi masing-masing untuk penilaian.'
-                : 'Pekerjaan ini wajib divalidasi minimal oleh salah satu dari KD, ADV, atau PM.',
+                ? 'Minimal 1 role sudah validasi. KD/ADV/PM bisa lanjut tambah validasi.'
+                : 'Wajib minimal 1 validasi (KD/ADV/PM).',
             style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
           if (validatorCount > 0) ...[
@@ -595,15 +609,15 @@ class _TaskViewContent extends StatelessWidget {
                       ),
                     )
                   : const Icon(Icons.verified_outlined),
-                label: Text(
-                  isBusy
-                      ? 'Memvalidasi...'
-                      : alreadyValidatedByRole
-                          ? 'Role ini sudah validasi'
-                          : validatorCount > 0
-                              ? 'Tambah validasi role ini'
-                              : 'Validasi pekerjaan',
-                ),
+              label: Text(
+                isBusy
+                    ? 'Memvalidasi...'
+                    : alreadyValidatedByRole
+                        ? 'Role ini sudah validasi'
+                        : validatorCount > 0
+                            ? 'Tambah validasi role ini'
+                            : 'Validasi pekerjaan',
+              ),
             ),
           ),
         ],
@@ -631,7 +645,8 @@ class _TaskViewContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.rule_folder_outlined, size: 16, color: AppColors.gold),
+              const Icon(Icons.rule_folder_outlined,
+                  size: 16, color: AppColors.gold),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -662,8 +677,17 @@ class _TaskViewContent extends StatelessWidget {
     TaskViewLoaded state,
     dynamic task,
     bool isBusy,
+    {required bool checkpointClosed}
   ) {
-    final roleLabel = state.role.toUpperCase();
+    final canCheckpointByRole =
+        hasPermission(state.role, Permission.taskCheckpoint);
+    final canSubmitCheckpoint =
+        canCheckpointByRole && !checkpointClosed && !isBusy;
+    final sessionNow = task.checkpointHistory.length;
+    final sessionMax = task.maxCheckpointSessions as int;
+    final statusLabel = task.isDone
+        ? 'Done'
+        : (sessionNow >= sessionMax ? 'Batas Tercapai' : '$sessionNow/$sessionMax');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,36 +705,21 @@ class _TaskViewContent extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Icon(Icons.schedule_rounded, size: 16, color: AppColors.gold),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Sesi check progress ${task.checkpointHistory.length}/${task.maxCheckpointSessions}',
+                      'Monitoring Jobdesc',
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
                       ),
                     ),
                   ),
                   Text(
-                    task.hasRemainingCheckpointSessions
-                        ? 'Berikutnya Sesi ${task.nextCheckpointSession}'
-                        : 'Maksimal tercapai',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: task.hasRemainingCheckpointSessions
-                          ? AppColors.gold
-                          : AppColors.textMuted,
-                    ),
+                    statusLabel,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Check progress bisa diinput KD, ADV, atau PM. Saat ini Anda masuk sebagai $roleLabel.',
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -718,30 +727,23 @@ class _TaskViewContent extends StatelessWidget {
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: isBusy || !task.hasRemainingCheckpointSessions
-                ? null
-                : () => _showCheckpointDialog(context, task),
+          child: FilledButton(
+            onPressed:
+                canSubmitCheckpoint ? () => _showCheckpointDialog(context, task) : null,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
             ),
-            icon: isBusy
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.background,
-                    ),
-                  )
-                : const Icon(Icons.flag_outlined),
-            label: Text(
+            child: Text(
               isBusy
                   ? 'Menyimpan...'
-                  : task.hasRemainingCheckpointSessions
-                      ? 'Input Check Progress Sesi ${task.nextCheckpointSession}'
-                      : 'Check Progress Penuh',
+                      : !canCheckpointByRole
+                          ? 'Role Tidak Diizinkan'
+                          : task.isDone
+                              ? 'Sudah Done'
+                              : task.hasRemainingCheckpointSessions
+                                  ? 'Input Monitoring'
+                                  : 'Batas Tercapai',
             ),
           ),
         ),
@@ -750,15 +752,20 @@ class _TaskViewContent extends StatelessWidget {
   }
 
   bool _canCheckpoint(String status) {
-    return status == 'ASSIGNED' ||
-        status == 'PROSES' ||
-      status == 'DONE' ||
-        status == 'CHECK_PROGRESS' ||
-        status == 'SUBMITTED';
+    final normalized = status.trim().toUpperCase();
+    return normalized == 'ASSIGNED' ||
+        normalized == 'PLAN' ||
+        normalized == 'PROSES' ||
+        normalized == 'ONPROGRESS' ||
+        normalized == 'ON_PROGRESS' ||
+        normalized == 'DONE' ||
+        normalized == 'READY_QC' ||
+        normalized == 'CHECK_PROGRESS' ||
+        normalized == 'SUBMITTED';
   }
 
   bool _canFinalValidate(String status) {
-    return status == 'DONE' || status == 'VALIDATED';
+    return false;
   }
 
   Future<void> _showCheckpointDialog(
@@ -791,8 +798,8 @@ class _TaskViewContent extends StatelessWidget {
           backgroundColor: AppColors.surfaceCard,
           title: Text(
             isEditing
-                ? 'Edit Check Progress Sesi ${editingSession.sessionNumber}'
-                : 'Check Progress Sesi ${task.nextCheckpointSession}/${task.maxCheckpointSessions}',
+                ? 'Edit Monitoring'
+                : 'Monitoring Jobdesc',
           ),
           content: SingleChildScrollView(
             child: SizedBox(
@@ -815,8 +822,9 @@ class _TaskViewContent extends StatelessWidget {
                       border: Border.all(color: AppColors.borderSubtle),
                     ),
                     child: Text(
-                      'Riwayat check progress tersimpan: ${task.checkpointHistory.length} sesi',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      'Riwayat: ${task.checkpointHistory.length}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textMuted),
                     ),
                   ),
                   if (task.checkpointHistory.isNotEmpty) ...[
@@ -874,19 +882,24 @@ class _TaskViewContent extends StatelessWidget {
                         startWorkTimeCtrl.text = picked;
 
                         final startMinutes = _parseClockToMinutes(picked);
-                        final finishMinutes = _parseClockToMinutes(finishWorkTimeCtrl.text.trim());
+                        final finishMinutes = _parseClockToMinutes(
+                            finishWorkTimeCtrl.text.trim());
                         if (startMinutes != null &&
-                            (finishMinutes == null || finishMinutes < startMinutes)) {
-                          finishWorkTimeCtrl.text = _addMinutesToClock(picked, 60);
+                            (finishMinutes == null ||
+                                finishMinutes < startMinutes)) {
+                          finishWorkTimeCtrl.text =
+                              _addMinutesToClock(picked, 60);
                         }
 
-                        final updatedFinishMinutes =
-                            _parseClockToMinutes(finishWorkTimeCtrl.text.trim());
-                        final checkpointMinutes =
-                            _parseClockToMinutes(checkpointTimeCtrl.text.trim());
+                        final updatedFinishMinutes = _parseClockToMinutes(
+                            finishWorkTimeCtrl.text.trim());
+                        final checkpointMinutes = _parseClockToMinutes(
+                            checkpointTimeCtrl.text.trim());
                         if (updatedFinishMinutes != null &&
-                            (checkpointMinutes == null || checkpointMinutes < updatedFinishMinutes)) {
-                          checkpointTimeCtrl.text = finishWorkTimeCtrl.text.trim();
+                            (checkpointMinutes == null ||
+                                checkpointMinutes < updatedFinishMinutes)) {
+                          checkpointTimeCtrl.text =
+                              finishWorkTimeCtrl.text.trim();
                         }
                       });
                     },
@@ -911,10 +924,11 @@ class _TaskViewContent extends StatelessWidget {
                         finishWorkTimeCtrl.text = picked;
 
                         final finishMinutes = _parseClockToMinutes(picked);
-                        final checkpointMinutes =
-                            _parseClockToMinutes(checkpointTimeCtrl.text.trim());
+                        final checkpointMinutes = _parseClockToMinutes(
+                            checkpointTimeCtrl.text.trim());
                         if (finishMinutes != null &&
-                            (checkpointMinutes == null || checkpointMinutes < finishMinutes)) {
+                            (checkpointMinutes == null ||
+                                checkpointMinutes < finishMinutes)) {
                           checkpointTimeCtrl.text = picked;
                         }
                       });
@@ -954,17 +968,19 @@ class _TaskViewContent extends StatelessWidget {
                     },
                     style: const TextStyle(color: AppColors.textPrimary),
                     decoration: const InputDecoration(
-                      labelText: 'Jam check progress',
+                      labelText: 'Jam monitoring',
                       suffixIcon: Icon(Icons.access_time_rounded),
                     ),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     initialValue: jobStatus,
-                    decoration: const InputDecoration(labelText: 'Status pekerjaan'),
+                    decoration:
+                        const InputDecoration(labelText: 'Status pekerjaan'),
                     dropdownColor: AppColors.surfaceCard,
                     items: const [
-                      DropdownMenuItem(value: 'ON_PROGRESS', child: Text('On Progress')),
+                      DropdownMenuItem(
+                          value: 'ON_PROGRESS', child: Text('On Progress')),
                       DropdownMenuItem(value: 'DONE', child: Text('Selesai')),
                       DropdownMenuItem(value: 'CANCEL', child: Text('Cancel')),
                     ],
@@ -995,7 +1011,8 @@ class _TaskViewContent extends StatelessWidget {
                     SnackBar(
                       content: Text(validationMessage),
                       behavior: SnackBarBehavior.floating,
-                      backgroundColor: AppColors.statusLocked.withValues(alpha: 0.92),
+                      backgroundColor:
+                          AppColors.statusLocked.withValues(alpha: 0.92),
                     ),
                   );
                   return;
@@ -1044,9 +1061,6 @@ class _TaskViewContent extends StatelessWidget {
     dynamic task,
     dynamic session,
   ) async {
-    final currentRole = sl<SessionManager>().role ?? 'adv';
-    final currentRoleAlreadyValidated = session.hasReviewerRole(currentRole);
-
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1066,13 +1080,14 @@ class _TaskViewContent extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Mulai ${session.startWorkTime} • selesai ${session.finishWorkTime} • check ${session.checkpointTime} • ${session.workedDurationLabel} • ${session.progress}% • ${session.jobStatusLabel}',
-              style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+              style:
+                  const TextStyle(fontSize: 12, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               session.isValidated
                   ? 'Tervalidasi: ${session.reviewersLabel}'
-                  : 'Pilih aksi untuk sesi ini.',
+                  : 'Checkpoint backend langsung tercatat ke validation saat disimpan.',
               style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
           ],
@@ -1093,24 +1108,6 @@ class _TaskViewContent extends StatelessWidget {
             ),
             child: const Text('Edit'),
           ),
-          FilledButton(
-            onPressed: currentRoleAlreadyValidated
-                ? null
-                : () {
-                    context.read<TaskViewBloc>().add(
-                          ValidateCheckpointSession(
-                            planDailyId: task.planDailyId,
-                            sessionNumber: session.sessionNumber as int,
-                          ),
-                        );
-                    Navigator.pop(dialogContext);
-                  },
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.statusDone,
-              foregroundColor: AppColors.background,
-            ),
-            child: Text(currentRoleAlreadyValidated ? 'Sudah Divalidasi Role Ini' : 'Validasi'),
-          ),
         ],
       ),
     );
@@ -1127,8 +1124,7 @@ class _TaskViewContent extends StatelessWidget {
     required BuildContext context,
     required String initialValue,
   }) async {
-    final initialTime = _parseClockToTimeOfDay(initialValue) ??
-        TimeOfDay.now();
+    final initialTime = _parseClockToTimeOfDay(initialValue) ?? TimeOfDay.now();
     final picked = await showTimePicker(
       context: context,
       initialTime: initialTime,
@@ -1201,7 +1197,8 @@ class _TaskViewContent extends StatelessWidget {
     return hour * 60 + minute;
   }
 
-  Future<void> _showFinalValidationDialog(BuildContext context, dynamic task) async {
+  Future<void> _showFinalValidationDialog(
+      BuildContext context, dynamic task) async {
     final noteCtrl = TextEditingController(
       text: 'Pekerjaan selesai dan siap ditutup final.',
     );
@@ -1233,7 +1230,8 @@ class _TaskViewContent extends StatelessWidget {
               minLines: 2,
               maxLines: 3,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(labelText: 'Catatan Validasi Final'),
+              decoration:
+                  const InputDecoration(labelText: 'Catatan Validasi Final'),
             ),
           ],
         ),
@@ -1262,7 +1260,6 @@ class _TaskViewContent extends StatelessWidget {
       ),
     );
   }
-
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1375,7 +1372,8 @@ class _DrilldownTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: AppColors.gold.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -1436,7 +1434,8 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
       ),
       body: BlocBuilder<TaskViewBloc, TaskViewState>(
         builder: (context, state) {
-          final tasks = state is TaskViewLoaded ? state.tasks : const <ViewTaskEntity>[];
+          final tasks =
+              state is TaskViewLoaded ? state.tasks : const <ViewTaskEntity>[];
           final divisionTasks = tasks
               .where((task) => task.division.divisionName == divisionName)
               .toList();
@@ -1469,18 +1468,22 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
               const SizedBox(height: 12),
               ...entries.map((entry) {
                 final unitTasks = List<ViewTaskEntity>.from(entry.value)
-                  ..sort((a, b) => a.task.jobDescription.compareTo(b.task.jobDescription));
+                  ..sort((a, b) =>
+                      a.task.jobDescription.compareTo(b.task.jobDescription));
                 final active = unitTasks
                     .where((task) =>
                         task.status == 'PROSES' ||
                         task.status == 'CHECK_PROGRESS' ||
                         task.status == 'SUBMITTED')
                     .length;
-                final trailingLabel = active > 0 ? '$active berjalan' : '${unitTasks.length} tugas';
+                final trailingLabel = active > 0
+                    ? '$active berjalan'
+                    : '${unitTasks.length} tugas';
                 return _DrilldownTile(
                   icon: Icons.directions_car_filled_outlined,
                   title: entry.key,
-                  subtitle: '${unitTasks.length} pekerjaan • ${_operatorSummary(unitTasks)}',
+                  subtitle:
+                      '${unitTasks.length} pekerjaan • ${_operatorSummary(unitTasks)}',
                   trailingLabel: trailingLabel,
                   onTap: () {
                     final taskViewBloc = context.read<TaskViewBloc>();
@@ -1523,7 +1526,8 @@ class _TaskJobdescPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final viewContent = _TaskViewContent(taskType: taskType, focusTaskId: focusTaskId);
+    final viewContent =
+        _TaskViewContent(taskType: taskType, focusTaskId: focusTaskId);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -1581,11 +1585,15 @@ class _TaskJobdescPage extends StatelessWidget {
                   isHighlighted: task.planDailyId == focusTaskId,
                   showEmployee: state.role != 'op',
                   showDivision: false,
-                  onCheckpointTap: hasPermission(state.role, Permission.taskCheckpoint) &&
-                          task.checkpointHistory.isNotEmpty
-                      ? (session) => viewContent._showCheckpointReviewDialog(context, task, session)
-                      : null,
-                  actionArea: viewContent._buildTaskActionArea(context, state, task),
+                  onCheckpointTap:
+                      hasPermission(state.role, Permission.taskCheckpoint) &&
+                              task.checkpointHistory.isNotEmpty
+                          ? (session) =>
+                              viewContent._showCheckpointReviewDialog(
+                                  context, task, session)
+                          : null,
+                  actionArea:
+                      viewContent._buildTaskActionArea(context, state, task),
                 ),
               ),
             ],

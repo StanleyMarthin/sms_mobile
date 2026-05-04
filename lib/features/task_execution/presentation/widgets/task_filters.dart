@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/data/dummy_data.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/di/injection.dart';
 
 /// Division filter dropdown for ADV/PM roles.
 ///
 /// Shows a dropdown of available divisions that the user can filter by.
 /// Hidden for OP and KD roles (they see fixed scope).
-class TaskDivisionFilter extends StatelessWidget {
-  /// Currently selected division ID (null = all divisions).
+class TaskDivisionFilter extends StatefulWidget {
   final String? selectedDivisionId;
-
-  /// Callback when a division is selected.
   final ValueChanged<String?> onDivisionChanged;
 
   const TaskDivisionFilter({
@@ -21,7 +20,56 @@ class TaskDivisionFilter extends StatelessWidget {
   });
 
   @override
+  State<TaskDivisionFilter> createState() => _TaskDivisionFilterState();
+}
+
+class _TaskDivisionFilterState extends State<TaskDivisionFilter> {
+  List<Map<String, dynamic>> _divisions = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final res = await sl<ApiClient>().get(ApiEndpoints.jobPlanDropdowns);
+      final data = res.data['data'] ?? res.data;
+      if (!mounted) return;
+      if (data != null && data['divisions'] is List) {
+        setState(() {
+          _divisions = (data['divisions'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceInput,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)
+          )
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -31,7 +79,7 @@ class TaskDivisionFilter extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
-          value: selectedDivisionId,
+          value: widget.selectedDivisionId,
           hint: const Text(
             'Semua Divisi',
             style: TextStyle(fontSize: 13, color: AppColors.textMuted),
@@ -47,7 +95,7 @@ class TaskDivisionFilter extends StatelessWidget {
               child: Text('Semua Divisi',
                   style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
             ),
-            ...DummyDivisions.all.map((div) {
+            ..._divisions.map((div) {
               final id = div['id'].toString();
               final name = div['name'] as String;
               return DropdownMenuItem<String?>(
@@ -58,7 +106,7 @@ class TaskDivisionFilter extends StatelessWidget {
               );
             }),
           ],
-          onChanged: onDivisionChanged,
+          onChanged: widget.onDivisionChanged,
         ),
       ),
     );
@@ -68,11 +116,8 @@ class TaskDivisionFilter extends StatelessWidget {
 /// Unit filter dropdown for ADV/PM roles.
 ///
 /// Shows a dropdown of available units (cars) that the user can filter by.
-class TaskUnitFilter extends StatelessWidget {
-  /// Currently selected unit ID (null = all units).
+class TaskUnitFilter extends StatefulWidget {
   final String? selectedUnitId;
-
-  /// Callback when a unit is selected.
   final ValueChanged<String?> onUnitChanged;
 
   const TaskUnitFilter({
@@ -82,7 +127,56 @@ class TaskUnitFilter extends StatelessWidget {
   });
 
   @override
+  State<TaskUnitFilter> createState() => _TaskUnitFilterState();
+}
+
+class _TaskUnitFilterState extends State<TaskUnitFilter> {
+  List<Map<String, dynamic>> _cars = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+  }
+
+  Future<void> _fetch() async {
+    try {
+      final res = await sl<ApiClient>().get(ApiEndpoints.jobPlanDropdowns);
+      final data = res.data['data'] ?? res.data;
+      if (!mounted) return;
+      if (data != null && data['cars'] is List) {
+        setState(() {
+          _cars = (data['cars'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _isLoading = false);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceInput,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)
+          )
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -92,7 +186,7 @@ class TaskUnitFilter extends StatelessWidget {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
-          value: selectedUnitId,
+          value: widget.selectedUnitId,
           hint: const Text(
             'Semua Unit',
             style: TextStyle(fontSize: 13, color: AppColors.textMuted),
@@ -108,9 +202,9 @@ class TaskUnitFilter extends StatelessWidget {
               child: Text('Semua Unit',
                   style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
             ),
-            ...DummyCars.all.map((car) {
-              final id = car['id'] as String;
-              final name = car['unit_name'] as String;
+            ..._cars.map((car) {
+              final id = car['id']?.toString() ?? '';
+              final name = car['unit_name'] as String? ?? 'Unknown';
               return DropdownMenuItem<String?>(
                 value: id,
                 child: Text(name,
@@ -119,7 +213,7 @@ class TaskUnitFilter extends StatelessWidget {
               );
             }),
           ],
-          onChanged: onUnitChanged,
+          onChanged: widget.onUnitChanged,
         ),
       ),
     );

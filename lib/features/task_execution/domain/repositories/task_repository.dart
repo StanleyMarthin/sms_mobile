@@ -142,7 +142,11 @@ abstract class TaskRepository {
   ///   );
   /// }
   /// ```
-  Future<Either<Failure, TaskEntity>> startJobExecution(String plandailyId);
+  Future<Either<Failure, TaskEntity>> startJobExecution(
+    String plandailyId, {
+    String? photoBefore1Path,
+    String? photoBefore2Path,
+  });
 
   /// Finishes job execution and unlocks the panel.
   ///
@@ -187,4 +191,20 @@ abstract class TaskRepository {
   Future<Either<Failure, TaskEntity>> submitTaskExecution(
     TaskExecutionLog executionLog,
   );
+
+  /// Record break duration on active task session.
+  Future<Either<Failure, TaskEntity>> recordBreak(
+    String plandailyId, {
+    required int breakDurationMinutes,
+  });
+
+  /// Upload progress photo metadata during active task execution.
+  Future<Either<Failure, TaskEntity>> uploadProgressPhoto(
+    String plandailyId, {
+    required String photoUrl,
+    String photoType = 'progress',
+  });
+
+  /// Retrieve pre-signed direct upload URL for task photos.
+  Future<Either<Failure, String>> getUploadTicket({required String filename});
 }

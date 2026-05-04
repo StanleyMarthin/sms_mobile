@@ -16,6 +16,10 @@ class TaskDraft {
 
   /// Local file path to the "Before" photo (optional).
   final String? photoBeforePath;
+  final String? photoProcessPath;
+  final String? photoAfterPath;
+  final String? notes;
+  final double? progressPercent;
 
   /// ISO 8601 timestamp when the draft was created.
   final String createdAt;
@@ -24,6 +28,10 @@ class TaskDraft {
     required this.plandailyId,
     required this.startTime,
     this.photoBeforePath,
+    this.photoProcessPath,
+    this.photoAfterPath,
+    this.notes,
+    this.progressPercent,
     required this.createdAt,
   });
 
@@ -32,6 +40,10 @@ class TaskDraft {
         'plandailyId': plandailyId,
         'startTime': startTime,
         'photoBeforePath': photoBeforePath,
+        'photoProcessPath': photoProcessPath,
+        'photoAfterPath': photoAfterPath,
+        'notes': notes,
+        'progressPercent': progressPercent,
         'createdAt': createdAt,
       });
 
@@ -42,7 +54,11 @@ class TaskDraft {
       plandailyId: map['plandailyId'] as String,
       startTime: map['startTime'] as String,
       photoBeforePath: map['photoBeforePath'] as String?,
-      createdAt: map['createdAt'] as String,
+      photoProcessPath: map['photoProcessPath'] as String?,
+      photoAfterPath: map['photoAfterPath'] as String?,
+      notes: map['notes'] as String?,
+      progressPercent: (map['progressPercent'] as num?)?.toDouble(),
+      createdAt: map['createdAt'] as String? ?? DateTime.now().toIso8601String(),
     );
   }
 }

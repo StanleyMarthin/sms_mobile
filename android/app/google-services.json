@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1028642661740",
+    "project_id": "smsystem-ceb0b",
+    "storage_bucket": "smsystem-ceb0b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1028642661740:android:de46c54193d14c27e27f49",
+        "android_client_info": {
+          "package_name": "com.stanleymarthin.workshop.sm_workshop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaI64jmejK0waWwQPHdqtrY1WSf9XRYKw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

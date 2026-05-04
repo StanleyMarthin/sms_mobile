@@ -1,165 +1,108 @@
 import 'package:equatable/equatable.dart';
-import '../../domain/entities/work_order.dart';
 
-/// Events for the Work Order BLoC.
 abstract class WorkOrderEvent extends Equatable {
   const WorkOrderEvent();
-
   @override
   List<Object?> get props => [];
 }
 
-/// Load all WOs (management view — KD/ADV/PM).
-class LoadAllWorkOrders extends WorkOrderEvent {
-  const LoadAllWorkOrders();
-}
-
-/// Load WOs owned by the current user (OP view).
-class LoadMyWorkOrders extends WorkOrderEvent {
-  const LoadMyWorkOrders();
-}
-
-/// Submit a new WO or WOV.
-class SubmitWorkOrder extends WorkOrderEvent {
-  final WorkOrder workOrder;
-
-  const SubmitWorkOrder({required this.workOrder});
-
+class LoadWorkOrders extends WorkOrderEvent {
+  final String view; // ACTIVE | DONE
+  const LoadWorkOrders({this.view = 'ACTIVE'});
   @override
-  List<Object?> get props => [workOrder];
+  List<Object?> get props => [view];
 }
 
-/// Update an existing draft WO.
-class UpdateWorkOrder extends WorkOrderEvent {
-  final WorkOrder workOrder;
-
-  const UpdateWorkOrder({required this.workOrder});
-
-  @override
-  List<Object?> get props => [workOrder];
+class RefreshWorkOrders extends WorkOrderEvent {
+  const RefreshWorkOrders();
 }
 
-/// Delete a draft WO.
-class DeleteWorkOrder extends WorkOrderEvent {
+class LoadWorkOrderDetail extends WorkOrderEvent {
   final String woId;
-
-  const DeleteWorkOrder({required this.woId});
-
+  const LoadWorkOrderDetail(this.woId);
   @override
   List<Object?> get props => [woId];
 }
 
-/// Approve a WO (advisor or PM).
+class CreateWorkOrder extends WorkOrderEvent {
+  final String  carId;
+  final String  targetDivId;
+  final String  jobDetail;
+  final String  targetDate;
+  final String? panelName;
+  final String? sectionName;
+  final String? panelCategory;
+  final bool    addPanelToMaster;
+  final double? targetHours;
+
+  const CreateWorkOrder({
+    required this.carId,
+    required this.targetDivId,
+    required this.jobDetail,
+    required this.targetDate,
+    this.panelName,
+    this.sectionName,
+    this.panelCategory,
+    this.addPanelToMaster = false,
+    this.targetHours,
+  });
+
+  @override
+  List<Object?> get props => [carId, targetDivId, jobDetail, targetDate];
+}
+
 class ApproveWo extends WorkOrderEvent {
   final String woId;
-  final String approverName;
+  final double? estimatedHours; // wajib untuk KD_TARGET
+  final String? notes;
 
-  const ApproveWo({required this.woId, required this.approverName});
+  const ApproveWo({required this.woId, this.estimatedHours, this.notes});
 
   @override
-  List<Object?> get props => [woId, approverName];
+  List<Object?> get props => [woId, estimatedHours, notes];
 }
 
-/// Reject a WO.
 class RejectWo extends WorkOrderEvent {
   final String woId;
-  final String rejectedBy;
-  final String? reason;
+  final String rejectReason;
 
-  const RejectWo({required this.woId, required this.rejectedBy, this.reason});
+  const RejectWo({required this.woId, required this.rejectReason});
 
   @override
-  List<Object?> get props => [woId, rejectedBy, reason];
+  List<Object?> get props => [woId, rejectReason];
 }
 
-/// Extend a WO deadline.
-class ExtendWoDeadline extends WorkOrderEvent {
+class RequestDlExtension extends WorkOrderEvent {
   final String woId;
   final String newDeadline;
   final String reason;
-
-  const ExtendWoDeadline({
-    required this.woId,
-    required this.newDeadline,
-    required this.reason,
-  });
-
+  const RequestDlExtension({required this.woId, required this.newDeadline, required this.reason});
   @override
   List<Object?> get props => [woId, newDeadline, reason];
 }
 
-class RequestWoRevision extends WorkOrderEvent {
-  final String woId;
-  final double requestedEstimatedHours;
-  final String requestedDeadline;
-  final String reason;
-  final String reviewerName;
-
-  const RequestWoRevision({
-    required this.woId,
-    required this.requestedEstimatedHours,
-    required this.requestedDeadline,
-    required this.reason,
-    required this.reviewerName,
-  });
-
-  @override
-  List<Object?> get props => [
-        woId,
-        requestedEstimatedHours,
-        requestedDeadline,
-        reason,
-        reviewerName,
-      ];
-}
-
-class RespondWoRevision extends WorkOrderEvent {
+class RespondDlExtension extends WorkOrderEvent {
   final String woId;
   final bool approve;
-  final String reviewerName;
   final String? note;
-
-  const RespondWoRevision({
-    required this.woId,
-    required this.approve,
-    required this.reviewerName,
-    this.note,
-  });
-
+  const RespondDlExtension({required this.woId, required this.approve, this.note});
   @override
-  List<Object?> get props => [woId, approve, reviewerName, note];
+  List<Object?> get props => [woId, approve];
 }
 
-class RequestWoExtension extends WorkOrderEvent {
+class RequestHourExtension extends WorkOrderEvent {
   final String woId;
-  final String newDeadline;
+  final double requestedHours;
   final String reason;
-  final String requesterName;
-
-  const RequestWoExtension({
-    required this.woId,
-    required this.newDeadline,
-    required this.reason,
-    required this.requesterName,
-  });
-
+  const RequestHourExtension({required this.woId, required this.requestedHours, required this.reason});
   @override
-  List<Object?> get props => [woId, newDeadline, reason, requesterName];
+  List<Object?> get props => [woId, requestedHours, reason];
 }
 
-class RespondWoExtension extends WorkOrderEvent {
+class RespondHourExtension extends WorkOrderEvent {
   final String woId;
   final bool approve;
-  final String reviewerName;
-  final String? note;
-
-  const RespondWoExtension({
-    required this.woId,
-    required this.approve,
-    required this.reviewerName,
-    this.note,
-  });
-
+  const RespondHourExtension({required this.woId, required this.approve});
   @override
-  List<Object?> get props => [woId, approve, reviewerName, note];
+  List<Object?> get props => [woId, approve];
 }

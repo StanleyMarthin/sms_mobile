@@ -1,5 +1,3 @@
-import 'package:dio/dio.dart';
-
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -11,8 +9,8 @@ import 'remote_task_datasource.dart';
 ///
 /// Connects to:
 /// - GET /tasks (mechanic's own tasks for today)
-/// - POST /tasks/start (multipart: plandailyId, userId, start_time, photoBefore)
-/// - POST /tasks/submit (multipart: plandailyId, finishTime, progress, photos, etc.)
+/// - POST /tasks action=start (JSON body)
+/// - PUT /tasks action=submit (JSON body)
 class ApiTaskDataSource implements RemoteTaskDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
@@ -33,14 +31,30 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     final response = await apiClient.get(
       ApiEndpoints.tasks,
       queryParameters: {
-        'type': isOvertime ? 'overtime' : 'daily',
+        'userId': sessionManager.userId ?? sessionManager.employeeId ?? '',
         'date': dateStr,
       },
     );
 
     final rawData = response.data;
-    final List<dynamic> items =
-        rawData is List ? rawData : (rawData is Map ? (rawData['data'] as List? ?? []) : []);
+    // BE wraps response as: {statusCode, data: {filters, data: [...]}}
+    // So we need to drill: rawData['data']['data']
+    List<dynamic> items;
+    if (rawData is List) {
+      items = rawData;
+    } else if (rawData is Map) {
+      final inner = rawData['data'];
+      if (inner is List) {
+        items = inner;
+      } else if (inner is Map) {
+        // Nested: data.data is the actual array
+        items = (inner['data'] as List?) ?? [];
+      } else {
+        items = [];
+      }
+    } else {
+      items = [];
+    }
 
     return items
         .whereType<Map<String, dynamic>>()
@@ -65,20 +79,31 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   }
 
   @override
-  Future<TaskModel> startJobExecution(String plandailyId) async {
-    final formData = FormData.fromMap({
+  Future<TaskModel> startJobExecution(
+    String plandailyId, {
+    String? photoBefore1Path,
+    String? photoBefore2Path,
+  }) async {
+    // BE action=start: generates startTime itself — do NOT send startTime.
+    // photoBefore1 wajib diisi (BE validates), photoBefore2/3 optional.
+    final payload = <String, dynamic>{
+      'action': 'start',
       'plandailyId': plandailyId,
       'userId': sessionManager.userId ?? sessionManager.employeeId ?? '',
-      'start_time': DateTime.now().toUtc().toIso8601String(),
-    });
+      if (photoBefore1Path != null && photoBefore1Path.isNotEmpty)
+        'photoBefore1': photoBefore1Path,
+      if (photoBefore2Path != null && photoBefore2Path.isNotEmpty)
+        'photoBefore2': photoBefore2Path,
+    };
 
-    final response = await apiClient.postMultipart(
+    final response = await apiClient.post(
       ApiEndpoints.taskStart,
-      formData: formData,
+      data: payload,
     );
 
     final data = response.data as Map<String, dynamic>? ?? {};
-    final startTime = data['startTime'] as String? ??
+    final respData = data['data'] as Map<String, dynamic>? ?? {};
+    final startTime = respData['startTime'] as String? ??
         DateTime.now().toUtc().toIso8601String();
 
     // Return a minimal TaskModel with updated start info
@@ -112,17 +137,20 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     String plandailyId, {
     int breakDurationMinutes = 60,
   }) async {
-    // The API contract uses POST /tasks/submit for both finish & submit.
-    // For a simple "finish" action, submit with status = current status.
-    final formData = FormData.fromMap({
+    final payload = <String, dynamic>{
+      'action': 'submit',
       'plandailyId': plandailyId,
+      'userId': sessionManager.userId ?? sessionManager.employeeId ?? '',
+      'startTime': DateTime.now().toUtc().toIso8601String(),
       'finishTime': DateTime.now().toUtc().toIso8601String(),
       'breakDurationMinutes': breakDurationMinutes,
-    });
+      'progressPercent': 100,
+      'status': 'done',
+    };
 
-    final response = await apiClient.postMultipart(
+    final response = await apiClient.put(
       ApiEndpoints.taskSubmit,
-      formData: formData,
+      data: payload,
     );
 
     final data = response.data as Map<String, dynamic>? ?? {};
@@ -135,7 +163,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       panelName: '',
       jobName: '',
       divisionName: sessionManager.divisionName ?? '',
-      status: data['status'] as String? ?? 'DONE',
+      status: _normalizeTaskStatus(data['status'] as String? ?? 'DONE'),
       isPanelLocked: false,
       dailyTargetHours: 0,
       targetHoursRevised: 0,
@@ -146,41 +174,76 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       taskCategory: '',
       customDescription: '',
       ownerName: sessionManager.fullName ?? '',
-      totalActualHours: (data['durationHours'] as num?)?.toDouble() ?? 0,
+      totalActualHours: (data['duration'] as num?)?.toDouble() ?? 0,
       hasMonitoringRecord: true,
     );
   }
 
   @override
   Future<TaskModel> submitTaskExecution(TaskExecutionLog log) async {
-    final fields = <String, dynamic>{
+    final userId = sessionManager.userId ?? sessionManager.employeeId ?? '';
+    final normalizedStatus = log.status.trim().toLowerCase();
+
+    if (normalizedStatus == 'pending') {
+      final checkpointPayload = <String, dynamic>{
+        'action': 'checkpoint',
+        'plandailyId': log.plandailyId,
+        'userId': userId,
+        'status': 'pending',
+        'progressSeen': log.progressPercent.round(),
+        if (log.dailyNotes != null && log.dailyNotes!.trim().isNotEmpty)
+          'note': log.dailyNotes!.trim(),
+      };
+
+      await apiClient.post(
+        ApiEndpoints.taskCheckpoint,
+        data: checkpointPayload,
+      );
+
+      return TaskModel(
+        plandailyId: log.plandailyId,
+        coreId: '',
+        carId: '',
+        unitName: '',
+        panelName: '',
+        jobName: '',
+        divisionName: sessionManager.divisionName ?? '',
+        status: 'PLAN',
+        isPanelLocked: false,
+        dailyTargetHours: 0,
+        targetHoursRevised: 0,
+        remainingHours: 0,
+        taskDate: DateTime.now().toIso8601String().substring(0, 10),
+        createdAt: DateTime.now().toUtc().toIso8601String(),
+        startedAt: log.startTime,
+        completedAt: log.finishTime,
+        taskCategory: '',
+        customDescription: '',
+        ownerName: sessionManager.fullName ?? '',
+        totalActualHours: 0,
+        hasMonitoringRecord: true,
+      );
+    }
+
+    final payload = <String, dynamic>{
+      'action': 'submit',
       'plandailyId': log.plandailyId,
+      'userId': userId,
+      'startTime': log.startTime,
       'finishTime': log.finishTime,
       'breakDurationMinutes': log.breakDurationMinutes,
       'progressPercent': log.progressPercent,
-      'status': log.status,
+      'status': normalizedStatus,
       if (log.dailyNotes != null) 'dailyNotes': log.dailyNotes,
+      if (log.photoProcess != null && log.photoProcess!.isNotEmpty)
+        'photoProcess1': log.photoProcess,
+      if (log.photoAfter != null && log.photoAfter!.isNotEmpty)
+        'photoAfter1': log.photoAfter,
     };
 
-    // Attach photo files if provided
-    if (log.photoProcess != null && log.photoProcess!.isNotEmpty) {
-      fields['photoProcess'] =
-          await MultipartFile.fromFile(log.photoProcess!, filename: 'photo_process.jpg');
-    }
-    if (log.photoAfter != null && log.photoAfter!.isNotEmpty) {
-      fields['photoAfter'] =
-          await MultipartFile.fromFile(log.photoAfter!, filename: 'photo_after.jpg');
-    }
-    if (log.photoBefore != null && log.photoBefore!.isNotEmpty) {
-      fields['photoBefore'] =
-          await MultipartFile.fromFile(log.photoBefore!, filename: 'photo_before.jpg');
-    }
-
-    final formData = FormData.fromMap(fields);
-
-    final response = await apiClient.postMultipart(
+    final response = await apiClient.put(
       ApiEndpoints.taskSubmit,
-      formData: formData,
+      data: payload,
     );
 
     final data = response.data as Map<String, dynamic>? ?? {};
@@ -193,7 +256,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       panelName: '',
       jobName: '',
       divisionName: sessionManager.divisionName ?? '',
-      status: data['status'] as String? ?? log.status,
+      status: _normalizeTaskStatus(data['status'] as String? ?? log.status),
       isPanelLocked: false,
       dailyTargetHours: 0,
       targetHoursRevised: 0,
@@ -205,9 +268,75 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       taskCategory: '',
       customDescription: '',
       ownerName: sessionManager.fullName ?? '',
-      totalActualHours: (data['durationHours'] as num?)?.toDouble() ?? 0,
+      totalActualHours: (data['duration'] as num?)?.toDouble() ?? 0,
       hasMonitoringRecord: true,
     );
+  }
+
+  @override
+  Future<TaskModel> recordBreak(
+    String plandailyId, {
+    required int breakDurationMinutes,
+  }) async {
+    return getTaskById(plandailyId);
+  }
+
+  @override
+  Future<TaskModel> uploadProgressPhoto(
+    String plandailyId, {
+    required String photoUrl,
+    String photoType = 'PROCESS',
+  }) async {
+    return getTaskById(plandailyId);
+  }
+
+  @override
+  Future<String> getUploadTicket({required String filename}) async {
+    final response = await apiClient.get(
+      ApiEndpoints.tasksUploadTicket,
+      queryParameters: {
+        'filename': filename,
+      },
+    );
+    final rawData = response.data as Map<String, dynamic>? ?? {};
+    final data = rawData['data'] as Map<String, dynamic>? ?? {};
+    final uploadUrl = data['upload_url'] as String?;
+    if (uploadUrl == null || uploadUrl.isEmpty) {
+      throw DataFormatException(message: 'upload_url tidak ditemukan');
+    }
+    return uploadUrl;
+  }
+
+  String _asString(dynamic value, {String fallback = ''}) {
+    if (value == null) return fallback;
+    final text = value.toString();
+    return text.isEmpty ? fallback : text;
+  }
+
+  String _normalizeTaskStatus(String raw) {
+    final value = raw.trim().toUpperCase();
+    switch (value) {
+      case 'DONE':
+      case 'QC_READY':
+      case 'READY_QC':
+        return 'DONE';
+      case 'CANCEL':
+      case 'CANCELLED':
+        return 'CANCEL';
+      case 'PENDING':
+      case 'PLAN':
+      case 'ASSIGNED':
+        return 'PLAN';
+      case 'PROSES':
+      case 'IN_PROGRESS':
+      case 'ON_PROGRESS':
+      case 'ONPROGRESS':
+      case 'CHECK_PROGRESS':
+      case 'SUBMITTED':
+        return 'PROSES';
+      default:
+        return 'PLAN';
+    }
   }
 
   /// Maps a ViewTask-style JSON from GET /tasks response to TaskModel.
@@ -217,14 +346,14 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     final task = json['task'] as Map<String, dynamic>? ?? {};
 
     return TaskModel(
-      plandailyId: json['planDailyId'] as String? ?? '',
+      plandailyId: _asString(json['planDailyId']),
       coreId: '',
-      carId: unit['unitId'] as String? ?? '',
-      unitName: unit['unitName'] as String? ?? '',
-      panelName: task['namaPanel'] as String? ?? '',
-      jobName: task['jobName'] as String? ?? '',
-      divisionName: division['divisionName'] as String? ?? '',
-      status: json['status'] as String? ?? 'PENDING',
+      carId: _asString(unit['unitId']),
+      unitName: _asString(unit['unitName'], fallback: '-'),
+      panelName: _asString(task['namaPanel'], fallback: '-'),
+      jobName: _asString(task['jobName'], fallback: '-'),
+      divisionName: _asString(division['divisionName'], fallback: '-'),
+      status: _normalizeTaskStatus(_asString(json['status'], fallback: 'PENDING')),
       isPanelLocked: false,
       dailyTargetHours: 8.0,
       targetHoursRevised: 0,
@@ -232,10 +361,15 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       taskDate: DateTime.now().toIso8601String().substring(0, 10),
       createdAt: DateTime.now().toUtc().toIso8601String(),
       taskCategory: '',
-      customDescription: task['jobDescription'] as String? ?? '',
-      ownerName: (json['employee'] as Map<String, dynamic>?)?['employeeName'] as String? ?? '',
+      customDescription: _asString(task['jobDescription']),
+      ownerName: _asString(
+        (json['employee'] as Map<String, dynamic>?)?['employeeName'],
+      ),
       totalActualHours: 0,
       hasMonitoringRecord: json['hasMonitoringRecord'] as bool? ?? false,
+      isRework: task['is_rework'] == 1 || task['is_rework'] == true,
+      isOvertime: task['is_overtime'] == 1 || task['is_overtime'] == true,
+      isPriority: task['is_priority'] == 1 || task['is_priority'] == true,
     );
   }
 }

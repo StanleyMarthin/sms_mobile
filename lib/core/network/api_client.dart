@@ -5,11 +5,14 @@
 /// Standard response format: `{ "success": true, "message": "...", "data": {} }`
 library;
 
+import 'dart:async';
+
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import '../errors/failures.dart';
-import '../session/session_manager.dart';
 import 'api_endpoints.dart';
+import '../session/session_manager.dart';
 
 /// Parsed API response wrapper.
 class ApiResponse<T> {
@@ -28,6 +31,7 @@ class ApiResponse<T> {
 class ApiClient {
   final Dio _dio;
   final SessionManager _sessionManager;
+  Future<bool>? _refreshFuture;
 
   ApiClient({
     required SessionManager sessionManager,
@@ -35,8 +39,7 @@ class ApiClient {
   })  : _sessionManager = sessionManager,
         _dio = dio ?? Dio() {
     _dio.options
-      ..baseUrl = ApiEndpoints.baseUrl
-      ..connectTimeout = const Duration(seconds: 30)
+      ..connectTimeout = const Duration(seconds: 10)
       ..receiveTimeout = const Duration(seconds: 30)
       ..headers = {'Content-Type': 'application/json'};
 
@@ -50,10 +53,15 @@ class ApiClient {
   // ─── Interceptors ─────────────────────────────────────────
 
   /// Injects `Authorization: Bearer <token>` on every request.
-  /// Uses tempToken for device-init/login, JWT for all other calls.
+  /// Uses tempToken for device-init/login and the Redis session token
+  /// for all authenticated feature calls.
   Interceptor _authInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
+        if (options.extra['skipAuth'] == true) {
+          handler.next(options);
+          return;
+        }
         final token = _sessionManager.token ?? _sessionManager.tempToken;
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
@@ -73,7 +81,9 @@ class ApiClient {
         if (data is Map<String, dynamic>) {
           final success = data['success'] as bool? ?? true;
           if (!success) {
-            final errorCode = data['error'] as String? ?? '';
+            final errorCode = (data['errorCode'] as String?) ??
+                (data['error'] as String?) ??
+                '';
             final message = data['message'] as String? ?? 'Terjadi kesalahan';
             final failure = ApiErrorCode.fromCode(errorCode, message);
             handler.reject(
@@ -89,15 +99,144 @@ class ApiClient {
         }
         handler.next(response);
       },
-      onError: (error, handler) {
-        // If already mapped (from response interceptor), pass through
-        if (error.error is Failure) {
+      onError: (error, handler) async {
+        final statusCode = error.response?.statusCode ?? 0;
+        final isAuthError = statusCode == 401 || statusCode == 403 || statusCode == 404;
+
+        // If already mapped (from response interceptor) and not an auth HTTP error, pass through
+        if (error.error is Failure && !isAuthError) {
           handler.next(error);
           return;
         }
+        
+        if (_shouldAttemptRefresh(error)) {
+          await _retryAfterRefresh(error, handler);
+          return;
+        }
+
+        if (isAuthError) {
+          await _sessionManager.logout();
+        }
+
         handler.next(error);
       },
     );
+  }
+
+  bool _shouldAttemptRefresh(DioException error) {
+    final statusCode = error.response?.statusCode ?? 0;
+    final request = error.requestOptions;
+    return statusCode == 401 &&
+        request.extra['skipRefresh'] != true &&
+        request.path != ApiEndpoints.refresh &&
+        (_sessionManager.refreshToken ?? '').isNotEmpty &&
+        (_sessionManager.deviceId ?? '').isNotEmpty;
+  }
+
+  Future<void> _retryAfterRefresh(
+    DioException error,
+    ErrorInterceptorHandler handler,
+  ) async {
+    try {
+      final refreshed = await _refreshSession();
+      if (!refreshed || _sessionManager.token == null) {
+        handler.next(error);
+        return;
+      }
+
+      final request = error.requestOptions;
+      request.headers['Authorization'] = 'Bearer ${_sessionManager.token}';
+      request.extra['skipRefresh'] = true;
+
+      final response = await _dio.fetch(request);
+      handler.resolve(response);
+    } catch (_) {
+      handler.next(error);
+    }
+  }
+
+  Future<bool> _refreshSession() async {
+    final inFlight = _refreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final completer = Completer<bool>();
+    _refreshFuture = completer.future;
+
+    try {
+      final refreshToken = _sessionManager.refreshToken;
+      final deviceId = _sessionManager.deviceId;
+      if (refreshToken == null ||
+          refreshToken.isEmpty ||
+          deviceId == null ||
+          deviceId.isEmpty) {
+        completer.complete(false);
+        return false;
+      }
+
+      final refreshDio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 10),
+        receiveTimeout: const Duration(seconds: 30),
+        headers: {'Content-Type': 'application/json'},
+      ));
+
+      final response = await refreshDio.post(
+        ApiEndpoints.refresh,
+        data: {
+          'refreshToken': refreshToken,
+          'deviceId': deviceId,
+        },
+      );
+
+      final raw = response.data as Map<String, dynamic>? ?? {};
+      final data = raw['data'] as Map<String, dynamic>? ?? {};
+      final user = data['user'] as Map<String, dynamic>? ?? {};
+
+      final newToken = '${data['token'] ?? ''}';
+      final newRefreshToken = '${data['refreshToken'] ?? ''}';
+      final employeeId = '${user['employeeId'] ?? ''}';
+      final userId = '${user['userId'] ?? ''}';
+      if (newToken.isEmpty ||
+          newRefreshToken.isEmpty ||
+          employeeId.isEmpty ||
+          userId.isEmpty) {
+        completer.complete(false);
+        return false;
+      }
+
+      final permissions = (user['permissions'] as List<dynamic>? ?? [])
+          .map((e) => '$e')
+          .toList();
+
+      await _sessionManager.login(
+        token: newToken,
+        refreshToken: newRefreshToken,
+        userId: userId,
+        employeeId: employeeId,
+        fullName: '${user['fullname'] ?? ''}',
+        role: '${user['roleName'] ?? ''}',
+        divisionName: '${user['division'] ?? ''}',
+        jabatan: '${user['grade'] ?? ''}',
+        divisionId: (user['divisionId'] as num?)?.toInt() ?? 0,
+        permissions: permissions,
+      );
+
+      completer.complete(true);
+      return true;
+    } on DioException catch (exc) {
+      final statusCode = exc.response?.statusCode ?? 0;
+      if (statusCode == 401 || statusCode == 403) {
+        await _sessionManager.logout();
+      }
+      debugPrint('Refresh session failed: $exc');
+      completer.complete(false);
+      return false;
+    } catch (exc) {
+      debugPrint('Refresh session failed: $exc');
+      completer.complete(false);
+      return false;
+    } finally {
+      _refreshFuture = null;
+    }
   }
 
   // ─── Convenience methods ──────────────────────────────────
@@ -185,13 +324,15 @@ class ApiClient {
         String? errorCode;
         if (body is Map<String, dynamic>) {
           message = body['message'] as String?;
-          errorCode = body['error'] as String?;
+          errorCode =
+              (body['errorCode'] as String?) ?? (body['error'] as String?);
         }
         if (errorCode != null) {
           return ApiErrorCode.fromCode(errorCode, message);
         }
         if (statusCode >= 500) {
-          return ServerFailure(message: message ?? 'Server error', statusCode: statusCode);
+          return ServerFailure(
+              message: message ?? 'Server error', statusCode: statusCode);
         }
         if (statusCode == 401) {
           return UnauthorizedFailure(message: message);
@@ -199,7 +340,8 @@ class ApiClient {
         if (statusCode == 403) {
           return ForbiddenFailure(message: message);
         }
-        return ClientFailure(message: message ?? 'Request gagal', statusCode: statusCode);
+        return ClientFailure(
+            message: message ?? 'Request gagal', statusCode: statusCode);
       case DioExceptionType.cancel:
         return const ClientFailure(message: 'Request dibatalkan');
       default:

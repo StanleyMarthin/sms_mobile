@@ -1,11 +1,7 @@
 import '../models/device_init_model.dart';
 import '../models/login_model.dart';
 
-/// Abstract interface for auth data operations.
-///
-/// Implementations:
-/// - [LocalAuthDataSource] for dummy/offline mode
-/// - [RemoteAuthDataSource] for real API
+/// Abstract interface for auth data operations against the login API.
 abstract class AuthDataSource {
   Future<DeviceInitModel> deviceInit(Map<String, dynamic> deviceInfo);
 

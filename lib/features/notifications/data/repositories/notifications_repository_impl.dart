@@ -10,7 +10,8 @@ class NotificationsRepositoryImpl implements NotificationsRepository {
   final NotificationsDataSource dataSource;
 
   @override
-  Future<List<NotificationItem>> getNotifications({required String? role}) async {
+  Future<List<NotificationItem>> getNotifications(
+      {required String? role}) async {
     final items = await dataSource.getNotifications(role: role);
     return items
         .map(

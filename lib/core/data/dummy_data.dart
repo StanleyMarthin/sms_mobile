@@ -79,11 +79,12 @@ class DummyDivisions {
 
   /// Lookup division ID by code.
   static int idOfCode(String code) =>
-      all.firstWhere((d) => d['code'] == code, orElse: () => {'id': 1})['id'] as int;
+      all.firstWhere((d) => d['code'] == code, orElse: () => {'id': 1})['id']
+          as int;
 
   /// Lookup division name by ID.
-  static String nameOf(int id) =>
-      all.firstWhere((d) => d['id'] == id, orElse: () => {'name': 'UNKNOWN'})['name'] as String;
+  static String nameOf(int id) => all.firstWhere((d) => d['id'] == id,
+      orElse: () => {'name': 'UNKNOWN'})['name'] as String;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -547,7 +548,8 @@ class QcDummyData {
       'mechanicDivision': 'INTERIOR',
       'inspectorId': 'b3cc5298-179b-11f1-8701-94e6f79805fd',
       'advisorId': 'b3cc06eb-179b-11f1-8701-94e6f79805fd',
-      'inspectionDate': _DummySeedDate.shortDateTime(dayOffset: -1, hour: 11, minute: 30),
+      'inspectionDate':
+          _DummySeedDate.shortDateTime(dayOffset: -1, hour: 11, minute: 30),
       'totalActualHours': 7.0,
       'targetHoursRevised': 7.0,
       'qcStatus': 'REWORK',
@@ -626,7 +628,8 @@ class DummyJobPlans {
       'assignedDivision': 'INTERIOR',
       'assignedUserId': 'b3cbf19f-179b-11f1-8701-94e6f79805fd',
       'assignedTo': 'HARIS',
-      'description': 'PENJAHITAN COVER / KAIN dan pemasangan doortrim depan kiri.',
+      'description':
+          'PENJAHITAN COVER / KAIN dan pemasangan doortrim depan kiri.',
       'targetHours': 4.0,
       'workDate': _DummySeedDate.date(),
       'startTime': '08:00',
@@ -701,7 +704,8 @@ class DummyJobPlans {
     },
   ];
 
-  static List<Map<String, dynamic>> seedPlans() => <Map<String, dynamic>>[];
+  static List<Map<String, dynamic>> seedPlans() =>
+      _all.map((item) => Map<String, dynamic>.from(item)).toList();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1384,8 +1388,7 @@ class DummyCountdownData {
         ),
       );
 
-  static Map<String, List<Map<String, dynamic>>> seedDetails() =>
-      _details.map(
+  static Map<String, List<Map<String, dynamic>>> seedDetails() => _details.map(
         (key, value) => MapEntry(
           key,
           value.map((item) => Map<String, dynamic>.from(item)).toList(),
@@ -1396,7 +1399,8 @@ class DummyCountdownData {
       seedCountdowns()[carId] ?? <Map<String, dynamic>>[];
 
   static List<Map<String, dynamic>> detailsForCountdown(String countdownId) =>
-      seedDetails().values
+      seedDetails()
+          .values
           .expand((items) => items)
           .where((item) => item['countdownId'] == countdownId)
           .toList();
@@ -1590,7 +1594,8 @@ class DummyNotificationsData {
       'body': 'Dashboard depan Ferrari F355 siap checkpoint KD.',
       'isRead': false,
       'createdAt': _DummySeedDate.shortDateTime(hour: 16, minute: 10),
-      'targetRoute': '/qc?qcId=qc-int-f355-dashboard&date=${_DummySeedDate.date()}',
+      'targetRoute':
+          '/qc?qcId=qc-int-f355-dashboard&date=${_DummySeedDate.date()}',
       'roles': ['kd'],
     },
     {
@@ -1616,7 +1621,8 @@ class DummyNotificationsData {
       'title': 'Warehouse Approved',
       'body': 'Lem khusus interior untuk HARIS sudah disetujui KD.',
       'isRead': true,
-      'createdAt': _DummySeedDate.shortDateTime(dayOffset: -1, hour: 15, minute: 20),
+      'createdAt':
+          _DummySeedDate.shortDateTime(dayOffset: -1, hour: 15, minute: 20),
       'targetRoute': '/warehouse',
       'roles': ['op', 'kd'],
     },
@@ -1625,13 +1631,15 @@ class DummyNotificationsData {
       'title': 'Monitoring Update',
       'body': 'Progress Ferrari F355 naik menjadi 78%.',
       'isRead': true,
-      'createdAt': _DummySeedDate.shortDateTime(dayOffset: -1, hour: 8, minute: 45),
+      'createdAt':
+          _DummySeedDate.shortDateTime(dayOffset: -1, hour: 8, minute: 45),
       'targetRoute': '/monitoring?carId=FERRARIF355_MRSILMY',
       'roles': ['kd', 'adv', 'pm'],
     },
   ];
 
-  static List<Map<String, dynamic>> all() => <Map<String, dynamic>>[];
+  static List<Map<String, dynamic>> all() =>
+      _items.map((item) => Map<String, dynamic>.from(item)).toList();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1717,7 +1725,8 @@ class DummyWarehouseData {
     },
   ];
 
-  static List<Map<String, dynamic>> seedLogs() => <Map<String, dynamic>>[];
+  static List<Map<String, dynamic>> seedLogs() =>
+      _logs.map((item) => Map<String, dynamic>.from(item)).toList();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1771,7 +1780,8 @@ class DummyWorkOrders {
       'notes': 'Sudah disetujui advisor, tinggal final PM.',
       'requestedById': 'b3cc5298-179b-11f1-8701-94e6f79805fd',
       'requestedByName': 'RUHIAT SAEPULOH',
-      'createdAt': _DummySeedDate.isoDateTime(dayOffset: -1, hour: 9, minute: 30),
+      'createdAt':
+          _DummySeedDate.isoDateTime(dayOffset: -1, hour: 9, minute: 30),
       'deadline': _DummySeedDate.date(dayOffset: 2),
       'advisorApprovedAt': _DummySeedDate.isoDateTime(dayOffset: -1, hour: 11),
       'advisorApprovedBy': 'KANDI GUNAWAN',
@@ -1787,7 +1797,8 @@ class DummyWorkOrders {
       'partName': 'Cover Kulit Jok',
       'jobdescName': 'Emboss Ulang',
       'coreId': 'CD-INT-F355-004',
-      'description': 'Kirim cover kulit ke vendor emboss untuk penyesuaian tekstur.',
+      'description':
+          'Kirim cover kulit ke vendor emboss untuk penyesuaian tekstur.',
       'fromDivision': 'INTERIOR',
       'toDivision': 'Sinar Chrome',
       'estimatedHours': 8.0,
@@ -1796,7 +1807,8 @@ class DummyWorkOrders {
       'notes': 'Sudah dijemput vendor.',
       'requestedById': 'b3cc5298-179b-11f1-8701-94e6f79805fd',
       'requestedByName': 'RUHIAT SAEPULOH',
-      'createdAt': _DummySeedDate.isoDateTime(dayOffset: -2, hour: 10, minute: 30),
+      'createdAt':
+          _DummySeedDate.isoDateTime(dayOffset: -2, hour: 10, minute: 30),
       'deadline': _DummySeedDate.date(dayOffset: 1),
       'advisorApprovedAt': _DummySeedDate.isoDateTime(dayOffset: -2, hour: 12),
       'advisorApprovedBy': 'KANDI GUNAWAN',
@@ -1915,7 +1927,8 @@ class DummyTaskExecutionData {
     },
   ];
 
-  static List<Map<String, dynamic>> seedTasks() => <Map<String, dynamic>>[];
+  static List<Map<String, dynamic>> seedTasks() =>
+      _tasks.map((item) => Map<String, dynamic>.from(item)).toList();
 }
 
 class DummyTaskViewData {
@@ -1935,7 +1948,8 @@ class DummyTaskViewData {
       'task': {
         'namaPanel': 'DOORTRIM DEPAN LH',
         'jobName': 'PEMASANGAN COVER / KAIN',
-        'jobDescription': 'PENJAHITAN COVER / KAIN dan pemasangan doortrim depan kiri.',
+        'jobDescription':
+            'PENJAHITAN COVER / KAIN dan pemasangan doortrim depan kiri.',
         'startTime': '08:00',
         'targetFinishTime': '12:00',
         'is_rework': 0,
@@ -2099,7 +2113,8 @@ class DummyTaskViewData {
     },
   ];
 
-  static List<Map<String, dynamic>> seedTasks() => <Map<String, dynamic>>[];
+  static List<Map<String, dynamic>> seedTasks() =>
+      _tasks.map((item) => Map<String, dynamic>.from(item)).toList();
 }
 
 // ═══════════════════════════════════════════════════════════════
