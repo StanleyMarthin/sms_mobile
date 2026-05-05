@@ -11,8 +11,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../errors/failures.dart';
-import 'api_endpoints.dart';
 import '../session/session_manager.dart';
+import 'api_endpoints.dart';
 
 /// Parsed API response wrapper.
 class ApiResponse<T> {
@@ -44,6 +44,7 @@ class ApiClient {
       ..headers = {'Content-Type': 'application/json'};
 
     _dio.interceptors.add(_authInterceptor());
+    _dio.interceptors.add(_retryInterceptor());
     _dio.interceptors.add(_responseInterceptor());
   }
 
@@ -121,6 +122,50 @@ class ApiClient {
         handler.next(error);
       },
     );
+  }
+
+  Interceptor _retryInterceptor() {
+    return InterceptorsWrapper(
+      onError: (error, handler) async {
+        if (!_shouldRetry(error)) {
+          handler.next(error);
+          return;
+        }
+
+        final request = error.requestOptions;
+        final retryCount = (request.extra['retryCount'] as int? ?? 0) + 1;
+        request.extra['retryCount'] = retryCount;
+
+        final delay = Duration(milliseconds: 300 * (1 << (retryCount - 1)));
+        await Future<void>.delayed(delay);
+
+        try {
+          final response = await _dio.fetch(request);
+          handler.resolve(response);
+        } on DioException catch (retryError) {
+          handler.next(retryError);
+        }
+      },
+    );
+  }
+
+  bool _shouldRetry(DioException error) {
+    final request = error.requestOptions;
+    final retryCount = request.extra['retryCount'] as int? ?? 0;
+    if (retryCount >= 3) return false;
+    if (request.cancelToken?.isCancelled == true) return false;
+
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+        return true;
+      case DioExceptionType.badResponse:
+        return error.response?.statusCode == 503;
+      default:
+        return false;
+    }
   }
 
   bool _shouldAttemptRefresh(DioException error) {
@@ -227,11 +272,15 @@ class ApiClient {
       if (statusCode == 401 || statusCode == 403) {
         await _sessionManager.logout();
       }
-      debugPrint('Refresh session failed: $exc');
+      if (kDebugMode) {
+        debugPrint('Refresh session failed: $exc');
+      }
       completer.complete(false);
       return false;
     } catch (exc) {
-      debugPrint('Refresh session failed: $exc');
+      if (kDebugMode) {
+        debugPrint('Refresh session failed: $exc');
+      }
       completer.complete(false);
       return false;
     } finally {
@@ -245,8 +294,13 @@ class ApiClient {
   Future<ApiResponse<dynamic>> get(
     String path, {
     Map<String, dynamic>? queryParameters,
+    CancelToken? cancelToken,
   }) async {
-    final response = await _dio.get(path, queryParameters: queryParameters);
+    final response = await _dio.get(
+      path,
+      queryParameters: queryParameters,
+      cancelToken: cancelToken,
+    );
     return _parseResponse(response);
   }
 
@@ -254,8 +308,13 @@ class ApiClient {
   Future<ApiResponse<dynamic>> post(
     String path, {
     dynamic data,
+    CancelToken? cancelToken,
   }) async {
-    final response = await _dio.post(path, data: data);
+    final response = await _dio.post(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+    );
     return _parseResponse(response);
   }
 
@@ -263,8 +322,27 @@ class ApiClient {
   Future<ApiResponse<dynamic>> put(
     String path, {
     dynamic data,
+    CancelToken? cancelToken,
   }) async {
-    final response = await _dio.put(path, data: data);
+    final response = await _dio.put(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+    );
+    return _parseResponse(response);
+  }
+
+  /// DELETE request.
+  Future<ApiResponse<dynamic>> delete(
+    String path, {
+    dynamic data,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _dio.delete(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+    );
     return _parseResponse(response);
   }
 
@@ -272,8 +350,13 @@ class ApiClient {
   Future<ApiResponse<dynamic>> patch(
     String path, {
     dynamic data,
+    CancelToken? cancelToken,
   }) async {
-    final response = await _dio.patch(path, data: data);
+    final response = await _dio.patch(
+      path,
+      data: data,
+      cancelToken: cancelToken,
+    );
     return _parseResponse(response);
   }
 
@@ -281,11 +364,13 @@ class ApiClient {
   Future<ApiResponse<dynamic>> postMultipart(
     String path, {
     required FormData formData,
+    CancelToken? cancelToken,
   }) async {
     final response = await _dio.post(
       path,
       data: formData,
       options: Options(contentType: 'multipart/form-data'),
+      cancelToken: cancelToken,
     );
     return _parseResponse(response);
   }

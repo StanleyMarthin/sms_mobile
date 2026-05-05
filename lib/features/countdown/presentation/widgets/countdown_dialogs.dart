@@ -31,23 +31,35 @@ class CountdownDialogs {
       final String targetDivisionId = item.divisionId;
       final res = await sl<ApiClient>().get(
         ApiEndpoints.jobPlanDropdowns,
-        queryParameters: targetDivisionId.isNotEmpty ? {'divisionId': targetDivisionId} : null,
+        queryParameters: targetDivisionId.isNotEmpty
+            ? {'divisionId': targetDivisionId}
+            : null,
       );
       final data = res.data['data'] ?? res.data;
       if (data != null && data['users'] is List) {
-        employees = (data['users'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
+        employees = (data['users'] as List)
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
       }
     } catch (_) {}
+    if (!rootContext.mounted) return false;
 
     if (employees.isEmpty) {
-      if (rootContext.mounted) AppNotification.showError(rootContext, 'Gagal mengambil data anggota dari server.');
+      if (rootContext.mounted) {
+        AppNotification.showError(
+            rootContext, 'Gagal mengambil data anggota dari server.');
+      }
       return false;
     }
 
-    employees.sort((a, b) => '${a['name'] ?? a['full_name'] ?? ''}'.compareTo('${b['name'] ?? b['full_name'] ?? ''}'));
+    employees.sort((a, b) => '${a['name'] ?? a['full_name'] ?? ''}'
+        .compareTo('${b['name'] ?? b['full_name'] ?? ''}'));
 
     final comboCandidates = allUnitItems
-        .where((i) => i.panelName == item.panelName && i.id != item.id && i.targetHoursRevised > 0)
+        .where((i) =>
+            i.panelName == item.panelName &&
+            i.id != item.id &&
+            i.targetHoursRevised > 0)
         .toList();
 
     final selectedCombos = <CountdownJobdesc>{};
@@ -63,14 +75,17 @@ class CountdownDialogs {
     }
 
     final hoursCtrl = TextEditingController(
-      text: TimeParser.formatDecimalToHHmm(availablePlanHours > 0 ? availablePlanHours : item.targetHoursRevised),
+      text: TimeParser.formatDecimalToHHmm(availablePlanHours > 0
+          ? availablePlanHours
+          : item.targetHoursRevised),
     );
     final descriptionCtrl = TextEditingController();
     DateTime selectedDate = initialDate ?? DateTime.now();
     TimeOfDay startTime = const TimeOfDay(hour: 8, minute: 0);
     TimeOfDay finishTime = CountdownHelper.calculateFinishTime(
       startTime: startTime,
-      durationHours: availablePlanHours > 0 ? availablePlanHours : item.targetHoursRevised,
+      durationHours:
+          availablePlanHours > 0 ? availablePlanHours : item.targetHoursRevised,
       date: selectedDate,
     );
     var finishTimeEdited = false;
@@ -94,19 +109,30 @@ class CountdownDialogs {
               builder: (bsCtx) => StatefulBuilder(
                 builder: (bsCtx, setBs) {
                   final filtered = employees.where((e) {
-                    final name = ((e['name'] ?? e['full_name'] ?? '') as String).toLowerCase();
+                    final name = ((e['name'] ?? e['full_name'] ?? '') as String)
+                        .toLowerCase();
                     return name.contains(q.toLowerCase());
                   }).toList();
                   return SafeArea(
                     child: FractionallySizedBox(
                       heightFactor: 0.85,
                       child: Padding(
-                        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(bsCtx).viewInsets.bottom),
+                        padding: EdgeInsets.fromLTRB(16, 16, 16,
+                            16 + MediaQuery.of(bsCtx).viewInsets.bottom),
                         child: Column(
                           children: [
-                            Container(width: 36, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+                            Container(
+                                width: 36,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                    color: AppColors.border,
+                                    borderRadius: BorderRadius.circular(2))),
                             const SizedBox(height: 14),
-                            const Text('Pilih Pelaksana', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                            const Text('Pilih Pelaksana',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary)),
                             const SizedBox(height: 12),
                             TextField(
                               autofocus: true,
@@ -120,23 +146,49 @@ class CountdownDialogs {
                             Expanded(
                               child: ListView.separated(
                                 itemCount: filtered.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1, color: AppColors.border),
+                                separatorBuilder: (_, __) => const Divider(
+                                    height: 1, color: AppColors.border),
                                 itemBuilder: (_, i) {
                                   final e = filtered[i];
-                                  final name = (e['name'] ?? e['full_name'] ?? '-') as String;
-                                  final grade = (e['grade'] ?? e['jabatan'] ?? '') as String;
+                                  final name = (e['name'] ??
+                                      e['full_name'] ??
+                                      '-') as String;
+                                  final grade = (e['grade'] ??
+                                      e['jabatan'] ??
+                                      '') as String;
                                   final isSel = e['id'] == selectedEmployeeId;
                                   return ListTile(
                                     leading: CircleAvatar(
-                                      backgroundColor: isSel ? AppColors.gold : AppColors.surfaceInput,
+                                      backgroundColor: isSel
+                                          ? AppColors.gold
+                                          : AppColors.surfaceInput,
                                       child: Text(
-                                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                        style: TextStyle(color: isSel ? AppColors.background : AppColors.textMuted, fontWeight: FontWeight.w700),
+                                        name.isNotEmpty
+                                            ? name[0].toUpperCase()
+                                            : '?',
+                                        style: TextStyle(
+                                            color: isSel
+                                                ? AppColors.background
+                                                : AppColors.textMuted,
+                                            fontWeight: FontWeight.w700),
                                       ),
                                     ),
-                                    title: Text(name, style: TextStyle(color: AppColors.textPrimary, fontWeight: isSel ? FontWeight.w700 : FontWeight.normal)),
-                                    subtitle: grade.isNotEmpty ? Text(grade, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)) : null,
-                                    trailing: isSel ? const Icon(Icons.check_circle_rounded, color: AppColors.gold) : null,
+                                    title: Text(name,
+                                        style: TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontWeight: isSel
+                                                ? FontWeight.w700
+                                                : FontWeight.normal)),
+                                    subtitle: grade.isNotEmpty
+                                        ? Text(grade,
+                                            style: const TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.textMuted))
+                                        : null,
+                                    trailing: isSel
+                                        ? const Icon(Icons.check_circle_rounded,
+                                            color: AppColors.gold)
+                                        : null,
                                     onTap: () {
                                       setSheet(() {
                                         selectedEmployeeId = e['id'] as String;
@@ -171,7 +223,12 @@ class CountdownDialogs {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textMuted, letterSpacing: 0.5)),
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textMuted,
+                          letterSpacing: 0.5)),
                   const SizedBox(height: 10),
                   child,
                 ],
@@ -179,12 +236,17 @@ class CountdownDialogs {
             );
           }
 
-          Widget tapPill({required String label, required String value, required VoidCallback onTap, IconData icon = Icons.edit_calendar_rounded}) {
+          Widget tapPill(
+              {required String label,
+              required String value,
+              required VoidCallback onTap,
+              IconData icon = Icons.edit_calendar_rounded}) {
             return InkWell(
               onTap: onTap,
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(10),
@@ -198,9 +260,15 @@ class CountdownDialogs {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+                          Text(label,
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppColors.textMuted)),
                           const SizedBox(height: 2),
-                          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          Text(value,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary)),
                         ],
                       ),
                     ),
@@ -211,7 +279,8 @@ class CountdownDialogs {
           }
 
           return Container(
-            constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.94),
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.94),
             decoration: const BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
@@ -219,7 +288,12 @@ class CountdownDialogs {
             child: Column(
               children: [
                 const SizedBox(height: 10),
-                Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
+                Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                        color: AppColors.border,
+                        borderRadius: BorderRadius.circular(2))),
                 const SizedBox(height: 14),
 
                 // Header
@@ -232,39 +306,56 @@ class CountdownDialogs {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Buat Job Plan', style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                            const Text('Buat Job Plan',
+                                style: TextStyle(
+                                    fontSize: 12, color: AppColors.textMuted)),
                             const SizedBox(height: 2),
                             Text(
                               item.jobdesc,
-                              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                              style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                const Icon(Icons.directions_car_rounded, size: 14, color: AppColors.textMuted),
+                                const Icon(Icons.directions_car_rounded,
+                                    size: 14, color: AppColors.textMuted),
                                 const SizedBox(width: 4),
-                                Expanded(child: Text('${unit.unitName} • ${item.panelName}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted), overflow: TextOverflow.ellipsis)),
+                                Expanded(
+                                    child: Text(
+                                        '${unit.unitName} • ${item.panelName}',
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textMuted),
+                                        overflow: TextOverflow.ellipsis)),
                               ],
                             ),
                             const SizedBox(height: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
                                 color: AppColors.gold.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 'Sisa: ${TimeParser.formatDecimalToHHmm(availablePlanHours)} jam',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.gold),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.gold),
                               ),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
+                        icon: const Icon(Icons.close_rounded,
+                            color: AppColors.textMuted),
                         onPressed: () => Navigator.pop(ctx, false),
                       ),
                     ],
@@ -278,7 +369,6 @@ class CountdownDialogs {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     children: [
-
                       // Pelaksana
                       sectionCard(
                         title: 'PELAKSANA',
@@ -286,12 +376,15 @@ class CountdownDialogs {
                           onTap: openEmployeePicker,
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 14),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceCard,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: selectedEmployeeId != null ? AppColors.gold : AppColors.border,
+                                color: selectedEmployeeId != null
+                                    ? AppColors.gold
+                                    : AppColors.border,
                                 width: selectedEmployeeId != null ? 1.5 : 1,
                               ),
                             ),
@@ -303,33 +396,48 @@ class CountdownDialogs {
                                       ? AppColors.gold.withValues(alpha: 0.15)
                                       : AppColors.surfaceInput,
                                   child: Icon(
-                                    selectedEmployeeId != null ? Icons.person_rounded : Icons.person_add_rounded,
+                                    selectedEmployeeId != null
+                                        ? Icons.person_rounded
+                                        : Icons.person_add_rounded,
                                     size: 20,
-                                    color: selectedEmployeeId != null ? AppColors.gold : AppColors.textMuted,
+                                    color: selectedEmployeeId != null
+                                        ? AppColors.gold
+                                        : AppColors.textMuted,
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        selectedEmployeeId != null ? 'Pelaksana' : 'Ketuk untuk memilih',
-                                        style: TextStyle(fontSize: 11, color: selectedEmployeeId != null ? AppColors.gold : AppColors.textMuted),
+                                        selectedEmployeeId != null
+                                            ? 'Pelaksana'
+                                            : 'Ketuk untuk memilih',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: selectedEmployeeId != null
+                                                ? AppColors.gold
+                                                : AppColors.textMuted),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        selectedEmployeeName ?? 'Pilih Pelaksana *',
+                                        selectedEmployeeName ??
+                                            'Pilih Pelaksana *',
                                         style: TextStyle(
                                           fontSize: 15,
                                           fontWeight: FontWeight.w600,
-                                          color: selectedEmployeeId != null ? AppColors.textPrimary : AppColors.textMuted,
+                                          color: selectedEmployeeId != null
+                                              ? AppColors.textPrimary
+                                              : AppColors.textMuted,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+                                const Icon(Icons.chevron_right_rounded,
+                                    color: AppColors.textMuted),
                               ],
                             ),
                           ),
@@ -343,11 +451,14 @@ class CountdownDialogs {
                           controller: hoursCtrl,
                           keyboardType: TextInputType.number,
                           inputFormatters: [HHHMMFormatter()],
-                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.w700),
+                          style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700),
                           decoration: InputDecoration(
                             hintText: '008:00',
-                            helperText: 'Format HHH:MM  •  Maks: ${TimeParser.formatDecimalToHHmm(getTotalAvailableHours())}',
-                            suffixIcon: const Icon(Icons.timer_outlined, color: AppColors.textMuted),
+                            helperText:
+                                'Maks: ${TimeParser.formatDecimalToHHmm(getTotalAvailableHours())}',
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
@@ -357,14 +468,16 @@ class CountdownDialogs {
                             if (hrs != null && hrs > 0) {
                               setSheet(() {
                                 if (!finishTimeEdited) {
-                                  finishTime = CountdownHelper.calculateFinishTime(
+                                  finishTime =
+                                      CountdownHelper.calculateFinishTime(
                                     startTime: startTime,
                                     durationHours: hrs,
                                     date: selectedDate,
                                   );
                                 }
                                 // Auto-detect overtime: finish after 17:00
-                                isOvertime = CountdownHelper.isOvertimeByTime(finishTime);
+                                isOvertime = CountdownHelper.isOvertimeByTime(
+                                    finishTime);
                               });
                             }
                           },
@@ -388,17 +501,23 @@ class CountdownDialogs {
                                   lastDate: DateTime(2027),
                                 );
                                 if (picked != null) {
-                                  final hrs = TimeParser.parseHHmmToDecimal(hoursCtrl.text);
+                                  final hrs = TimeParser.parseHHmmToDecimal(
+                                      hoursCtrl.text);
                                   setSheet(() {
                                     selectedDate = picked;
-                                    if (!finishTimeEdited && hrs != null && hrs > 0) {
-                                      finishTime = CountdownHelper.calculateFinishTime(
+                                    if (!finishTimeEdited &&
+                                        hrs != null &&
+                                        hrs > 0) {
+                                      finishTime =
+                                          CountdownHelper.calculateFinishTime(
                                         startTime: startTime,
                                         durationHours: hrs,
                                         date: selectedDate,
                                       );
                                     }
-                                    isOvertime = CountdownHelper.isOvertimeByTime(finishTime);
+                                    isOvertime =
+                                        CountdownHelper.isOvertimeByTime(
+                                            finishTime);
                                   });
                                 }
                               },
@@ -406,57 +525,99 @@ class CountdownDialogs {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                Expanded(child: tapPill(
+                                Expanded(
+                                    child: tapPill(
                                   label: 'Jam Mulai',
                                   value: CountdownHelper.formatTime(startTime),
                                   icon: Icons.schedule_rounded,
                                   onTap: () async {
-                                    final picked = await showTimePicker(context: ctx, initialTime: startTime);
+                                    final picked = await showTimePicker(
+                                        context: ctx, initialTime: startTime);
                                     if (picked != null) {
-                                      final hrs = TimeParser.parseHHmmToDecimal(hoursCtrl.text);
+                                      final hrs = TimeParser.parseHHmmToDecimal(
+                                          hoursCtrl.text);
                                       setSheet(() {
                                         startTime = picked;
-                                        if (!finishTimeEdited && hrs != null && hrs > 0) {
-                                          finishTime = CountdownHelper.calculateFinishTime(
+                                        if (!finishTimeEdited &&
+                                            hrs != null &&
+                                            hrs > 0) {
+                                          finishTime = CountdownHelper
+                                              .calculateFinishTime(
                                             startTime: startTime,
                                             durationHours: hrs,
                                             date: selectedDate,
                                           );
                                         }
-                                        isOvertime = CountdownHelper.isOvertimeByTime(finishTime);
+                                        isOvertime =
+                                            CountdownHelper.isOvertimeByTime(
+                                                finishTime);
                                       });
                                     }
                                   },
                                 )),
                                 const SizedBox(width: 8),
-                                Expanded(child: tapPill(
+                                Expanded(
+                                    child: tapPill(
                                   label: 'Jam Selesai',
                                   value: CountdownHelper.formatTime(finishTime),
                                   icon: Icons.schedule_rounded,
                                   onTap: () async {
-                                    final picked = await showTimePicker(context: ctx, initialTime: finishTime);
-                                    if (picked != null) setSheet(() { finishTime = picked; finishTimeEdited = true; isOvertime = CountdownHelper.isOvertimeByTime(finishTime); });
+                                    final picked = await showTimePicker(
+                                        context: ctx, initialTime: finishTime);
+                                    if (picked != null) {
+                                      setSheet(() {
+                                        finishTime = picked;
+                                        finishTimeEdited = true;
+                                        isOvertime =
+                                            CountdownHelper.isOvertimeByTime(
+                                                finishTime);
+                                      });
+                                    }
                                   },
                                 )),
                               ],
                             ),
                             const SizedBox(height: 8),
                             InkWell(
-                              onTap: () => setSheet(() => isOvertime = !isOvertime),
+                              onTap: () =>
+                                  setSheet(() => isOvertime = !isOvertime),
                               borderRadius: BorderRadius.circular(10),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: isOvertime ? AppColors.orange.withValues(alpha: 0.08) : AppColors.surfaceCard,
+                                  color: isOvertime
+                                      ? AppColors.orange.withValues(alpha: 0.08)
+                                      : AppColors.surfaceCard,
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: isOvertime ? AppColors.orange.withValues(alpha: 0.4) : AppColors.border),
+                                  border: Border.all(
+                                      color: isOvertime
+                                          ? AppColors.orange
+                                              .withValues(alpha: 0.4)
+                                          : AppColors.border),
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.nights_stay_rounded, size: 18, color: isOvertime ? AppColors.orange : AppColors.textMuted),
+                                    Icon(Icons.nights_stay_rounded,
+                                        size: 18,
+                                        color: isOvertime
+                                            ? AppColors.orange
+                                            : AppColors.textMuted),
                                     const SizedBox(width: 10),
-                                    Expanded(child: Text('Dikerjakan saat lembur', style: TextStyle(fontSize: 14, color: isOvertime ? AppColors.orange : AppColors.textPrimary, fontWeight: FontWeight.w500))),
-                                    Switch.adaptive(value: isOvertime, onChanged: (v) => setSheet(() => isOvertime = v), activeColor: AppColors.orange),
+                                    Expanded(
+                                        child: Text('Dikerjakan saat lembur',
+                                            style: TextStyle(
+                                                fontSize: 14,
+                                                color: isOvertime
+                                                    ? AppColors.orange
+                                                    : AppColors.textPrimary,
+                                                fontWeight: FontWeight.w500))),
+                                    Switch.adaptive(
+                                      value: isOvertime,
+                                      onChanged: (v) =>
+                                          setSheet(() => isOvertime = v),
+                                      activeThumbColor: AppColors.orange,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -479,14 +640,19 @@ class CountdownDialogs {
                                   } else {
                                     selectedCombos.add(combo);
                                   }
-                                  hoursCtrl.text = TimeParser.formatDecimalToHHmm(getTotalAvailableHours());
+                                  hoursCtrl.text =
+                                      TimeParser.formatDecimalToHHmm(
+                                          getTotalAvailableHours());
                                   if (!finishTimeEdited) {
-                                    finishTime = CountdownHelper.calculateFinishTime(
+                                    finishTime =
+                                        CountdownHelper.calculateFinishTime(
                                       startTime: startTime,
                                       durationHours: getTotalAvailableHours(),
                                       date: selectedDate,
                                     );
-                                    isOvertime = CountdownHelper.isOvertimeByTime(finishTime);
+                                    isOvertime =
+                                        CountdownHelper.isOvertimeByTime(
+                                            finishTime);
                                   }
                                 }),
                                 borderRadius: BorderRadius.circular(10),
@@ -494,19 +660,42 @@ class CountdownDialogs {
                                   margin: const EdgeInsets.only(bottom: 6),
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: isSel ? AppColors.gold.withValues(alpha: 0.07) : AppColors.surfaceCard,
+                                    color: isSel
+                                        ? AppColors.gold.withValues(alpha: 0.07)
+                                        : AppColors.surfaceCard,
                                     borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: isSel ? AppColors.gold.withValues(alpha: 0.5) : AppColors.border),
+                                    border: Border.all(
+                                        color: isSel
+                                            ? AppColors.gold
+                                                .withValues(alpha: 0.5)
+                                            : AppColors.border),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(isSel ? Icons.check_box_rounded : Icons.check_box_outline_blank_rounded, color: isSel ? AppColors.gold : AppColors.textMuted),
+                                      Icon(
+                                          isSel
+                                              ? Icons.check_box_rounded
+                                              : Icons
+                                                  .check_box_outline_blank_rounded,
+                                          color: isSel
+                                              ? AppColors.gold
+                                              : AppColors.textMuted),
                                       const SizedBox(width: 10),
-                                      Expanded(child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                      Expanded(
+                                          child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(combo.jobdesc, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
-                                          Text('Target: ${TimeParser.formatDecimalToHHmm(combo.targetHoursRevised)} jam', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                                          Text(combo.jobdesc,
+                                              style: const TextStyle(
+                                                  fontSize: 13,
+                                                  color: AppColors.textPrimary,
+                                                  fontWeight: FontWeight.w500)),
+                                          Text(
+                                              'Target: ${TimeParser.formatDecimalToHHmm(combo.targetHoursRevised)} jam',
+                                              style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: AppColors.textMuted)),
                                         ],
                                       )),
                                     ],
@@ -541,43 +730,59 @@ class CountdownDialogs {
 
                 // Submit
                 Container(
-                  padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
-                  decoration: const BoxDecoration(color: AppColors.surfaceCard, border: Border(top: BorderSide(color: AppColors.border))),
+                  padding: EdgeInsets.fromLTRB(
+                      16, 12, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+                  decoration: const BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      border: Border(top: BorderSide(color: AppColors.border))),
                   child: SafeArea(
                     top: false,
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
                         icon: const Icon(Icons.save_rounded),
-                        label: const Text('Simpan ke Draft', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        label: const Text('Simpan ke Draft',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w700)),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
                           foregroundColor: AppColors.background,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
                         ),
                         onPressed: () async {
                           if (selectedEmployeeId == null) {
-                            AppNotification.showWarning(ctx, 'Pilih pelaksana terlebih dahulu.');
+                            AppNotification.showWarning(
+                                ctx, 'Pilih pelaksana terlebih dahulu.');
                             return;
                           }
-                          final inputHours = TimeParser.parseHHmmToDecimal(hoursCtrl.text);
+                          final inputHours =
+                              TimeParser.parseHHmmToDecimal(hoursCtrl.text);
                           if (inputHours == null || inputHours <= 0) {
-                            AppNotification.showError(ctx, 'Target jam wajib diisi dengan benar.');
+                            AppNotification.showError(
+                                ctx, 'Target jam wajib diisi dengan benar.');
                             return;
                           }
                           final maxHours = getTotalAvailableHours();
                           if (inputHours > maxHours) {
-                            AppNotification.showError(ctx, 'Target melebihi sisa alokasi. Maks: ${TimeParser.formatDecimalToHHmm(maxHours)}');
+                            AppNotification.showError(ctx,
+                                'Target melebihi sisa alokasi. Maks: ${TimeParser.formatDecimalToHHmm(maxHours)}');
                             return;
                           }
-                          final selectedEmployee = employees.firstWhere((e) => e['id'] == selectedEmployeeId);
+                          final selectedEmployee = employees
+                              .firstWhere((e) => e['id'] == selectedEmployeeId);
                           var remaining = inputHours;
-                          final planItems = <CountdownJobdesc>[item, ...selectedCombos];
+                          final planItems = <CountdownJobdesc>[
+                            item,
+                            ...selectedCombos
+                          ];
                           final draftItems = <Map<String, dynamic>>[];
                           for (final planItem in planItems) {
                             if (remaining <= 0) break;
-                            final cap = planItem.id == item.id ? availablePlanHours : planItem.targetHoursRevised;
+                            final cap = planItem.id == item.id
+                                ? availablePlanHours
+                                : planItem.targetHoursRevised;
                             final alloc = remaining > cap ? cap : remaining;
                             draftItems.add({
                               'sourceType': 'COUNTDOWN',
@@ -587,23 +792,45 @@ class CountdownDialogs {
                               'unitName': unit.unitName,
                               'panelName': planItem.panelName,
                               'assignedUserId': selectedEmployeeId!,
-                              'assignedTo': (selectedEmployee['name'] ?? selectedEmployee['full_name'] ?? '-') as String,
+                              'assignedTo': (selectedEmployee['name'] ??
+                                  selectedEmployee['full_name'] ??
+                                  '-') as String,
                               'jobDescription': planItem.jobdesc,
                               'targetHours': alloc,
-                              'taskDate': selectedDate.toIso8601String().split('T').first,
-                              'startTime': CountdownHelper.formatTime(startTime),
-                              'finishTime': CountdownHelper.formatTime(finishTime),
+                              'taskDate': selectedDate
+                                  .toIso8601String()
+                                  .split('T')
+                                  .first,
+                              'startTime':
+                                  CountdownHelper.formatTime(startTime),
+                              'finishTime':
+                                  CountdownHelper.formatTime(finishTime),
                               'isOvertime': isOvertime,
-                              'note': ['Sumber: Countdown ${planItem.id}', if (planItems.length > 1) 'Combo Jobdesc', isOvertime ? 'Lembur: Ya' : 'Lembur: Tidak', if (descriptionCtrl.text.trim().isNotEmpty) 'POK: ${descriptionCtrl.text.trim()}'].join(' | '),
+                              'note': [
+                                'Sumber: Countdown ${planItem.id}',
+                                if (planItems.length > 1) 'Combo Jobdesc',
+                                isOvertime ? 'Lembur: Ya' : 'Lembur: Tidak',
+                                if (descriptionCtrl.text.trim().isNotEmpty)
+                                  'POK: ${descriptionCtrl.text.trim()}'
+                              ].join(' | '),
                             });
                             remaining -= alloc;
                           }
                           if (ctx.mounted) Navigator.pop(ctx, true);
                           try {
-                            await jobPlanRepository.saveDraft(userId: session.employeeId ?? '', items: draftItems, sourceType: 'COUNTDOWN');
-                            if (rootContext.mounted) AppNotification.showSuccess(rootContext, 'Draft tersimpan! Buka tab Rencana untuk kirim ke approval.');
+                            await jobPlanRepository.saveDraft(
+                                userId: session.employeeId ?? '',
+                                items: draftItems,
+                                sourceType: 'COUNTDOWN');
+                            if (rootContext.mounted) {
+                              AppNotification.showSuccess(rootContext,
+                                  'Draft tersimpan! Buka tab Rencana untuk kirim ke approval.');
+                            }
                           } catch (_) {
-                            if (rootContext.mounted) AppNotification.showError(rootContext, 'Gagal menyimpan draft. Coba lagi.');
+                            if (rootContext.mounted) {
+                              AppNotification.showError(rootContext,
+                                  'Gagal menyimpan draft. Coba lagi.');
+                            }
                           }
                         },
                       ),
@@ -667,8 +894,10 @@ class CountdownDialogs {
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                     labelText: 'Tambahan Jam Kerja (opsional)',
-                    helperText: 'Kosongkan bila cuma ubah deadline. Ketuk untuk isi',
-                    suffixIcon: Icon(Icons.timer_outlined, color: AppColors.textMuted, size: 20),
+                    helperText:
+                        'Kosongkan bila cuma ubah deadline. Ketuk untuk isi',
+                    suffixIcon: Icon(Icons.timer_outlined,
+                        color: AppColors.textMuted, size: 20),
                   ),
                   onTap: () async {
                     final currentLabel = hoursCtrl.text.trim();
@@ -686,14 +915,16 @@ class CountdownDialogs {
                       helpText: 'Set Tambahan Jam Kerja',
                       builder: (BuildContext context, Widget? child) {
                         return MediaQuery(
-                          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+                          data: MediaQuery.of(context)
+                              .copyWith(alwaysUse24HourFormat: true),
                           child: child!,
                         );
                       },
                     );
                     if (picked != null) {
                       setDialogState(() {
-                        hoursCtrl.text = TimeParser.formatDecimalToHHmm(picked.hour + (picked.minute / 60.0));
+                        hoursCtrl.text = TimeParser.formatDecimalToHHmm(
+                            picked.hour + (picked.minute / 60.0));
                       });
                     }
                   },
@@ -702,7 +933,8 @@ class CountdownDialogs {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Deadline Baru',
-                      style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                      style:
+                          TextStyle(fontSize: 13, color: AppColors.textMuted)),
                   subtitle: Text(
                     '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}',
                     style: const TextStyle(
@@ -737,20 +969,24 @@ class CountdownDialogs {
                 if (inlineError != null) ...[
                   const SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppColors.statusLocked.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.statusLocked.withValues(alpha: 0.4)),
+                      border: Border.all(
+                          color: AppColors.statusLocked.withValues(alpha: 0.4)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, size: 16, color: AppColors.statusLocked),
+                        const Icon(Icons.error_outline,
+                            size: 16, color: AppColors.statusLocked),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             inlineError!,
-                            style: const TextStyle(fontSize: 12, color: AppColors.statusLocked),
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.statusLocked),
                           ),
                         ),
                       ],
@@ -770,28 +1006,37 @@ class CountdownDialogs {
                   ? null
                   : () async {
                       final rawHours = hoursCtrl.text.trim();
-                      final requestedHours =
-                          rawHours.isEmpty ? 0.0 : TimeParser.parseHHmmToDecimal(rawHours);
+                      final requestedHours = rawHours.isEmpty
+                          ? 0.0
+                          : TimeParser.parseHHmmToDecimal(rawHours);
 
                       if (requestedHours == null || requestedHours < 0) {
-                        setDialogState(() => inlineError = 'Format tambahan jam kerja tidak valid.');
+                        setDialogState(() => inlineError =
+                            'Format tambahan jam kerja tidak valid.');
                         return;
                       }
 
-                      final selectedDeadline = '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
-                      final isDeadlineChanged = selectedDeadline != item.deadlineDate;
+                      final selectedDeadline =
+                          '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}';
+                      final isDeadlineChanged =
+                          selectedDeadline != item.deadlineDate;
 
                       if (requestedHours == 0 && !isDeadlineChanged) {
-                        setDialogState(() => inlineError = 'Ubah deadline atau isi tambahan jam kerja terlebih dahulu.');
+                        setDialogState(() => inlineError =
+                            'Ubah deadline atau isi tambahan jam kerja terlebih dahulu.');
                         return;
                       }
 
                       if (reasonCtrl.text.trim().isEmpty) {
-                        setDialogState(() => inlineError = 'Alasan revisi wajib diisi.');
+                        setDialogState(
+                            () => inlineError = 'Alasan revisi wajib diisi.');
                         return;
                       }
 
-                      setDialogState(() { isSubmitting = true; inlineError = null; });
+                      setDialogState(() {
+                        isSubmitting = true;
+                        inlineError = null;
+                      });
 
                       try {
                         final repository = sl<CountdownRepository>();

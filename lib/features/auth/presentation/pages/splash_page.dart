@@ -4,9 +4,10 @@ import 'package:android_id/android_id.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/security/device_signing_service.dart';
 import '../../../../core/session/session_manager.dart';
@@ -93,7 +94,7 @@ class _SplashPageState extends State<SplashPage>
     _authBloc.add(DeviceInitRequested(deviceInfo: deviceInfo));
   }
 
-  void _onAuthState(BuildContext context, AuthState state) {
+  void _onAuthState(BuildContext context, AuthState state) async {
     if (state is DeviceInitSuccess) {
       final result = state.result;
       if (result.isLatest) {
@@ -109,11 +110,11 @@ class _SplashPageState extends State<SplashPage>
           return;
         }
 
-        sl<SessionManager>().setDeviceAttestation(
+        await sl<SessionManager>().setDeviceAttestation(
           tempToken: tempToken,
           deviceId: _currentDeviceId ?? '',
         );
-        DeviceSigningService().markRegistered();
+        await DeviceSigningService().markRegistered();
         setState(() => _statusMessage = 'Perangkat terverifikasi ✓');
         Future.delayed(const Duration(milliseconds: 500), () {
           if (!mounted) return;
@@ -350,15 +351,7 @@ class _SplashPageState extends State<SplashPage>
           const SizedBox(height: 20),
           if (_downloadUrl != null)
             FilledButton.icon(
-              onPressed: () {
-                // In production: launch URL to Play Store / App Store
-                // For now: just retry
-                setState(() {
-                  _hasError = false;
-                  _statusMessage = 'Memuat...';
-                });
-                _startDeviceInit();
-              },
+              onPressed: _openStore,
               icon: const Icon(Icons.download_rounded, size: 18),
               label: const Text('Update Sekarang'),
               style: FilledButton.styleFrom(
@@ -386,5 +379,24 @@ class _SplashPageState extends State<SplashPage>
         ],
       ),
     );
+  }
+
+  Future<void> _openStore() async {
+    final fallbackUrl =
+        Platform.isIOS ? AppConfig.iosStoreUrl : AppConfig.androidStoreUrl;
+    final rawUrl =
+        (_downloadUrl == null || _downloadUrl == 'required')
+            ? fallbackUrl
+            : _downloadUrl!;
+    final launched = await launchUrl(
+      Uri.parse(rawUrl),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!launched && mounted) {
+      AppNotification.showError(
+        context,
+        'Tidak dapat membuka halaman update aplikasi.',
+      );
+    }
   }
 }

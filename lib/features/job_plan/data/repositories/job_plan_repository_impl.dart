@@ -35,11 +35,13 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   @override
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
+    String? carId,
     String? searchUser,
     int userLimit = 200,
   }) {
     return dataSource.getDropdowns(
       divisionId: divisionId,
+      carId: carId,
       searchUser: searchUser,
       userLimit: userLimit,
     );

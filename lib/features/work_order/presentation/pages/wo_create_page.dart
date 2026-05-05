@@ -40,7 +40,6 @@ class _WoCreatePageState extends State<WoCreatePage> {
   Map<String, dynamic>? _selectedDiv;
   String?               _selectedPanelName;  // from master
   bool   _useFreeTextPanel    = false;
-  bool   _addPanelToMaster    = false;
   String? _selectedCategory;
 
   final _sectionNameCtrl = TextEditingController();
@@ -65,15 +64,19 @@ class _WoCreatePageState extends State<WoCreatePage> {
     super.dispose();
   }
 
-  Future<void> _loadDropdowns() async {
+  Future<void> _loadDropdowns({String? carId}) async {
     try {
       final repo = sl<JobPlanRepository>();
-      final data = await repo.getDropdowns(divisionId: null);
+      final data = await repo.getDropdowns(divisionId: null, carId: carId);
       if (!mounted) return;
       setState(() {
         _cars      = List<Map<String, dynamic>>.from(data['cars']      ?? []);
         _panels    = List<Map<String, dynamic>>.from(data['panels']    ?? []);
         _divisions = List<Map<String, dynamic>>.from(data['divisions'] ?? []);
+        if (_selectedPanelName != null &&
+            !_panels.any((panel) => panel['name']?.toString() == _selectedPanelName)) {
+          _selectedPanelName = null;
+        }
         _loading   = false;
       });
     } catch (_) {
@@ -94,8 +97,8 @@ class _WoCreatePageState extends State<WoCreatePage> {
     if (_useFreeTextPanel && _sectionNameCtrl.text.trim().isEmpty) {
       _snack('Nama panel/section wajib diisi'); return;
     }
-    if (_useFreeTextPanel && _addPanelToMaster && _selectedCategory == null) {
-      _snack('Pilih kategori panel sebelum tambah ke master'); return;
+    if (_useFreeTextPanel && _selectedCategory == null) {
+      _snack('Pilih kategori panel untuk panel baru'); return;
     }
 
     final tHours = _parseHhmm(_targetHoursCtrl.text);
@@ -112,7 +115,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                          : _selectedPanelName,
       sectionName:     _useFreeTextPanel ? _sectionNameCtrl.text.trim() : null,
       panelCategory:   _selectedCategory,
-      addPanelToMaster: _useFreeTextPanel && _addPanelToMaster,
+      addPanelToMaster: _useFreeTextPanel,
       targetHours:     tHours,
     ));
     Navigator.pop(context, true);
@@ -273,7 +276,15 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                 label: (c) => c['unit_name']?.toString() ?? '',
                                 sublabel: (c) => c['customer_name']?.toString() ?? '',
                               );
-                              if (picked != null) setState(() => _selectedCar = picked);
+                              if (picked != null) {
+                                setState(() {
+                                  _selectedCar = picked;
+                                  _selectedPanelName = null;
+                                });
+                                await _loadDropdowns(
+                                  carId: picked['id']?.toString(),
+                                );
+                              }
                             },
                           ),
                         ),
@@ -331,7 +342,6 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                 onChanged: (v) => setState(() {
                                   _useFreeTextPanel = v ?? false;
                                   if (!_useFreeTextPanel) {
-                                    _addPanelToMaster = false;
                                     _selectedCategory = null;
                                     _sectionNameCtrl.clear();
                                   }
@@ -346,29 +356,22 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                   decoration: _inputDeco('Nama Panel / Section'),
                                 ),
                                 const SizedBox(height: 10),
-                                CheckboxListTile.adaptive(
-                                  contentPadding: EdgeInsets.zero,
-                                  dense: true,
-                                  value: _addPanelToMaster,
-                                  activeColor: AppColors.gold,
-                                  onChanged: (v) => setState(() => _addPanelToMaster = v ?? false),
-                                  title: const Text('Tambahkan ke daftar master panel',
-                                      style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                                const Text(
+                                  'Panel manual akan otomatis ditambahkan ke master sesuai unit terpilih.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                                 ),
-                                if (_addPanelToMaster) ...[
-                                  const SizedBox(height: 8),
-                                  DropdownButtonFormField<String>(
-                                    value: _selectedCategory,
-                                    isExpanded: true,
-                                    dropdownColor: AppColors.surfaceCard,
-                                    decoration: _inputDeco('Kategori Panel *'),
-                                    items: _categories
-                                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                                        .toList(),
-                                    onChanged: (v) => setState(() => _selectedCategory = v),
-                                    style: const TextStyle(color: AppColors.textPrimary),
-                                  ),
-                                ],
+                                const SizedBox(height: 8),
+                                DropdownButtonFormField<String>(
+                                  initialValue: _selectedCategory,
+                                  isExpanded: true,
+                                  dropdownColor: AppColors.surfaceCard,
+                                  decoration: _inputDeco('Kategori Panel *'),
+                                  items: _categories
+                                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                      .toList(),
+                                  onChanged: (v) => setState(() => _selectedCategory = v),
+                                  style: const TextStyle(color: AppColors.textPrimary),
+                                ),
                               ],
                             ],
                           ),

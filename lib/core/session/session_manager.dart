@@ -1,8 +1,9 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/dummy_data.dart';
+import '../security/app_secure_storage.dart';
 
 /// Manages the authenticated user's session state.
 ///
@@ -14,6 +15,23 @@ import '../data/dummy_data.dart';
 /// session token, refresh token, divisionName, jabatan (position),
 /// and permissions[].
 class SessionManager extends ChangeNotifier {
+  SessionManager({this.storage = AppSecureStorage.instance});
+
+  static const keyTempToken = 'session_tempToken';
+  static const keyDeviceId = 'session_deviceId';
+  static const keyToken = 'session_token';
+  static const keyRefreshToken = 'session_refreshToken';
+  static const keyUserId = 'session_userId';
+  static const keyEmployeeId = 'session_employeeId';
+  static const keyFullName = 'session_fullName';
+  static const keyRole = 'session_role';
+  static const keyDivisionName = 'session_divisionName';
+  static const keyJabatan = 'session_jabatan';
+  static const keyDivisionId = 'session_divisionId';
+  static const keyPermissions = 'session_permissions';
+
+  final dynamic storage;
+
   // ── Device attestation ─────────────────────────────────
   String? _tempToken;
   String? _deviceId;
@@ -46,42 +64,45 @@ class SessionManager extends ChangeNotifier {
   List<String> get permissions => List.unmodifiable(_permissions);
 
   Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('session_token');
-    _refreshToken = prefs.getString('session_refreshToken');
-    _deviceId = prefs.getString('session_deviceId');   // restored on cold start
-    _userId = prefs.getString('session_userId');
-    _employeeId = prefs.getString('session_employeeId');
-    _fullName = prefs.getString('session_fullName');
-    _role = prefs.getString('session_role');
-    _divisionName = prefs.getString('session_divisionName');
-    _jabatan = prefs.getString('session_jabatan');
-    _divisionId = prefs.getInt('session_divisionId');
+    _tempToken = await _read(keyTempToken);
+    _token = await _read(keyToken);
+    _refreshToken = await _read(keyRefreshToken);
+    _deviceId = await _read(keyDeviceId);
+    _userId = await _read(keyUserId);
+    _employeeId = await _read(keyEmployeeId);
+    _fullName = await _read(keyFullName);
+    _role = await _read(keyRole);
+    _divisionName = await _read(keyDivisionName);
+    _jabatan = await _read(keyJabatan);
+    _divisionId = int.tryParse(await _read(keyDivisionId) ?? '');
 
-    final permsStr = prefs.getString('session_permissions');
+    final permsStr = await _read(keyPermissions);
     if (permsStr != null) {
       try {
         final decoded = jsonDecode(permsStr);
         if (decoded is List) {
           _permissions = decoded.cast<String>();
         }
-      } catch (_) {}
+      } catch (_) {
+        _permissions = [];
+      }
     }
     notifyListeners();
   }
 
   /// Store temp token from device attestation (splash screen).
   /// This token is ONLY valid for calling POST /auth/login.
-  void setDeviceAttestation({
+  Future<void> setDeviceAttestation({
     required String tempToken,
     required String deviceId,
-  }) {
+  }) async {
     _tempToken = tempToken;
     _deviceId = deviceId;
-    // Persist so auto-refresh works after cold start
-    SharedPreferences.getInstance().then(
-      (prefs) => prefs.setString('session_deviceId', deviceId),
-    );
+
+    await Future.wait([
+      _write(keyTempToken, tempToken),
+      _write(keyDeviceId, deviceId),
+    ]);
     notifyListeners();
   }
 
@@ -115,17 +136,19 @@ class SessionManager extends ChangeNotifier {
     // Clear temp token after successful login
     _tempToken = null;
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('session_token', token);
-    await prefs.setString('session_refreshToken', refreshToken);
-    await prefs.setString('session_userId', userId);
-    await prefs.setString('session_employeeId', employeeId);
-    await prefs.setString('session_fullName', fullName);
-    await prefs.setString('session_role', role);
-    await prefs.setString('session_divisionName', divisionName);
-    await prefs.setString('session_jabatan', jabatan);
-    await prefs.setInt('session_divisionId', divisionId);
-    await prefs.setString('session_permissions', jsonEncode(_permissions));
+    await Future.wait([
+      _delete(keyTempToken),
+      _write(keyToken, token),
+      _write(keyRefreshToken, refreshToken),
+      _write(keyUserId, userId),
+      _write(keyEmployeeId, employeeId),
+      _write(keyFullName, fullName),
+      _write(keyRole, role),
+      _write(keyDivisionName, divisionName),
+      _write(keyJabatan, jabatan),
+      _write(keyDivisionId, '$divisionId'),
+      _write(keyPermissions, jsonEncode(_permissions)),
+    ]);
 
     notifyListeners();
   }
@@ -154,19 +177,33 @@ class SessionManager extends ChangeNotifier {
     _divisionId = null;
     _permissions = [];
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('session_token');
-    await prefs.remove('session_refreshToken');
-    await prefs.remove('session_userId');
-    await prefs.remove('session_employeeId');
-    await prefs.remove('session_fullName');
-    await prefs.remove('session_role');
-    await prefs.remove('session_divisionName');
-    await prefs.remove('session_jabatan');
-    await prefs.remove('session_divisionId');
-    await prefs.remove('session_permissions');
+    await Future.wait([
+      _delete(keyTempToken),
+      _delete(keyToken),
+      _delete(keyRefreshToken),
+      _delete(keyUserId),
+      _delete(keyEmployeeId),
+      _delete(keyFullName),
+      _delete(keyRole),
+      _delete(keyDivisionName),
+      _delete(keyJabatan),
+      _delete(keyDivisionId),
+      _delete(keyPermissions),
+    ]);
 
     notifyListeners();
+  }
+
+  Future<String?> _read(String key) {
+    return storage.read(key: key);
+  }
+
+  Future<void> _write(String key, String value) {
+    return storage.write(key: key, value: value);
+  }
+
+  Future<void> _delete(String key) {
+    return storage.delete(key: key);
   }
 }
 

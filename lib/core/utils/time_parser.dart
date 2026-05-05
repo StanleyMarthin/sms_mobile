@@ -46,26 +46,47 @@ class TimeParser {
     }
     return null;
   }
+
+  /// Formats a numeric-only duration input into HHH:MM.
+  /// Examples:
+  ///  - "8" -> "008:00"
+  ///  - "830" -> "008:30"
+  ///  - "10000" -> "100:00"
+  static String formatDurationDigits(String digits) {
+    final clean = digits.replaceAll(RegExp(r'[^0-9]'), '');
+    if (clean.isEmpty) return '';
+
+    int hours;
+    int minutes;
+
+    if (clean.length <= 2) {
+      hours = int.parse(clean);
+      minutes = 0;
+    } else {
+      hours = int.parse(clean.substring(0, clean.length - 2));
+      minutes = int.parse(clean.substring(clean.length - 2));
+    }
+
+    hours += minutes ~/ 60;
+    minutes = minutes % 60;
+
+    return '${hours.toString().padLeft(3, '0')}:${minutes.toString().padLeft(2, '0')}';
+  }
 }
 
 /// TextInputFormatter for duration in HHH:MM format (e.g. "008:30").
-/// User types only digits; colon is auto-inserted after 3 digits.
-/// Max input: "999:59" = 6 chars.
+/// User types only digits; the final 2 digits are treated as minutes.
+/// Examples:
+///  - 8 => 008:00
+///  - 830 => 008:30
+///  - 10000 => 100:00
 class HHHMMFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) return const TextEditingValue(text: '');
-
-    final String formatted;
-    if (digits.length <= 3) {
-      formatted = digits;
-    } else {
-      final h = digits.substring(0, 3);
-      final m = digits.substring(3, digits.length.clamp(3, 5));
-      formatted = '$h:$m';
-    }
+    final formatted = TimeParser.formatDurationDigits(digits);
 
     return TextEditingValue(
       text: formatted,

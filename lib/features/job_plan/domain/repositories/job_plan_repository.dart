@@ -22,7 +22,10 @@ abstract class JobPlanRepository {
   Future<List<Map<String, dynamic>>> getDropdownUsers(
       {required String divisionId, String? search, int limit = 200});
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns(
-      {String? divisionId, String? searchUser, int userLimit = 200});
+      {String? divisionId,
+      String? carId,
+      String? searchUser,
+      int userLimit = 200});
 
   // Drafts
   Future<void> saveDraft(

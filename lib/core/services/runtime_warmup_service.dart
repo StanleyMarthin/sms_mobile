@@ -57,7 +57,6 @@ class RuntimeWarmupService {
       final role = (sessionManager.role ?? '').toLowerCase();
       final division = sessionManager.divisionName;
       final dateNow = DateTime.now();
-      final canValidateQc = role == 'adv' || role == 'pm';
       final canSeeAllMonitoring = role == 'adv' || role == 'pm';
 
       final rolePriorityWarmups = <Future<void>>[
@@ -143,12 +142,6 @@ class RuntimeWarmupService {
         .map((unit) => _safe(() => countdownRepository.getDivisions(unit.carId)))
         .toList();
     await Future.wait(countdownFutures, eagerError: false);
-  }
-
-  String _toYmd(DateTime value) {
-    final m = value.month.toString().padLeft(2, '0');
-    final d = value.day.toString().padLeft(2, '0');
-    return '${value.year}-$m-$d';
   }
 
   Future<void> _safe(Future<dynamic> Function() action) async {

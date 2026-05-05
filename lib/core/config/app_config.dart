@@ -5,20 +5,36 @@
 ///
 /// Usage (build):
 /// ```bash
-/// flutter run --dart-define=API_BASE_URL=https://api.example.com/api/v1
-/// ```
-///
-/// Usage (code):
-/// ```dart
-/// final baseUrl = AppConfig.apiBaseUrl;
+/// flutter run --dart-define=BASE_URL=http://108.136.189.225
 /// ```
 class AppConfig {
   AppConfig._();
 
-  /// API Host — override via `--dart-define=API_HOST=108.136.189.225`.
-  /// Default is 10.0.2.2 for Android Emulator local testing.
-  static const apiHost = String.fromEnvironment(
-    'API_HOST',
-    defaultValue: '108.136.189.225',
+  static const baseUrl = String.fromEnvironment(
+    'BASE_URL',
+    defaultValue: 'http://108.136.189.225',
   );
+
+  static const androidStoreUrl = String.fromEnvironment(
+    'ANDROID_STORE_URL',
+    defaultValue:
+        'https://play.google.com/store/apps/details?id=com.stanleymarthin.workshop.sm_workshop',
+  );
+
+  static const iosStoreUrl = String.fromEnvironment(
+    'IOS_STORE_URL',
+    defaultValue: 'https://apps.apple.com/app/id0000000000',
+  );
+
+  static Uri get baseUri {
+    final raw = baseUrl.trim();
+    final normalized = raw.contains('://') ? raw : 'http://$raw';
+    return Uri.parse(normalized);
+  }
+
+  static String serviceOrigin(int port) {
+    final uri = baseUri;
+    final host = uri.host.isEmpty ? uri.path : uri.host;
+    return '${uri.scheme}://$host:$port';
+  }
 }

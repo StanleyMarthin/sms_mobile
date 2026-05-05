@@ -1,4 +1,6 @@
 import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../network/api_client.dart';
@@ -46,7 +48,7 @@ class UploadService {
 
       // unit/divisi/Bulan/tanggal/{job} {panel}_{type}.jpg
       final targetPath =
-          '$safeUnit/$safeDiv/$monthFolder/$dateFolder/${safeJob} ${safePanel}_$safeType.jpg';
+          '$safeUnit/$safeDiv/$monthFolder/$dateFolder/$safeJob ${safePanel}_$safeType.jpg';
 
       // 2. Request Upload Ticket from backend
       final res = await apiClient.get(
@@ -54,12 +56,15 @@ class UploadService {
         queryParameters: {'filename': targetPath},
       );
 
-      final data = res.data as Map<String, dynamic>? ?? {};
-      final uploadUrl = data['upload_url'] as String?;
-      final publicUrl = data['public_url'] as String?;
+      final raw = res.data as Map<String, dynamic>? ?? {};
+      final data = raw['data'] is Map<String, dynamic>
+          ? raw['data'] as Map<String, dynamic>
+          : raw;
+      final uploadUrl = data['upload_url']?.toString();
+      final publicUrl = data['public_url']?.toString();
 
       if (uploadUrl == null || uploadUrl.isEmpty) {
-        throw Exception('Gagal mendapatkan upload_url dari server');
+        throw Exception('Gagal mendapatkan upload_url dari server: $raw');
       }
 
       // 3. Upload via simple PUT (readAsBytes) — more reliable than streaming
@@ -81,6 +86,9 @@ class UploadService {
       throw Exception(
           'R2 Upload returns status: ${response.statusCode} - ${response.body}');
     } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[TaskUpload] Upload failed: $e');
+      }
       throw Exception('Gagal upload foto: $e');
     }
   }

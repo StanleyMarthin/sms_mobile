@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
@@ -296,27 +297,26 @@ class ViewTaskCard extends StatelessWidget {
           child: Builder(
             builder: (context) => InkWell(
               onTap: () => _showFullImage(context, url),
-              child: Image.network(
-                url,
+              child: CachedNetworkImage(
+                imageUrl: url,
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(
+                memCacheWidth: 200,
+                memCacheHeight: 200,
+                placeholder: (context, _) => const Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
+                    ),
+                  ),
+                ),
+                errorWidget: (context, _, __) => const Icon(
                   Icons.broken_image,
                   color: AppColors.textMuted,
                   size: 24,
                 ),
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return const Center(
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
           ),

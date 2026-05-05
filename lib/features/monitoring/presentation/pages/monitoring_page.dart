@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -22,6 +23,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
   bool _isLoading = true;
   bool _focusHandled = false;
   String _scope = 'all';
+  CancelToken? _loadCancelToken;
 
   @override
   void initState() {
@@ -30,7 +32,17 @@ class _MonitoringPageState extends State<MonitoringPage> {
     _loadCars();
   }
 
+  @override
+  void dispose() {
+    _loadCancelToken?.cancel('Monitoring page disposed');
+    super.dispose();
+  }
+
   Future<void> _loadCars() async {
+    _loadCancelToken?.cancel('Monitoring reload');
+    final cancelToken = CancelToken();
+    _loadCancelToken = cancelToken;
+
     final session = sl<SessionManager>();
     final role = session.role;
     final division = session.divisionName;
@@ -38,8 +50,9 @@ class _MonitoringPageState extends State<MonitoringPage> {
     final items = await _repository.getCars(
       canSeeAll: canSeeAll,
       division: division,
+      cancelToken: cancelToken,
     );
-    if (!mounted) return;
+    if (!mounted || cancelToken.isCancelled) return;
 
     setState(() {
       _items = _sortItems(items);

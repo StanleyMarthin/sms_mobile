@@ -70,7 +70,7 @@ class WorkOrderRemoteDataSource {
       ownerName: '-',
       toDivId: targetDivId,
       toDivName: '-',
-      fromDivId: '${sessionManager.divisionId?.toString() ?? ''}',
+      fromDivId: sessionManager.divisionId?.toString() ?? '',
       fromDivName: sessionManager.divisionName ?? '-',
       panelName: sectionName ?? panelName,
       jobDetail: jobDetail,
@@ -135,8 +135,14 @@ class WorkOrderRemoteDataSource {
       _extensionAction(action: approve ? 'approve-hours' : 'reject-hours', woId: woId);
 
   // ── DROPDOWN — pakai job plan API ─────────────────────────
-  Future<Map<String, dynamic>> getDropdowns({String? divisionId}) async {
-    return jobPlanRepository.getDropdowns(divisionId: divisionId);
+  Future<Map<String, dynamic>> getDropdowns({
+    String? divisionId,
+    String? carId,
+  }) async {
+    return jobPlanRepository.getDropdowns(
+      divisionId: divisionId,
+      carId: carId,
+    );
   }
 
   // ── MAPPER ───────────────────────────────────────────────

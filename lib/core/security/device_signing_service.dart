@@ -2,7 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'app_secure_storage.dart';
 
 /// Manages per-device Ed25519 keypair, payload signing, and registration state.
 ///
@@ -10,85 +11,85 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// On first launch: devicePublicKey disertakan dalam request agar server bisa pin.
 /// Launch berikutnya: hanya signature yang dikirim, public key tidak diulang.
 class DeviceSigningService {
-  DeviceSigningService();
+  DeviceSigningService({this.storage = AppSecureStorage.instance});
 
   static const _privateKeyPref = 'device_ed25519_private_key_b64';
-  static const _publicKeyPref  = 'device_ed25519_public_key_b64';
+  static const _publicKeyPref = 'device_ed25519_public_key_b64';
   static const _registeredPref = 'device_ed25519_registered';
   static const _installIdPref = 'device_install_scoped_id';
 
   final Ed25519 _algorithm = Ed25519();
+  final dynamic storage;
 
   Future<_DeviceKeyMaterial> _loadOrCreateKeys() async {
-    final prefs = await SharedPreferences.getInstance();
-    final privateB64 = prefs.getString(_privateKeyPref);
-    final publicB64  = prefs.getString(_publicKeyPref);
+    final privateB64 = await storage.read(key: _privateKeyPref);
+    final publicB64 = await storage.read(key: _publicKeyPref);
 
     if (privateB64 != null && publicB64 != null) {
       return _DeviceKeyMaterial(
         privateKeyBytes: base64Decode(privateB64),
-        publicKeyBytes:  base64Decode(publicB64),
+        publicKeyBytes: base64Decode(publicB64),
       );
     }
 
-    final keyPair      = await _algorithm.newKeyPair();
+    final keyPair = await _algorithm.newKeyPair();
     final privateBytes = await keyPair.extractPrivateKeyBytes();
-    final publicKey    = await keyPair.extractPublicKey();
+    final publicKey = await keyPair.extractPublicKey();
 
-    await prefs.setString(_privateKeyPref, base64Encode(privateBytes));
-    await prefs.setString(_publicKeyPref,  base64Encode(publicKey.bytes));
+    await storage.write(
+      key: _privateKeyPref,
+      value: base64Encode(privateBytes),
+    );
+    await storage.write(
+      key: _publicKeyPref,
+      value: base64Encode(publicKey.bytes),
+    );
 
     return _DeviceKeyMaterial(
       privateKeyBytes: privateBytes,
-      publicKeyBytes:  publicKey.bytes,
+      publicKeyBytes: publicKey.bytes,
     );
   }
 
   /// True jika server sudah pernah menerima & menyimpan public key device ini.
   Future<bool> isRegistered() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_registeredPref) ?? false;
+    return (await storage.read(key: _registeredPref)) == 'true';
   }
 
   /// Panggil setelah server berhasil memverifikasi request pertama.
   Future<void> markRegistered() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_registeredPref, true);
+    await storage.write(key: _registeredPref, value: 'true');
   }
 
   /// Gunakan saat server merespons DEVICE_NOT_REGISTERED agar request berikutnya
   /// mengirim ulang public key untuk proses pinning.
   Future<void> resetRegistration() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_registeredPref, false);
+    await storage.write(key: _registeredPref, value: 'false');
   }
 
   /// Clear keypair + registration flag. New keys will be generated on next sign.
   Future<void> resetKeyMaterial() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_privateKeyPref);
-    await prefs.remove(_publicKeyPref);
-    await prefs.setBool(_registeredPref, false);
+    await storage.delete(key: _privateKeyPref);
+    await storage.delete(key: _publicKeyPref);
+    await storage.write(key: _registeredPref, value: 'false');
   }
 
   /// Rotate full device identity for recovery when signature pin is stale.
   ///
   /// This avoids hard lock after app data reset by forcing a fresh deviceId/key pair.
   Future<void> rotateDeviceIdentity() async {
-    final prefs = await SharedPreferences.getInstance();
     await resetKeyMaterial();
-    await prefs.remove(_installIdPref);
+    await storage.delete(key: _installIdPref);
   }
 
   Future<String> getOrCreateInstallScopedId() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_installIdPref);
+    final stored = await storage.read(key: _installIdPref);
     if (stored != null && stored.isNotEmpty) return stored;
 
     final now = DateTime.now().millisecondsSinceEpoch.toRadixString(36);
     final rand = Random.secure().nextInt(0x7fffffff).toRadixString(36);
     final generated = '$now$rand';
-    await prefs.setString(_installIdPref, generated);
+    await storage.write(key: _installIdPref, value: generated);
     return generated;
   }
 
@@ -117,7 +118,8 @@ class DeviceSigningService {
     final keyPair = SimpleKeyPairData(
       keys.privateKeyBytes,
       type: KeyPairType.ed25519,
-      publicKey: SimplePublicKey(keys.publicKeyBytes, type: KeyPairType.ed25519),
+      publicKey:
+          SimplePublicKey(keys.publicKeyBytes, type: KeyPairType.ed25519),
     );
     final sig = await _algorithm.sign(
       utf8.encode('$deviceId|$appVersion|$timestamp'),

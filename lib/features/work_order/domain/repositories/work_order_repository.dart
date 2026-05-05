@@ -65,5 +65,5 @@ abstract class WorkOrderRepository {
   });
 
   /// Dropdown master data (cars, panels, divisions)
-  Future<Either<Failure, Map<String, dynamic>>> getDropdowns();
+  Future<Either<Failure, Map<String, dynamic>>> getDropdowns({String? carId});
 }

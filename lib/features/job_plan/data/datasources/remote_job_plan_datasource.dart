@@ -138,8 +138,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       },
     );
     final payload = response.data;
-    if (payload is List)
+    if (payload is List) {
       return payload.whereType<Map<String, dynamic>>().toList();
+    }
     if (payload is Map<String, dynamic>) {
       return (payload['items'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
@@ -153,6 +154,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   @override
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
+    String? carId,
     String? searchUser,
     int userLimit = 200,
   }) async {
@@ -167,6 +169,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       ApiEndpoints.jobPlanDropdowns,
       queryParameters: {
         if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
+        if ((carId ?? '').trim().isNotEmpty) 'carId': carId,
       },
     );
     // response.data is already inner payload: { divisions, panels, units, users, jobTypes }
@@ -437,12 +440,13 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     if (approved) {
       await approvePlan(
           planId: planId, userId: sessionManager.employeeId ?? '');
-      if (_roleCode == 'ADV')
+      if (_roleCode == 'ADV') {
         _statusOverrides[planId] = 'PENDING_KP';
-      else if (_roleCode == 'KP')
+      } else if (_roleCode == 'KP') {
         _statusOverrides[planId] = 'PENDING_MP';
-      else
+      } else {
         _statusOverrides[planId] = 'PLAN';
+      }
     } else {
       await rejectPlan(
           planId: planId,
@@ -617,8 +621,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       final divisions = _asMapList(payload['divisions']);
       final dName = divisionName.trim().toUpperCase();
       for (final d in divisions) {
-        if (d['name']?.toString().toUpperCase() == dName)
+        if (d['name']?.toString().toUpperCase() == dName) {
           return d['id']?.toString();
+        }
       }
     } catch (_) {}
     return null;
@@ -628,8 +633,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final dropdowns = await _getOrFetchDropdowns();
     final dName = divisionName.trim().toUpperCase();
     for (final d in (dropdowns['divisions'] ?? [])) {
-      if (d['name']?.toString().toUpperCase() == dName)
+      if (d['name']?.toString().toUpperCase() == dName) {
         return d['id'].toString();
+      }
     }
     return await _resolveNumericDivisionId(divisionName) ?? '1';
   }
@@ -638,8 +644,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final dropdowns = await _getOrFetchDropdowns();
     final pName = panelName.toUpperCase();
     for (final p in dropdowns['panels'] ?? []) {
-      if (p['name']?.toString().toUpperCase() == pName)
+      if (p['name']?.toString().toUpperCase() == pName) {
         return int.tryParse(p['id'].toString()) ?? 0;
+      }
     }
     return 1;
   }
@@ -660,8 +667,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         .toList();
     final descUpper = description.toUpperCase();
     for (final jt in jTypes) {
-      if (descUpper.contains(jt['job_name']?.toString().toUpperCase() ?? ''))
+      if (descUpper.contains(jt['job_name']?.toString().toUpperCase() ?? '')) {
         return jt['id'].toString();
+      }
     }
     if (jTypes.isNotEmpty) return jTypes.first['id'].toString();
     return '1';

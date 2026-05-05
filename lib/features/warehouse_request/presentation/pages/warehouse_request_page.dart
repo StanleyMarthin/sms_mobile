@@ -156,7 +156,6 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
             ? const Center(
                 child: CircularProgressIndicator(color: AppColors.gold))
             : TabBarView(
-                key: const PageStorageKey("warehouseTab"),
                 controller: _tabController,
                 children: _isApprover
                     ? [_pendingTab(), _logsTab()]
@@ -285,6 +284,118 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
       ),
       if (fab != null) Positioned(right: 16, bottom: 24, child: fab),
     ]);
+  }
+
+  Widget _dateFilterBar({
+    required DateTime? selectedDate,
+    required VoidCallback onPick,
+    required VoidCallback onReset,
+  }) {
+    final label = selectedDate == null
+        ? 'Semua tanggal'
+        : DateFormat('d MMM yyyy', 'id_ID').format(selectedDate);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: onPick,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.calendar_today_outlined,
+                      size: 16,
+                      color: AppColors.gold,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (selectedDate != null) ...[
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed: onReset,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textMuted,
+                side: const BorderSide(color: AppColors.border),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: const Text(
+                'Reset',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickLogsDate() async {
+    final picked = await _showFilterDatePicker(_logsDateFilter);
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() => _logsDateFilter = picked);
+  }
+
+  Future<void> _pickHistoryDate() async {
+    final picked = await _showFilterDatePicker(_historyDateFilter);
+    if (picked == null || !mounted) {
+      return;
+    }
+    setState(() => _historyDateFilter = picked);
+  }
+
+  Future<DateTime?> _showFilterDatePicker(DateTime? selectedDate) async {
+    final now = DateTime.now();
+    return showDatePicker(
+      context: context,
+      initialDate: selectedDate ?? now,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 1),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.dark(
+            primary: AppColors.gold,
+            surface: AppColors.surfaceCard,
+          ),
+        ),
+        child: child!,
+      ),
+    );
   }
 
   bool _sameDate(DateTime a, DateTime b) =>

@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -15,6 +14,7 @@ import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../../core/utils/time_parser.dart';
 import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../data/datasources/remote_qc_datasource.dart';
 import '../../domain/entities/qc_item.dart';
@@ -50,11 +50,11 @@ class _QcTabState extends State<QcTab> {
       final prefs = await SharedPreferences.getInstance();
       final itemStr = prefs.getString('pending_qc_item');
       final passed = prefs.getBool('pending_qc_passed') ?? true;
-      
+
       if (itemStr != null) {
         final item = QcItem.fromJson(itemStr);
         if (!mounted) return;
-        
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           Navigator.push(
             context,
@@ -132,16 +132,6 @@ class _QcTabState extends State<QcTab> {
             ),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.handyman_outlined,
-                      color: AppColors.gold, size: 24),
-                ),
-                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,8 +151,6 @@ class _QcTabState extends State<QcTab> {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textMuted),
               ],
             ),
           ),
@@ -193,7 +181,7 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
   List<QcUnitGroup> _unitGroups = [];
   bool _isLoading = true;
   bool _isFetchingMore = false;
-  
+
   // Pagination States
   int _page = 1;
   bool _hasMore = true;
@@ -214,7 +202,8 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       if (!_isLoading && !_isFetchingMore && _hasMore) {
         _loadMoreUnits();
       }
@@ -223,7 +212,8 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
 
   Future<void> _loadUnits() async {
     _page = 1;
-    final response = await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
+    final response =
+        await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
     if (!mounted) return;
     setState(() {
       _unitGroups = response.groups;
@@ -236,22 +226,25 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
     setState(() {
       _isFetchingMore = true;
     });
-    
+
     _page++;
-    final response = await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
+    final response =
+        await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
     if (!mounted) return;
-    
+
     setState(() {
       _hasMore = response.hasMore;
-      
+
       // Append data by unit Id grouping
       for (final newGroup in response.groups) {
-        final existingIdx = _unitGroups.indexWhere((g) => g.unitId == newGroup.unitId);
+        final existingIdx =
+            _unitGroups.indexWhere((g) => g.unitId == newGroup.unitId);
         if (existingIdx >= 0) {
           // Add jobdescs into existing unit group
-          final existingJobdescs = List<QcItem>.from(_unitGroups[existingIdx].jobdescs);
+          final existingJobdescs =
+              List<QcItem>.from(_unitGroups[existingIdx].jobdescs);
           existingJobdescs.addAll(newGroup.jobdescs);
-          
+
           _unitGroups[existingIdx] = QcUnitGroup(
             unitId: newGroup.unitId,
             unitName: newGroup.unitName,
@@ -262,7 +255,7 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
           _unitGroups.add(newGroup);
         }
       }
-      
+
       _isFetchingMore = false;
     });
   }
@@ -299,7 +292,8 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
                             child: SizedBox(
                                 width: 24,
                                 height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2))),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))),
                       );
                     }
 
@@ -330,9 +324,6 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.directions_car_filled_outlined,
-                                size: 28, color: AppColors.textSecondary),
-                            const SizedBox(width: 16),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,8 +341,6 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
                                 ],
                               ),
                             ),
-                            const Icon(Icons.chevron_right_rounded,
-                                color: AppColors.textMuted),
                           ],
                         ),
                       ),
@@ -615,8 +604,10 @@ class _QcItemsPageState extends State<QcItemsPage> {
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'panel_asc', child: Text('Panel A-Z')),
                     PopupMenuItem(value: 'job_asc', child: Text('Job A-Z')),
-                    PopupMenuItem(value: 'hours_desc', child: Text('Jam terbesar')),
-                    PopupMenuItem(value: 'hours_asc', child: Text('Jam terkecil')),
+                    PopupMenuItem(
+                        value: 'hours_desc', child: Text('Jam terbesar')),
+                    PopupMenuItem(
+                        value: 'hours_asc', child: Text('Jam terkecil')),
                   ],
                   child: _MiniFilterButton(
                     icon: Icons.sort_rounded,
@@ -776,8 +767,6 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
   bool _isUploadingBefore = false;
   bool _isUploadingEvidence = false;
   bool _isSubmitting = false;
-  final ImagePicker _picker = ImagePicker();
-  bool? _pendingIsBefore;
 
   @override
   void initState() {
@@ -794,15 +783,33 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
       final draftStr = prefs.getString('pending_qc_form');
       if (draftStr != null) {
         final map = jsonDecode(draftStr) as Map<String, dynamic>;
-        if (map['notes'] != null) _notesCtrl.text = map['notes'];
-        if (map['duration'] != null) _durationCtrl.text = map['duration'];
-        if (map['reworkHours'] != null) _reworkHoursCtrl.text = map['reworkHours'];
-        if (map['selectedUserId'] != null) _selectedUserId = map['selectedUserId'];
-        if (map['reworkDate'] != null) _reworkDate = DateTime.tryParse(map['reworkDate']);
-        if (map['photoBeforeUrl'] != null) _photoBeforeUrl = map['photoBeforeUrl'];
-        if (map['evidencePhotoUrl'] != null) _evidencePhotoUrl = map['evidencePhotoUrl'];
-        if (map['photoBeforeLocal'] != null) _photoBeforeLocal = File(map['photoBeforeLocal']);
-        if (map['evidencePhotoLocal'] != null) _evidencePhotoLocal = File(map['evidencePhotoLocal']);
+        if (map['notes'] != null) {
+          _notesCtrl.text = map['notes'];
+        }
+        if (map['duration'] != null) {
+          _durationCtrl.text = map['duration'];
+        }
+        if (map['reworkHours'] != null) {
+          _reworkHoursCtrl.text = map['reworkHours'];
+        }
+        if (map['selectedUserId'] != null) {
+          _selectedUserId = map['selectedUserId'];
+        }
+        if (map['reworkDate'] != null) {
+          _reworkDate = DateTime.tryParse(map['reworkDate']);
+        }
+        if (map['photoBeforeUrl'] != null) {
+          _photoBeforeUrl = map['photoBeforeUrl'];
+        }
+        if (map['evidencePhotoUrl'] != null) {
+          _evidencePhotoUrl = map['evidencePhotoUrl'];
+        }
+        if (map['photoBeforeLocal'] != null) {
+          _photoBeforeLocal = File(map['photoBeforeLocal']);
+        }
+        if (map['evidencePhotoLocal'] != null) {
+          _evidencePhotoLocal = File(map['evidencePhotoLocal']);
+        }
         setState(() {});
       }
     } catch (_) {}
@@ -811,7 +818,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
   Future<void> _triggerAutoSave() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       // Save Item and Passed boolean
       await prefs.setString('pending_qc_item', widget.item.toJson());
       await prefs.setBool('pending_qc_passed', widget.passed);
@@ -820,7 +827,8 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
       final draftMap = {
         'notes': _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
         'duration': _durationCtrl.text.isNotEmpty ? _durationCtrl.text : null,
-        'reworkHours': _reworkHoursCtrl.text.isNotEmpty ? _reworkHoursCtrl.text : null,
+        'reworkHours':
+            _reworkHoursCtrl.text.isNotEmpty ? _reworkHoursCtrl.text : null,
         'selectedUserId': _selectedUserId,
         'reworkDate': _reworkDate?.toIso8601String(),
         'photoBeforeUrl': _photoBeforeUrl,
@@ -855,8 +863,19 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
 
     final now = DateTime.now();
     final monthNames = [
-      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     final monthFolder = monthNames[now.month];
     final tanggal = DateFormat('yyyy-MM-dd').format(now);
@@ -869,7 +888,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
 
     // Path: unit/divisi/Bulan/tanggal/{jobdesc} {panel}_{type} QC.jpg
     final filename =
-        '$unit/$div/$monthFolder/$tanggal/${job} ${panel}_${safeType} QC.jpg';
+        '$unit/$div/$monthFolder/$tanggal/$job ${panel}_$safeType QC.jpg';
 
     try {
       final ticket = await remoteDs.getQcUploadTicket(filename);
@@ -878,21 +897,22 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
 
       // Simple PUT — much more reliable than StreamedRequest on mobile networks
       final bytes = await file.readAsBytes();
-      final response = await http.put(
-        Uri.parse(uploadUrl),
-        headers: {
-          'Content-Type': 'image/jpeg',
-          'Content-Length': bytes.length.toString(),
-        },
-        body: bytes,
-      ).timeout(const Duration(seconds: 60));
+      final response = await http
+          .put(
+            Uri.parse(uploadUrl),
+            headers: {
+              'Content-Type': 'image/jpeg',
+              'Content-Length': bytes.length.toString(),
+            },
+            body: bytes,
+          )
+          .timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         return publicUrl;
       }
 
-      throw Exception(
-          'HTTP ${response.statusCode}: ${response.body}');
+      throw Exception('HTTP ${response.statusCode}: ${response.body}');
     } catch (e) {
       debugPrint("UPLOAD S3 ERROR: $e");
       rethrow;
@@ -909,11 +929,13 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
   Future<void> _pickAndUpload(bool isBefore) async {
     final slot = isBefore ? 'before' : 'evidence';
     final label = isBefore ? 'Foto QC 1 (Before)' : 'Foto QC 2 (Evidence)';
+    final currentRoute = GoRouterState.of(context).uri.toString();
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     // Auto-save context
     try {
       final prefs = await SharedPreferences.getInstance();
-      final currentRoute = GoRouterState.of(context).uri.toString();
       String targetRoute = currentRoute;
       if (!targetRoute.contains('qcId=')) {
         targetRoute += targetRoute.contains('?') ? '&' : '?';
@@ -925,7 +947,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     await _triggerAutoSave();
 
     // Open In-App Camera (no OOM risk)
-    final path = await Navigator.of(context).push<String>(
+    final path = await navigator.push<String>(
       MaterialPageRoute(
         builder: (_) => InAppCameraPage(slot: slot, label: label),
         fullscreenDialog: true,
@@ -940,18 +962,21 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     if (!mounted || path == null) return;
 
     final xfile = XFile(path);
-    await _uploadPickedFile(xfile, isBefore);
-    _pendingIsBefore = null;
+    await _uploadPickedFile(xfile, isBefore, messenger);
   }
 
-  Future<void> _uploadPickedFile(XFile pickedFile, bool isBefore) async {
-
+  Future<void> _uploadPickedFile(
+    XFile pickedFile,
+    bool isBefore,
+    ScaffoldMessengerState messenger,
+  ) async {
     if (!mounted) return;
     setState(() {
-      if (isBefore)
+      if (isBefore) {
         _isUploadingBefore = true;
-      else
+      } else {
         _isUploadingEvidence = true;
+      }
     });
 
     try {
@@ -973,12 +998,13 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        if (isBefore)
+        if (isBefore) {
           _isUploadingBefore = false;
-        else
+        } else {
           _isUploadingEvidence = false;
+        }
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      messenger.showSnackBar(SnackBar(
         content: Text('Gagal: $e'),
         backgroundColor: AppColors.statusLocked,
         duration: const Duration(seconds: 4),
@@ -999,6 +1025,8 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     }
 
     setState(() => _isSubmitting = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
 
     try {
       final repo = sl<QcRepository>();
@@ -1023,15 +1051,15 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
         await prefs.remove('pending_qc_form');
       } catch (_) {}
 
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      messenger.showSnackBar(SnackBar(
         content: Text(widget.passed
             ? 'QC Lolos berhasil disimpan.'
             : 'QC Tidak Lolos — rework dijadwalkan.'),
         backgroundColor: AppColors.statusDone,
       ));
-      Navigator.pop(context, true); // Success
+      navigator.pop(true); // Success
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      messenger.showSnackBar(SnackBar(
         content: Text('Gagal submit: $e'),
         backgroundColor: AppColors.statusLocked,
       ));
@@ -1101,9 +1129,13 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
             TextField(
               controller: _durationCtrl,
               keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(4),
+              ],
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
-                labelText: 'Durasi inspeksi (menit)',
+                labelText: 'Durasi QC (menit)',
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 border: OutlineInputBorder(
@@ -1177,7 +1209,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _selectedUserId,
+                initialValue: _selectedUserId,
                 decoration: InputDecoration(
                   labelText: 'Pekerja',
                   filled: true,
@@ -1205,9 +1237,11 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               const SizedBox(height: 12),
               TextField(
                 controller: _reworkHoursCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [HHHMMFormatter()],
                 style: const TextStyle(color: AppColors.textPrimary),
                 decoration: InputDecoration(
-                  labelText: 'Jam Kerja (HH:MM)',
+                  labelText: 'Jam Kerja',
                   filled: true,
                   fillColor: AppColors.surfaceInput,
                   border: OutlineInputBorder(

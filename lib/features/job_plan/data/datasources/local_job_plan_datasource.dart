@@ -196,6 +196,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
   @override
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
+    String? carId,
     String? searchUser,
     int userLimit = 200,
   }) async {
@@ -205,9 +206,15 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
       limit: userLimit,
     );
 
+    final panels = DummyPanels.all.where((item) {
+      final itemCarId = item['car_id']?.toString();
+      if ((carId ?? '').isEmpty) return true;
+      return itemCarId == null || itemCarId.isEmpty || itemCarId == carId;
+    }).map(Map<String, dynamic>.from).toList();
+
     return {
       'cars': DummyCars.all.map(Map<String, dynamic>.from).toList(),
-      'panels': DummyPanels.all.map(Map<String, dynamic>.from).toList(),
+      'panels': panels,
       'jobTypes': DummyJobTypes.all.map(Map<String, dynamic>.from).toList(),
       'divisions': DummyDivisions.all.map(Map<String, dynamic>.from).toList(),
       'users': users,

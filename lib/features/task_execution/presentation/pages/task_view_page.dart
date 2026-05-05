@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/utils/time_parser.dart';
 import '../../domain/entities/task_filter.dart';
 import '../../domain/entities/view_task_entity.dart';
 import '../bloc/task_view/task_view_bloc.dart';
@@ -673,12 +674,8 @@ class _TaskViewContent extends StatelessWidget {
   }
 
   Widget _buildCheckpointActionPanel(
-    BuildContext context,
-    TaskViewLoaded state,
-    dynamic task,
-    bool isBusy,
-    {required bool checkpointClosed}
-  ) {
+      BuildContext context, TaskViewLoaded state, dynamic task, bool isBusy,
+      {required bool checkpointClosed}) {
     final canCheckpointByRole =
         hasPermission(state.role, Permission.taskCheckpoint);
     final canSubmitCheckpoint =
@@ -687,7 +684,9 @@ class _TaskViewContent extends StatelessWidget {
     final sessionMax = task.maxCheckpointSessions as int;
     final statusLabel = task.isDone
         ? 'Done'
-        : (sessionNow >= sessionMax ? 'Batas Tercapai' : '$sessionNow/$sessionMax');
+        : (sessionNow >= sessionMax
+            ? 'Batas Tercapai'
+            : '$sessionNow/$sessionMax');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -705,10 +704,10 @@ class _TaskViewContent extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Text(
                       'Monitoring Jobdesc',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
@@ -717,7 +716,8 @@ class _TaskViewContent extends StatelessWidget {
                   ),
                   Text(
                     statusLabel,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -728,8 +728,9 @@ class _TaskViewContent extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: FilledButton(
-            onPressed:
-                canSubmitCheckpoint ? () => _showCheckpointDialog(context, task) : null,
+            onPressed: canSubmitCheckpoint
+                ? () => _showCheckpointDialog(context, task)
+                : null,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
@@ -737,13 +738,13 @@ class _TaskViewContent extends StatelessWidget {
             child: Text(
               isBusy
                   ? 'Menyimpan...'
-                      : !canCheckpointByRole
-                          ? 'Role Tidak Diizinkan'
-                          : task.isDone
-                              ? 'Sudah Done'
-                              : task.hasRemainingCheckpointSessions
-                                  ? 'Input Monitoring'
-                                  : 'Batas Tercapai',
+                  : !canCheckpointByRole
+                      ? 'Role Tidak Diizinkan'
+                      : task.isDone
+                          ? 'Sudah Done'
+                          : task.hasRemainingCheckpointSessions
+                              ? 'Input Monitoring'
+                              : 'Batas Tercapai',
             ),
           ),
         ),
@@ -797,9 +798,7 @@ class _TaskViewContent extends StatelessWidget {
         builder: (dialogContext, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surfaceCard,
           title: Text(
-            isEditing
-                ? 'Edit Monitoring'
-                : 'Monitoring Jobdesc',
+            isEditing ? 'Edit Monitoring' : 'Monitoring Jobdesc',
           ),
           content: SingleChildScrollView(
             child: SizedBox(
@@ -870,73 +869,79 @@ class _TaskViewContent extends StatelessWidget {
                   const SizedBox(height: 12),
                   TextField(
                     controller: startWorkTimeCtrl,
-                    readOnly: true,
-                    onTap: () async {
-                      final picked = await _pickClockTime(
-                        context: dialogContext,
-                        initialValue: startWorkTimeCtrl.text.trim(),
-                      );
-                      if (picked == null) return;
-
-                      setDialogState(() {
-                        startWorkTimeCtrl.text = picked;
-
-                        final startMinutes = _parseClockToMinutes(picked);
-                        final finishMinutes = _parseClockToMinutes(
-                            finishWorkTimeCtrl.text.trim());
-                        if (startMinutes != null &&
-                            (finishMinutes == null ||
-                                finishMinutes < startMinutes)) {
-                          finishWorkTimeCtrl.text =
-                              _addMinutesToClock(picked, 60);
-                        }
-
-                        final updatedFinishMinutes = _parseClockToMinutes(
-                            finishWorkTimeCtrl.text.trim());
-                        final checkpointMinutes = _parseClockToMinutes(
-                            checkpointTimeCtrl.text.trim());
-                        if (updatedFinishMinutes != null &&
-                            (checkpointMinutes == null ||
-                                checkpointMinutes < updatedFinishMinutes)) {
-                          checkpointTimeCtrl.text =
-                              finishWorkTimeCtrl.text.trim();
-                        }
-                      });
-                    },
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [HHMMFormatter()],
                     style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Jam mulai kerja',
-                      suffixIcon: Icon(Icons.access_time_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () async {
+                          final picked = await _pickClockTime(
+                            context: dialogContext,
+                            initialValue: startWorkTimeCtrl.text.trim(),
+                          );
+                          if (picked == null) return;
+
+                          setDialogState(() {
+                            startWorkTimeCtrl.text = picked;
+
+                            final startMinutes = _parseClockToMinutes(picked);
+                            final finishMinutes = _parseClockToMinutes(
+                                finishWorkTimeCtrl.text.trim());
+                            if (startMinutes != null &&
+                                (finishMinutes == null ||
+                                    finishMinutes < startMinutes)) {
+                              finishWorkTimeCtrl.text =
+                                  _addMinutesToClock(picked, 60);
+                            }
+
+                            final updatedFinishMinutes = _parseClockToMinutes(
+                                finishWorkTimeCtrl.text.trim());
+                            final checkpointMinutes = _parseClockToMinutes(
+                                checkpointTimeCtrl.text.trim());
+                            if (updatedFinishMinutes != null &&
+                                (checkpointMinutes == null ||
+                                    checkpointMinutes < updatedFinishMinutes)) {
+                              checkpointTimeCtrl.text =
+                                  finishWorkTimeCtrl.text.trim();
+                            }
+                          });
+                        },
+                        icon: const Icon(Icons.access_time_rounded),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: finishWorkTimeCtrl,
-                    readOnly: true,
-                    onTap: () async {
-                      final picked = await _pickClockTime(
-                        context: dialogContext,
-                        initialValue: finishWorkTimeCtrl.text.trim(),
-                      );
-                      if (picked == null) return;
-
-                      setDialogState(() {
-                        finishWorkTimeCtrl.text = picked;
-
-                        final finishMinutes = _parseClockToMinutes(picked);
-                        final checkpointMinutes = _parseClockToMinutes(
-                            checkpointTimeCtrl.text.trim());
-                        if (finishMinutes != null &&
-                            (checkpointMinutes == null ||
-                                checkpointMinutes < finishMinutes)) {
-                          checkpointTimeCtrl.text = picked;
-                        }
-                      });
-                    },
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [HHMMFormatter()],
                     style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Jam selesai kerja',
-                      suffixIcon: Icon(Icons.access_time_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () async {
+                          final picked = await _pickClockTime(
+                            context: dialogContext,
+                            initialValue: finishWorkTimeCtrl.text.trim(),
+                          );
+                          if (picked == null) return;
+
+                          setDialogState(() {
+                            finishWorkTimeCtrl.text = picked;
+
+                            final finishMinutes = _parseClockToMinutes(picked);
+                            final checkpointMinutes = _parseClockToMinutes(
+                                checkpointTimeCtrl.text.trim());
+                            if (finishMinutes != null &&
+                                (checkpointMinutes == null ||
+                                    checkpointMinutes < finishMinutes)) {
+                              checkpointTimeCtrl.text = picked;
+                            }
+                          });
+                        },
+                        icon: const Icon(Icons.access_time_rounded),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -957,19 +962,23 @@ class _TaskViewContent extends StatelessWidget {
                   const SizedBox(height: 10),
                   TextField(
                     controller: checkpointTimeCtrl,
-                    readOnly: true,
-                    onTap: () async {
-                      final picked = await _pickClockTime(
-                        context: dialogContext,
-                        initialValue: checkpointTimeCtrl.text.trim(),
-                      );
-                      if (picked == null) return;
-                      setDialogState(() => checkpointTimeCtrl.text = picked);
-                    },
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [HHMMFormatter()],
                     style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Jam monitoring',
-                      suffixIcon: Icon(Icons.access_time_rounded),
+                      suffixIcon: IconButton(
+                        onPressed: () async {
+                          final picked = await _pickClockTime(
+                            context: dialogContext,
+                            initialValue: checkpointTimeCtrl.text.trim(),
+                          );
+                          if (picked == null) return;
+                          setDialogState(
+                              () => checkpointTimeCtrl.text = picked);
+                        },
+                        icon: const Icon(Icons.access_time_rounded),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),

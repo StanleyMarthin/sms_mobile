@@ -1225,8 +1225,9 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
       final st = CountdownHelper.effectiveCountdownStatus(i).toLowerCase();
       if (_selectedStatus == 'plan') return st == 'plan';
       if (_selectedStatus == 'proses') return st == 'proses';
-      if (_selectedStatus == 'qcready')
+      if (_selectedStatus == 'qcready') {
         return st == 'ready_qc' || st == 'waiting_qc' || st == 'qc ready';
+      }
       if (_selectedStatus == 'done') return st == 'done';
       return true;
     }).toList();

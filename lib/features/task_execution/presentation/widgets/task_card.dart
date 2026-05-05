@@ -48,8 +48,8 @@ class TaskCard extends StatelessWidget {
             color: isHighlighted
                 ? AppColors.gold
                 : (task.isInProgress || hasDraft)
-                ? AppColors.gold.withValues(alpha: 0.4)
-                : AppColors.border,
+                    ? AppColors.gold.withValues(alpha: 0.4)
+                    : AppColors.border,
             width: isHighlighted ? 1.4 : 1,
           ),
         ),
@@ -104,19 +104,6 @@ class TaskCard extends StatelessWidget {
   Widget _buildHeader() {
     return Row(
       children: [
-        // Car icon placeholder
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: const Icon(Icons.directions_car_filled_outlined,
-              size: 20, color: AppColors.textMuted),
-        ),
-        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -176,7 +163,8 @@ class TaskCard extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: dotColor),
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w500, color: dotColor),
         ),
       ],
     );
@@ -226,7 +214,8 @@ class TaskCard extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color),
+        style:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: color),
       ),
     );
   }
@@ -266,11 +255,13 @@ class TaskCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.statusLocked.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.statusLocked.withValues(alpha: 0.3)),
+        border:
+            Border.all(color: AppColors.statusLocked.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.lock_rounded, size: 14, color: AppColors.statusLocked),
+          const Icon(Icons.lock_rounded,
+              size: 14, color: AppColors.statusLocked),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -395,8 +386,8 @@ class TaskCard extends StatelessWidget {
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.orange,
             foregroundColor: AppColors.background,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             padding: const EdgeInsets.symmetric(vertical: 12),
           ),
         ),
@@ -424,8 +415,7 @@ class TaskCard extends StatelessWidget {
               canAct ? AppColors.background : AppColors.textDisabled,
           disabledBackgroundColor: AppColors.border,
           disabledForegroundColor: AppColors.textDisabled,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(vertical: 12),
         ),
       ),

@@ -1,5 +1,7 @@
 library;
 
+import 'package:dio/dio.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -17,35 +19,33 @@ class RemoteMonitoringDataSource implements MonitoringDataSource {
   String get _userId => sessionManager.userId ?? sessionManager.employeeId ?? '';
 
   @override
-  Future<List<Map<String, dynamic>>> getCars() async {
+  Future<List<Map<String, dynamic>>> getCars({
+    CancelToken? cancelToken,
+  }) async {
     final unitsResponse = await apiClient.get(
       ApiEndpoints.countdown,
       queryParameters: {'user_id': _userId},
+      cancelToken: cancelToken,
     );
 
     final units = unitsResponse.data as List<dynamic>? ?? [];
-    final results = <Map<String, dynamic>>[];
+    final validUnits = units.whereType<Map<String, dynamic>>().where((unit) {
+      return '${unit['car_id'] ?? ''}'.isNotEmpty;
+    }).toList();
 
-    for (final unit in units.whereType<Map<String, dynamic>>()) {
+    return Future.wait(validUnits.map((unit) async {
       final carId = '${unit['car_id'] ?? ''}';
-      if (carId.isEmpty) {
-        continue;
-      }
-
-      final divisions = await _loadDivisions(carId);
+      final divisions = await _loadDivisions(carId, cancelToken: cancelToken);
       final remaining = divisions.fold<double>(
         0,
         (sum, item) => sum + ((item['remainingHours'] as num?)?.toDouble() ?? 0),
       );
 
       final unitNameRaw = '${unit['unit_name'] ?? '-'}';
-      final owner = _extractOwner(unitNameRaw);
-      final unitName = _extractUnitName(unitNameRaw);
-
-      results.add({
+      return {
         'carId': carId,
-        'unitName': unitName,
-        'owner': owner,
+        'unitName': _extractUnitName(unitNameRaw),
+        'owner': _extractOwner(unitNameRaw),
         'isMargin': true,
         'avgProgressPercentage': ((unit['overall_progress'] as num?) ?? 0).round(),
         'status': '${unit['status'] ?? 'PROSES'}',
@@ -55,25 +55,25 @@ class RemoteMonitoringDataSource implements MonitoringDataSource {
         'projectStartDate': null,
         'lastUpdateDate': DateTime.now().toIso8601String(),
         'nextMilestone': null,
-      });
-    }
-
-    return results;
+      };
+    }));
   }
 
-  Future<List<Map<String, dynamic>>> _loadDivisions(String carId) async {
+  Future<List<Map<String, dynamic>>> _loadDivisions(
+    String carId, {
+    CancelToken? cancelToken,
+  }) async {
     final response = await apiClient.get(
       ApiEndpoints.countdown,
       queryParameters: {
         'user_id': _userId,
         'car_id': carId,
       },
+      cancelToken: cancelToken,
     );
 
     final rows = response.data as List<dynamic>? ?? [];
-    final mapped = <Map<String, dynamic>>[];
-
-    for (final row in rows.whereType<Map<String, dynamic>>()) {
+    return Future.wait(rows.whereType<Map<String, dynamic>>().map((row) async {
       final divisionId = row['division_id'];
       final divisionName = '${row['division_name'] ?? '-'}';
       final progress = ((row['division_progress'] as num?) ?? 0).round();
@@ -88,6 +88,7 @@ class RemoteMonitoringDataSource implements MonitoringDataSource {
             'car_id': carId,
             'division_id': divisionId,
           },
+          cancelToken: cancelToken,
         );
         final sections = sectionResponse.data as List<dynamic>? ?? [];
         for (final section in sections.whereType<Map<String, dynamic>>()) {
@@ -96,7 +97,7 @@ class RemoteMonitoringDataSource implements MonitoringDataSource {
         }
       }
 
-      mapped.add({
+      return {
         'divisionName': divisionName,
         'progressPercentage': progress,
         'weeklyWorkHours': (target - remaining).clamp(0, double.infinity),
@@ -105,10 +106,8 @@ class RemoteMonitoringDataSource implements MonitoringDataSource {
         'overdueJobs': 0,
         'forecastFinishDate': null,
         'note': null,
-      });
-    }
-
-    return mapped;
+      };
+    }));
   }
 
   String _extractOwner(String raw) {

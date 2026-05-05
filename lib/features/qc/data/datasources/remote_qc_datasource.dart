@@ -76,6 +76,7 @@ class RemoteQcDataSource implements QcDataSource {
     return [];
   }
 
+  @override
   Future<Map<String, dynamic>> getQcItemsByDivisionId({
     required String divisionId,
     String? unitId,
@@ -165,22 +166,27 @@ class RemoteQcDataSource implements QcDataSource {
     };
 
     if (notes != null && notes.isNotEmpty) body['notes'] = notes;
-    if (inspectionDurationMinutes != null)
+    if (inspectionDurationMinutes != null) {
       body['inspectionDurationMinutes'] = inspectionDurationMinutes;
-    if (photoBeforeUrl != null && photoBeforeUrl.isNotEmpty)
+    }
+    if (photoBeforeUrl != null && photoBeforeUrl.isNotEmpty) {
       body['photoBeforeUrl'] = photoBeforeUrl;
-    if (evidencePhotoUrl != null && evidencePhotoUrl.isNotEmpty)
+    }
+    if (evidencePhotoUrl != null && evidencePhotoUrl.isNotEmpty) {
       body['evidencePhotoUrl'] = evidencePhotoUrl;
+    }
 
     if (action == 'tidak_lolos') {
       if (reworkDate != null) body['reworkDate'] = reworkDate;
-      if (reworkAssignedUser != null)
+      if (reworkAssignedUser != null) {
         body['reworkAssignedUser'] = reworkAssignedUser;
+      }
       if (reworkDailyHours != null) body['reworkDailyHours'] = reworkDailyHours;
       if (reworkStartTime != null) body['reworkStartTime'] = reworkStartTime;
       if (reworkFinishTime != null) body['reworkFinishTime'] = reworkFinishTime;
-      if (reworkDescription != null)
+      if (reworkDescription != null) {
         body['reworkDescription'] = reworkDescription;
+      }
       if (reworkIsOvertime != null) body['reworkIsOvertime'] = reworkIsOvertime;
       if (reworkIsPriority != null) body['reworkIsPriority'] = reworkIsPriority;
     }
@@ -261,42 +267,4 @@ class RemoteQcDataSource implements QcDataSource {
         .toList();
   }
 
-  Future<List<Map<String, dynamic>>> _getReadyQcSections({
-    required String carId,
-    required String divisionId,
-    String? search,
-  }) async {
-    final response = await apiClient.get(
-      ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-        'car_id': carId,
-        'division_id': divisionId,
-        'status': 'READY_QC',
-        if (search != null && search.isNotEmpty) 'search': search,
-      },
-    );
-    return (response.data as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
-  }
-
-  Future<List<Map<String, dynamic>>> _getCountdownJobdescs({
-    required String carId,
-    required String divisionId,
-    required int panelId,
-  }) async {
-    final response = await apiClient.get(
-      ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-        'car_id': carId,
-        'division_id': divisionId,
-        'panel_id': panelId,
-      },
-    );
-    return (response.data as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .toList();
-  }
 }

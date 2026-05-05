@@ -1,6 +1,8 @@
 import 'package:fpdart/fpdart.dart';
+import 'package:dio/dio.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/session/session_manager.dart';
 import '../datasources/work_order_datasource.dart';
 import '../../domain/entities/work_order.dart';
@@ -15,9 +17,17 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
   final WorkOrderRemoteDataSource dataSource;
   final SessionManager sessionManager;
 
-  Either<Failure, T> _handle<T>(Object e, StackTrace s) {
-    final msg = e is StateError ? e.message : e.toString();
-    return Left(ClientFailure(message: msg, statusCode: 400));
+  Either<Failure, T> _handle<T>(Object error, StackTrace stackTrace) {
+    if (error is DioException) {
+      return Left(ApiClient.mapDioError(error));
+    }
+    if (error is StateError) {
+      return Left(ClientFailure(message: error.message, statusCode: 400));
+    }
+    if (error is FormatException) {
+      return Left(DataParsingFailure(message: error.message));
+    }
+    return Left(UnknownFailure(message: error.toString()));
   }
 
   @override
@@ -135,9 +145,11 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
   }
 
   @override
-  Future<Either<Failure, Map<String, dynamic>>> getDropdowns() async {
+  Future<Either<Failure, Map<String, dynamic>>> getDropdowns({
+    String? carId,
+  }) async {
     try {
-      return Right(await dataSource.getDropdowns());
+      return Right(await dataSource.getDropdowns(carId: carId));
     } catch (e, s) { return _handle(e, s); }
   }
 }

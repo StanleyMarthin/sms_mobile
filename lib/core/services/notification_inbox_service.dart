@@ -5,9 +5,14 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/notifications/domain/entities/notification_item.dart';
+import '../security/app_secure_storage.dart';
+import '../session/session_manager.dart';
 
 class NotificationInboxService extends ChangeNotifier {
+  NotificationInboxService({this.storage = AppSecureStorage.instance});
+
   static const String _storagePrefix = 'notification_inbox_';
+  final dynamic storage;
 
   List<NotificationItem> _items = const [];
   String? _activeStorageKey;
@@ -167,14 +172,13 @@ class NotificationInboxService extends ChangeNotifier {
   }
 
   Future<String> _resolveStorageKey() async {
-    final prefs = await SharedPreferences.getInstance();
-    return _resolveStorageKeyStatic(prefs);
+    return _resolveStorageKeyStatic(storage);
   }
 
-  static Future<String> _resolveStorageKeyStatic(
-      SharedPreferences prefs) async {
-    final userId = (prefs.getString('session_userId') ?? '').trim();
-    final employeeId = (prefs.getString('session_employeeId') ?? '').trim();
+  static Future<String> _resolveStorageKeyStatic(dynamic storage) async {
+    final userId = ((await storage.read(key: SessionManager.keyUserId)) ?? '').trim();
+    final employeeId =
+        ((await storage.read(key: SessionManager.keyEmployeeId)) ?? '').trim();
     final suffix = userId.isNotEmpty
         ? userId
         : employeeId.isNotEmpty

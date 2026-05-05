@@ -19,7 +19,9 @@ class AlarmTimerService {
         }
       }
     } catch (e) {
-      debugPrint('[AlarmTimerService] gagal memutar suara notif: $e');
+      if (kDebugMode) {
+        debugPrint('[AlarmTimerService] gagal memutar suara notif: $e');
+      }
     }
   }
 

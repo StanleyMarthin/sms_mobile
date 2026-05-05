@@ -17,24 +17,20 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
   @override
   Future<List<Map<String, dynamic>>> getNotifications(
       {required String? role}) async {
-    try {
-      final response = await apiClient.get(
-        ApiEndpoints.notifications,
-        queryParameters: {
-          if ((sessionManager.userId ?? '').isNotEmpty)
-            'userId': sessionManager.userId,
-          if ((sessionManager.employeeId ?? '').isNotEmpty)
-            'employeeId': sessionManager.employeeId,
-          'limit': 100,
-          'offset': 0,
-        },
-      );
+    final response = await apiClient.get(
+      ApiEndpoints.notifications,
+      queryParameters: {
+        if ((sessionManager.userId ?? '').isNotEmpty)
+          'userId': sessionManager.userId,
+        if ((sessionManager.employeeId ?? '').isNotEmpty)
+          'employeeId': sessionManager.employeeId,
+        'limit': 100,
+        'offset': 0,
+      },
+    );
 
-      final list = _extractNotificationList(response.data);
-      return list.map(_normalizeItem).toList();
-    } catch (_) {
-      return <Map<String, dynamic>>[];
-    }
+    final list = _extractNotificationList(response.data);
+    return list.map(_normalizeItem).toList();
   }
 
   List<Map<String, dynamic>> _extractNotificationList(dynamic data) {

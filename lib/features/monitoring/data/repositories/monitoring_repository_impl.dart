@@ -1,5 +1,7 @@
 library;
 
+import 'package:dio/dio.dart';
+
 import '../../domain/entities/monitoring_entities.dart';
 import '../../domain/repositories/monitoring_repository.dart';
 import '../datasources/local_monitoring_datasource.dart';
@@ -13,8 +15,9 @@ class MonitoringRepositoryImpl implements MonitoringRepository {
   Future<List<MonitoringCar>> getCars({
     required bool canSeeAll,
     required String? division,
+    CancelToken? cancelToken,
   }) async {
-    final cars = await dataSource.getCars();
+    final cars = await dataSource.getCars(cancelToken: cancelToken);
     final filtered = canSeeAll ? cars : cars.where((car) {
       final divisions = (car['divisions'] as List).cast<Map<String, dynamic>>();
       return divisions.any((item) => item['divisionName'] == division);

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -100,11 +101,15 @@ class _InAppCameraPageState extends State<InAppCameraPage>
         );
 
         await ctrl.initialize();
-        debugPrint('Camera initialized with preset: $preset');
+        if (kDebugMode) {
+          debugPrint('[Camera] initialized with preset: $preset');
+        }
         return ctrl;
       } catch (e) {
         lastError = e;
-        debugPrint('Failed camera preset $preset: $e');
+        if (kDebugMode) {
+          debugPrint('[Camera] Failed camera preset $preset: $e');
+        }
       }
     }
 
@@ -140,7 +145,9 @@ class _InAppCameraPageState extends State<InAppCameraPage>
       _controller = ctrl;
       setState(() => _isInitialized = true);
     } catch (e) {
-      debugPrint('InAppCamera init error: $e');
+      if (kDebugMode) {
+        debugPrint('[Camera] InAppCamera init error: $e');
+      }
       if (mounted) setState(() => _isInitialized = false);
     }
   }
@@ -166,7 +173,9 @@ class _InAppCameraPageState extends State<InAppCameraPage>
       await ctrl.setFocusPoint(point);
       await ctrl.setExposurePoint(point);
     } catch (e) {
-      debugPrint('Tap focus not supported: $e');
+      if (kDebugMode) {
+        debugPrint('[Camera] Tap focus not supported: $e');
+      }
     }
 
     if (!mounted) return;
@@ -201,7 +210,9 @@ class _InAppCameraPageState extends State<InAppCameraPage>
         _isTakingPhoto = false;
       });
     } catch (e) {
-      debugPrint('Take photo error: $e');
+      if (kDebugMode) {
+        debugPrint('[Camera] Take photo error: $e');
+      }
       if (mounted) setState(() => _isTakingPhoto = false);
     }
   }
@@ -224,7 +235,9 @@ class _InAppCameraPageState extends State<InAppCameraPage>
 
       return compressedFile?.path ?? sourcePath;
     } catch (e) {
-      debugPrint('Compress error: $e');
+      if (kDebugMode) {
+        debugPrint('[Camera] Compress error: $e');
+      }
       return sourcePath;
     }
   }

@@ -2,11 +2,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/time_parser.dart';
 import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/entities/task_entity.dart';
@@ -67,25 +65,32 @@ class TaskExecutionSheet extends StatefulWidget {
 class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
   late TimeOfDay _startTime;
   late TimeOfDay _finishTime;
-  int _breakMinutes = 60;
+  late int _breakMinutes;
   double _progressPercent = 0;
   String _status = 'on_progress';
+  late final TextEditingController _startTimeCtrl;
+  late final TextEditingController _finishTimeCtrl;
+  bool _syncingTimeInputs = false;
 
   final _notesController = TextEditingController();
-  final _breakController = TextEditingController(text: '60');
+  final _breakController = TextEditingController();
   final _progressController = TextEditingController(text: '0');
 
   String? _photoBeforePath;
   String? _photoProcessPath;
   String? _photoAfterPath;
 
-  final _picker = ImagePicker();
   bool _isSubmitting = false;
+  late String _breakOption;
 
   @override
   void initState() {
     super.initState();
     final now = TimeOfDay.now();
+    final today = DateTime.now();
+    _breakMinutes = _defaultBreakMinutesForDate(today);
+    _breakOption = _breakMinutes == 90 ? '1:30' : '1:00';
+    _breakController.text = '$_breakMinutes';
     final currentProgress = widget.task.progressPercent.clamp(0.0, 100.0);
 
     // Pre-fill from current task state without forcing completion.
@@ -95,10 +100,16 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       _startTime = draftStart ?? now;
       _finishTime = _nextValidFinishTime(_startTime, now);
       _photoBeforePath = draft.photoBeforePath;
-      if (draft.photoProcessPath != null) _photoProcessPath = draft.photoProcessPath;
-      if (draft.photoAfterPath != null) _photoAfterPath = draft.photoAfterPath;
-      if (draft.notes != null) _notesController.text = draft.notes!;
-      
+      if (draft.photoProcessPath != null) {
+        _photoProcessPath = draft.photoProcessPath;
+      }
+      if (draft.photoAfterPath != null) {
+        _photoAfterPath = draft.photoAfterPath;
+      }
+      if (draft.notes != null) {
+        _notesController.text = draft.notes!;
+      }
+
       _status = 'on_progress';
       _progressPercent = draft.progressPercent ?? currentProgress;
       _progressController.text = _progressPercent.toInt().toString();
@@ -115,27 +126,11 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         minute: now.minute,
       );
     }
-  }
 
-  void _triggerAutoSave() {
-    if (widget.onDraftSave == null) return;
-    
-    final now = DateTime.now();
-    final startDt = DateTime(
-      now.year, now.month, now.day,
-      _startTime.hour, _startTime.minute,
-    );
-    final draft = TaskDraft(
-      plandailyId: widget.task.plandailyId,
-      startTime: startDt.toIso8601String(),
-      photoBeforePath: _photoBeforePath,
-      photoProcessPath: _photoProcessPath,
-      photoAfterPath: _photoAfterPath,
-      notes: _notesController.text.trim().isNotEmpty ? _notesController.text.trim() : null,
-      progressPercent: _progressPercent,
-      createdAt: DateTime.now().toIso8601String(),
-    );
-    widget.onDraftSave!(draft);
+    _startTimeCtrl = TextEditingController(text: _formatTime(_startTime));
+    _finishTimeCtrl = TextEditingController(text: _formatTime(_finishTime));
+    _startTimeCtrl.addListener(_handleStartTimeChanged);
+    _finishTimeCtrl.addListener(_handleFinishTimeChanged);
   }
 
   @override
@@ -143,6 +138,10 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     _notesController.dispose();
     _breakController.dispose();
     _progressController.dispose();
+    _startTimeCtrl.removeListener(_handleStartTimeChanged);
+    _finishTimeCtrl.removeListener(_handleFinishTimeChanged);
+    _startTimeCtrl.dispose();
+    _finishTimeCtrl.dispose();
     super.dispose();
   }
 
@@ -168,6 +167,64 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       hour: nextMinutes ~/ 60,
       minute: nextMinutes % 60,
     );
+  }
+
+  void _handleStartTimeChanged() {
+    if (_syncingTimeInputs) return;
+    final parsed = TimeParser.parseTimeOfDay(_startTimeCtrl.text);
+    if (parsed == null) return;
+    if (parsed.hour == _startTime.hour && parsed.minute == _startTime.minute) {
+      return;
+    }
+    setState(() {
+      _startTime = parsed;
+      _finishTime = _nextValidFinishTime(_startTime, _finishTime);
+    });
+    _syncTimeControllers(syncStart: false, syncFinish: true);
+  }
+
+  void _handleFinishTimeChanged() {
+    if (_syncingTimeInputs) return;
+    final parsed = TimeParser.parseTimeOfDay(_finishTimeCtrl.text);
+    if (parsed == null) return;
+    if (parsed.hour == _finishTime.hour &&
+        parsed.minute == _finishTime.minute) {
+      return;
+    }
+    setState(() {
+      _finishTime = _nextValidFinishTime(_startTime, parsed);
+    });
+    _syncTimeControllers(syncStart: false, syncFinish: true);
+  }
+
+  void _syncTimeControllers({
+    bool syncStart = true,
+    bool syncFinish = true,
+  }) {
+    _syncingTimeInputs = true;
+    if (syncStart) {
+      final start = _formatTime(_startTime);
+      _startTimeCtrl.value = TextEditingValue(
+        text: start,
+        selection: TextSelection.collapsed(offset: start.length),
+      );
+    }
+    if (syncFinish) {
+      final finish = _formatTime(_finishTime);
+      _finishTimeCtrl.value = TextEditingValue(
+        text: finish,
+        selection: TextSelection.collapsed(offset: finish.length),
+      );
+    }
+    _syncingTimeInputs = false;
+  }
+
+  int _defaultBreakMinutesForDate(DateTime date) {
+    return date.weekday == DateTime.friday ? 90 : 60;
+  }
+
+  String _formatTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
   // ═══════════════════════════════════════════════════════
@@ -385,24 +442,72 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     return Row(
       children: [
         Expanded(
-          child: _TimeTile(
-            label: 'Start Time',
-            time: _startTime,
-            icon: Icons.login,
-            onTap: () => _pickTime(isStart: true),
+          child: TextField(
+            controller: _startTimeCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [HHMMFormatter()],
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              labelText: 'Jam Mulai',
+              hintText: '08:00',
+              filled: true,
+              fillColor: AppColors.surfaceInput,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.gold),
+              ),
+              suffixIcon: IconButton(
+                onPressed: () => _pickTime(isStart: true),
+                icon: const Icon(Icons.schedule_rounded, color: AppColors.gold),
+              ),
+            ),
           ),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child:
-              Icon(Icons.arrow_forward, size: 18, color: AppColors.textMuted),
-        ),
+        const SizedBox(width: 8),
         Expanded(
-          child: _TimeTile(
-            label: 'Finish Time',
-            time: _finishTime,
-            icon: Icons.logout,
-            onTap: () => _pickTime(isStart: false),
+          child: TextField(
+            controller: _finishTimeCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [HHMMFormatter()],
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              labelText: 'Jam Selesai',
+              hintText: '16:00',
+              filled: true,
+              fillColor: AppColors.surfaceInput,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.gold),
+              ),
+              suffixIcon: IconButton(
+                onPressed: () => _pickTime(isStart: false),
+                icon: const Icon(Icons.schedule_rounded, color: AppColors.gold),
+              ),
+            ),
           ),
         ),
       ],
@@ -431,14 +536,14 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       setState(() {
         if (isStart) {
           _startTime = picked;
+          _finishTime = _nextValidFinishTime(_startTime, _finishTime);
         } else {
-          _finishTime = picked;
+          _finishTime = _nextValidFinishTime(_startTime, picked);
         }
       });
+      _syncTimeControllers();
     }
   }
-
-  String _breakOption = '1:00';
 
   Widget _breakField() {
     return Container(
@@ -450,8 +555,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.coffee, size: 18, color: AppColors.textMuted),
-          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,12 +568,16 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                   child: DropdownButton<String>(
                     isDense: true,
                     value: _breakOption,
-                    icon: const Icon(Icons.arrow_drop_down, color: AppColors.gold),
-                    style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+                    icon: const SizedBox.shrink(),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600),
                     items: const [
                       DropdownMenuItem(value: '1:00', child: Text('60 mnt')),
                       DropdownMenuItem(value: '1:30', child: Text('90 mnt')),
-                      DropdownMenuItem(value: 'manual', child: Text('Input Manual')),
+                      DropdownMenuItem(
+                          value: 'manual', child: Text('Input Manual')),
                     ],
                     onChanged: (v) {
                       if (v != null) {
@@ -483,7 +590,8 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                             _breakMinutes = 90;
                             _breakController.text = '90';
                           } else {
-                            _breakMinutes = int.tryParse(_breakController.text) ?? 0;
+                            _breakMinutes =
+                                int.tryParse(_breakController.text) ?? 0;
                           }
                         });
                       }
@@ -555,8 +663,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.percent, size: 18, color: AppColors.textMuted),
-          const SizedBox(width: 10),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -629,24 +735,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     );
   }
 
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'done':
-        return Icons.check_circle;
-      default:
-        return Icons.hourglass_empty;
-    }
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'done':
-        return AppColors.statusDone;
-      default:
-        return AppColors.textMuted;
-    }
-  }
-
   Widget _statusDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
@@ -657,12 +745,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       ),
       child: Row(
         children: [
-          Icon(
-            _statusIcon(_status),
-            size: 18,
-            color: _statusColor(_status),
-          ),
-          const SizedBox(width: 10),
           const Expanded(
             child: Text(
               'Status',
@@ -678,8 +760,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
               ),
-              icon: const Icon(Icons.expand_more,
-                  color: AppColors.textMuted, size: 20),
+              icon: const SizedBox.shrink(),
               items: const [
                 DropdownMenuItem(
                   value: 'pending',
@@ -826,8 +907,9 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     if (finishMin <= startMin) {
       return 'Finish time harus lebih dari start time';
     }
-    final hasAnyPhoto = (_photoProcessPath != null && _photoProcessPath!.isNotEmpty) ||
-                        (_photoAfterPath != null && _photoAfterPath!.isNotEmpty);
+    final hasAnyPhoto =
+        (_photoProcessPath != null && _photoProcessPath!.isNotEmpty) ||
+            (_photoAfterPath != null && _photoAfterPath!.isNotEmpty);
 
     if (!hasAnyPhoto) {
       return 'Wajib melampirkan minimal 1 foto dokumentasi pengerjaan / setelah selesai.';
@@ -990,68 +1072,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
 
     widget.onSubmit(log);
     Navigator.of(context).pop();
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Time Picker Tile
-// ═══════════════════════════════════════════════════════════════
-class _TimeTile extends StatelessWidget {
-  final String label;
-  final TimeOfDay time;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _TimeTile({
-    required this.label,
-    required this.time,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final timeStr =
-        '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceInput,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: AppColors.gold),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                        fontSize: 10, color: AppColors.textMuted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.edit, size: 14, color: AppColors.textDisabled),
-          ],
-        ),
-      ),
-    );
   }
 }
 

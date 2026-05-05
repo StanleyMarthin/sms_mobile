@@ -309,7 +309,9 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
       final publicUrl = dataTick['public_url']?.toString() ?? '';
 
       if (uploadUrl.isEmpty) {
-        debugPrint('[WARN] Upload URL kosong');
+        if (kDebugMode) {
+          debugPrint('[Warehouse] Upload URL kosong');
+        }
         return null;
       }
 
@@ -337,10 +339,14 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
         return publicUrl;
       }
 
-      debugPrint('[WARN] HTTP ${response.statusCode} saat upload S3');
+      if (kDebugMode) {
+        debugPrint('[Warehouse] HTTP ${response.statusCode} saat upload S3');
+      }
       return null;
     } catch (e) {
-      debugPrint('[WARN] upload photo gagal: $e');
+      if (kDebugMode) {
+        debugPrint('[Warehouse] upload photo gagal: $e');
+      }
       return null;
     }
   }

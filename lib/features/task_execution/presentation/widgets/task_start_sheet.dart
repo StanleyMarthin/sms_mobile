@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/utils/time_parser.dart';
 import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/entities/task_entity.dart';
@@ -48,13 +48,23 @@ class TaskStartSheet extends StatefulWidget {
 
 class _TaskStartSheetState extends State<TaskStartSheet> {
   late TimeOfDay _startTime;
+  late final TextEditingController _startTimeCtrl;
+  bool _syncingStartTime = false;
   String? _photoBeforePath;
-  final _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _startTime = TimeOfDay.now();
+    _startTimeCtrl = TextEditingController(text: _formatTime(_startTime));
+    _startTimeCtrl.addListener(_handleStartTimeChanged);
+  }
+
+  @override
+  void dispose() {
+    _startTimeCtrl.removeListener(_handleStartTimeChanged);
+    _startTimeCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -218,43 +228,35 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   }
 
   Widget _startTimeTile() {
-    final timeStr =
-        '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}';
-    return GestureDetector(
-      onTap: _pickStartTime,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceInput,
+    return TextField(
+      controller: _startTimeCtrl,
+      keyboardType: TextInputType.number,
+      inputFormatters: [HHMMFormatter()],
+      style: const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+      ),
+      decoration: InputDecoration(
+        labelText: 'Jam Mulai',
+        hintText: '08:00',
+        filled: true,
+        fillColor: AppColors.surfaceInput,
+        border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.login, size: 18, color: AppColors.gold),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Start Time',
-                    style: TextStyle(fontSize: 10, color: AppColors.textMuted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    timeStr,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.edit, size: 14, color: AppColors.textDisabled),
-          ],
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.gold),
+        ),
+        suffixIcon: IconButton(
+          onPressed: _pickStartTime,
+          icon: const Icon(Icons.schedule_rounded, color: AppColors.gold),
         ),
       ),
     );
@@ -280,7 +282,32 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
     );
     if (picked != null) {
       setState(() => _startTime = picked);
+      _syncStartTimeController();
     }
+  }
+
+  void _handleStartTimeChanged() {
+    if (_syncingStartTime) return;
+    final parsed = TimeParser.parseTimeOfDay(_startTimeCtrl.text);
+    if (parsed == null) return;
+    if (parsed.hour == _startTime.hour && parsed.minute == _startTime.minute) {
+      return;
+    }
+    setState(() => _startTime = parsed);
+  }
+
+  void _syncStartTimeController() {
+    final value = _formatTime(_startTime);
+    _syncingStartTime = true;
+    _startTimeCtrl.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
+    _syncingStartTime = false;
+  }
+
+  String _formatTime(TimeOfDay time) {
+    return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _photoBeforeSlot() {
@@ -347,10 +374,11 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   }
 
   Future<void> _pickPhoto() async {
+    final currentRoute = GoRouterState.of(context).uri.toString();
+
     // Save context before entering camera
     try {
       final prefs = await SharedPreferences.getInstance();
-      final currentRoute = GoRouterState.of(context).uri.toString();
       String targetRoute = currentRoute;
       if (!targetRoute.contains('taskId=')) {
         targetRoute += targetRoute.contains('?') ? '&' : '?';
@@ -359,6 +387,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       await prefs.setString('pending_camera_route', targetRoute);
       await prefs.setString('pending_camera_slot', 'before');
     } catch (_) {}
+    if (!mounted) return;
 
     final path = await Navigator.of(context).push<String>(
       MaterialPageRoute(
@@ -378,6 +407,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
     if (!mounted || path == null) return;
     setState(() => _photoBeforePath = path);
   }
+
   Widget _startButton() {
     return SizedBox(
       width: double.infinity,

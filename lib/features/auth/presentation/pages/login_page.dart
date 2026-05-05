@@ -48,11 +48,27 @@ class _LoginPageState extends State<LoginPage> {
 
   // ── Login via BLoC ─────────────────────────────────────────
   Future<void> _handleLogin() async {
-    final id = _idController.text.trim().toUpperCase();
-    final password = _passwordController.text;
+    final id = _sanitizeEmployeeId(_idController.text);
+    final password = _passwordController.text.trim();
+    final validationError = _validateCredentials(
+      employeeId: id,
+      password: password,
+    );
 
-    if (id.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Employee ID dan password harus diisi');
+    _idController.value = _idController.value.copyWith(
+      text: id,
+      selection: TextSelection.collapsed(offset: id.length),
+    );
+    _passwordController.value = _passwordController.value.copyWith(
+      text: password,
+      selection: TextSelection.collapsed(offset: password.length),
+    );
+
+    if (validationError != null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = validationError;
+      });
       return;
     }
 
@@ -78,10 +94,30 @@ class _LoginPageState extends State<LoginPage> {
         LoginRequested(employeeId: id, password: password, fcmToken: fcmToken));
   }
 
-  void _onAuthState(BuildContext context, AuthState state) {
+  String _sanitizeEmployeeId(String value) {
+    return value.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
+  }
+
+  String? _validateCredentials({
+    required String employeeId,
+    required String password,
+  }) {
+    if (employeeId.isEmpty || password.isEmpty) {
+      return 'Employee ID dan password harus diisi';
+    }
+    if (!RegExp(r'^[A-Z0-9._-]{3,20}$').hasMatch(employeeId)) {
+      return 'Format Employee ID tidak valid.';
+    }
+    if (password.length < 8) {
+      return 'Password minimal 8 karakter.';
+    }
+    return null;
+  }
+
+  void _onAuthState(BuildContext context, AuthState state) async {
     if (state is LoginSuccess) {
       final result = state.result;
-      sl<SessionManager>().login(
+      await sl<SessionManager>().login(
         token: result.token,
         refreshToken: result.refreshToken,
         userId: result.userId,
@@ -93,7 +129,8 @@ class _LoginPageState extends State<LoginPage> {
         divisionId: result.divisionId,
         permissions: result.permissions,
       );
-      if (mounted) context.go('/home');
+      if (!context.mounted) return;
+      context.go('/home');
     } else if (state is AuthError) {
       setState(() {
         _isLoading = false;

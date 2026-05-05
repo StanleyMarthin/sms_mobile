@@ -20,8 +20,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await Firebase.initializeApp();
   }
   await NotificationInboxService.persistBackgroundMessage(message);
-  debugPrint(
-      '[FCM] Background message: ${message.messageId} | title=${message.notification?.title}');
+  if (kDebugMode) {
+    debugPrint(
+      '[FCM] Background message: ${message.messageId} | title=${message.notification?.title}',
+    );
+  }
 }
 
 // Channel Android
@@ -88,7 +91,11 @@ class FCMService {
 
       // ── Foreground messages: tampilkan sebagai local notification ─
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('[FCM] Foreground | title=${message.notification?.title}');
+        if (kDebugMode) {
+          debugPrint(
+            '[FCM] Foreground | title=${message.notification?.title}',
+          );
+        }
         sl<NotificationInboxService>().saveRemoteMessage(message);
         final notif = message.notification;
         final android = message.notification?.android;
@@ -115,15 +122,20 @@ class FCMService {
 
       // ── App dibuka dari notif (saat background) ──────────────────
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint('[FCM] Opened from background | data=${message.data}');
+        if (kDebugMode) {
+          debugPrint('[FCM] Opened from background | data=${message.data}');
+        }
         _navigateFromMessage(message);
       });
 
       // ── App dibuka dari notif (saat terminated) ──────────────────
       final initialMessage = await _messaging!.getInitialMessage();
       if (initialMessage != null) {
-        debugPrint(
-            '[FCM] Opened from terminated | data=${initialMessage.data}');
+        if (kDebugMode) {
+          debugPrint(
+            '[FCM] Opened from terminated | data=${initialMessage.data}',
+          );
+        }
         // Delay sedikit agar router sudah siap
         Future<void>.delayed(const Duration(milliseconds: 600), () {
           _navigateFromMessage(initialMessage);
@@ -132,10 +144,14 @@ class FCMService {
 
       // ── Token refresh ────────────────────────────────────────────
       _messaging!.onTokenRefresh.listen((token) {
-        debugPrint('[FCM] Token refreshed: ${token.substring(0, 20)}...');
+        if (kDebugMode) {
+          debugPrint('[FCM] Token refreshed');
+        }
       });
     } catch (e) {
-      debugPrint('[FCM] Init Error: $e');
+      if (kDebugMode) {
+        debugPrint('[FCM] Init Error: $e');
+      }
     }
   }
 
@@ -167,7 +183,9 @@ class FCMService {
     try {
       return await _messaging!.getToken();
     } catch (e) {
-      debugPrint('[FCM] GetToken Error: $e');
+      if (kDebugMode) {
+        debugPrint('[FCM] GetToken Error: $e');
+      }
       return null;
     }
   }
