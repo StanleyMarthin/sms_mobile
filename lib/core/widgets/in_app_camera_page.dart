@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_colors.dart';
@@ -50,6 +51,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
   bool _isInitialized = false;
   bool _isTakingPhoto = false;
   String? _capturedPath;
+  String? _initErrorMessage;
 
   FlashMode _flashMode = FlashMode.off;
   double _currentExposure = 0.5; // slightly brighter default
@@ -83,7 +85,8 @@ class _InAppCameraPageState extends State<InAppCameraPage>
     }
   }
 
-  Future<CameraController> _createCameraController(CameraDescription camera) async {
+  Future<CameraController> _createCameraController(
+      CameraDescription camera) async {
     final presets = [
       ResolutionPreset.high,
       ResolutionPreset.medium,
@@ -118,9 +121,26 @@ class _InAppCameraPageState extends State<InAppCameraPage>
 
   Future<void> _initCamera() async {
     try {
+      final permission = await Permission.camera.request();
+      if (!permission.isGranted) {
+        if (!mounted) return;
+        setState(() {
+          _controller = null;
+          _isInitialized = false;
+          _initErrorMessage = permission.isPermanentlyDenied
+              ? 'Izin kamera ditolak permanen. Buka pengaturan aplikasi untuk mengaktifkan kamera.'
+              : 'Izin kamera belum diberikan.';
+        });
+        return;
+      }
+
       _cameras = await availableCameras();
       if (_cameras.isEmpty) {
-        if (mounted) setState(() => _isInitialized = false);
+        if (!mounted) return;
+        setState(() {
+          _isInitialized = false;
+          _initErrorMessage = 'Kamera tidak tersedia di perangkat ini.';
+        });
         return;
       }
 
@@ -143,12 +163,20 @@ class _InAppCameraPageState extends State<InAppCameraPage>
       await ctrl.setFlashMode(_flashMode);
 
       _controller = ctrl;
-      setState(() => _isInitialized = true);
+      setState(() {
+        _isInitialized = true;
+        _initErrorMessage = null;
+      });
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[Camera] InAppCamera init error: $e');
       }
-      if (mounted) setState(() => _isInitialized = false);
+      if (!mounted) return;
+      setState(() {
+        _controller = null;
+        _isInitialized = false;
+        _initErrorMessage = 'Kamera gagal dibuka. Coba tutup lalu buka lagi.';
+      });
     }
   }
 
@@ -219,14 +247,19 @@ class _InAppCameraPageState extends State<InAppCameraPage>
 
   /// Resize image to max 1280×1600, quality 82 using flutter_image_compress.
   Future<String> _resizeImage(String sourcePath) async {
+    final sourceFile = File(sourcePath);
+    final outputDir = Directory('${sourceFile.parent.path}/sm_system_camera');
+    final outputPath =
+        '${outputDir.path}/cam_${widget.slot}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
     try {
-      final tempDir = Directory.systemTemp;
-      final tempPath =
-          '${tempDir.path}/cam_${widget.slot}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      if (!outputDir.existsSync()) {
+        await outputDir.create(recursive: true);
+      }
 
       final compressedFile = await FlutterImageCompress.compressAndGetFile(
         sourcePath,
-        tempPath,
+        outputPath,
         minWidth: 1280,
         minHeight: 1600,
         quality: 82,
@@ -238,7 +271,14 @@ class _InAppCameraPageState extends State<InAppCameraPage>
       if (kDebugMode) {
         debugPrint('[Camera] Compress error: $e');
       }
-      return sourcePath;
+      try {
+        if (!outputDir.existsSync()) {
+          await outputDir.create(recursive: true);
+        }
+        return (await sourceFile.copy(outputPath)).path;
+      } catch (_) {
+        return sourcePath;
+      }
     }
   }
 
@@ -299,15 +339,17 @@ class _InAppCameraPageState extends State<InAppCameraPage>
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: _capturedPath != null
-            ? _buildPreview()
-            : _buildViewfinder(),
+        child: _capturedPath != null ? _buildPreview() : _buildViewfinder(),
       ),
     );
   }
 
   // ─── VIEWFINDER ────────────────────────────────────────────────────────────
   Widget _buildViewfinder() {
+    if (_initErrorMessage != null) {
+      return _buildInitError();
+    }
+
     if (!_isInitialized || _controller == null) {
       return const Center(
         child: Column(
@@ -369,12 +411,12 @@ class _InAppCameraPageState extends State<InAppCameraPage>
                       bottom: 100,
                       child: _ExposureSlider(
                         min: _minExposure,
-                  max: _maxExposure,
-                  value: _currentExposure,
-                  onChanged: (val) async {
-                    setState(() => _currentExposure = val);
-                    await _controller?.setExposureOffset(val);
-                  },
+                        max: _maxExposure,
+                        value: _currentExposure,
+                        onChanged: (val) async {
+                          setState(() => _currentExposure = val);
+                          await _controller?.setExposureOffset(val);
+                        },
                       ),
                     ),
                   ],
@@ -390,6 +432,50 @@ class _InAppCameraPageState extends State<InAppCameraPage>
     );
   }
 
+  Widget _buildInitError() {
+    final isPermanent = _initErrorMessage!.contains('ditolak permanen');
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.camera_alt_outlined,
+              size: 48,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _initErrorMessage!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: isPermanent
+                  ? openAppSettings
+                  : () {
+                      setState(() => _initErrorMessage = null);
+                      _initCamera();
+                    },
+              child: Text(isPermanent ? 'Buka Pengaturan' : 'Coba Lagi'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Container(
       color: Colors.black,
@@ -398,8 +484,8 @@ class _InAppCameraPageState extends State<InAppCameraPage>
         children: [
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
-            child: const Icon(Icons.close_rounded,
-                color: Colors.white, size: 26),
+            child:
+                const Icon(Icons.close_rounded, color: Colors.white, size: 26),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -474,8 +560,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: const Row(
             children: [
-              Icon(Icons.check_circle_outline,
-                  color: AppColors.gold, size: 22),
+              Icon(Icons.check_circle_outline, color: AppColors.gold, size: 22),
               SizedBox(width: 10),
               Text(
                 'Periksa foto sebelum disimpan',
@@ -578,8 +663,7 @@ class _ExposureSlider extends StatelessWidget {
             ),
           ),
         ),
-        const Icon(Icons.brightness_3_rounded,
-            color: Colors.white30, size: 16),
+        const Icon(Icons.brightness_3_rounded, color: Colors.white30, size: 16),
       ],
     );
   }

@@ -20,6 +20,16 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     required this.sessionManager,
   });
 
+  void _assertRemotePhotoUrl(String? value, String fieldName) {
+    if (value == null || value.isEmpty) return;
+    final lower = value.toLowerCase();
+    if (lower.startsWith('http://') || lower.startsWith('https://')) return;
+    throw DataFormatException(
+      message:
+          '$fieldName harus berupa URL publik hasil upload, bukan path lokal.',
+    );
+  }
+
   @override
   Future<List<TaskModel>> getTodaysTasks({
     required DateTime date,
@@ -84,6 +94,9 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     String? photoBefore1Path,
     String? photoBefore2Path,
   }) async {
+    _assertRemotePhotoUrl(photoBefore1Path, 'photoBefore1');
+    _assertRemotePhotoUrl(photoBefore2Path, 'photoBefore2');
+
     // BE action=start: generates startTime itself — do NOT send startTime.
     // photoBefore1 wajib diisi (BE validates), photoBefore2/3 optional.
     final payload = <String, dynamic>{
@@ -183,6 +196,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   Future<TaskModel> submitTaskExecution(TaskExecutionLog log) async {
     final userId = sessionManager.userId ?? sessionManager.employeeId ?? '';
     final normalizedStatus = log.status.trim().toLowerCase();
+    _assertRemotePhotoUrl(log.photoProcess, 'photoProcess1');
+    _assertRemotePhotoUrl(log.photoAfter, 'photoAfter1');
 
     if (normalizedStatus == 'pending') {
       final checkpointPayload = <String, dynamic>{
@@ -353,7 +368,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       panelName: _asString(task['namaPanel'], fallback: '-'),
       jobName: _asString(task['jobName'], fallback: '-'),
       divisionName: _asString(division['divisionName'], fallback: '-'),
-      status: _normalizeTaskStatus(_asString(json['status'], fallback: 'PENDING')),
+      status:
+          _normalizeTaskStatus(_asString(json['status'], fallback: 'PENDING')),
       isPanelLocked: false,
       dailyTargetHours: 8.0,
       targetHoursRevised: 0,

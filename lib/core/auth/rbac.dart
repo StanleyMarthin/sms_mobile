@@ -26,7 +26,16 @@ enum UserRole {
       'op' || 'team_lapangan' => UserRole.op,
       'kd' || 'ketua_divisi' => UserRole.kd,
       'adv' || 'advisor' => UserRole.adv,
-      'pm' || 'mp' || 'manager_produksi' || 'admin' || 'kepala_produksi' || 'manager_operational' || 'mis' => UserRole.pm,
+      'kepala_gudang' || 'gudang' || 'admin_gudang' => UserRole.kd,
+      'ppic' || 'ppc' || 'manager_gudang' => UserRole.kd,
+      'pm' ||
+      'mp' ||
+      'manager_produksi' ||
+      'admin' ||
+      'kepala_produksi' ||
+      'manager_operational' ||
+      'mis' =>
+        UserRole.pm,
       _ => null,
     };
   }
@@ -97,7 +106,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.woReject,
     Permission.woView,
     Permission.qcView,
-    Permission.qcSubmit,   // MO/MP/Admin bisa submit QC secara independen
+    Permission.qcSubmit, // MO/MP/Admin bisa submit QC secara independen
     Permission.qcValidate,
     Permission.taskView,
     Permission.taskAssign,
@@ -118,7 +127,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.woReject,
     Permission.woView,
     Permission.qcView,
-    Permission.qcSubmit,   // ADV bisa submit QC secara independen
+    Permission.qcSubmit, // ADV bisa submit QC secara independen
     Permission.qcValidate,
     Permission.taskView,
     Permission.taskCheckpoint,
@@ -150,6 +159,18 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.profileView,
     Permission.dashboardKd,
   },
+  'warehouse': {
+    Permission.warehouseApprove,
+    Permission.warehouseLogsView,
+    Permission.notificationsView,
+    Permission.profileView,
+  },
+  'ppic': {
+    Permission.warehouseApprove,
+    Permission.warehouseLogsView,
+    Permission.notificationsView,
+    Permission.profileView,
+  },
   'op': {
     Permission.taskExecute,
     Permission.taskView,
@@ -172,9 +193,14 @@ bool hasPermission(String? role, Permission permission) {
 Set<Permission> getPermissions(String? role) {
   if (role == null) return {};
   final normalized = role.toLowerCase();
-  
+
   // Alias new BE roles to legacy FE roles to maintain UI mappings
-  if (normalized == 'manager_produksi' || normalized == 'mp' || normalized == 'admin' || normalized == 'kepala_produksi' || normalized == 'manager_operational' || normalized == 'mis') {
+  if (normalized == 'manager_produksi' ||
+      normalized == 'mp' ||
+      normalized == 'admin' ||
+      normalized == 'kepala_produksi' ||
+      normalized == 'manager_operational' ||
+      normalized == 'mis') {
     return rolePermissions['pm'] ?? {};
   } else if (normalized == 'ketua_divisi') {
     return rolePermissions['kd'] ?? {};
@@ -182,6 +208,14 @@ Set<Permission> getPermissions(String? role) {
     return rolePermissions['adv'] ?? {};
   } else if (normalized == 'team_lapangan') {
     return rolePermissions['op'] ?? {};
+  } else if (normalized == 'kepala_gudang' ||
+      normalized == 'gudang' ||
+      normalized == 'admin_gudang') {
+    return rolePermissions['warehouse'] ?? {};
+  } else if (normalized == 'ppic' ||
+      normalized == 'ppc' ||
+      normalized == 'manager_gudang') {
+    return rolePermissions['ppic'] ?? {};
   }
 
   return rolePermissions[normalized] ?? {};

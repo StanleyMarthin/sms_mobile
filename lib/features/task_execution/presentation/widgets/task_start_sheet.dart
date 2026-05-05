@@ -52,6 +52,14 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   bool _syncingStartTime = false;
   String? _photoBeforePath;
 
+  String? _safeCurrentRoute() {
+    try {
+      return GoRouterState.of(context).uri.toString();
+    } catch (_) {
+      return ModalRoute.of(context)?.settings.name;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -374,17 +382,21 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   }
 
   Future<void> _pickPhoto() async {
-    final currentRoute = GoRouterState.of(context).uri.toString();
+    final currentRoute = _safeCurrentRoute();
 
     // Save context before entering camera
     try {
       final prefs = await SharedPreferences.getInstance();
-      String targetRoute = currentRoute;
-      if (!targetRoute.contains('taskId=')) {
+      String? targetRoute = currentRoute;
+      if (targetRoute != null &&
+          targetRoute.isNotEmpty &&
+          !targetRoute.contains('taskId=')) {
         targetRoute += targetRoute.contains('?') ? '&' : '?';
         targetRoute += 'taskId=${widget.task.plandailyId}';
       }
-      await prefs.setString('pending_camera_route', targetRoute);
+      if (targetRoute != null && targetRoute.isNotEmpty) {
+        await prefs.setString('pending_camera_route', targetRoute);
+      }
       await prefs.setString('pending_camera_slot', 'before');
     } catch (_) {}
     if (!mounted) return;

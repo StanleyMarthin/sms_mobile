@@ -35,6 +35,28 @@ class TaskDraft {
     required this.createdAt,
   });
 
+  TaskDraft copyWith({
+    String? plandailyId,
+    String? startTime,
+    String? photoBeforePath,
+    String? photoProcessPath,
+    String? photoAfterPath,
+    String? notes,
+    double? progressPercent,
+    String? createdAt,
+  }) {
+    return TaskDraft(
+      plandailyId: plandailyId ?? this.plandailyId,
+      startTime: startTime ?? this.startTime,
+      photoBeforePath: photoBeforePath ?? this.photoBeforePath,
+      photoProcessPath: photoProcessPath ?? this.photoProcessPath,
+      photoAfterPath: photoAfterPath ?? this.photoAfterPath,
+      notes: notes ?? this.notes,
+      progressPercent: progressPercent ?? this.progressPercent,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   /// Serialize to JSON string for SharedPreferences storage.
   String toJson() => jsonEncode({
         'plandailyId': plandailyId,
@@ -58,7 +80,8 @@ class TaskDraft {
       photoAfterPath: map['photoAfterPath'] as String?,
       notes: map['notes'] as String?,
       progressPercent: (map['progressPercent'] as num?)?.toDouble(),
-      createdAt: map['createdAt'] as String? ?? DateTime.now().toIso8601String(),
+      createdAt:
+          map['createdAt'] as String? ?? DateTime.now().toIso8601String(),
     );
   }
 }

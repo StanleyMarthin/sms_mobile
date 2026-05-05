@@ -219,6 +219,35 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     _syncingTimeInputs = false;
   }
 
+  void _persistDraftSnapshot() {
+    final onDraftSave = widget.onDraftSave;
+    if (onDraftSave == null) return;
+
+    final now = DateTime.now();
+    final startDt = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      _startTime.hour,
+      _startTime.minute,
+    );
+
+    onDraftSave(
+      TaskDraft(
+        plandailyId: widget.task.plandailyId,
+        startTime: startDt.toIso8601String(),
+        photoBeforePath: _photoBeforePath,
+        photoProcessPath: _photoProcessPath,
+        photoAfterPath: _photoAfterPath,
+        notes: _notesController.text.trim().isEmpty
+            ? null
+            : _notesController.text.trim(),
+        progressPercent: _progressPercent,
+        createdAt: widget.draft?.createdAt ?? now.toIso8601String(),
+      ),
+    );
+  }
+
   int _defaultBreakMinutesForDate(DateTime date) {
     return date.weekday == DateTime.friday ? 90 : 60;
   }
@@ -863,6 +892,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           break;
       }
     });
+    _persistDraftSnapshot();
   }
 
   // ─────────────────────────────────────────────────────

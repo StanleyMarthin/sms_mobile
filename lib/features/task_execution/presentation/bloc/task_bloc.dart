@@ -48,7 +48,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<SubmitExecutionEvent>(_onSubmitExecution);
 
     // Mulai background polling untuk alarm (Cek setiap 15 detik)
-    _jobTimer = Timer.periodic(const Duration(seconds: 15), (_) => _checkAlarms());
+    _jobTimer =
+        Timer.periodic(const Duration(seconds: 15), (_) => _checkAlarms());
   }
 
   @override
@@ -74,7 +75,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           final now = DateTime.now().toUtc();
           // Gunakan UTC difference
           final diffMinutes = now.difference(start).inMinutes;
-          
+
           final targetMinutes = (task.dailyTargetHours * 60).toInt();
           if (targetMinutes <= 0) continue;
 
@@ -293,7 +294,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     try {
       String? finalPhotoBeforePath = event.draft.photoBeforePath;
-      
+
       // Upload if it's a local file (doesn't start with http/https)
       if (finalPhotoBeforePath != null &&
           !finalPhotoBeforePath.startsWith('http')) {
@@ -309,9 +310,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           panel: task.panelName,
           type: 'bef',
         );
-        if (uploadedUrl != null) {
-          finalPhotoBeforePath = uploadedUrl;
+        if (uploadedUrl == null || uploadedUrl.isEmpty) {
+          throw Exception('Upload foto before gagal.');
         }
+        finalPhotoBeforePath = uploadedUrl;
       }
 
       final result = await startJobUseCase(
@@ -330,9 +332,12 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           ));
         },
         (updatedTask) async {
-          await taskDraftStorage.saveDraft(event.draft);
+          final storedDraft = event.draft.copyWith(
+            photoBeforePath: finalPhotoBeforePath,
+          );
+          await taskDraftStorage.saveDraft(storedDraft);
           final updatedDrafts = Map<String, TaskDraft>.from(currentDrafts)
-            ..[event.draft.plandailyId] = event.draft;
+            ..[event.draft.plandailyId] = storedDraft;
 
           final refreshResult = await taskRepository.getTodaysTasks(
             date: _selectedDate,
@@ -453,7 +458,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           panel: task.panelName,
           type: 'pro',
         );
-        if (uploaded != null) processUrl = uploaded;
+        if (uploaded == null || uploaded.isEmpty) {
+          throw Exception('Upload foto progress gagal.');
+        }
+        processUrl = uploaded;
       }
 
       String? afterUrl = log.photoAfter;
@@ -466,7 +474,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           panel: task.panelName,
           type: 'aft',
         );
-        if (uploaded != null) afterUrl = uploaded;
+        if (uploaded == null || uploaded.isEmpty) {
+          throw Exception('Upload foto after gagal.');
+        }
+        afterUrl = uploaded;
       }
 
       String? beforeUrl = log.photoBefore;
@@ -479,7 +490,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           panel: task.panelName,
           type: 'bef',
         );
-        if (uploaded != null) beforeUrl = uploaded;
+        if (uploaded == null || uploaded.isEmpty) {
+          throw Exception('Upload foto before gagal.');
+        }
+        beforeUrl = uploaded;
       }
 
       final updatedLog = log.copyWith(
@@ -531,7 +545,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       emit(TaskActionError(
         tasks: currentTasks,
         drafts: currentDrafts,
-        message: 'Kegagalan upload foto R2: Menghentikan submission otomatis untuk menghindari error referensi dummy local path. Error: $e',
+        message:
+            'Kegagalan upload foto R2: Menghentikan submission otomatis untuk menghindari error referensi dummy local path. Error: $e',
       ));
     }
   }

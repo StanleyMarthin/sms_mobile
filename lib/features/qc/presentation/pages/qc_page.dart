@@ -766,6 +766,15 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
 
   bool _isUploadingBefore = false;
   bool _isUploadingEvidence = false;
+
+  String? _safeCurrentRoute() {
+    try {
+      return GoRouterState.of(context).uri.toString();
+    } catch (_) {
+      return ModalRoute.of(context)?.settings.name;
+    }
+  }
+
   bool _isSubmitting = false;
 
   @override
@@ -894,6 +903,9 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
       final ticket = await remoteDs.getQcUploadTicket(filename);
       final uploadUrl = ticket['upload_url'] ?? '';
       final publicUrl = ticket['public_url'] ?? '';
+      if (uploadUrl.isEmpty || publicUrl.isEmpty) {
+        throw Exception('Tiket upload QC tidak valid.');
+      }
 
       // Simple PUT — much more reliable than StreamedRequest on mobile networks
       final bytes = await file.readAsBytes();
@@ -929,19 +941,23 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
   Future<void> _pickAndUpload(bool isBefore) async {
     final slot = isBefore ? 'before' : 'evidence';
     final label = isBefore ? 'Foto QC 1 (Before)' : 'Foto QC 2 (Evidence)';
-    final currentRoute = GoRouterState.of(context).uri.toString();
+    final currentRoute = _safeCurrentRoute();
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
     // Auto-save context
     try {
       final prefs = await SharedPreferences.getInstance();
-      String targetRoute = currentRoute;
-      if (!targetRoute.contains('qcId=')) {
+      String? targetRoute = currentRoute;
+      if (targetRoute != null &&
+          targetRoute.isNotEmpty &&
+          !targetRoute.contains('qcId=')) {
         targetRoute += targetRoute.contains('?') ? '&' : '?';
         targetRoute += 'qcId=${widget.item.coreId}';
       }
-      await prefs.setString('pending_camera_route', targetRoute);
+      if (targetRoute != null && targetRoute.isNotEmpty) {
+        await prefs.setString('pending_camera_route', targetRoute);
+      }
       await prefs.setString('pending_camera_slot', slot);
     } catch (_) {}
     await _triggerAutoSave();
