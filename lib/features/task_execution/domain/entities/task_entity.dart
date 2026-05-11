@@ -129,9 +129,12 @@ class TaskEntity extends Equatable {
   /// Valid values: "MAIN", "ADDITIONAL", "WO", "WOV"
   final String taskCategory;
 
-  /// Detailed task description from trx_jobdesc_core.custom_description.
-  /// Example: "SETTING SHIFT FORK TRANSMISI DAN PENDATAAN PART ORDERAN TRANSMISI"
-  final String customDescription;
+  /// Detailed task description from trx_jobdesc_core.job_description.
+  final String jobDescription;
+
+  /// Optional instruction / note for the mechanic.
+  /// From: trx_jobdesc_plandaily.note or trx_jobdesc_core.catatan
+  final String? instruction;
 
   /// Name of the mechanic who currently holds the panel lock.
   /// Null if panel is not locked or locked by the current user.
@@ -179,7 +182,8 @@ class TaskEntity extends Equatable {
     this.startedAt,
     this.completedAt,
     required this.taskCategory,
-    required this.customDescription,
+    required this.jobDescription,
+    this.instruction,
     this.lockedByName,
     required this.ownerName,
     required this.totalActualHours,
@@ -278,7 +282,8 @@ class TaskEntity extends Equatable {
         startedAt,
         completedAt,
         taskCategory,
-        customDescription,
+        jobDescription,
+        instruction,
         lockedByName,
         ownerName,
         totalActualHours,

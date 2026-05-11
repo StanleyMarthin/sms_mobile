@@ -461,11 +461,11 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           _readOnlyField('Panel', t.panelName, Icons.dashboard_outlined),
           const Divider(color: AppColors.border, height: 16),
           _readOnlyField('Pekerjaan', t.jobName, Icons.build_outlined),
-          if (t.customDescription.isNotEmpty) ...[
+          if (t.jobDescription.isNotEmpty) ...[
             const Divider(color: AppColors.border, height: 16),
             _readOnlyField(
               'Keterangan',
-              t.customDescription,
+              t.jobDescription,
               Icons.description_outlined,
             ),
           ],

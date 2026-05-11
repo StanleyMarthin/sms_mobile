@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../data/dummy_data.dart';
 import '../security/app_secure_storage.dart';
 
 /// Manages the authenticated user's session state.
@@ -247,93 +246,4 @@ abstract class Perms {
   // ── Profile ────────────────────────────────────────────
   static const notificationsView = 'LIST_NOTIFICATIONS';
   static const profileView = 'PROFILE_VIEW';
-}
-
-/// Demo user accounts derived from [DummyEmployees].
-///
-/// Simulates the full login response from BE including JWT,
-/// jabatan (grade from DB), and dynamic permissions array.
-/// Login uses `employee_id` (short name) as the login ID.
-class DemoAccounts {
-  DemoAccounts._();
-
-  /// Permission sets per role (simulates BE role_permission join).
-  static const _rolePerms = <String, List<String>>{
-    'pm': [
-      Perms.taskView,
-      Perms.taskAssign,
-      Perms.taskCheckpoint,
-      Perms.jobPlanCreate,
-      Perms.jobPlanReview,
-      Perms.jobPlanUpdate,
-      Perms.unitsView,
-      Perms.countdownView,
-      Perms.countdownDetailView,
-      Perms.woApprove,
-      Perms.woApprovePm,
-      Perms.woView,
-      Perms.qcValidate,
-      Perms.monitoringView,
-      Perms.monitoringDetail,
-      Perms.notificationsView,
-      Perms.profileView,
-    ],
-    'adv': [
-      Perms.taskView,
-      Perms.taskCheckpoint,
-      Perms.jobPlanReview,
-      Perms.woApprove,
-      Perms.woApproveAdvisor,
-      Perms.woView,
-      Perms.qcValidate,
-      Perms.monitoringView,
-      Perms.monitoringDetail,
-      Perms.notificationsView,
-      Perms.profileView,
-    ],
-    'kd': [
-      Perms.taskView,
-      Perms.taskAssign,
-      Perms.taskCheckpoint,
-      Perms.jobPlanCreate,
-      Perms.jobPlanUpdate,
-      Perms.unitsView,
-      Perms.countdownView,
-      Perms.countdownDetailView,
-      Perms.woCreate,
-      Perms.woView,
-      Perms.qcSubmit,
-      Perms.warehouseApprove,
-      Perms.warehouseLogs,
-      Perms.notificationsView,
-      Perms.profileView,
-    ],
-    'op': [
-      Perms.taskView,
-      Perms.taskSubmit,
-      Perms.warehouseRequest,
-      Perms.warehouseLogs,
-      Perms.notificationsView,
-      Perms.profileView,
-    ],
-  };
-
-  /// All demo-login-capable users (built from DummyEmployees.all).
-  /// Simulates the full POST /auth/login response payload.
-  /// Login ID is `employee_id` (short name like ADAM, KANDI, YUDHA).
-  static final List<Map<String, dynamic>> users = DummyEmployees.all.map((e) {
-    final role = e['role'] as String;
-    return {
-      'token': 'demo-jwt-${e['id']}', // simulated JWT
-      'userId': e['id'] as String,
-      'employeeId': e['employee_id'] as String,
-      'fullName': e['full_name'] as String,
-      'password': e['password'] as String,
-      'role': role,
-      'divisionName': e['division'] as String,
-      'jabatan': (e['grade'] as String?) ?? role.toUpperCase(),
-      'divisionId': e['divisionId'] as int,
-      'permissions': _rolePerms[role] ?? <String>[],
-    };
-  }).toList();
 }

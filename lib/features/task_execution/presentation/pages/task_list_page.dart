@@ -607,7 +607,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
                   )
                   .toList()
                 ..sort(
-                  (a, b) => a.customDescription.compareTo(b.customDescription),
+                  (a, b) => a.jobDescription.compareTo(b.jobDescription),
                 );
           final drafts = _extractDrafts(state);
           final actionTaskId = state is TaskActionLoading
@@ -753,7 +753,8 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
       unitName: task.unitName,
       panelName: task.panelName,
       jobName: task.jobName,
-      description: task.customDescription,
+      description: task.jobDescription,
+      instruction: task.instruction,
       divisionName: task.divisionName,
       taskDate: task.taskDate,
       planStartTime: task.startTime,

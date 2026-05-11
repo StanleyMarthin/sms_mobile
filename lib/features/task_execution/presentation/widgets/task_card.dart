@@ -61,7 +61,7 @@ String _formatTaskClock(String? isoDate) {
 }
 
 String _taskDisplayDescription(TaskEntity task) {
-  final description = task.customDescription.trim();
+  final description = task.jobDescription.trim();
   if (description.isNotEmpty) return description;
   return task.jobName.trim().isNotEmpty ? task.jobName : '-';
 }
@@ -111,7 +111,8 @@ class TaskCard extends StatelessWidget {
       unitName: task.unitName,
       panelName: task.panelName,
       jobName: task.jobName,
-      description: task.customDescription,
+      description: task.jobDescription,
+      instruction: task.instruction,
       divisionName: task.divisionName,
       taskDate: task.taskDate,
       planStartTime: task.startTime,
@@ -283,16 +284,34 @@ class TaskCard extends StatelessWidget {
     );
   }
 
-  Widget _buildDescription() {
-    return Text(
-      _taskDisplayDescription(task),
-      style: const TextStyle(
-        fontSize: 13,
-        color: AppColors.textSecondary,
-        height: 1.4,
-      ),
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
+Widget _buildDescription() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          task.jobDescription,
+          style: const TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            height: 1.4,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        if (task.instruction != null && task.instruction!.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            task.instruction!,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.gold,
+              fontStyle: FontStyle.italic,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ],
     );
   }
 

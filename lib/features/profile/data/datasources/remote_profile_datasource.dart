@@ -4,7 +4,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../task_execution/data/datasources/task_draft_storage.dart';
-import 'local_profile_datasource.dart';
+import 'profile_datasource.dart';
 
 class RemoteProfileDataSource implements ProfileDataSource {
   const RemoteProfileDataSource({

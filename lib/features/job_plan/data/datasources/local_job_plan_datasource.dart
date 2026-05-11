@@ -682,7 +682,8 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
       'startedAt': null,
       'completedAt': null,
       'taskCategory': taskCategory,
-      'customDescription': plan['description'] as String? ?? '-',
+      'jobDescription': plan['description'] as String? ?? '-',
+      'instruction': plan['note'] as String? ?? '',
       'lockedByName': null,
     };
   }

@@ -57,6 +57,8 @@ class TaskDetail extends Equatable {
   final String targetFinishTime;
   final bool isRework;
   final int breakDuration;
+  final double targetHours;
+  final String note;
 
   const TaskDetail({
     required this.namaPanel,
@@ -66,6 +68,8 @@ class TaskDetail extends Equatable {
     required this.targetFinishTime,
     this.isRework = false,
     required this.breakDuration,
+    this.targetHours = 0,
+    this.note = '',
   });
 
   @override
@@ -77,6 +81,8 @@ class TaskDetail extends Equatable {
         targetFinishTime,
         isRework,
         breakDuration,
+        targetHours,
+        note,
       ];
 }
 

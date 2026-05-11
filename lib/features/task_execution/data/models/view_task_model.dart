@@ -8,6 +8,7 @@ Side Effects: Tidak ada; hanya parsing dan normalisasi data in-memory.
 library;
 
 import '../../domain/entities/view_task_entity.dart';
+import '../../../../core/utils/time_parser.dart';
 
 String _asString(dynamic value, {String fallback = ''}) {
   if (value == null) return fallback;
@@ -40,75 +41,6 @@ bool _asBool(dynamic value, {bool fallback = false}) {
     if (lower == 'false' || lower == '0') return false;
   }
   return fallback;
-}
-
-String? _normalizeClockValue(Object? value) {
-  if (value == null) return null;
-  if (value is num) return _secondsToClock(value.toDouble());
-
-  final raw = value.toString().trim();
-  if (raw.isEmpty || raw == '-' || raw.toLowerCase() == 'null') return null;
-
-  final numeric = double.tryParse(raw);
-  if (numeric != null) return _secondsToClock(numeric);
-
-  final directMatch = RegExp(r'(\d{1,2}):(\d{2})(?::\d{2})?').firstMatch(raw);
-  if (directMatch != null) {
-    final hour = directMatch.group(1)!.padLeft(2, '0');
-    final minute = directMatch.group(2)!;
-    return '$hour:$minute';
-  }
-
-  final normalizedIsoSource = raw.contains(' ') && !raw.contains('T')
-      ? raw.replaceFirst(' ', 'T')
-      : raw;
-  final parsedDateTime = DateTime.tryParse(normalizedIsoSource);
-  if (parsedDateTime == null) return null;
-
-  final local = parsedDateTime.isUtc
-      ? parsedDateTime.toLocal()
-      : parsedDateTime;
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$hour:$minute';
-}
-
-String _secondsToClock(double seconds) {
-  final totalMinutes = (seconds / 60).round();
-  final hours = ((totalMinutes ~/ 60) % 24).toString().padLeft(2, '0');
-  final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
-  return '$hours:$minutes';
-}
-
-String? _pickClockValue(Iterable<Object?> candidates, {String? fallback}) {
-  for (final candidate in candidates) {
-    final normalized = _normalizeClockValue(candidate);
-    if (normalized != null) return normalized;
-  }
-  return fallback;
-}
-
-String? _extractNoteRangeClock(Object? value, {required bool takeStart}) {
-  if (value == null) return null;
-  final raw = value.toString().trim();
-  if (raw.isEmpty) return null;
-
-  final match = RegExp(
-    r'(\d{1,2}:\d{2})(?::\d{2})?\s*-\s*(\d{1,2}:\d{2})(?::\d{2})?',
-  ).firstMatch(raw);
-  if (match == null) return null;
-
-  return _normalizeClockValue(takeStart ? match.group(1) : match.group(2));
-}
-
-String? _extractFirstClockFromText(Object? value) {
-  if (value == null) return null;
-  final raw = value.toString().trim();
-  if (raw.isEmpty) return null;
-
-  final match = RegExp(r'(\d{1,2}:\d{2})(?::\d{2})?').firstMatch(raw);
-  if (match == null) return null;
-  return _normalizeClockValue(match.group(1));
 }
 
 class TaskCheckpointReviewerModel {
@@ -166,41 +98,38 @@ class TaskCheckpointSessionModel {
     return TaskCheckpointSessionModel(
       sessionNumber: _asInt(json['sessionNumber'], fallback: 1),
       startWorkTime:
-          _pickClockValue(
+          TimeParser.pickClock(
             [
               json['startWorkTime'],
               json['start_time'],
               json['startTime'],
-              _extractNoteRangeClock(note, takeStart: true),
+              TimeParser.extractNoteRangeClock(note, takeStart: true),
             ],
-            fallback: _pickClockValue([
+            fallback: TimeParser.pickClock([
               json['checkpointTime'],
               json['checkpoint_time'],
               json['time'],
-              _extractFirstClockFromText(note),
+              TimeParser.extractFirstClockFromText(note),
             ], fallback: '--:--'),
-          ) ??
-          '--:--',
+          ),
       finishWorkTime:
-          _pickClockValue([
+          TimeParser.pickClock([
             json['finishWorkTime'],
             json['finish_time'],
             json['finishTime'],
-            _extractNoteRangeClock(note, takeStart: false),
+            TimeParser.extractNoteRangeClock(note, takeStart: false),
             json['checkpointTime'],
             json['checkpoint_time'],
             json['time'],
-          ], fallback: _extractFirstClockFromText(note) ?? '--:--') ??
-          '--:--',
+          ], fallback: TimeParser.extractFirstClockFromText(note) ?? '--:--'),
       progress: _asInt(json['progress']),
       checkpointTime:
-          _pickClockValue([
+          TimeParser.pickClock([
             json['checkpointTime'],
             json['checkpoint_time'],
             json['time'],
-            _extractFirstClockFromText(note),
-          ], fallback: '--:--') ??
-          '--:--',
+            TimeParser.extractFirstClockFromText(note),
+          ], fallback: '--:--'),
       jobStatus: json['jobStatus'] as String? ?? 'ON_PROGRESS',
       actorRole: json['actorRole'] as String? ?? 'kd',
       actorName: json['actorName'] as String? ?? 'SYSTEM',
@@ -360,6 +289,8 @@ class TaskDetailModel {
   final String targetFinishTime;
   final bool isRework;
   final int breakDuration;
+  final double targetHours;
+  final String note;
 
   const TaskDetailModel({
     required this.namaPanel,
@@ -369,35 +300,44 @@ class TaskDetailModel {
     required this.targetFinishTime,
     this.isRework = false,
     required this.breakDuration,
+    this.targetHours = 0,
+    this.note = '',
   });
 
-  factory TaskDetailModel.fromJson(Map<String, dynamic> json) {
+  factory TaskDetailModel.fromJson(Map<String, dynamic> json, {double? topLevelTargetHours, String? topLevelStart, String? topLevelFinish}) {
     return TaskDetailModel(
-      namaPanel: _asString(json['namaPanel'], fallback: '-'),
-      jobName: _asString(json['jobName'], fallback: '-'),
-      jobDescription: _asString(json['jobDescription']),
+      namaPanel: _asString(json['namaPanel'] ?? json['nama_panel'], fallback: '-'),
+      jobName: _asString(json['jobName'] ?? json['job_name'], fallback: '-'),
+      jobDescription: _asString(json['jobDescription'] ?? json['description']),
       startTime:
-          _pickClockValue([
+          TimeParser.pickClock([
             json['startTime'],
             json['start_time'],
+            topLevelStart,
             json['targetStartHours'],
             json['target_start_hours'],
             json['targetStartTime'],
             json['target_start_time'],
-          ], fallback: '-') ??
-          '-',
+          ]),
       targetFinishTime:
-          _pickClockValue([
+          TimeParser.pickClock([
             json['targetFinishTime'],
             json['target_finish_time'],
+            topLevelFinish,
             json['finishTime'],
             json['finish_time'],
             json['targetFinishHours'],
             json['target_finish_hours'],
-          ], fallback: '-') ??
-          '-',
+          ]),
       isRework: _asBool(json['is_rework']) || _asBool(json['isRework']),
-      breakDuration: _asInt(json['breakDuration']),
+      breakDuration: _asInt(json['breakDuration'] ?? json['break_duration']),
+      targetHours: () {
+        final val = json['targetHours'] ?? json['target_hours'] ?? json['dailyTargetHours'] ?? topLevelTargetHours;
+        if (val == null) return 0.0;
+        if (val is num) return val.toDouble();
+        return double.tryParse(val.toString()) ?? 0.0;
+      }(),
+      note: _asString(json['note'] ?? json['catatan'] ?? json['pok']),
     );
   }
 
@@ -409,6 +349,8 @@ class TaskDetailModel {
     'targetFinishTime': targetFinishTime,
     'is_rework': isRework ? 1 : 0,
     'breakDuration': breakDuration,
+    'targetHours': targetHours,
+    'note': note,
   };
 
   TaskDetail toEntity() => TaskDetail(
@@ -419,6 +361,8 @@ class TaskDetailModel {
     targetFinishTime: targetFinishTime,
     isRework: isRework,
     breakDuration: breakDuration,
+    targetHours: targetHours,
+    note: note,
   );
 }
 
@@ -483,6 +427,13 @@ class ViewTaskModel {
         .map((e) => e.toString())
         .toList();
 
+    final topLevelTargetHours = () {
+      final val = json['dailyTargetHours'] ?? json['targetHours'];
+      if (val == null) return null;
+      if (val is num) return val.toDouble();
+      return double.tryParse(val.toString());
+    }();
+
     return ViewTaskModel(
       planDailyId: _asString(json['planDailyId']),
       division: TaskDivisionModel.fromJson(
@@ -492,7 +443,12 @@ class ViewTaskModel {
       employee: TaskEmployeeModel.fromJson(
         json['employee'] as Map<String, dynamic>,
       ),
-      task: TaskDetailModel.fromJson(taskJson),
+      task: TaskDetailModel.fromJson(
+        taskJson,
+        topLevelTargetHours: topLevelTargetHours,
+        topLevelStart: json['startTime']?.toString(),
+        topLevelFinish: json['targetFinishTime']?.toString(),
+      ),
       status: _asString(json['status'], fallback: 'PLAN'),
       checkpointHistory: checkpointItems,
       finalValidations: finalValidationItems.isNotEmpty

@@ -1,6 +1,5 @@
 import 'package:get_it/get_it.dart';
 
-import '../data/local_mock_api_store.dart';
 import '../network/api_client.dart';
 import '../session/session_manager.dart';
 import '../services/upload_service.dart';
@@ -30,7 +29,6 @@ import '../../features/task_execution/presentation/bloc/task_view/task_view_bloc
 
 // ── QC ──
 import '../../features/qc/data/datasources/remote_qc_datasource.dart';
-import '../../features/qc/data/datasources/local_qc_datasource.dart';
 import '../../features/qc/data/repositories/qc_repository_impl.dart';
 import '../../features/qc/domain/repositories/qc_repository.dart';
 
@@ -42,26 +40,22 @@ import '../../features/warehouse_request/domain/repositories/warehouse_repositor
 
 // ── Countdown ──
 import '../../features/countdown/data/datasources/remote_countdown_datasource.dart';
-import '../../features/countdown/data/datasources/local_countdown_datasource.dart';
 import '../../features/countdown/data/repositories/countdown_repository_impl.dart';
 import '../../features/countdown/domain/repositories/countdown_repository.dart';
 
 // ── Monitoring ──
 import '../../features/monitoring/data/datasources/remote_monitoring_datasource.dart';
-import '../../features/monitoring/data/datasources/local_monitoring_datasource.dart';
 import '../../features/monitoring/data/repositories/monitoring_repository_impl.dart';
 import '../../features/monitoring/domain/repositories/monitoring_repository.dart';
 
 // ── Notifications ──
 import '../../features/notifications/data/datasources/remote_notifications_datasource.dart';
-import '../../features/notifications/data/datasources/local_notifications_datasource.dart';
 import '../../features/notifications/data/repositories/notifications_repository_impl.dart';
 import '../../features/notifications/domain/repositories/notifications_repository.dart';
 import '../services/notification_inbox_service.dart';
 
 // ── Profile ──
 import '../../features/profile/data/datasources/remote_profile_datasource.dart';
-import '../../features/profile/data/datasources/local_profile_datasource.dart';
 import '../../features/profile/data/repositories/profile_repository_impl.dart';
 import '../../features/profile/domain/repositories/profile_repository.dart';
 
@@ -101,11 +95,6 @@ void initDependencies() {
   /// Service for Cloudflare R2 binary photo uploads
   sl.registerLazySingleton<UploadService>(
     () => UploadService(apiClient: sl<ApiClient>()),
-  );
-
-  /// Local mock store for legacy countdown logic
-  sl.registerLazySingleton<LocalMockApiStore>(
-    () => LocalMockApiStore(),
   );
 
   // ─── Auth (remote / BE) ─────────────────────────────────

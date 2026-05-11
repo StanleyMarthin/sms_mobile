@@ -36,6 +36,10 @@ String _formatMinutesLabel(int minutes) {
 }
 
 String _estimateLabel(TaskDetail detail) {
+  if (detail.targetHours > 0) {
+    return _formatMinutesLabel((detail.targetHours * 60).round());
+  }
+
   final startMinutes = _clockToMinutes(detail.startTime);
   final finishMinutes = _clockToMinutes(detail.targetFinishTime);
   if (startMinutes == null ||
@@ -169,11 +173,12 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
       panelName: task.task.namaPanel,
       jobName: task.task.jobName,
       description: task.task.jobDescription,
+      instruction: task.task.note,
       divisionName: task.division.divisionName,
       taskDate: widget.taskDate,
       planStartTime: task.task.startTime,
       planFinishTime: task.task.targetFinishTime,
-      planDuration: formatMinutes(planM),
+      planDuration: _estimateLabel(task.task),
       actualStartTime: task.checkpointHistory.isNotEmpty
           ? _firstActualStartLabel(task.checkpointHistory)
           : '--:--',
@@ -269,6 +274,19 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                               height: 1.35,
                             ),
                           ),
+                          if (task.task.note.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              task.task.note,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.gold,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 5),
                           Text(
                             _summaryLine(task, lastMonitorTime),
@@ -333,7 +351,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
 
   String _summaryLine(ViewTaskEntity task, String? lastMonitorTime) {
     final sections = <String>[
-      'Estimasi ${_estimateLabel(task.task)}',
+      'Target ${_estimateLabel(task.task)}',
       '${task.task.startTime} - ${task.task.targetFinishTime}',
       if (widget.showDivision) task.division.divisionName,
       lastMonitorTime == null ? 'Belum monitoring' : 'Cek $lastMonitorTime',

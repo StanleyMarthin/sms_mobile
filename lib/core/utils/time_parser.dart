@@ -86,6 +86,80 @@ class TimeParser {
     
     return '$iso$sign$hours:$minutes';
   }
+
+  /// Normalizes any clock-related candidate (seconds, "HH:mm", ISO string) to "HH:mm".
+  static String? normalizeClock(Object? value) {
+    if (value == null) return null;
+    if (value is num) {
+      final totalMinutes = (value.toDouble() / 60).round();
+      final hours = ((totalMinutes ~/ 60) % 24).toString().padLeft(2, '0');
+      final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
+      return '$hours:$minutes';
+    }
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty || raw == '-' || raw.toLowerCase() == 'null') return null;
+
+    final numeric = double.tryParse(raw);
+    if (numeric != null) {
+      final totalMinutes = (numeric / 60).round();
+      final hours = ((totalMinutes ~/ 60) % 24).toString().padLeft(2, '0');
+      final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
+      return '$hours:$minutes';
+    }
+
+    final directMatch = RegExp(r'(\d{1,2}):(\d{2})(?::\d{2})?').firstMatch(raw);
+    if (directMatch != null) {
+      final hour = directMatch.group(1)!.padLeft(2, '0');
+      final minute = directMatch.group(2)!;
+      return '$hour:$minute';
+    }
+
+    final normalizedIsoSource = raw.contains(' ') && !raw.contains('T')
+        ? raw.replaceFirst(' ', 'T')
+        : raw;
+    final parsedDateTime = DateTime.tryParse(normalizedIsoSource);
+    if (parsedDateTime == null) return null;
+
+    final local = parsedDateTime.isUtc ? parsedDateTime.toLocal() : parsedDateTime;
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  /// Picks the first non-null normalized clock value from candidates.
+  static String pickClock(Iterable<Object?> candidates, {String fallback = '-'}) {
+    for (final candidate in candidates) {
+      final normalized = normalizeClock(candidate);
+      if (normalized != null) return normalized;
+    }
+    return fallback;
+  }
+
+  /// Extracts a clock range from text (e.g. "08:00 - 10:00") and returns start or finish.
+  static String? extractNoteRangeClock(Object? value, {required bool takeStart}) {
+    if (value == null) return null;
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+
+    final match = RegExp(
+      r'(\d{1,2}:\d{2})(?::\d{2})?\s*-\s*(\d{1,2}:\d{2})(?::\d{2})?',
+    ).firstMatch(raw);
+    if (match == null) return null;
+
+    return normalizeClock(takeStart ? match.group(1) : match.group(2));
+  }
+
+  /// Extracts the first clock pattern found in text.
+  static String? extractFirstClockFromText(Object? value) {
+    if (value == null) return null;
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return null;
+
+    final match = RegExp(r'(\d{1,2}:\d{2})(?::\d{2})?').firstMatch(raw);
+    if (match == null) return null;
+    return normalizeClock(match.group(1));
+  }
 }
 
 /// TextInputFormatter for duration in HHH:MM format (e.g. "008:30").

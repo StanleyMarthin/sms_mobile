@@ -358,7 +358,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
           'countdownId': coreId,
           'employeeName': taskRow['assignedTo'] as String? ?? '-',
           'job': taskRow['divisionName'] as String? ?? '-',
-          'detailJob': taskRow['customDescription'] as String? ?? '-',
+          'detailJob': taskRow['jobDescription'] ?? taskRow['customDescription'] as String? ?? '-',
           'workDate': taskRow['taskDate'] as String? ?? '',
           'startTime': _clockFromIso(executionLog.startTime),
           'finishTime': _clockFromIso(executionLog.finishTime),

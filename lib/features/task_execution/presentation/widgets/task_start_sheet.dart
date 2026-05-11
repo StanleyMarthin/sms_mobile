@@ -184,7 +184,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   Widget _taskInfoCard() {
     final t = widget.task;
     final hasExtraDetail =
-        t.customDescription.isNotEmpty && t.customDescription != t.jobName;
+        t.jobDescription.isNotEmpty && t.jobDescription != t.jobName;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -204,7 +204,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
             const Divider(color: AppColors.border, height: 16),
             _readOnlyField(
               'Detail Pekerjaan',
-              t.customDescription,
+              t.jobDescription,
               Icons.description_outlined,
               maxLines: 4,
             ),

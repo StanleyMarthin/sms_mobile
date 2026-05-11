@@ -1851,7 +1851,7 @@ class DummyTaskExecutionData {
       'startedAt': _DummySeedDate.isoDateTime(hour: 8),
       'completedAt': null,
       'taskCategory': 'MAIN',
-      'customDescription':
+      'jobDescription':
           'PENJAHITAN COVER / KAIN dan pemasangan doortrim depan kiri.',
       'lockedByName': null,
     },
@@ -1876,7 +1876,7 @@ class DummyTaskExecutionData {
       'startedAt': null,
       'completedAt': null,
       'taskCategory': 'MAIN',
-      'customDescription': 'PEMASANGAN COVER / KAIN plafon unit W124.',
+      'jobDescription': 'PEMASANGAN COVER / KAIN plafon unit W124.',
       'lockedByName': null,
     },
     {
@@ -1899,7 +1899,7 @@ class DummyTaskExecutionData {
       'startedAt': _DummySeedDate.isoDateTime(dayOffset: -1, hour: 8),
       'completedAt': _DummySeedDate.isoDateTime(dayOffset: -1, hour: 10),
       'taskCategory': 'MAIN',
-      'customDescription': 'REWORK tarikan cover dudukan jok depan kanan.',
+      'jobDescription': 'REWORK tarikan cover dudukan jok depan kanan.',
       'lockedByName': null,
     },
     {
@@ -1922,7 +1922,7 @@ class DummyTaskExecutionData {
       'startedAt': null,
       'completedAt': null,
       'taskCategory': 'ADDITIONAL',
-      'customDescription': 'CLEANING PART dan perapihan kotak P3K tambahan.',
+      'jobDescription': 'CLEANING PART dan perapihan kotak P3K tambahan.',
       'lockedByName': null,
     },
   ];

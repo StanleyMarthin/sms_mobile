@@ -147,7 +147,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       createdAt: TimeParser.formatIsoWithOffset(DateTime.now()),
       startedAt: startTime,
       taskCategory: '',
-      customDescription: '',
+      jobDescription: '',
+      instruction: '',
       ownerName: sessionManager.fullName ?? '',
       totalActualHours: 0,
       hasMonitoringRecord: false,
@@ -194,7 +195,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       createdAt: TimeParser.formatIsoWithOffset(DateTime.now()),
       completedAt: TimeParser.formatIsoWithOffset(DateTime.now()),
       taskCategory: '',
-      customDescription: '',
+      jobDescription: '',
+      instruction: '',
       ownerName: sessionManager.fullName ?? '',
       totalActualHours: (data['duration'] as num?)?.toDouble() ?? 0,
       hasMonitoringRecord: true,
@@ -255,7 +257,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       startedAt: log.startTime,
       completedAt: log.finishTime,
       taskCategory: '',
-      customDescription: '',
+      jobDescription: '',
+      instruction: '',
       ownerName: sessionManager.fullName ?? '',
       totalActualHours: (data['duration'] as num?)?.toDouble() ?? 0,
       hasMonitoringRecord: true,
@@ -353,8 +356,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
           dailyTarget,
     );
     final remaining = _parseTargetHours(task['remaining_hours'] ?? totalTarget);
-    final taskDescription = _asString(task['jobDescription']);
-    final taskNote = _asString(task['note']);
+    final taskDescription = _asString(task['jobDescription'] ?? task['job_description']);
+    final taskNote = _asString(task['note'] ?? task['catatan'] ?? task['pok']);
 
     return TaskModel(
       plandailyId: _asString(json['planDailyId']),
@@ -375,8 +378,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
         json['taskDate'],
         fallback: DateTime.now().toIso8601String().substring(0, 10),
       ),
-      startTime: _asString(task['startTime'], fallback: '08:00'),
-      targetFinishTime: _asString(task['targetFinishTime'], fallback: '16:00'),
+      startTime: TimeParser.pickClock([task['startTime'], task['start_time'], json['startTime']]),
+      targetFinishTime: TimeParser.pickClock([task['targetFinishTime'], task['target_finish_time'], json['targetFinishTime']]),
       createdAt: _asString(
         json['createdAt'],
         fallback: DateTime.now().toUtc().toIso8601String(),
@@ -384,10 +387,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       startedAt: json['startedAt']?.toString(),
       completedAt: json['completedAt']?.toString(),
       taskCategory: _asString(json['taskCategory']),
-      customDescription: [
-        if (taskDescription.isNotEmpty) taskDescription,
-        if (taskNote.isNotEmpty) 'Catatan: $taskNote',
-      ].join('\n\n'),
+      jobDescription: taskDescription,
+      instruction: taskNote,
       ownerName: _asString(
         (json['employee'] as Map<String, dynamic>?)?['employeeName'],
       ),

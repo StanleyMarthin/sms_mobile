@@ -28,6 +28,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     required this.status,
     required this.category,
     this.operatorName,
+    this.instruction,
     this.isOvertime = false,
     this.isRework = false,
     this.isPriority = false,
@@ -52,6 +53,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
   final String status;
   final String category;
   final String? operatorName;
+  final String? instruction;
   final bool isOvertime;
   final bool isRework;
   final bool isPriority;
@@ -77,6 +79,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     required String status,
     required String category,
     String? operatorName,
+    String? instruction,
     bool isOvertime = false,
     bool isRework = false,
     bool isPriority = false,
@@ -108,6 +111,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
         status: status,
         category: category,
         operatorName: operatorName,
+        instruction: instruction,
         isOvertime: isOvertime,
         isRework: isRework,
         isPriority: isPriority,
@@ -234,6 +238,8 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                   const Divider(color: AppColors.border, height: 32),
                   if (description.isNotEmpty)
                     _detailField('Deskripsi / Jobdesc', description),
+                  if (instruction != null && instruction!.isNotEmpty)
+                    _detailField('Instruksi / POK', instruction!),
 
                   if (checkpoints.isNotEmpty) ...[
                     const SizedBox(height: 24),

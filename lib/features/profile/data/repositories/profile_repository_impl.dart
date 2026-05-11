@@ -2,7 +2,7 @@ library;
 
 import '../../domain/entities/profile_data.dart';
 import '../../domain/repositories/profile_repository.dart';
-import '../datasources/local_profile_datasource.dart';
+import '../datasources/profile_datasource.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
   const ProfileRepositoryImpl({required this.dataSource});
