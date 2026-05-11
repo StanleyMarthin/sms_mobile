@@ -130,6 +130,7 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     String? panelName,
     String? jobdesc,
     String? stockCardId,
+    String? itemMasterId,
     required bool installToUnit,
     DateTime? targetSearchDate,
     DateTime? deadlineDate,
@@ -158,6 +159,7 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
       if (panelName != null) 'panelName': panelName,
       if (jobdesc != null) 'jobdesc': jobdesc,
       if (stockCardId != null) 'stockCardId': stockCardId,
+      if (itemMasterId != null) 'itemMasterId': itemMasterId,
       if (targetSearchDate != null)
         'targetSearchDate': targetSearchDate.toIso8601String().substring(0, 10),
       if (deadlineDate != null)
@@ -318,6 +320,23 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
         if (storageLocationId != null) 'storageLocationId': storageLocationId,
         if (locationDetail != null && locationDetail.isNotEmpty)
           'locationDetail': locationDetail,
+      },
+    );
+  }
+
+  @override
+  Future<void> matchItem({
+    required String logId,
+    required String masterId,
+    required String masterName,
+  }) async {
+    await apiClient.put(
+      ApiEndpoints.warehouseMatchItem,
+      data: {
+        'userId': _userId,
+        'logId': logId,
+        'masterId': masterId,
+        'masterName': masterName,
       },
     );
   }

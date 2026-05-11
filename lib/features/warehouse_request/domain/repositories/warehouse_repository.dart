@@ -41,6 +41,7 @@ abstract class WarehouseRepository {
     String? panelName,
     String? jobdesc,
     String? stockCardId,
+    String? itemMasterId,
     bool installToUnit = false,
     DateTime? targetSearchDate,
     DateTime? deadlineDate,
@@ -94,6 +95,12 @@ abstract class WarehouseRepository {
     String? notes,
     int? storageLocationId,
     String? locationDetail,
+  });
+
+  Future<void> matchItem({
+    required String logId,
+    required String masterId,
+    required String masterName,
   });
 
   // ── Photo ──────────────────────────────────────────────────

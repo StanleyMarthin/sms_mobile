@@ -1,9 +1,11 @@
 library;
 
-import '../../../qc/data/datasources/local_qc_datasource.dart';
+import '../../../qc/data/datasources/qc_datasource.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
-import '../datasources/local_countdown_datasource.dart';
+import 'package:fpdart/fpdart.dart';
+import '../../../../core/errors/failures.dart';
+import '../datasources/countdown_datasource.dart';
 
 class CountdownRepositoryImpl implements CountdownRepository {
   const CountdownRepositoryImpl({
@@ -33,8 +35,6 @@ class CountdownRepositoryImpl implements CountdownRepository {
     final visibleUnits = filtered.isEmpty ? units : filtered;
     return visibleUnits.map(_mapUnit).toList();
   }
-
-
 
   @override
   Future<List<CountdownDivision>> getDivisions(String carId) async {
@@ -139,7 +139,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
       startDate: (item['startDate'] as String?) ?? DateTime.now().toIso8601String().split('T').first,
       deadlineDate: (item['deadlineDate'] as String?) ?? '-',
       qcLastStatus: qcLastStatus,
-      qcValidationStatus: qcLevel, // gunakan qcLevel sebagai validationStatus
+      qcValidationStatus: qcLevel,
       qcResultStatus: qcLastStatusFromItem,
       qcEstimatedReworkHours: null,
       qcReworkDeadlineDate: qcItem?['reworkDate'] as String?,
@@ -260,7 +260,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
     return dataSource.moApproveRevision(
       requestId: requestId,
       approved: approved,
-      notes: notes,
+      note: notes,
     );
   }
 }

@@ -78,6 +78,8 @@ abstract class ApiEndpoints {
       '$_warehouseBase/warehouse/storage-locations';
   static String get warehouseItemsSearch =>
       '$_warehouseBase/warehouse/items/search';
+  static String get warehouseMatchItem =>
+      '$_warehouseBase/warehouse/match-item';
   static String get warehouseUploadTicket =>
       '$_warehouseBase/warehouse/upload-ticket';
 

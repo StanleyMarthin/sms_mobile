@@ -1546,13 +1546,7 @@ class _TaskViewContent extends StatelessWidget {
     if (editingSession != null) {
       return editingSession.progress.clamp(0, 100);
     }
-    if (task.checkpointHistory.isNotEmpty) {
-      return task.checkpointHistory.last.progress.clamp(0, 100);
-    }
-    if (task.isDone || task.hasFinalValidation) {
-      return 100;
-    }
-    return 0;
+    return task.progressPercent;
   }
 
   String _defaultCheckpointStartTime(
@@ -2001,18 +1995,18 @@ class _TaskJobdescPage extends StatelessWidget {
               ...tasks.map(
                 (task) => ViewTaskCard(
                   task: task,
-                  taskDate: state.filter.date.toIso8601String().substring(0, 10),
+                  taskDate: state.filter.date.toIso8601String().substring(
+                    0,
+                    10,
+                  ),
                   isHighlighted: task.planDailyId == focusTaskId,
                   showEmployee: state.role != 'op',
                   showDivision: false,
                   onCheckpointTap:
                       hasPermission(state.role, Permission.taskCheckpoint) &&
                           task.checkpointHistory.isNotEmpty
-                      ? (TaskCheckpointSession session) => viewContent._showCheckpointReviewDialog(
-                          context,
-                          task,
-                          session,
-                        )
+                      ? (TaskCheckpointSession session) => viewContent
+                            ._showCheckpointReviewDialog(context, task, session)
                       : null,
                   actionArea: viewContent._buildTaskActionArea(
                     context,

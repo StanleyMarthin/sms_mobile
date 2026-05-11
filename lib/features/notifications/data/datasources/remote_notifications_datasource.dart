@@ -3,7 +3,7 @@ library;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
-import 'local_notifications_datasource.dart';
+import 'notifications_datasource.dart';
 
 class RemoteNotificationsDataSource implements NotificationsDataSource {
   const RemoteNotificationsDataSource({

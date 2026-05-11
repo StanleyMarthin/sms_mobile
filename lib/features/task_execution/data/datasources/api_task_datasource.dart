@@ -297,12 +297,6 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     return uploadUrl;
   }
 
-  String _asString(dynamic value, {String fallback = ''}) {
-    if (value == null) return fallback;
-    final text = value.toString();
-    return text.isEmpty ? fallback : text;
-  }
-
   String _normalizeTaskStatus(String raw) {
     final value = raw.trim().toUpperCase();
     switch (value) {
@@ -331,76 +325,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     }
   }
 
-  double _parseTargetHours(dynamic value) {
-    if (value == null) return 0.0;
-    if (value is num) return value.toDouble();
-    final str = value.toString();
-    return TimeParser.parseHHmmToDecimal(str) ?? 0.0;
-  }
-
   /// Maps a ViewTask-style JSON from GET /tasks response to TaskModel.
   TaskModel _viewTaskJsonToTaskModel(Map<String, dynamic> json) {
-    final division = json['division'] as Map<String, dynamic>? ?? {};
-    final unit = json['unit'] as Map<String, dynamic>? ?? {};
-    final task = json['task'] as Map<String, dynamic>? ?? {};
-    final actualDurationHours = _parseTargetHours(json['actualDurationHours']);
-    final actualProgressRaw = json['actualProgress'];
-    final actualProgressPct = actualProgressRaw is int
-        ? actualProgressRaw.toDouble()
-        : (actualProgressRaw is double ? actualProgressRaw : null);
-
-    final dailyTarget = _parseTargetHours(json['dailyTargetHours']);
-    final totalTarget = _parseTargetHours(
-      task['target_hours_revised'] ??
-          task['target_hours_initial'] ??
-          dailyTarget,
-    );
-    final remaining = _parseTargetHours(task['remaining_hours'] ?? totalTarget);
-    final taskDescription = _asString(task['jobDescription'] ?? task['job_description']);
-    final taskNote = _asString(task['note'] ?? task['catatan'] ?? task['pok']);
-
-    return TaskModel(
-      plandailyId: _asString(json['planDailyId']),
-      coreId: _asString(json['coreId']),
-      carId: _asString(unit['unitId']),
-      unitName: _asString(unit['unitName'], fallback: '-'),
-      panelName: _asString(task['namaPanel'], fallback: '-'),
-      jobName: _asString(task['jobName'], fallback: '-'),
-      divisionName: _asString(division['divisionName'], fallback: '-'),
-      status: _normalizeTaskStatus(
-        _asString(json['status'], fallback: 'PENDING'),
-      ),
-      isPanelLocked: false,
-      dailyTargetHours: dailyTarget,
-      targetHoursRevised: totalTarget,
-      remainingHours: remaining,
-      taskDate: _asString(
-        json['taskDate'],
-        fallback: DateTime.now().toIso8601String().substring(0, 10),
-      ),
-      startTime: TimeParser.pickClock([task['startTime'], task['start_time'], json['startTime']]),
-      targetFinishTime: TimeParser.pickClock([task['targetFinishTime'], task['target_finish_time'], json['targetFinishTime']]),
-      createdAt: _asString(
-        json['createdAt'],
-        fallback: DateTime.now().toUtc().toIso8601String(),
-      ),
-      startedAt: json['startedAt']?.toString(),
-      completedAt: json['completedAt']?.toString(),
-      taskCategory: _asString(json['taskCategory']),
-      jobDescription: taskDescription,
-      instruction: taskNote,
-      ownerName: _asString(
-        (json['employee'] as Map<String, dynamic>?)?['employeeName'],
-      ),
-      // Use actualProgress (submitted %) if available; otherwise fall back to
-      // actualDurationHours so the progress bar reflects what the mekanik submitted.
-      totalActualHours: actualProgressPct != null && dailyTarget > 0
-          ? (actualProgressPct / 100.0) * dailyTarget
-          : actualDurationHours,
-      hasMonitoringRecord: json['hasMonitoringRecord'] as bool? ?? false,
-      isRework: task['is_rework'] == 1 || task['is_rework'] == true,
-      isOvertime: task['is_overtime'] == 1 || task['is_overtime'] == true,
-      isPriority: task['is_priority'] == 1 || task['is_priority'] == true,
-    );
+    return TaskModel.fromTaskApiJson(json);
   }
 }

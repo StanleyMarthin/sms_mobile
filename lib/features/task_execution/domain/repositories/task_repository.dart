@@ -9,7 +9,7 @@ Side Effects: Tidak ada langsung; implementasi turunannya melakukan HTTP call da
 ///
 /// This is the central contract between the domain and data layers.
 /// It defines all operations the domain layer expects from the data layer
-/// using functional error handling (Either type from fpdart).
+/// using functional error handling (`Either` type from fpdart).
 ///
 /// Implementation details are hidden from the domain layer, allowing for:
 /// - Easy testing with mock implementations
@@ -24,7 +24,7 @@ import '../entities/task_execution_log.dart';
 
 /// Abstract interface for task-related data operations.
 ///
-/// All methods return Either<Failure, Success> following functional programming
+/// All methods return `Either<Failure, Success>` following functional programming
 /// paradigm. This forces callers to handle both success and failure cases explicitly.
 /// No null safety workarounds - either you have data or you have a Failure.
 ///
@@ -50,16 +50,16 @@ abstract class TaskRepository {
   /// - Makes an API call to retrieve today's tasks
   /// - Parses the response into a list of TaskEntity objects
   /// - Handles network errors, timeouts, and parsing failures
-  /// - Returns Either<Failure, List<TaskEntity>>
+  /// - Returns `Either<Failure, List<TaskEntity>>`
   ///
   /// Returns:
-  ///   - Right(List<TaskEntity>): Successfully retrieved today's tasks
-  ///   - Left(NetworkFailure): Network connection failed
-  ///   - Left(TimeoutFailure): API response took too long
-  ///   - Left(ServerFailure): Server returned 5xx error
-  ///   - Left(ClientFailure): Server returned 4xx error
-  ///   - Left(DataParsingFailure): JSON parsing failed
-  ///   - Left(UnknownFailure): Unexpected error
+  ///   - `Right(List<TaskEntity>)`: Successfully retrieved today's tasks
+  ///   - `Left(NetworkFailure)`: Network connection failed
+  ///   - `Left(TimeoutFailure)`: API response took too long
+  ///   - `Left(ServerFailure)`: Server returned 5xx error
+  ///   - `Left(ClientFailure)`: Server returned 4xx error
+  ///   - `Left(DataParsingFailure)`: JSON parsing failed
+  ///   - `Left(UnknownFailure)`: Unexpected error
   ///
   /// Example:
   /// ```dart
@@ -84,19 +84,19 @@ abstract class TaskRepository {
   /// - Makes an API call to retrieve task details
   /// - Includes the current isPanelLocked status from ERP
   /// - Handles network errors, timeouts, and parsing failures
-  /// - Returns Either<Failure, TaskEntity>
+  /// - Returns `Either<Failure, TaskEntity>`
   ///
   /// Parameters:
   ///   - plandailyId: The daily assignment ID to retrieve
   ///
   /// Returns:
-  ///   - Right(TaskEntity): Successfully retrieved task with latest status
-  ///   - Left(NetworkFailure): Network connection failed
-  ///   - Left(TimeoutFailure): API response took too long
-  ///   - Left(ServerFailure): Server returned 5xx error
-  ///   - Left(ClientFailure): Server returned 4xx error
-  ///   - Left(DataParsingFailure): JSON parsing failed
-  ///   - Left(UnknownFailure): Unexpected error
+  ///   - `Right(TaskEntity)`: Successfully retrieved task with latest status
+  ///   - `Left(NetworkFailure)`: Network connection failed
+  ///   - `Left(TimeoutFailure)`: API response took too long
+  ///   - `Left(ServerFailure)`: Server returned 5xx error
+  ///   - `Left(ClientFailure)`: Server returned 4xx error
+  ///   - `Left(DataParsingFailure)`: JSON parsing failed
+  ///   - `Left(UnknownFailure)`: Unexpected error
   ///
   /// Example:
   /// ```dart
@@ -130,14 +130,14 @@ abstract class TaskRepository {
   ///   - plandailyId: The daily assignment ID to start
   ///
   /// Returns:
-  ///   - Right(TaskEntity): Successfully started, panel now locked
-  ///   - Left(LockingFailure): Panel is locked - start not permitted
-  ///   - Left(NetworkFailure): Network connection failed
-  ///   - Left(TimeoutFailure): API response took too long
-  ///   - Left(ServerFailure): Server error occurred
-  ///   - Left(ClientFailure): Invalid task ID or missing data
-  ///   - Left(DataParsingFailure): Response parsing failed
-  ///   - Left(UnknownFailure): Unexpected error
+  ///   - `Right(TaskEntity)`: Successfully started, panel now locked
+  ///   - `Left(LockingFailure)`: Panel is locked - start not permitted
+  ///   - `Left(NetworkFailure)`: Network connection failed
+  ///   - `Left(TimeoutFailure)`: API response took too long
+  ///   - `Left(ServerFailure)`: Server error occurred
+  ///   - `Left(ClientFailure)`: Invalid task ID or missing data
+  ///   - `Left(DataParsingFailure)`: Response parsing failed
+  ///   - `Left(UnknownFailure)`: Unexpected error
   ///
   /// Example:
   /// ```dart
@@ -168,8 +168,8 @@ abstract class TaskRepository {
   ///   - plandailyId: The daily assignment ID to finish
   ///
   /// Returns:
-  ///   - Right(TaskEntity): Successfully finished, panel now unlocked
-  ///   - Left(Failure): Various failure scenarios
+  ///   - `Right(TaskEntity)`: Successfully finished, panel now unlocked
+  ///   - `Left(Failure)`: Various failure scenarios
   ///
   /// Expected backend behavior:
   /// - Find latest trx_jobdesc_actual without finish_time
@@ -193,9 +193,9 @@ abstract class TaskRepository {
   ///   - executionLog: Full execution data including times, progress, photos
   ///
   /// Returns:
-  ///   - Right(TaskEntity): Successfully saved, returns updated task
-  ///   - Left(LockingFailure): Panel is locked by another mechanic
-  ///   - Left(Failure): Various error scenarios
+  ///   - `Right(TaskEntity)`: Successfully saved, returns updated task
+  ///   - `Left(LockingFailure)`: Panel is locked by another mechanic
+  ///   - `Left(Failure)`: Various error scenarios
   Future<Either<Failure, TaskEntity>> submitTaskExecution(
     TaskExecutionLog executionLog,
   );

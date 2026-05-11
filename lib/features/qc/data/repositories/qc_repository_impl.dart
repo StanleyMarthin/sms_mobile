@@ -2,8 +2,8 @@ library;
 
 import '../../domain/entities/qc_item.dart';
 import '../../domain/repositories/qc_repository.dart';
+import '../datasources/qc_datasource.dart';
 import '../datasources/remote_qc_datasource.dart';
-import '../datasources/local_qc_datasource.dart';
 
 class QcRepositoryImpl implements QcRepository {
   const QcRepositoryImpl({required this.dataSource});
@@ -12,15 +12,14 @@ class QcRepositoryImpl implements QcRepository {
 
   @override
   Future<List<QcDivision>> getDivisions() async {
-    if (dataSource is RemoteQcDataSource) {
-      final rows = await (dataSource as RemoteQcDataSource).getQcDivisions();
-      return rows.map((d) => QcDivision(
-        divisionId: d['divisionId']?.toString() ?? '',
-        divisionName: d['divisionName']?.toString() ?? '-',
-        totalItem: (d['totalItem'] as num?)?.toInt() ?? 0,
-      )).toList();
-    }
-    return [];
+    final rows = await dataSource.getQcDivisions();
+    return rows
+        .map((d) => QcDivision(
+              divisionId: d['divisionId']?.toString() ?? '',
+              divisionName: d['divisionName']?.toString() ?? '-',
+              totalItem: (d['totalItem'] as num?)?.toInt() ?? 0,
+            ))
+        .toList();
   }
 
   @override
@@ -31,42 +30,41 @@ class QcRepositoryImpl implements QcRepository {
     int page = 1,
     int pageSize = 20,
   }) async {
-    if (dataSource is RemoteQcDataSource) {
-      final responseMap = await (dataSource as RemoteQcDataSource).getQcItemsByDivisionId(
-        divisionId: divisionId,
-        unitId: unitId,
-        search: search,
-        page: page,
-        pageSize: pageSize,
-      );
-      
-      final dynamicGroups = responseMap['groups'] as List<dynamic>? ?? [];
-      final hasMore = responseMap['hasMore'] as bool? ?? false;
-      final total = (responseMap['total'] as num?)?.toInt() ?? 0;
+    final responseMap = await dataSource.getQcItemsByDivisionId(
+      divisionId: divisionId,
+      unitId: unitId,
+      search: search,
+      page: page,
+      pageSize: pageSize,
+    );
 
-      final groups = dynamicGroups.map((gRaw) {
-        final g = gRaw as Map<String, dynamic>;
-        final jobdescs = (g['jobdescs'] as List?)
-                ?.map((item) => _mapItem(item as Map<String, dynamic>))
-                .toList() ??
-            [];
-        return QcUnitGroup(
-          unitId:   g['unitId'] as String? ?? '',
-          unitName: (g['unitName'] as String?)?.isNotEmpty == true
-              ? g['unitName'] as String
-              : 'Tanpa Unit',
-          jobdescs: jobdescs,
-        );
-      }).toList();
+    final dynamicGroups = responseMap['groups'] as List<dynamic>? ?? [];
+    final hasMore = responseMap['hasMore'] as bool? ?? false;
+    final total = (responseMap['total'] as num?)?.toInt() ?? 0;
 
-      return QcPagedResponse(
-        groups: groups,
-        hasMore: hasMore,
-        page: page,
-        total: total,
+    final groups = dynamicGroups.map((gRaw) {
+      final g = gRaw as Map<String, dynamic>;
+      final jobdescs =
+          (g['jobdescs'] as List?)
+              ?.map((item) => _mapItem(item as Map<String, dynamic>))
+              .toList() ??
+          [];
+      return QcUnitGroup(
+        unitId: g['unitId'] as String? ?? '',
+        unitName:
+            (g['unitName'] as String?)?.isNotEmpty == true
+                ? g['unitName'] as String
+                : 'Tanpa Unit',
+        jobdescs: jobdescs,
       );
-    }
-    return QcPagedResponse(groups: [], hasMore: false, page: page, total: 0);
+    }).toList();
+
+    return QcPagedResponse(
+      groups: groups,
+      hasMore: hasMore,
+      page: page,
+      total: total,
+    );
   }
 
   @override

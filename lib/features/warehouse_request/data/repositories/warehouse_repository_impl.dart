@@ -75,6 +75,7 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     String? panelName,
     String? jobdesc,
     String? stockCardId,
+    String? itemMasterId,
     bool installToUnit = false,
     DateTime? targetSearchDate,
     DateTime? deadlineDate,
@@ -99,6 +100,7 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     panelName: panelName,
     jobdesc: jobdesc,
     stockCardId: stockCardId,
+    itemMasterId: itemMasterId,
     installToUnit: installToUnit,
     targetSearchDate: targetSearchDate,
     deadlineDate: deadlineDate,
@@ -219,6 +221,8 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
       division: '${m['division'] ?? ''}',
       employeeId: m['employeeId'] as String?,
       divisionId: (m['divisionId'] as num?)?.toInt(),
+      itemMasterId: m['itemMasterId'] as String?,
+      itemAliasUsed: m['itemAliasUsed'] as String?,
       carId: m['carId'] as String?,
       coreId: m['coreId'] as String?,
       unitName: m['unitName'] as String?,
@@ -278,6 +282,18 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
       matchedAlias: m['matchedAlias'] as String?,
       photoUrls: _parsePhotoUrls(m['photoUrls']) ?? const [],
       lastLocation: m['lastLocation'] as String?,
+      stockQty: (m['stockQty'] as num?)?.toDouble() ?? 0,
     );
   }
+
+  @override
+  Future<void> matchItem({
+    required String logId,
+    required String masterId,
+    required String masterName,
+  }) => dataSource.matchItem(
+    logId: logId,
+    masterId: masterId,
+    masterName: masterName,
+  );
 }

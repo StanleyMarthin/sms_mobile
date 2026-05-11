@@ -2,7 +2,7 @@ library;
 
 import '../../domain/entities/notification_item.dart';
 import '../../domain/repositories/notifications_repository.dart';
-import '../datasources/local_notifications_datasource.dart';
+import '../datasources/notifications_datasource.dart';
 
 class NotificationsRepositoryImpl implements NotificationsRepository {
   const NotificationsRepositoryImpl({required this.dataSource});

@@ -135,9 +135,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     for (final t in tasks) {
       if (t.isInProgress && t.startedAt != null) {
         DateTime? startedAtDt = DateTime.tryParse(t.startedAt!);
-        
+
         // Handle HH:mm format
-        if (startedAtDt == null && t.startedAt!.length == 5 && t.startedAt!.contains(':')) {
+        if (startedAtDt == null &&
+            t.startedAt!.length == 5 &&
+            t.startedAt!.contains(':')) {
           final parts = t.startedAt!.split(':');
           final now = DateTime.now();
           startedAtDt = DateTime(
@@ -346,9 +348,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
               );
               if (t.startedAt != null) {
                 DateTime? startedAtDt = DateTime.tryParse(t.startedAt!);
-                
+
                 // Handle HH:mm format from server
-                if (startedAtDt == null && t.startedAt!.length == 5 && t.startedAt!.contains(':')) {
+                if (startedAtDt == null &&
+                    t.startedAt!.length == 5 &&
+                    t.startedAt!.contains(':')) {
                   final parts = t.startedAt!.split(':');
                   final now = DateTime.now();
                   startedAtDt = DateTime(
@@ -634,10 +638,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
       final logs = TaskExecutionHelper.splitOvertime(updatedLog);
       late TaskEntity lastUpdatedTask;
+      final isDoneSubmission = updatedLog.isDone;
 
       for (var i = 0; i < logs.length; i++) {
         final result = await taskRepository.submitTaskExecution(logs[i]);
-        
+
         bool isError = false;
         result.fold(
           (failure) {
@@ -646,7 +651,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
               TaskActionError(
                 tasks: currentTasks,
                 drafts: currentDrafts,
-                message: 'Gagal mensubmit bagian ke-${i + 1}: ${failure.message}',
+                message:
+                    'Gagal mensubmit bagian ke-${i + 1}: ${failure.message}',
               ),
             );
           },
@@ -676,7 +682,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
             TaskActionSuccess(
               tasks: updatedTasks,
               drafts: updatedDrafts,
-              message: 'Pekerjaan selesai disubmit (${logs.length} bagian)',
+              message: isDoneSubmission
+                  ? 'Pekerjaan selesai disimpan (${logs.length} bagian)'
+                  : 'Progress pekerjaan disimpan (${logs.length} bagian)',
             ),
           );
         },
@@ -685,7 +693,9 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
             TaskActionSuccess(
               tasks: freshTasks,
               drafts: updatedDrafts,
-              message: 'Pekerjaan selesai disubmit (${logs.length} bagian)',
+              message: isDoneSubmission
+                  ? 'Pekerjaan selesai disimpan (${logs.length} bagian)'
+                  : 'Progress pekerjaan disimpan (${logs.length} bagian)',
             ),
           );
         },
@@ -695,8 +705,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         TaskActionError(
           tasks: currentTasks,
           drafts: currentDrafts,
-          message:
-              'Kegagalan upload foto R2: Menghentikan submission otomatis untuk menghindari error referensi dummy local path. Error: $e',
+          message: 'Gagal menyiapkan data submit: $e',
         ),
       );
     }

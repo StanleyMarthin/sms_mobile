@@ -441,67 +441,36 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     );
   }
 
-  // ─────────────────────────────────────────────────────
-  // SECTION 1: INFORMASI TASK (READ-ONLY)
-  // ─────────────────────────────────────────────────────
-
-  Widget _taskInfoCard() {
-    final t = widget.task;
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          _readOnlyField('Unit', t.unitName, Icons.directions_car_outlined),
-          const Divider(color: AppColors.border, height: 16),
-          _readOnlyField('Panel', t.panelName, Icons.dashboard_outlined),
-          const Divider(color: AppColors.border, height: 16),
-          _readOnlyField('Pekerjaan', t.jobName, Icons.build_outlined),
-          if (t.jobDescription.isNotEmpty) ...[
-            const Divider(color: AppColors.border, height: 16),
-            _readOnlyField(
-              'Keterangan',
-              t.jobDescription,
-              Icons.description_outlined,
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _readOnlyField(String label, String value, IconData icon) {
+  Widget _infoTile({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 16, color: AppColors.textMuted),
-        const SizedBox(width: 10),
+        Icon(icon, size: 18, color: AppColors.textMuted),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                label,
+                title,
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   color: AppColors.textMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 value,
                 style: const TextStyle(
                   fontSize: 14,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
-                  fontWeight: FontWeight.w500,
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -511,44 +480,129 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
   }
 
   // ─────────────────────────────────────────────────────
+  // SECTION 1: INFORMASI TASK
+  // ─────────────────────────────────────────────────────
+
+  Widget _taskInfoCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceInput,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _infoTile(
+            icon: Icons.work_outline,
+            title: 'Job',
+            value: widget.task.jobName,
+          ),
+          const SizedBox(height: 14),
+          _infoTile(
+            icon: Icons.assignment_outlined,
+            title: 'Instruksi / SPOK',
+            value: widget.task.instruction ?? '-',
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────
   // SECTION 2: WAKTU KERJA
   // ─────────────────────────────────────────────────────
 
   Widget _timeAndBreakRow() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    return Column(
       children: [
-        Expanded(
-          child: ClockTimeInput(
-            labelText: 'Jam Mulai',
-            initialTime: _startTime,
-            onChanged: (t) {
-              setState(() {
-                _startTime = t;
-                _finishTime = _nextValidFinishTime(_startTime, _finishTime);
-                _refreshProgressFromRealtime();
-              });
-            },
-            onTapIcon: () => _pickTime(isStart: true),
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: ClockTimeInput(
+                labelText: 'Jam Mulai',
+                initialTime: _startTime,
+                onChanged: (t) {
+                  setState(() {
+                    _startTime = t;
+                    _finishTime = _nextValidFinishTime(_startTime, _finishTime);
+                    _refreshProgressFromRealtime();
+                  });
+                },
+                onTapIcon: () => _pickTime(isStart: true),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ClockTimeInput(
+                labelText: 'Jam Selesai',
+                initialTime: _finishTime,
+                onChanged: (t) {
+                  setState(() {
+                    _finishTime = _nextValidFinishTime(_startTime, t);
+                    _refreshProgressFromRealtime();
+                  });
+                },
+                onTapIcon: () => _pickTime(isStart: false),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ClockTimeInput(
-            labelText: 'Jam Selesai',
-            initialTime: _finishTime,
-            onChanged: (t) {
-              setState(() {
-                _finishTime = _nextValidFinishTime(_startTime, t);
-                _refreshProgressFromRealtime();
-              });
-            },
-            onTapIcon: () => _pickTime(isStart: false),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(child: _breakFieldCompact()),
+        const SizedBox(height: 10),
+        _breakRowFull(),
       ],
+    );
+  }
+
+  Widget _breakRowFull() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceInput,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: PopupMenuButton<String>(
+        onSelected: _handleBreakSelection,
+        color: AppColors.surfaceCard,
+        offset: const Offset(0, 40),
+        itemBuilder: (context) => const [
+          PopupMenuItem(value: '0', child: Text('Tanpa Break')),
+          PopupMenuItem(value: '1:00', child: Text('60 menit')),
+          PopupMenuItem(value: '1:30', child: Text('90 menit')),
+          PopupMenuItem(value: 'manual', child: Text('Input Manual')),
+        ],
+        child: Row(
+          children: [
+            const Icon(
+              Icons.coffee_outlined,
+              size: 16,
+              color: AppColors.textMuted,
+            ),
+            const SizedBox(width: 10),
+            const Text(
+              'Istirahat',
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+            ),
+            const Spacer(),
+            Text(
+              _breakLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(width: 6),
+            const Icon(
+              Icons.expand_more_rounded,
+              size: 18,
+              color: AppColors.gold,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -583,55 +637,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     }
   }
 
-  Widget _breakFieldCompact() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceInput,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Istirahat',
-            style: TextStyle(fontSize: 10, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 6),
-          PopupMenuButton<String>(
-            onSelected: _handleBreakSelection,
-            color: AppColors.surfaceCard,
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: '0', child: Text('Tanpa Break')),
-              PopupMenuItem(value: '1:00', child: Text('60 menit')),
-              PopupMenuItem(value: '1:30', child: Text('90 menit')),
-              PopupMenuItem(value: 'manual', child: Text('Input Manual')),
-            ],
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _breakLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Icon(Icons.expand_more_rounded, color: AppColors.gold),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String get _breakLabel {
     if (_breakOption == 'manual') {
       return '$_breakMinutes menit';
@@ -646,159 +651,174 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     }
   }
 
-  // ─────────────────────────────────────────────────────
-  // SECTION 3: PROGRESS
-  // ─────────────────────────────────────────────────────
-
   Widget _progressAndStatusRow() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(child: _progressInput()),
-        const SizedBox(width: 12),
-        Expanded(child: _statusDropdown()),
-      ],
-    );
-  }
-
-  Widget _progressInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Progress',
-                  style: TextStyle(fontSize: 10, color: AppColors.textMuted),
-                ),
-                SizedBox(height: 1),
-                Text(
-                  'Persentase pekerjaan (0–100)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: 80,
-            child: TextField(
-              controller: _progressController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(3),
-              ],
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
-              ),
-              decoration: InputDecoration(
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 8,
-                ),
-                filled: true,
-                fillColor: AppColors.background,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: const BorderSide(color: AppColors.gold),
-                ),
-                suffixText: '%',
-                suffixStyle: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMuted,
-                ),
-              ),
-              onChanged: (v) {
-                final parsed = int.tryParse(v) ?? 0;
-                setState(() {
-                  _hasManualProgressOverride = true;
-                  _progressPercent = parsed.clamp(0, 100).toDouble();
-                  if (_progressPercent >= 100) {
-                    _status = 'done';
-                  } else if (_status == 'done') {
-                    _status = 'on_progress';
-                  }
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statusDropdown() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceInput,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Status',
-            style: TextStyle(fontSize: 10, color: AppColors.textMuted),
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _status,
-              isExpanded: true,
-              dropdownColor: AppColors.surfaceCard,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+          Row(
+            children: [
+              const Text(
+                'Persentase selesai',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
-              items: const [
-                DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                DropdownMenuItem(
-                  value: 'on_progress',
-                  child: Text('On Progress'),
-                ),
-                DropdownMenuItem(value: 'done', child: Text('Done')),
-              ],
-              onChanged: (v) {
-                if (v != null) {
-                  setState(() {
-                    _hasManualProgressOverride = true;
-                    _status = v;
-                    if (v == 'done' && _progressPercent < 100) {
-                      _progressPercent = 100;
-                      _progressController.text = '100';
-                    }
-                  });
-                }
-              },
+              const Spacer(),
+              _compactProgressInput(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: _progressPercent / 100,
+              minHeight: 6,
+              backgroundColor: AppColors.border,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _progressPercent >= 100 ? AppColors.statusDone : AppColors.gold,
+              ),
             ),
           ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _statusChip('pending', 'Pending'),
+              const SizedBox(width: 8),
+              _statusChip('on_progress', 'On Progress'),
+              const SizedBox(width: 8),
+              _statusChip('done', 'Selesai'),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _compactProgressInput() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 52,
+          child: TextField(
+            controller: _progressController,
+            keyboardType: TextInputType.number,
+            textAlign: TextAlign.center,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(3),
+            ],
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: 8,
+              ),
+              filled: true,
+              fillColor: AppColors.background,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.gold),
+              ),
+            ),
+            onChanged: (v) {
+              final parsed = int.tryParse(v) ?? 0;
+              setState(() {
+                _hasManualProgressOverride = true;
+                _progressPercent = parsed.clamp(0, 100).toDouble();
+                if (_progressPercent >= 100) {
+                  _status = 'done';
+                } else if (_status == 'done') {
+                  _status = 'on_progress';
+                }
+              });
+            },
+          ),
+        ),
+        const SizedBox(width: 4),
+        const Text(
+          '%',
+          style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+
+  Widget _statusChip(String value, String label) {
+    final isActive = _status == value;
+    Color bgColor = AppColors.background;
+    Color borderColor = AppColors.border;
+    Color textColor = AppColors.textMuted;
+
+    if (isActive) {
+      switch (value) {
+        case 'pending':
+          bgColor = const Color(0xFF2A1F00);
+          borderColor = const Color(0xFF7A5C00);
+          textColor = AppColors.gold;
+          break;
+        case 'on_progress':
+          bgColor = const Color(0xFF00213A);
+          borderColor = const Color(0xFF004D7A);
+          textColor = const Color(0xFF4DA6E0);
+          break;
+        case 'done':
+          bgColor = const Color(0xFF0F2A0F);
+          borderColor = const Color(0xFF1F5C1F);
+          textColor = AppColors.statusDone;
+          break;
+      }
+    }
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _hasManualProgressOverride = true;
+            _status = value;
+            if (value == 'done' && _progressPercent < 100) {
+              _progressPercent = 100;
+              _progressController.text = '100';
+            }
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: borderColor),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: textColor,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -904,16 +924,22 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
   String? _validate() {
     final startMin = _startTime.hour * 60 + _startTime.minute;
     final finishMin = _finishTime.hour * 60 + _finishTime.minute;
+    final hasProcessPhoto =
+        _photoProcessPath != null && _photoProcessPath!.isNotEmpty;
+    final hasAfterPhoto =
+        _photoAfterPath != null && _photoAfterPath!.isNotEmpty;
+    final isDone = _progressPercent >= 100 || _status == 'done';
 
     if (finishMin <= startMin) {
       return 'Finish time harus lebih dari start time';
     }
-    final hasAnyPhoto =
-        (_photoProcessPath != null && _photoProcessPath!.isNotEmpty) ||
-        (_photoAfterPath != null && _photoAfterPath!.isNotEmpty);
 
-    if (!hasAnyPhoto) {
-      return 'Wajib melampirkan minimal 1 foto dokumentasi pengerjaan / setelah selesai.';
+    if (isDone && !hasAfterPhoto) {
+      return 'Status selesai wajib melampirkan foto after.';
+    }
+
+    if (!hasProcessPhoto && !hasAfterPhoto) {
+      return 'Wajib melampirkan minimal 1 foto process atau after.';
     }
 
     return null;

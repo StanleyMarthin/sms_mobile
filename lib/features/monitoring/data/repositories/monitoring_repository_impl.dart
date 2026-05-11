@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 
 import '../../domain/entities/monitoring_entities.dart';
 import '../../domain/repositories/monitoring_repository.dart';
-import '../datasources/local_monitoring_datasource.dart';
+import '../datasources/monitoring_datasource.dart';
 
 class MonitoringRepositoryImpl implements MonitoringRepository {
   const MonitoringRepositoryImpl({required this.dataSource});

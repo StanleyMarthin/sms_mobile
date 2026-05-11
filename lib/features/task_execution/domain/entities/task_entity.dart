@@ -1,16 +1,10 @@
-/// TaskEntity represents a mechanic's daily work assignment from the ERP.
-///
-/// This entity is pure Dart with no Flutter dependencies and serves as the
-/// contract between layers. It encapsulates the essential data about a mechanic's
-/// daily task, combining data from multiple ERP tables:
-/// - trx_jobdesc_plandaily: The daily assignment record
-/// - trx_jobdesc_core: The actual job details
-/// - trx_car_panel_status: Panel lock status (CRITICAL for business rule #1)
-/// - cars: Unit/project information
-/// - master_panels: Panel master data
-///
-/// Following Domain-Driven Design principles, this entity contains only
-/// business-critical properties and no implementation details from the data layer.
+/*
+Tujuan: Entity domain task execution operator untuk menentukan state start, progress, submit, dan selesai.
+Caller: TaskBloc, TaskListPage, TaskCard, dan use case task execution.
+Dependensi: Equatable.
+Main Functions: canStart, isMonitoringLocked, isInProgress, isCompleted, progressPercent.
+Side Effects: Tidak ada; hanya komputasi state bisnis in-memory.
+*/
 library;
 
 import 'package:equatable/equatable.dart';
@@ -207,19 +201,26 @@ class TaskEntity extends Equatable {
             normalizedStatus == 'ON_PROGRESS') &&
         normalizedStatus != 'PENDING' &&
         !hasMonitoringRecord &&
+        !hasClosedExecutionSession &&
         !isInProgress &&
         !isCompleted;
   }
 
+  /// Returns true when at least one execution session has been closed/submitted.
+  bool get hasClosedExecutionSession =>
+      completedAt != null && completedAt!.trim().isNotEmpty;
+
   /// Returns true when OP has already submitted the monitoring form.
-  /// Ini mengunci kartu agar tidak bisa di-klik "Selesaikan" lagi 
+  /// Ini mengunci kartu agar tidak bisa di-klik "Selesaikan" lagi
   /// sampai sesi pengerjaan berikutnya dimulai.
-  bool get isMonitoringLocked => hasMonitoringRecord;
+  bool get isMonitoringLocked =>
+      hasMonitoringRecord || hasClosedExecutionSession;
 
   /// Returns true if work has started on this task.
   bool get isInProgress {
     final normalizedStatus = status.trim().toUpperCase();
-    final isActiveStatus = normalizedStatus == 'ONPROGRESS' ||
+    final isActiveStatus =
+        normalizedStatus == 'ONPROGRESS' ||
         normalizedStatus == 'ON_PROGRESS' ||
         normalizedStatus == 'PROSES';
 
@@ -230,7 +231,7 @@ class TaskEntity extends Equatable {
     // 4. Mekanik BELUM klik "Submit" untuk sesi ini (hasMonitoringRecord)
     return isActiveStatus &&
         startedAt != null &&
-        completedAt == null &&
+        !hasClosedExecutionSession &&
         !hasMonitoringRecord;
   }
 
@@ -239,10 +240,12 @@ class TaskEntity extends Equatable {
   /// a finish_time from a submitted session but still need more work (< 100%).
   bool get isCompleted {
     final normalizedStatus = status.trim().toUpperCase();
+    final noRemainingWork = remainingHours <= 0.0001;
     return normalizedStatus == 'READY_QC' ||
         normalizedStatus == 'DONE' ||
         normalizedStatus == 'CANCEL' ||
-        normalizedStatus == 'SUBMITTED';
+        normalizedStatus == 'SUBMITTED' ||
+        noRemainingWork;
   }
 
   /// Returns progress percentage based on target hours.
@@ -263,33 +266,33 @@ class TaskEntity extends Equatable {
   /// This is critical for BLoC state comparisons and UI rebuilds.
   @override
   List<Object?> get props => [
-        plandailyId,
-        coreId,
-        carId,
-        unitName,
-        panelName,
-        jobName,
-        divisionName,
-        status,
-        isPanelLocked,
-        dailyTargetHours,
-        targetHoursRevised,
-        remainingHours,
-        taskDate,
-        startTime,
-        targetFinishTime,
-        createdAt,
-        startedAt,
-        completedAt,
-        taskCategory,
-        jobDescription,
-        instruction,
-        lockedByName,
-        ownerName,
-        totalActualHours,
-        hasMonitoringRecord,
-        isRework,
-        isOvertime,
-        isPriority,
-      ];
+    plandailyId,
+    coreId,
+    carId,
+    unitName,
+    panelName,
+    jobName,
+    divisionName,
+    status,
+    isPanelLocked,
+    dailyTargetHours,
+    targetHoursRevised,
+    remainingHours,
+    taskDate,
+    startTime,
+    targetFinishTime,
+    createdAt,
+    startedAt,
+    completedAt,
+    taskCategory,
+    jobDescription,
+    instruction,
+    lockedByName,
+    ownerName,
+    totalActualHours,
+    hasMonitoringRecord,
+    isRework,
+    isOvertime,
+    isPriority,
+  ];
 }

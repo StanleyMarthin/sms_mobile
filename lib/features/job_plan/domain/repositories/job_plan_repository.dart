@@ -1,24 +1,21 @@
-/*
-Tujuan: Kontrak domain job plan untuk draft, approval, dan tracking.
-Caller: UI job plan dan implementasi repository data layer.
-Dependensi: Entity JobPlan dan datasource implementation.
-Main Functions: getPlans, saveDraft, submitDraft, approve/reject/resubmit plan.
-Side Effects: Tidak langsung; delegasi ke data layer yang melakukan I/O.
-*/
 library;
 
+import 'package:fpdart/fpdart.dart' as fp;
+import 'package:sm_system/core/errors/failures.dart';
 import '../entities/job_plan.dart';
 
 abstract class JobPlanRepository {
   Future<List<JobPlan>> getPlans();
-  Future<List<Map<String, dynamic>>> getApprovalQueue({
+  
+  Future<fp.Either<Failure, List<JobPlan>>> getApprovalQueue({
     String? divisionId,
     String? unitId,
     String? taskDate,
     int limit = 100,
     int offset = 0,
   });
-  Future<List<JobPlan>> browsePlans({
+
+  Future<fp.Either<Failure, List<JobPlan>>> browsePlans({
     String? divisionId,
     String? unitId,
     String? role,
@@ -26,12 +23,15 @@ abstract class JobPlanRepository {
     int limit = 100,
     int offset = 0,
   });
+
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
+  
   Future<List<Map<String, dynamic>>> getDropdownUsers({
     required String divisionId,
     String? search,
     int limit = 200,
   });
+
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
     String? carId,
@@ -57,22 +57,27 @@ abstract class JobPlanRepository {
   });
 
   // Approval
-  Future<JobPlan> approvePlan({required String planId, required String userId});
+  Future<fp.Either<Failure, JobPlan>> approvePlan({required String planId, required String userId});
+  
   Future<JobPlan> rejectPlan({
     required String planId,
     required String userId,
     required String rejectNote,
   });
+  
   Future<JobPlan> resubmitPlan({
     required String planId,
     required String userId,
     required List<Map<String, dynamic>> items,
   });
+  
   Future<void> deleteRejectedPlan({
     required String planId,
     required String userId,
   });
+  
   Future<JobPlan> reviewPlan({required String planId, required bool approved});
+
   Future<JobPlan> updatePlan({
     required String planId,
     required double targetHours,

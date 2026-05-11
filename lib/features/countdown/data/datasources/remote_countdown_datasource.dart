@@ -3,7 +3,9 @@ library;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
-import 'local_countdown_datasource.dart';
+import 'countdown_datasource.dart';
+import 'package:fpdart/fpdart.dart';
+import '../../../../core/errors/failures.dart';
 
 class RemoteCountdownDataSource implements CountdownDataSource {
   const RemoteCountdownDataSource({
@@ -116,8 +118,6 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       'division_id': divisionId,
       'panel_id': panelId,
     };
-    // Backend only supports search/status filters at Level 3 (sections).
-    // Level 4 (jobdesc by panel) rejects those parameters.
 
     final response =
         await apiClient.get(ApiEndpoints.countdown, queryParameters: params);
@@ -203,9 +203,6 @@ class RemoteCountdownDataSource implements CountdownDataSource {
     }).toList();
   }
 
-  /// Convert BE time field which may be:
-  /// - HH:MM:SS string → "HH:MM"
-  /// - Numeric seconds (e.g. 28800.0 = 08:00) → "HH:MM"
   String _secondsOrStringToTime(Object? value) {
     if (value == null) return '08:00';
     if (value is num) {
@@ -234,7 +231,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
     return rows.whereType<Map<String, dynamic>>().map((item) {
       return {
         'requestId':
-            '${item['countdown_id'] ?? ''}', // Using countdownId as requestId per API change
+            '${item['countdown_id'] ?? ''}',
         'countdownId': '${item['countdown_id'] ?? ''}',
         'carId': '${item['car_id'] ?? ''}',
         'unitName': '${item['unit_name'] ?? '-'}',
@@ -295,7 +292,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       data: {
         'action': 'submit_approval',
         'user_id': _userId,
-        'countdown_id': requestId, // the API now takes countdown_id
+        'countdown_id': requestId,
         'is_approved': approved,
         'approved_hours': approvedHours,
         'approved_deadline': approvedDeadline,
@@ -319,9 +316,8 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   Future<void> moApproveRevision({
     required String requestId,
     required bool approved,
-    String? notes,
+    String? note,
   }) async {
-    // BE: PUT /sm/countdown/action action=approve_revision (MO)
     await apiClient.put(
       ApiEndpoints.countdownAction,
       data: {
@@ -329,7 +325,19 @@ class RemoteCountdownDataSource implements CountdownDataSource {
         'user_id': _userId,
         'countdown_id': requestId,
         'is_approved': approved,
-        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (note != null && note.isNotEmpty) 'notes': note,
+      },
+    );
+  }
+
+  @override
+  Future<void> submitRevisionToApproval(String requestId) async {
+    await apiClient.put(
+      ApiEndpoints.countdownAction,
+      data: {
+        'action': 'submit_approval',
+        'user_id': _userId,
+        'countdown_id': requestId,
       },
     );
   }

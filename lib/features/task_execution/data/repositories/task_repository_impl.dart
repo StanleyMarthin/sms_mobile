@@ -8,11 +8,11 @@ Side Effects: HTTP call ke datasource remote dan konversi exception ke failure.
 /// TaskRepositoryImpl is the data layer repository implementation.
 ///
 /// This is the critical bridge between the domain and data layers:
-/// - Receives Either<Failure, Entity> requests from domain
+/// - Receives `Either<Failure, Entity>` requests from domain
 /// - Calls data sources (RemoteTaskDataSource)
 /// - Catches low-level exceptions and maps to domain Failures
 /// - Transforms models to entities for domain layer
-/// - Returns Either<Failure, Entity> to domain
+/// - Returns `Either<Failure, Entity>` to domain
 ///
 /// This class ensures:
 /// - Pure domain logic never touches data/network details
@@ -36,7 +36,7 @@ import '../datasources/remote_task_datasource.dart';
 /// 2. Catches low-level exceptions (DioException, ServerException, etc.)
 /// 3. Maps exceptions to domain Failure objects
 /// 4. Converts TaskModel to TaskEntity
-/// 5. Returns Either<Failure, TaskEntity> to the domain
+/// 5. Returns `Either<Failure, TaskEntity>` to the domain
 ///
 /// Pattern for all methods:
 /// ```dart

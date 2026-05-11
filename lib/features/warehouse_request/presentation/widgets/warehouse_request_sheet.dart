@@ -38,11 +38,13 @@ class _WarehouseDraftItem {
     required this.itemName,
     required this.qty,
     required this.uom,
+    this.itemMasterId,
   });
 
   final String itemName;
   final double qty;
   final String uom;
+  final String? itemMasterId;
 }
 
 class _PendingWarehouseSubmitItem {
@@ -88,6 +90,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   final _uomCtrl = TextEditingController(text: 'PCS');
   final _notesCtrl = TextEditingController();
   final List<_WarehouseDraftItem> _draftItems = [];
+  WarehouseItemSuggestion? _selectedItem;
 
   String _itemCategory = 'SPARE_PART';
   String _transactionType = 'PEMINJAMAN';
@@ -155,6 +158,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
 
   void _onItemSelected(WarehouseItemSuggestion? item) {
     setState(() {
+      _selectedItem = item;
       if (item != null) {
         _nameCtrl.text = item.itemName;
         if (_uomCtrl.text.trim().isEmpty || _uomCtrl.text.trim() == 'PCS') {
@@ -274,6 +278,10 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                   category: _itemCategory,
                   hintText: _hintName,
                   onSelected: _onItemSelected,
+                ),
+                const SizedBox(height: 8),
+                _infoBox(
+                  'Pilih dari stok gudang bila ada. Kalau belum tahu nama pastinya, tulis saja nama lapangan. Nama bisa dikoreksi saat approval atau saat gudang menyiapkan barang.',
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -777,6 +785,17 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                   color: AppColors.textMuted,
                 ),
               ),
+              if (item.itemMasterId != null) ...[
+                const SizedBox(height: 3),
+                const Text(
+                  'Tersambung ke stok gudang',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -853,6 +872,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
       itemName: name,
       qty: qty,
       uom: _uomCtrl.text.trim().isNotEmpty ? _uomCtrl.text.trim() : 'PCS',
+      itemMasterId: _selectedItem?.id,
     );
   }
 
@@ -860,6 +880,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     _nameCtrl.clear();
     _qtyCtrl.text = '1';
     _uomCtrl.text = 'PCS';
+    _selectedItem = null;
   }
 
   void _addItem() {
@@ -939,6 +960,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
             unitName: ctx?.unitName ?? _selectedUnitName,
             panelName: ctx?.panelName,
             jobdesc: ctx?.jobName,
+            itemMasterId: entry.item.itemMasterId,
             installToUnit: _installToUnit,
             targetSearchDate: DateTime.now().add(const Duration(days: 4)),
             deadlineDate: ctx?.deadlineDate,
@@ -984,9 +1006,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
           final successMessage = submittedCount == 1
-              ? _itemCategory == 'TOOLS'
-                    ? '1 item masuk ke gudang'
-                    : '1 item berhasil diajukan'
+              ? '1 item berhasil diajukan'
               : '$submittedCount item berhasil diajukan';
           AppNotification.showSuccess(context, successMessage);
         }
@@ -1499,6 +1519,23 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
   WarehouseItemSuggestion? _selected;
   bool _isLoading = false;
 
+  List<WarehouseItemSuggestion> _sortSuggestions(
+    List<WarehouseItemSuggestion> items,
+  ) {
+    final sorted = [...items];
+    sorted.sort((a, b) {
+      final aHasStock = a.stockQty > 0;
+      final bHasStock = b.stockQty > 0;
+      if (aHasStock != bHasStock) {
+        return aHasStock ? -1 : 1;
+      }
+      final stockCompare = b.stockQty.compareTo(a.stockQty);
+      if (stockCompare != 0) return stockCompare;
+      return a.itemName.toLowerCase().compareTo(b.itemName.toLowerCase());
+    });
+    return sorted;
+  }
+
   @override
   void dispose() {
     _debounce?.cancel();
@@ -1527,7 +1564,7 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
           category: widget.category,
         );
         if (!mounted) return;
-        setState(() => _items = items);
+        setState(() => _items = _sortSuggestions(items));
       } catch (_) {
         if (!mounted) return;
         setState(() => _items = const []);
@@ -1595,61 +1632,70 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
             ),
             child: Column(
               children: _items.map((item) {
+                final hasStock = item.stockQty > 0;
                 return InkWell(
                   onTap: () => _pick(item),
                   child: Padding(
                     padding: const EdgeInsets.all(10),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SuggestionPhoto(photoUrls: item.photoUrls),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.itemName,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${item.itemCategory} · ${item.uom}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textMuted,
-                                ),
-                              ),
-                              if (item.lastLocation?.isNotEmpty ?? false)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'Lokasi terakhir: ${item.lastLocation}',
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF5B8EFF),
-                                    ),
+                    child: Opacity(
+                      opacity: hasStock ? 1 : 0.62,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SuggestionPhoto(photoUrls: item.photoUrls),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.itemName,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
-                              if (item.matchedAlias?.isNotEmpty ?? false)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'Alias cocok: ${item.matchedAlias}',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.textMuted,
-                                    ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${item.itemCategory} · ${item.uom}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textMuted,
                                   ),
                                 ),
-                            ],
+                                if (item.lastLocation?.isNotEmpty ?? false)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      'Lokasi: ${item.lastLocation}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF5B8EFF),
+                                      ),
+                                    ),
+                                  ),
+                                if (item.matchedAlias?.isNotEmpty ?? false)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 4),
+                                    child: Text(
+                                      'Alias: ${item.matchedAlias}',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          _StockQtyBadge(
+                            stockQty: item.stockQty,
+                            uom: item.uom,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -1669,6 +1715,10 @@ class _SelectedItemPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasStock = item.stockQty > 0;
+    final stockLabel = item.stockQty % 1 == 0
+        ? item.stockQty.toInt().toString()
+        : item.stockQty.toString();
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -1711,6 +1761,45 @@ class _SelectedItemPreview extends StatelessWidget {
                       ),
                     ),
                   ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: hasStock
+                  ? AppColors.statusDone.withValues(alpha: 0.12)
+                  : AppColors.statusLocked.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasStock
+                    ? AppColors.statusDone.withValues(alpha: 0.4)
+                    : AppColors.statusLocked.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  hasStock ? stockLabel : '0',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: hasStock
+                        ? AppColors.statusDone
+                        : AppColors.statusLocked,
+                  ),
+                ),
+                Text(
+                  hasStock ? 'Stok' : 'Habis',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: hasStock
+                        ? AppColors.statusDone
+                        : AppColors.statusLocked,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1762,6 +1851,56 @@ class _SuggestionPhoto extends StatelessWidget {
             color: AppColors.textMuted,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StockQtyBadge extends StatelessWidget {
+  const _StockQtyBadge({required this.stockQty, required this.uom});
+
+  final double stockQty;
+  final String uom;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasStock = stockQty > 0;
+    final label = stockQty % 1 == 0
+        ? stockQty.toInt().toString()
+        : stockQty.toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: hasStock
+            ? AppColors.statusDone.withValues(alpha: 0.12)
+            : AppColors.statusLocked.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: hasStock
+              ? AppColors.statusDone.withValues(alpha: 0.4)
+              : AppColors.statusLocked.withValues(alpha: 0.4),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            hasStock ? label : '0',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: hasStock ? AppColors.statusDone : AppColors.statusLocked,
+            ),
+          ),
+          Text(
+            hasStock ? 'Stok' : 'Habis',
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: hasStock ? AppColors.statusDone : AppColors.statusLocked,
+            ),
+          ),
+        ],
       ),
     );
   }

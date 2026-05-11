@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show Color;
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -144,6 +144,12 @@ class FCMService {
             ),
             payload: _buildPayload(message.data),
           );
+
+          // In-App Popup for Reminders (Foreground only)
+          final titleLower = (notif.title ?? '').toLowerCase();
+          if (titleLower.contains('reminder') || titleLower.contains('pengembalian')) {
+            _showInAppPopup(message);
+          }
         }
       });
 
@@ -180,6 +186,52 @@ class FCMService {
         debugPrint('[FCM] Init Error: $e');
       }
     }
+  }
+
+  void _showInAppPopup(RemoteMessage message) {
+    final ctx = appRouter.routerDelegate.navigatorKey.currentContext;
+    if (ctx == null) return;
+    
+    final title = message.notification?.title ?? 'Reminder';
+    final body = message.notification?.body ?? '';
+
+    showDialog(
+      context: ctx,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Row(
+          children: [
+            const Icon(Icons.notifications_active_outlined, color: Color(0xFFFFCF40)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Text(body, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Tutup', style: TextStyle(color: Colors.white54)),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateFromMessage(message);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFFFCF40),
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Lihat Detail', style: TextStyle(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Navigasi berdasarkan payload data dari notifikasi ─────────

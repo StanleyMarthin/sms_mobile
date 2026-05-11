@@ -15,6 +15,8 @@ class WarehouseLog {
     required this.division,
     this.employeeId,
     this.divisionId,
+    this.itemMasterId,
+    this.itemAliasUsed,
     this.carId,
     this.coreId,
     this.unitName,
@@ -51,6 +53,8 @@ class WarehouseLog {
   // relational
   final String? employeeId;
   final int? divisionId;
+  final String? itemMasterId;
+  final String? itemAliasUsed;
   final String? carId;
   final String? coreId;
   final String? unitName;

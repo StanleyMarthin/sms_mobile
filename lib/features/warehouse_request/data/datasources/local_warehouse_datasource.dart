@@ -66,6 +66,7 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
     String? panelName,
     String? jobdesc,
     String? stockCardId,
+    String? itemMasterId,
     required bool installToUnit,
     DateTime? targetSearchDate,
     DateTime? deadlineDate,
@@ -125,6 +126,13 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
     String? notes,
     int? storageLocationId,
     String? locationDetail,
+  }) async {}
+
+  @override
+  Future<void> matchItem({
+    required String logId,
+    required String masterId,
+    required String masterName,
   }) async {}
 
   @override

@@ -1,3 +1,10 @@
+/*
+Tujuan: Use case untuk memulai task mekanik dengan validasi domain sebelum delegasi ke repository.
+Caller: TaskBloc.
+Dependensi: Failure model domain, TaskEntity, TaskRepository.
+Main Functions: StartJobParams, call.
+Side Effects: Tidak ada langsung; memicu HTTP flow melalui repository.
+*/
 /// StartJobUseCase orchestrates the business logic for starting a mechanic's job.
 ///
 /// Use Cases represent specific business actions and are the primary entry points
@@ -5,7 +12,7 @@
 /// - Accept input parameters
 /// - Coordinate repository calls
 /// - Apply business logic and validation
-/// - Return Either<Failure, Result> for functional error handling
+/// - Return `Either<Failure, Result>` for functional error handling
 ///
 /// This use case implements Business Rules #2 and #3:
 /// - Rule #2: Clicking "Start" fires event -> UseCase -> Repository -> API
@@ -58,7 +65,7 @@ class StartJobParams {
 ///    - Validation on backend (panel lock check)
 ///    - API call to set panel lock + start timer
 ///    - State synchronization
-/// 4. Return Either<Failure, TaskEntity>
+/// 4. Return `Either<Failure, TaskEntity>`
 ///
 /// **Post-Conditions (on Success):**
 /// 1. Task status changes from "pending" to "in_progress"

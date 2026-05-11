@@ -36,6 +36,7 @@ abstract class WarehouseDataSource {
     String? panelName,
     String? jobdesc,
     String? stockCardId,
+    String? itemMasterId,
     required bool installToUnit,
     DateTime? targetSearchDate,
     DateTime? deadlineDate,
@@ -87,6 +88,12 @@ abstract class WarehouseDataSource {
     String? notes,
     int? storageLocationId,
     String? locationDetail,
+  });
+
+  Future<void> matchItem({
+    required String logId,
+    required String masterId,
+    required String masterName,
   });
 
   Future<String?> uploadPhoto({

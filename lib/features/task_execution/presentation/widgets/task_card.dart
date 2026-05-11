@@ -14,17 +14,37 @@ import './task_execution_detail_sheet.dart';
 
 double _taskDisplayTargetHours(TaskEntity task) {
   if (task.dailyTargetHours > 0) return task.dailyTargetHours;
+  final startMinutes = _clockMinutes(task.startTime);
+  final finishMinutes = _clockMinutes(task.targetFinishTime);
+  if (startMinutes != null &&
+      finishMinutes != null &&
+      finishMinutes >= startMinutes) {
+    return (finishMinutes - startMinutes) / 60.0;
+  }
   if (task.targetHoursRevised > 0) return task.targetHoursRevised;
   return 0.0;
 }
 
+double _taskOverallTargetHours(TaskEntity task) {
+  if (task.targetHoursRevised > 0) return task.targetHoursRevised;
+  return _taskDisplayTargetHours(task);
+}
+
+int? _clockMinutes(String value) {
+  final parts = value.split(':');
+  if (parts.length != 2) return null;
+
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return (hour * 60) + minute;
+}
+
 double _taskRecordedWorkedHours(TaskEntity task) {
-  final target = _taskDisplayTargetHours(task);
+  final target = _taskOverallTargetHours(task);
   final clampMax = target > 0 ? target : 9999.0;
-  final recordedHours = task.totalActualHours.clamp(0.0, clampMax);
-  final hasTaskHistory =
-      task.startedAt != null || task.completedAt != null || recordedHours > 0;
-  return hasTaskHistory ? recordedHours : 0.0;
+  return task.hoursUsed.clamp(0.0, clampMax);
 }
 
 String _formatCompactHours(double decimalHours) {
@@ -40,6 +60,16 @@ String _formatCompactHours(double decimalHours) {
     return '${hours}j';
   }
   return '${minutes}m';
+}
+
+String _formatHoursWithDayAlias(double decimalHours) {
+  if (decimalHours <= 0) return '-';
+  final compact = _formatCompactHours(decimalHours);
+  final dayValue = decimalHours / 8.0;
+  final dayText = dayValue == dayValue.roundToDouble()
+      ? dayValue.toStringAsFixed(0)
+      : dayValue.toStringAsFixed(dayValue < 1 ? 2 : 1);
+  return '$compact ($dayText hari)';
 }
 
 String _formatTaskClock(String? isoDate) {
@@ -60,10 +90,17 @@ String _formatTaskClock(String? isoDate) {
   return '--:--';
 }
 
-String _taskDisplayDescription(TaskEntity task) {
-  final description = task.jobDescription.trim();
-  if (description.isNotEmpty) return description;
-  return task.jobName.trim().isNotEmpty ? task.jobName : '-';
+double _taskCurrentSessionHours(TaskEntity task) {
+  final startedAt = task.startedAt;
+  if (startedAt == null || startedAt.isEmpty) return 0.0;
+
+  final parsedStart = DateTime.tryParse(startedAt);
+  if (parsedStart == null) return 0.0;
+
+  final parsedFinish = (task.completedAt == null || task.completedAt!.isEmpty)
+      ? DateTime.now()
+      : (DateTime.tryParse(task.completedAt!) ?? DateTime.now());
+  return parsedFinish.difference(parsedStart).inSeconds / 3600.0;
 }
 
 class TaskCard extends StatelessWidget {
@@ -105,6 +142,14 @@ class TaskCard extends StatelessWidget {
       return '${h}j ${m}m';
     }
 
+    final dailyTargetHours = _taskDisplayTargetHours(task);
+    final totalTargetHours = _taskOverallTargetHours(task);
+    final sessionHours = _taskCurrentSessionHours(task);
+    final workedTotalHours = task.hoursUsed;
+    final sessionDurationLabel = sessionHours > 0
+        ? formatDuration(sessionHours)
+        : '-';
+
     TaskExecutionDetailSheet.show(
       context: context,
       title: 'Detail Pengerjaan',
@@ -117,14 +162,16 @@ class TaskCard extends StatelessWidget {
       taskDate: task.taskDate,
       planStartTime: task.startTime,
       planFinishTime: task.targetFinishTime,
-      planDuration: formatDuration(task.dailyTargetHours),
+      planDuration: _formatHoursWithDayAlias(dailyTargetHours),
+      planTotalDuration: _formatHoursWithDayAlias(totalTargetHours),
+      planRemainingDuration: _formatHoursWithDayAlias(task.remainingHours),
       actualStartTime: fmtTime(task.startedAt),
       actualFinishTime: fmtTime(task.completedAt),
-      actualDuration: formatDuration(task.totalActualHours),
+      actualDuration: sessionDurationLabel,
+      actualWorkedTotal: _formatHoursWithDayAlias(workedTotalHours),
       progress: task.progressPercent,
       status: task.status,
       category: task.taskCategory,
-      operatorName: task.ownerName,
       isOvertime: task.isOvertime,
       isRework: task.isRework,
       isPriority: task.isPriority,
@@ -284,7 +331,7 @@ class TaskCard extends StatelessWidget {
     );
   }
 
-Widget _buildDescription() {
+  Widget _buildDescription() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -464,7 +511,7 @@ Widget _buildDescription() {
   }
 
   Widget _buildProgressBar() {
-    final target = _taskDisplayTargetHours(task);
+    final target = _taskOverallTargetHours(task);
     final runningTime = _taskRecordedWorkedHours(task);
     final progress = target > 0 ? (runningTime / target).clamp(0.0, 1.0) : 0.0;
     final progressPercent = progress * 100;
@@ -574,8 +621,8 @@ Widget _buildDescription() {
                     color: AppColors.background,
                   ),
                 )
-              : const Icon(Icons.stop_circle_outlined, size: 18),
-          label: Text(isActionLoading ? 'Menyelesaikan...' : 'Selesaikan'),
+              : const Icon(Icons.edit_note_rounded, size: 18),
+          label: Text(isActionLoading ? 'Menyimpan...' : 'Update Progress'),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.orange,
             foregroundColor: AppColors.background,
@@ -744,10 +791,13 @@ class _RealtimeProgressBarState extends State<_RealtimeProgressBar> {
       currentSessionHours = endTime.difference(startedAt).inSeconds / 3600.0;
     }
 
-    final totalTarget = _taskDisplayTargetHours(widget.task);
+    final totalTarget = _taskOverallTargetHours(widget.task);
 
     final runningTime =
-        _taskRecordedWorkedHours(widget.task) + currentSessionHours;
+        (_taskRecordedWorkedHours(widget.task) + currentSessionHours).clamp(
+          0.0,
+          totalTarget > 0 ? totalTarget : 9999.0,
+        );
     final progress = totalTarget > 0
         ? (runningTime / totalTarget).clamp(0.0, 1.0)
         : 0.0;

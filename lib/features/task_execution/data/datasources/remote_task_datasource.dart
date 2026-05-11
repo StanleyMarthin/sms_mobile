@@ -69,7 +69,7 @@ abstract class RemoteTaskDataSource {
   /// This is called on app startup to populate the mechanic's dashboard.
   ///
   /// Returns:
-  ///   - List<TaskModel> of today's assignments
+  ///   - `List<TaskModel>` of today's assignments
   ///
   /// Throws:
   ///   - ServerException: If API returns 5xx status code

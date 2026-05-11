@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
-import 'local_monitoring_datasource.dart';
+import 'monitoring_datasource.dart';
 
 class RemoteMonitoringDataSource implements MonitoringDataSource {
   const RemoteMonitoringDataSource({

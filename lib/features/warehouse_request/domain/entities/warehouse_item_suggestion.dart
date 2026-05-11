@@ -10,6 +10,7 @@ class WarehouseItemSuggestion {
     this.matchedAlias,
     this.photoUrls = const [],
     this.lastLocation,
+    this.stockQty = 0,
   });
 
   final String id;
@@ -20,4 +21,6 @@ class WarehouseItemSuggestion {
   final String? matchedAlias;
   final List<String> photoUrls;
   final String? lastLocation;
+  /// Stok tersedia di gudang (IN_STORAGE)
+  final double stockQty;
 }

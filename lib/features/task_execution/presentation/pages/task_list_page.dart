@@ -53,8 +53,9 @@ class _TaskListPageState extends State<TaskListPage> {
     if (widget.focusTaskId == null ||
         _hasAutoNavigated ||
         tasks == null ||
-        tasks.isEmpty)
+        tasks.isEmpty) {
       return;
+    }
 
     try {
       final targetTask = tasks.firstWhere(
@@ -109,11 +110,10 @@ class _TaskListPageState extends State<TaskListPage> {
         }
 
         final tasks = _sortedTasks(
-          _extractTasks(state)
-              .where((t) => t.isOvertime == widget.isOvertime)
-              .toList(),
+          _extractTasks(
+            state,
+          ).where((t) => t.isOvertime == widget.isOvertime).toList(),
         );
-
 
         // Auto navigate if needed
         _checkAutoNavigate(tasks);
@@ -606,9 +606,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
                         task.isOvertime == widget.isOvertime,
                   )
                   .toList()
-                ..sort(
-                  (a, b) => a.jobDescription.compareTo(b.jobDescription),
-                );
+                ..sort((a, b) => a.jobDescription.compareTo(b.jobDescription));
           final drafts = _extractDrafts(state);
           final actionTaskId = state is TaskActionLoading
               ? state.actionTaskId
@@ -717,18 +715,14 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
   }
 
   void _showTaskDetailSheet(BuildContext context, TaskEntity task) {
-    final target = task.dailyTargetHours > 0
-        ? task.dailyTargetHours
-        : task.targetHoursRevised;
-
-    String _fmtTime(String? iso) {
+    String fmtTime(String? iso) {
       if (iso == null || iso.isEmpty) return '--:--';
       final dt = DateTime.tryParse(iso);
       if (dt == null) return '--:--';
       return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
 
-    String _formatDuration(double hours) {
+    String formatDuration(double hours) {
       final totalMinutes = (hours * 60).round();
       if (totalMinutes <= 0) return '0j 0m';
       final h = totalMinutes ~/ 60;
@@ -738,14 +732,28 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
       return '${m}m';
     }
 
-    double actualHours = task.totalActualHours;
-    if (task.isInProgress && task.startedAt != null) {
+    String formatHoursWithDayAlias(double hours) {
+      if (hours <= 0) return '-';
+      final dayValue = hours / 8.0;
+      final dayText = dayValue == dayValue.roundToDouble()
+          ? dayValue.toStringAsFixed(0)
+          : dayValue.toStringAsFixed(dayValue < 1 ? 2 : 1);
+      return '${formatDuration(hours)} ($dayText hari)';
+    }
+
+    double sessionHours = 0;
+    if (task.startedAt != null) {
       final start = DateTime.tryParse(task.startedAt!);
       if (start != null) {
-        final now = DateTime.now();
-        actualHours += now.difference(start).inSeconds / 3600.0;
+        final end = task.completedAt != null
+            ? (DateTime.tryParse(task.completedAt!) ?? DateTime.now())
+            : DateTime.now();
+        sessionHours = end.difference(start).inSeconds / 3600.0;
       }
     }
+    final sessionDurationLabel = sessionHours > 0
+        ? formatDuration(sessionHours)
+        : '-';
 
     TaskExecutionDetailSheet.show(
       context: context,
@@ -759,46 +767,19 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
       taskDate: task.taskDate,
       planStartTime: task.startTime,
       planFinishTime: task.targetFinishTime,
-      planDuration: _formatDuration(task.dailyTargetHours),
-      actualStartTime: _fmtTime(task.startedAt),
-      actualFinishTime: _fmtTime(task.completedAt),
-      actualDuration: _formatDuration(actualHours),
+      planDuration: formatHoursWithDayAlias(task.dailyTargetHours),
+      planTotalDuration: formatHoursWithDayAlias(task.targetHoursRevised),
+      planRemainingDuration: formatHoursWithDayAlias(task.remainingHours),
+      actualStartTime: fmtTime(task.startedAt),
+      actualFinishTime: fmtTime(task.completedAt),
+      actualDuration: sessionDurationLabel,
+      actualWorkedTotal: formatHoursWithDayAlias(task.hoursUsed),
       progress: task.progressPercent,
       status: task.status,
       category: task.taskCategory,
-      operatorName: task.ownerName,
       isOvertime: task.isOvertime,
       isRework: task.isRework,
       isPriority: task.isPriority,
-    );
-  }
-
-  Widget _detailRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13, color: AppColors.textMuted,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w500,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

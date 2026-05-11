@@ -35,6 +35,16 @@ String _formatMinutesLabel(int minutes) {
   return '${remainMinutes}m';
 }
 
+String _formatHoursWithDayAlias(double hours) {
+  if (hours <= 0) return '-';
+  final compact = _formatMinutesLabel((hours * 60).round());
+  final dayValue = hours / 8.0;
+  final dayText = dayValue == dayValue.roundToDouble()
+      ? dayValue.toStringAsFixed(0)
+      : dayValue.toStringAsFixed(dayValue < 1 ? 2 : 1);
+  return '$compact ($dayText hari)';
+}
+
 String _estimateLabel(TaskDetail detail) {
   if (detail.targetHours > 0) {
     return _formatMinutesLabel((detail.targetHours * 60).round());
@@ -127,44 +137,43 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
   void _showDetail(BuildContext context) {
     final task = widget.task;
 
-    int? toMinutes(String v) => _clockToMinutes(v);
-    String formatMinutes(int? m) => m == null ? '-' : _formatMinutesLabel(m);
-
-    final startM = toMinutes(task.task.startTime);
-    final finishM = toMinutes(task.task.targetFinishTime);
-    int planM = 0;
-    if (startM != null && finishM != null) {
-      planM = (finishM - startM) - task.task.breakDuration;
-    }
-
     final lastCp = task.checkpointHistory.isNotEmpty
         ? task.checkpointHistory.last
         : null;
 
-    final isDone = task.isDone || (lastCp?.progress ?? 0) >= 100;
+    final isDone = task.isDone || task.progressPercent >= 100;
 
-    // Jika sudah selesai, hanya tampilkan 1 sesi terakhir saja sesuai permintaan.
+    // FILTER: Hanya tampilkan sesi monitoring dari level manajemen (bukan lapangan/op)
+    final managementHistory = task.checkpointHistory
+        .where(
+          (cp) =>
+              cp.actorRole != 'op' &&
+              cp.actorRole != 'operator' &&
+              cp.actorRole != 'lapangan',
+        )
+        .toList();
+
     final List<Map<String, dynamic>> checkpointItems = isDone
-        ? (task.checkpointHistory.isNotEmpty
-            ? [
-                {
-                  'session': task.checkpointHistory.last.sessionNumber,
-                  'time': task.checkpointHistory.last.checkpointTime,
-                  'progress': 100,
-                  'status': 'Selesai',
-                }
-              ]
-            : [])
-        : task.checkpointHistory
-            .map(
-              (cp) => {
-                'session': cp.sessionNumber,
-                'time': cp.checkpointTime,
-                'progress': cp.progress,
-                'status': cp.jobStatusLabel,
-              },
-            )
-            .toList();
+        ? (managementHistory.isNotEmpty
+              ? [
+                  {
+                    'session': managementHistory.last.sessionNumber,
+                    'time': managementHistory.last.checkpointTime,
+                    'progress': 100,
+                    'status': 'Selesai',
+                  },
+                ]
+              : [])
+        : managementHistory
+              .map(
+                (cp) => {
+                  'session': cp.sessionNumber,
+                  'time': cp.checkpointTime,
+                  'progress': cp.progress,
+                  'status': cp.jobStatusLabel,
+                },
+              )
+              .toList();
 
     TaskExecutionDetailSheet.show(
       context: context,
@@ -178,7 +187,9 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
       taskDate: widget.taskDate,
       planStartTime: task.task.startTime,
       planFinishTime: task.task.targetFinishTime,
-      planDuration: _estimateLabel(task.task),
+      planDuration: _formatHoursWithDayAlias(task.dailyTargetHours),
+      planTotalDuration: _formatHoursWithDayAlias(task.targetHoursTotal),
+      planRemainingDuration: _formatHoursWithDayAlias(task.remainingHours),
       actualStartTime: task.checkpointHistory.isNotEmpty
           ? _firstActualStartLabel(task.checkpointHistory)
           : '--:--',
@@ -186,7 +197,8 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
           ? _lastActualFinishLabel(task.checkpointHistory)
           : '--:--',
       actualDuration: lastCp?.workedDurationLabel ?? '-',
-      progress: (lastCp?.progress ?? 0).toDouble(),
+      actualWorkedTotal: _formatHoursWithDayAlias(task.hoursUsed),
+      progress: task.progressPercent.toDouble(),
       status: task.status,
       category: 'MAIN', // Default
       operatorName: task.employee.employeeName,
@@ -202,7 +214,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
         ? task.checkpointHistory.last
         : null;
     final lastMonitorTime = lastCheckpoint?.checkpointTime;
-    final currentProgress = lastCheckpoint?.progress ?? (task.isDone ? 100 : 0);
+    final currentProgress = task.progressPercent;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -429,6 +441,17 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
   }
 
   Widget _buildMonitoringHistory() {
+    final managementLogs = widget.task.checkpointHistory
+        .where(
+          (cp) =>
+              cp.actorRole != 'op' &&
+              cp.actorRole != 'operator' &&
+              cp.actorRole != 'team_lapangan',
+        )
+        .toList();
+
+    if (managementLogs.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -441,7 +464,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
           ),
         ),
         const SizedBox(height: 8),
-        ...widget.task.checkpointHistory.map((session) {
+        ...managementLogs.map((session) {
           return InkWell(
             onTap: widget.onCheckpointTap != null
                 ? () => widget.onCheckpointTap!(session)

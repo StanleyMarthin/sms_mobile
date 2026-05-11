@@ -1,9 +1,9 @@
 /*
-Tujuan: Bottom sheet detail eksekusi task untuk menampilkan ringkasan plan, aktual, dan aksi terkait task.
-Caller: TaskCard dan widget presentasi task execution lain yang perlu membuka detail pengerjaan.
-Dependensi: AppColors, showModalBottomSheet.
-Main Functions: TaskExecutionDetailSheet, TaskExecutionDetailSheet.show.
-Side Effects: Membuka modal bottom sheet di UI.
+Tujuan: Bottom sheet detail eksekusi task dengan layout horizontal (Label: Value) dan tanpa rendutan berlebih.
+Caller: TaskCard dan ViewTaskCard.
+Dependensi: AppColors.
+Main Functions: TaskExecutionDetailSheet.show.
+Side Effects: Render modal UI.
 */
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -21,9 +21,12 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     required this.planStartTime,
     required this.planFinishTime,
     required this.planDuration,
+    this.planTotalDuration,
+    this.planRemainingDuration,
     required this.actualStartTime,
     required this.actualFinishTime,
     required this.actualDuration,
+    this.actualWorkedTotal,
     required this.progress,
     required this.status,
     required this.category,
@@ -46,9 +49,12 @@ class TaskExecutionDetailSheet extends StatelessWidget {
   final String planStartTime;
   final String planFinishTime;
   final String planDuration;
+  final String? planTotalDuration;
+  final String? planRemainingDuration;
   final String actualStartTime;
   final String actualFinishTime;
   final String actualDuration;
+  final String? actualWorkedTotal;
   final double progress;
   final String status;
   final String category;
@@ -72,9 +78,12 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     required String planStartTime,
     required String planFinishTime,
     required String planDuration,
+    String? planTotalDuration,
+    String? planRemainingDuration,
     required String actualStartTime,
     required String actualFinishTime,
     required String actualDuration,
+    String? actualWorkedTotal,
     required double progress,
     required String status,
     required String category,
@@ -91,7 +100,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => TaskExecutionDetailSheet(
         title: title,
@@ -104,9 +113,12 @@ class TaskExecutionDetailSheet extends StatelessWidget {
         planStartTime: planStartTime,
         planFinishTime: planFinishTime,
         planDuration: planDuration,
+        planTotalDuration: planTotalDuration,
+        planRemainingDuration: planRemainingDuration,
         actualStartTime: actualStartTime,
         actualFinishTime: actualFinishTime,
         actualDuration: actualDuration,
+        actualWorkedTotal: actualWorkedTotal,
         progress: progress,
         status: status,
         category: category,
@@ -128,176 +140,112 @@ class TaskExecutionDetailSheet extends StatelessWidget {
         20,
         12,
         20,
-        MediaQuery.of(context).padding.bottom + 20,
+        MediaQuery.of(context).padding.bottom + 24,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
+          // slim handle
+          Container(
+            width: 30,
+            height: 3,
+            decoration: BoxDecoration(
+              color: AppColors.border,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
           Row(
             children: [
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded, color: AppColors.textMuted),
+                icon: const Icon(
+                  Icons.close_rounded,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
             ],
           ),
+
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _metaChip(Icons.flag_rounded, status.toUpperCase()),
-              _metaChip(Icons.category_rounded, category.toUpperCase()),
-              if (isOvertime) _metaChip(Icons.nights_stay_rounded, 'LEMBUR'),
-              if (isRework) _metaChip(Icons.refresh_rounded, 'REWORK'),
-              if (isPriority) _metaChip(Icons.priority_high_rounded, 'PRIORITY'),
-            ],
+          SizedBox(
+            width: double.infinity,
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _metaChip(Icons.flag_rounded, status.toUpperCase()),
+                _metaChip(Icons.category_rounded, category.toUpperCase()),
+                if (isOvertime) _metaChip(Icons.nights_stay_rounded, 'LEMBUR'),
+                if (isRework) _metaChip(Icons.refresh_rounded, 'REWORK'),
+              ],
+            ),
           ),
-          const SizedBox(height: 24),
+
+          const SizedBox(height: 20),
+
           Flexible(
             child: SingleChildScrollView(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (operatorName != null)
-                    _detailField('Pelaksana', operatorName!),
-                  _detailField('Unit', unitName),
-                  _detailField('Panel', panelName),
-                  _detailField('Job', jobName),
-                  _detailField('Divisi', divisionName),
-                  _detailField('Tanggal Kerja', taskDate),
-                  const Divider(color: AppColors.border, height: 32),
-                  
-                  const Text(
-                    'RENCANA (PLAN)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.gold,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _detailField('Jam Kerja', '$planStartTime - $planFinishTime'),
-                      ),
-                      Expanded(
-                        child: _detailField('Target Jam', planDuration),
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  const Text(
-                    'AKTUAL (REALTIME)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.gold,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _detailField('Mulai', actualStartTime),
-                      ),
-                      Expanded(
-                        child: _detailField('Selesai', actualFinishTime),
-                      ),
-                    ],
-                  ),
-                  _detailField('Durasi Kerja', actualDuration),
-                  _detailField('Progress', '${progress.toStringAsFixed(0)}%'),
+                  if (operatorName != null) _row('Pelaksana', operatorName!),
+                  _row('Unit', unitName),
+                  _row('Panel', panelName),
+                  _row('Divisi', divisionName),
+                  _row('Tanggal Kerja', taskDate),
 
-                  const Divider(color: AppColors.border, height: 32),
-                  if (description.isNotEmpty)
-                    _detailField('Deskripsi / Jobdesc', description),
+                  const Divider(color: AppColors.border, height: 24),
+
+                  _row('Jobdesc', jobName),
+                  if (description.isNotEmpty && description != jobName)
+                    _row('Deskripsi', description),
                   if (instruction != null && instruction!.isNotEmpty)
-                    _detailField('Instruksi / POK', instruction!),
+                    _row('Instruksi / SPOK', instruction!),
+
+                  const Divider(color: AppColors.border, height: 24),
+
+                  _sectionHeader('RENCANA (PLAN)'),
+                  _row('Jam Kerja', '$planStartTime - $planFinishTime'),
+                  _row('Target Harian', planDuration),
+                  if (planTotalDuration != null &&
+                      planTotalDuration!.isNotEmpty)
+                    _row('Target Total', planTotalDuration!),
+                  if (planRemainingDuration != null &&
+                      planRemainingDuration!.isNotEmpty)
+                    _row('Sisa Target', planRemainingDuration!),
+
+                  const SizedBox(height: 8),
+
+                  _sectionHeader('AKTUAL (REALTIME)'),
+                  _row('Mulai', actualStartTime),
+                  _row('Selesai', actualFinishTime),
+                  _row('Durasi Sesi', actualDuration),
+                  if (actualWorkedTotal != null &&
+                      actualWorkedTotal!.isNotEmpty)
+                    _row('Akumulasi', actualWorkedTotal!),
+                  _row('Progress', '${progress.toInt()}%'),
 
                   if (checkpoints.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    const Text(
-                      'RIWAYAT MONITORING',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.gold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...checkpoints.map((cp) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 8,
-                            height: 8,
-                            margin: const EdgeInsets.only(top: 4, right: 12),
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.gold,
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Sesi ${cp['session']} • ${cp['time']}',
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Progress: ${cp['progress']}% • Status: ${cp['status']}',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    )),
+                    const Divider(color: AppColors.border, height: 32),
+                    _sectionHeader('RIWAYAT MONITORING'),
+                    ...checkpoints.map((cp) => _checkpointRow(cp)),
                   ],
 
                   if (actions != null) ...[
-                    const SizedBox(height: 32),
-                    const Divider(color: AppColors.border, height: 1),
                     const SizedBox(height: 20),
                     actions!,
                   ],
@@ -310,25 +258,19 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     );
   }
 
-  Widget _metaChip(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.border),
-      ),
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: AppColors.gold),
-          const SizedBox(width: 6),
+          Container(width: 3, height: 12, color: AppColors.gold),
+          const SizedBox(width: 8),
           Text(
-            label,
+            title,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
+              color: AppColors.gold,
               letterSpacing: 0.5,
             ),
           ),
@@ -337,27 +279,95 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     );
   }
 
-  Widget _detailField(String label, String value) {
+  Widget _row(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _metaChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: AppColors.gold),
+          const SizedBox(width: 4),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textMuted,
-              fontWeight: FontWeight.w500,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+        ],
+      ),
+    );
+  }
+
+  Widget _checkpointRow(Map<String, dynamic> cp) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            margin: const EdgeInsets.only(top: 6, right: 10),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.gold,
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sesi ${cp['session']} • ${cp['time']}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  'Progress: ${cp['progress']}% • ${cp['status']}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

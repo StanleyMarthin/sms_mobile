@@ -3,7 +3,7 @@ library;
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
-import 'local_qc_datasource.dart';
+import 'qc_datasource.dart';
 
 class RemoteQcDataSource implements QcDataSource {
   const RemoteQcDataSource({
@@ -17,6 +17,7 @@ class RemoteQcDataSource implements QcDataSource {
   String get _userId =>
       sessionManager.userId ?? sessionManager.employeeId ?? '';
 
+  @override
   Future<List<Map<String, dynamic>>> getQcDivisions() async {
     final sessionDivisionId = sessionManager.divisionId;
     final sessionDivisionName = sessionManager.divisionName;

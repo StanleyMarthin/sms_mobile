@@ -493,6 +493,14 @@ TaskExecutionSheet / SubmitExecutionEvent
 -> refresh GET /sm/tasks
 ```
 
+- FE operator sekarang menginfer sesi tertutup dari `completedAt` / progress / remaining hours saat hasil refresh GET `/sm/tasks` belum konsisten mengirim status terminal.
+- Dampaknya: task yang sudah disubmit tidak lagi kembali ke CTA `Mulai`; partial submit tampil `Tercatat`, final submit tampil `Selesai`.
+- Kontrak `/sm/tasks` untuk mobile task execution sekarang diperlakukan sebagai gabungan:
+  - `sm_jobdesc_plan.target_start_hours` + `target_finish_hours` = jam kerja plan harian
+  - `sm_jobdesc_plan.dailyTargetHours` = target jam harian
+  - `sm_jobdesc_countdown.target_hours_revised` + `remaining_hours` + `total_actual_hours` = target total, sisa jam, dan progress kumulatif lintas hari
+- Detail operator menampilkan target harian, target total, sisa target, dan akumulasi dikerjakan; list tetap ringkas.
+
 **Alarm side effects:**
 - `TaskBloc` timer tiap 15 detik untuk task in-progress
 - Trigger `AlarmTimerService` reminders pada T-10, T-5, T-0
@@ -508,6 +516,8 @@ TaskExecutionSheet / SubmitExecutionEvent
 -> ApiViewTaskDataSource.getViewTasks()
 -> GET 8086 /sm/tasks dengan divisionID/unitID/isOvertime filters
 ```
+
+- Progress monitoring management sekarang harus dibaca dari metrik kumulatif countdown (`target total - sisa`) dan checkpoint diposisikan sebagai riwayat sesi/approval, bukan satu-satunya sumber progress.
 
 **Checkpoint flow:**
 ```text

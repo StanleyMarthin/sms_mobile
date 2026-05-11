@@ -6,8 +6,8 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
-import '../../../task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../domain/entities/warehouse_log.dart';
+import '../../domain/entities/warehouse_item_suggestion.dart';
 import '../../domain/repositories/warehouse_repository.dart';
 import '../widgets/active_job_picker.dart';
 import '../widgets/warehouse_request_sheet.dart';
@@ -175,8 +175,11 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   List<WarehouseLog> _myLogs = [];
   List<WarehouseLog> _myItems = [];
   List<WarehouseLog> _pendingList = [];
-  DateTime _logsDateFilter = DateTime.now();
-  DateTime _historyDateFilter = DateTime.now();
+  DateTime? _logsDateFilter;
+  DateTime? _historyDateFilter;
+  // Filter untuk tab Pengajuan (requester)
+  DateTime? _activeDateFilter;
+  String? _activeUnitFilterId;
   final Set<String> _selectedApprovalIds = <String>{};
   final Set<String> _selectedReminderGroupIds = <String>{};
   String? _selectedUsingDivisionKey;
@@ -298,6 +301,33 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
 
   List<WarehouseLog> get _historyItems =>
       _myLogs.where((l) => l.isReturned || l.isRejected || l.isStored).toList();
+
+  /// Semua unit unik dari _myLogs untuk filter tab Pengajuan
+  List<({String carId, String unitName})> get _activeUnitOptions {
+    final seen = <String>{};
+    final result = <({String carId, String unitName})>[];
+    for (final log in _myLogs) {
+      final cid = log.carId ?? '';
+      if (cid.isEmpty || seen.contains(cid)) continue;
+      seen.add(cid);
+      result.add((carId: cid, unitName: log.unitName ?? cid));
+    }
+    result.sort((a, b) => a.unitName.compareTo(b.unitName));
+    return result;
+  }
+
+  List<WarehouseLog> get _filteredActiveItems {
+    var items = _activeItems;
+    if (_activeDateFilter != null) {
+      items = items
+          .where((l) => _sameDate(l.requestDate, _activeDateFilter!))
+          .toList();
+    }
+    if (_activeUnitFilterId != null) {
+      items = items.where((l) => l.carId == _activeUnitFilterId).toList();
+    }
+    return items;
+  }
 
   List<WarehouseLog> get _filteredHistoryItems {
     return _historyItems
@@ -519,7 +549,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         return true;
       }
       if (log.isReady) return true;
-      if (log.itemCategory == 'TOOLS' && log.isReturned) return true;
+      if (log.isReturned) return true;
       if (log.isPenyimpanan && log.isStored) return true;
       return false;
     }).toList();
@@ -561,7 +591,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
       return 1;
     }
     if (log.isReady) return 2;
-    if (log.itemCategory == 'TOOLS' && log.isReturned) return 3;
+    if (log.isReturned) return 3;
     if (log.isPenyimpanan && log.isStored) return 4;
     return 9;
   }
@@ -745,30 +775,78 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   }
 
   // ─ Tabs for OP ───────────────────────────────────────────────
-  Widget _activeTab() => _listScaffold(
-    items: _activeItems,
-    emptyMsg: 'Tidak ada transaksi aktif',
-    fab: _canRequest
-        ? FloatingActionButton.extended(
-            heroTag: 'wh_fab_req',
-            onPressed: () async {
-              final ctx = await ActiveJobPicker.show(context);
-              if (!mounted) return;
-              final ok = await WarehouseRequestSheet.show(
-                context: context,
-                jobContext: ctx,
-              );
-              if (ok && mounted) _loadAll();
-            },
-            backgroundColor: AppColors.gold,
-            foregroundColor: AppColors.background,
-            icon: const Icon(Icons.add_rounded, size: 20),
-            label: const Text(
-              'Ajukan',
-              style: TextStyle(fontWeight: FontWeight.w600),
+  Widget _activeTab() => Column(
+    children: [
+      // ── Filter bar (tanggal + unit) ──────────────────────
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _ClearableDateFilter(
+              selectedDate: _activeDateFilter,
+              onDateChanged: (date) => setState(() => _activeDateFilter = date),
+              onClear: _activeDateFilter != null
+                  ? () => setState(() => _activeDateFilter = null)
+                  : null,
             ),
-          )
-        : null,
+            if (_activeUnitOptions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 36,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    _UnitFilterChip(
+                      label: 'Semua Unit',
+                      selected: _activeUnitFilterId == null,
+                      onTap: () => setState(() => _activeUnitFilterId = null),
+                    ),
+                    for (final opt in _activeUnitOptions)
+                      _UnitFilterChip(
+                        label: opt.unitName,
+                        selected: _activeUnitFilterId == opt.carId,
+                        onTap: () =>
+                            setState(() => _activeUnitFilterId = opt.carId),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      const SizedBox(height: 4),
+      Expanded(
+        child: _listScaffold(
+          items: _filteredActiveItems,
+          emptyMsg: _activeDateFilter != null || _activeUnitFilterId != null
+              ? 'Tidak ada pengajuan sesuai filter'
+              : 'Tidak ada transaksi aktif',
+          fab: _canRequest
+              ? FloatingActionButton.extended(
+                  heroTag: 'wh_fab_req',
+                  onPressed: () async {
+                    final ctx = await ActiveJobPicker.show(context);
+                    if (!mounted) return;
+                    final ok = await WarehouseRequestSheet.show(
+                      context: context,
+                      jobContext: ctx,
+                    );
+                    if (ok && mounted) _loadAll();
+                  },
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: AppColors.background,
+                  icon: const Icon(Icons.add_rounded, size: 20),
+                  label: const Text(
+                    'Ajukan',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                )
+              : null,
+        ),
+      ),
+    ],
   );
 
   Widget _myItemsTab() => _listScaffold(
@@ -796,9 +874,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
               .length,
           needStoreOrLocate: _warehouseActionItems
               .where(
-                (log) =>
-                    (log.itemCategory == 'TOOLS' && log.isReturned) ||
-                    (log.isPenyimpanan && log.isStored),
+                (log) => log.isReturned || (log.isPenyimpanan && log.isStored),
               )
               .length,
         ),
@@ -825,6 +901,9 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
 
   Widget _usingTab() {
     final groups = _usingGroups;
+    // Warehouse console (gudang staff) = bisa send reminder
+    // KD/PPIC/KEPALA_GUDANG sebagai approver-only = hanya monitoring, tidak send reminder
+    final canSendReminder = _canProcessWarehouse;
     return Column(
       children: [
         if (_mode == _WarehousePageMode.console)
@@ -832,6 +911,9 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
             title: 'Sedang Dipakai',
             subtitle: _warehouseScopeLabel(_role),
           ),
+        // Summary harian (jumlah bahan/consumable dipakai hari ini)
+        if (_mode == _WarehousePageMode.console)
+          _DailyUsageSummaryBar(allItems: _usingItems),
         _UsageOverviewBar(
           memberCount: groups.length,
           itemCount: _filteredUsingItems.length,
@@ -846,7 +928,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
             });
           },
         ),
-        if (_usingGroups.isNotEmpty)
+        if (canSendReminder && _usingGroups.isNotEmpty)
           _ReminderBulkBar(
             selectedCount: _selectedReminderCount,
             areAllSelected: _areAllRemindersSelected,
@@ -875,29 +957,35 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
                     itemCount: groups.length,
                     itemBuilder: (_, index) => _UsageGroupCard(
                       group: groups[index],
-                      showSelection: true,
+                      showSelection: canSendReminder,
                       selected: _selectedReminderGroupIds.contains(
                         groups[index].id,
                       ),
                       selectionBusy: _isSendingReminder,
-                      onSelectedChanged: (selected) =>
-                          _toggleReminderSelection(groups[index].id, selected),
-                      onRemind: () async {
-                        try {
-                          await _sendReminderForGroup(groups[index]);
-                          if (!mounted) return;
-                          AppNotification.showSuccess(
-                            context,
-                            'Reminder terkirim ke ${groups[index].requester}',
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-                          AppNotification.showError(
-                            context,
-                            'Gagal kirim reminder: $e',
-                          );
-                        }
-                      },
+                      onSelectedChanged: canSendReminder
+                          ? (selected) => _toggleReminderSelection(
+                              groups[index].id,
+                              selected,
+                            )
+                          : null,
+                      onRemind: canSendReminder
+                          ? () async {
+                              try {
+                                await _sendReminderForGroup(groups[index]);
+                                if (!mounted) return;
+                                AppNotification.showSuccess(
+                                  context,
+                                  'Reminder terkirim ke ${groups[index].requester}',
+                                );
+                              } catch (e) {
+                                if (!mounted) return;
+                                AppNotification.showError(
+                                  context,
+                                  'Gagal kirim reminder: $e',
+                                );
+                              }
+                            }
+                          : null,
                     ),
                   ),
           ),
@@ -915,18 +1003,22 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         ),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: DateFilterBar(
+        child: _ClearableDateFilter(
           selectedDate: _logsDateFilter,
           onDateChanged: (date) {
             setState(() => _logsDateFilter = date);
           },
-          label: 'Filter',
+          onClear: () {
+            setState(() => _logsDateFilter = null);
+          },
         ),
       ),
       Expanded(
         child: _listScaffold(
           items: _filteredLogItems,
-          emptyMsg: 'Tidak ada aktivitas pada tanggal ini',
+          emptyMsg: _logsDateFilter != null
+              ? 'Tidak ada aktivitas pada tanggal ini'
+              : 'Belum ada aktivitas warehouse',
         ),
       ),
     ],
@@ -936,18 +1028,22 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: DateFilterBar(
+        child: _ClearableDateFilter(
           selectedDate: _historyDateFilter,
           onDateChanged: (date) {
             setState(() => _historyDateFilter = date);
           },
-          label: 'Filter',
+          onClear: () {
+            setState(() => _historyDateFilter = null);
+          },
         ),
       ),
       Expanded(
         child: _listScaffold(
           items: _filteredHistoryItems,
-          emptyMsg: 'Tidak ada riwayat pada tanggal ini',
+          emptyMsg: _historyDateFilter != null
+              ? 'Tidak ada riwayat pada tanggal ini'
+              : 'Belum ada riwayat transaksi',
         ),
       ),
     ],
@@ -1004,8 +1100,271 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     );
   }
 
-  bool _sameDate(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
+  bool _sameDate(DateTime a, DateTime? b) {
+    if (b == null) return true;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CLEARABLE DATE FILTER (Tab Pengajuan — nullable date)
+// ═══════════════════════════════════════════════════════════════
+class _ClearableDateFilter extends StatelessWidget {
+  const _ClearableDateFilter({
+    required this.selectedDate,
+    required this.onDateChanged,
+    this.onClear,
+  });
+
+  final DateTime? selectedDate;
+  final ValueChanged<DateTime> onDateChanged;
+  final VoidCallback? onClear;
+
+  static const _dayNames = [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
+  static const _monthNames = [
+    '',
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ];
+
+  String _fmt(DateTime d) =>
+      '${_dayNames[d.weekday - 1]}, ${d.day} ${_monthNames[d.month]}';
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = selectedDate != null;
+    return GestureDetector(
+      onTap: () async {
+        final now = DateTime.now();
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: selectedDate ?? now,
+          firstDate: DateTime(2024),
+          lastDate: DateTime(2030),
+          builder: (ctx, child) => Theme(
+            data: ThemeData.dark().copyWith(
+              colorScheme: const ColorScheme.dark(
+                primary: AppColors.gold,
+                onPrimary: AppColors.background,
+                surface: AppColors.surfaceCard,
+                onSurface: AppColors.textPrimary,
+              ),
+            ),
+            child: child!,
+          ),
+        );
+        if (picked != null) onDateChanged(picked);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.gold.withValues(alpha: 0.1)
+              : AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive
+                ? AppColors.gold.withValues(alpha: 0.5)
+                : AppColors.border,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 14,
+              color: isActive ? AppColors.gold : AppColors.textMuted,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isActive ? _fmt(selectedDate!) : 'Filter Tanggal Pengajuan',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
+                  color: isActive ? AppColors.gold : AppColors.textMuted,
+                ),
+              ),
+            ),
+            if (isActive && onClear != null)
+              GestureDetector(
+                onTap: onClear,
+                child: const Icon(
+                  Icons.close_rounded,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UNIT FILTER CHIP (Tab Pengajuan)
+// ═══════════════════════════════════════════════════════════════
+class _UnitFilterChip extends StatelessWidget {
+  const _UnitFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        showCheckmark: false,
+        labelStyle: TextStyle(
+          color: selected ? AppColors.background : AppColors.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+        side: BorderSide(
+          color: selected
+              ? AppColors.gold
+              : AppColors.border.withValues(alpha: 0.9),
+        ),
+        backgroundColor: AppColors.surfaceCard,
+        selectedColor: AppColors.gold,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DAILY USAGE SUMMARY BAR (monitoring KP di "Sedang Dipakai")
+// ═══════════════════════════════════════════════════════════════
+class _DailyUsageSummaryBar extends StatelessWidget {
+  const _DailyUsageSummaryBar({required this.allItems});
+
+  final List<WarehouseLog> allItems;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime.now();
+    bool sameDay(DateTime d) =>
+        d.year == today.year && d.month == today.month && d.day == today.day;
+
+    final todayBahan = allItems.where((l) {
+      final released = l.actualReleaseDate ?? l.requestDate;
+      return (l.itemCategory == 'BAHAN' || l.itemCategory == 'CONSUMABLE') &&
+          sameDay(released);
+    }).length;
+
+    final todayTools = allItems.where((l) {
+      final released = l.actualReleaseDate ?? l.requestDate;
+      return l.itemCategory == 'TOOLS' && sameDay(released);
+    }).length;
+
+    final todaySparepart = allItems.where((l) {
+      final released = l.actualReleaseDate ?? l.requestDate;
+      return l.itemCategory == 'SPARE_PART' && sameDay(released);
+    }).length;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.today_outlined, size: 14, color: AppColors.gold),
+          const SizedBox(width: 6),
+          const Text(
+            'Hari ini:',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppColors.gold,
+            ),
+          ),
+          const SizedBox(width: 12),
+          _SummaryChip(
+            label: 'Bahan',
+            count: todayBahan,
+            color: const Color(0xFF13B8A6),
+          ),
+          const SizedBox(width: 8),
+          _SummaryChip(
+            label: 'Tools',
+            count: todayTools,
+            color: AppColors.gold,
+          ),
+          const SizedBox(width: 8),
+          _SummaryChip(
+            label: 'Sparepart',
+            count: todaySparepart,
+            color: const Color(0xFF5B8EFF),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  const _SummaryChip({
+    required this.label,
+    required this.count,
+    required this.color,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        '$count $label',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1848,13 +2207,17 @@ class _LogCard extends StatelessWidget {
       log.isOpen;
   bool get _canLocate =>
       _isWarehouseProcessor && log.isPenyimpanan && log.isStored;
-  bool get _canStore =>
-      _isWarehouseProcessor && log.itemCategory == 'TOOLS' && log.isReturned;
+  bool get _canStore => _isWarehouseProcessor && log.isReturned;
   bool get _canRelease => (_isPrivilegedReleaseRole || _isOwner) && log.isReady;
   bool get _canInstall => _isOwner && log.isReleased;
   bool get _canReturn => _isOwner && (log.isReleased || log.isInstalled);
   bool get _canRemindReturn =>
       !_isOwner && _isWarehouseProcessor && (log.isReleased || log.isInstalled);
+  bool get _canMatchName =>
+      _isPrivilegedReleaseRole &&
+      !log.isRejected &&
+      !log.isReturned &&
+      !log.isStored;
 
   // status colours / icons ──────────────────────────────────────
   Color get _statusColor {
@@ -2083,7 +2446,8 @@ class _LogCard extends StatelessWidget {
         _canRelease ||
         _canInstall ||
         _canReturn ||
-        _canRemindReturn;
+        _canRemindReturn ||
+        _canMatchName;
   }
 
   Widget _buildActions(BuildContext context) => Container(
@@ -2112,6 +2476,15 @@ class _LogCard extends StatelessWidget {
             () => _doApproval(context, true),
           ),
         ],
+        if (_canMatchName)
+          _actionBtn(
+            context,
+            'Koreksi Nama',
+            Icons.edit_note_rounded,
+            AppColors.gold,
+            () => _doMatchName(context),
+            outlined: true,
+          ),
         if (_canReady)
           _actionBtn(
             context,
@@ -2304,6 +2677,35 @@ class _LogCard extends StatelessWidget {
     if (ok == true && ctx.mounted) onDone();
   }
 
+  Future<void> _doMatchName(BuildContext context) async {
+    final selectedItem = await showDialog<WarehouseItemSuggestion>(
+      context: context,
+      builder: (ctx) => _MatchNameDialog(log: log),
+    );
+
+    if (selectedItem != null) {
+      if (!context.mounted) return;
+      try {
+        await repo.matchItem(
+          logId: log.id,
+          masterId: selectedItem.id,
+          masterName: selectedItem.itemName,
+        );
+        if (context.mounted) {
+          AppNotification.showSuccess(
+            context,
+            'Nama barang berhasil dikoreksi.',
+          );
+          onDone();
+        }
+      } catch (e) {
+        if (context.mounted) {
+          AppNotification.showError(context, 'Gagal koreksi nama: $e');
+        }
+      }
+    }
+  }
+
   Future<void> _doRemindReturn(BuildContext ctx) async {
     final confirmed = await showDialog<bool>(
       context: ctx,
@@ -2367,7 +2769,8 @@ class _LogCard extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (_) => _WarehouseFlowSheet(
         title: 'Masuk Gudang',
-        subtitle: 'Simpan kembali tools yang sudah kembali.',
+        subtitle:
+            'Simpan kembali barang yang sudah dikembalikan dan catat lokasinya.',
         actionLabel: 'Simpan',
         accentColor: const Color(0xFF5B8EFF),
         icon: Icons.archive_rounded,
@@ -2411,6 +2814,127 @@ class _LogCard extends StatelessWidget {
       ),
     );
     if (ok == true && ctx.mounted) onDone();
+  }
+}
+
+class _MatchNameDialog extends StatefulWidget {
+  const _MatchNameDialog({required this.log});
+
+  final WarehouseLog log;
+
+  @override
+  State<_MatchNameDialog> createState() => _MatchNameDialogState();
+}
+
+class _MatchNameDialogState extends State<_MatchNameDialog> {
+  late final TextEditingController _controller;
+  WarehouseItemSuggestion? _selectedItem;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final log = widget.log;
+    final currentAlias = log.itemAliasUsed ?? log.itemName;
+
+    return AlertDialog(
+      backgroundColor: AppColors.surfaceCard,
+      title: const Text(
+        'Koreksi Nama Barang',
+        style: TextStyle(color: Colors.white, fontSize: 16),
+      ),
+      content: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 460,
+          maxHeight: MediaQuery.of(context).size.height * 0.68,
+        ),
+        child: SingleChildScrollView(
+          child: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 14,
+                    ),
+                    children: [
+                      const TextSpan(text: 'Nama awal:\n'),
+                      TextSpan(
+                        text: currentAlias,
+                        style: const TextStyle(
+                          color: AppColors.gold,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (currentAlias.trim().isNotEmpty &&
+                    currentAlias != log.itemName) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Nama master saat ini: ${log.itemName}',
+                    style: const TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Pilih barang dari master:',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                WarehouseItemSearchField(
+                  controller: _controller,
+                  category: log.itemCategory,
+                  hintText: 'Cari di gudang...',
+                  onSelected: (item) {
+                    setState(() => _selectedItem = item);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(
+            'Batal',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
+        ),
+        FilledButton(
+          onPressed: _selectedItem == null
+              ? null
+              : () => Navigator.of(context).pop(_selectedItem),
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.gold,
+            foregroundColor: Colors.black,
+            disabledBackgroundColor: AppColors.border,
+            disabledForegroundColor: AppColors.textMuted,
+          ),
+          child: const Text('Simpan'),
+        ),
+      ],
+    );
   }
 }
 
@@ -2505,6 +3029,14 @@ class _LogDetailSheet extends StatelessWidget {
                     'Kategori',
                     _warehouseCategoryLabel(log.itemCategory),
                   ),
+                  if ((log.itemAliasUsed ?? '').trim().isNotEmpty &&
+                      log.itemAliasUsed != log.itemName)
+                    _detailRow(
+                      Icons.edit_note_outlined,
+                      'Nama Diajukan',
+                      log.itemAliasUsed!,
+                      valueColor: AppColors.gold,
+                    ),
                   _detailRow(
                     Icons.numbers_rounded,
                     'Jumlah',

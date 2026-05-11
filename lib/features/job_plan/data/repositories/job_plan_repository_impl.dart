@@ -1,12 +1,7 @@
-/*
-Tujuan: Adapter repository job plan dari datasource ke entity domain.
-Caller: UI job plan melalui dependency injection.
-Dependensi: JobPlanDataSource dan entity JobPlan.
-Main Functions: mapping browse/draft/approval response ke JobPlan.
-Side Effects: HTTP/mock I/O melalui datasource.
-*/
 library;
 
+import 'package:fpdart/fpdart.dart' as fp;
+import 'package:sm_system/core/errors/failures.dart';
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
 import '../datasources/job_plan_datasource.dart';
@@ -23,20 +18,25 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getApprovalQueue({
+  Future<fp.Either<Failure, List<JobPlan>>> getApprovalQueue({
     String? divisionId,
     String? unitId,
     String? taskDate,
     int limit = 100,
     int offset = 0,
-  }) {
-    return dataSource.getApprovalQueue(
-      divisionId: divisionId,
-      unitId: unitId,
-      taskDate: taskDate,
-      limit: limit,
-      offset: offset,
-    );
+  }) async {
+    try {
+      final results = await dataSource.getApprovalQueue(
+        divisionId: divisionId,
+        unitId: unitId,
+        taskDate: taskDate,
+        limit: limit,
+        offset: offset,
+      );
+      return fp.Right(results.map(_mapPlan).toList());
+    } catch (e) {
+      return fp.Left(ServerFailure(message: e.toString()));
+    }
   }
 
   @override
@@ -68,7 +68,7 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<List<JobPlan>> browsePlans({
+  Future<fp.Either<Failure, List<JobPlan>>> browsePlans({
     String? divisionId,
     String? unitId,
     String? role,
@@ -76,15 +76,19 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     int limit = 100,
     int offset = 0,
   }) async {
-    final maps = await dataSource.browsePlans(
-      divisionId: divisionId,
-      unitId: unitId,
-      role: role,
-      taskDate: taskDate,
-      limit: limit,
-      offset: offset,
-    );
-    return maps.map(_mapPlan).toList();
+    try {
+      final maps = await dataSource.browsePlans(
+        divisionId: divisionId,
+        unitId: unitId,
+        role: role,
+        taskDate: taskDate,
+        limit: limit,
+        offset: offset,
+      );
+      return fp.Right(maps.map(_mapPlan).toList());
+    } catch (e) {
+      return fp.Left(ServerFailure(message: e.toString()));
+    }
   }
 
   @override
@@ -135,12 +139,16 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<JobPlan> approvePlan({
+  Future<fp.Either<Failure, JobPlan>> approvePlan({
     required String planId,
     required String userId,
   }) async {
-    final result = await dataSource.approvePlan(planId: planId, userId: userId);
-    return _mapPlan(result);
+    try {
+      final result = await dataSource.approvePlan(planId: planId, userId: userId);
+      return fp.Right(_mapPlan(result));
+    } catch (e) {
+      return fp.Left(ServerFailure(message: e.toString()));
+    }
   }
 
   @override
