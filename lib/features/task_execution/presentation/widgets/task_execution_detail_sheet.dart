@@ -1,6 +1,12 @@
+/*
+Tujuan: Bottom sheet detail eksekusi task untuk menampilkan ringkasan plan, aktual, dan aksi terkait task.
+Caller: TaskCard dan widget presentasi task execution lain yang perlu membuka detail pengerjaan.
+Dependensi: AppColors, showModalBottomSheet.
+Main Functions: TaskExecutionDetailSheet, TaskExecutionDetailSheet.show.
+Side Effects: Membuka modal bottom sheet di UI.
+*/
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../widgets/task_card.dart'; // For some helper functions if any, but better local helpers
 
 class TaskExecutionDetailSheet extends StatelessWidget {
   const TaskExecutionDetailSheet({
@@ -25,8 +31,8 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     this.isOvertime = false,
     this.isRework = false,
     this.isPriority = false,
-    this.photos = const [],
     this.checkpoints = const [],
+    this.actions,
   });
 
   final String title;
@@ -49,8 +55,8 @@ class TaskExecutionDetailSheet extends StatelessWidget {
   final bool isOvertime;
   final bool isRework;
   final bool isPriority;
-  final List<String> photos;
   final List<Map<String, dynamic>> checkpoints;
+  final Widget? actions;
 
   static void show({
     required BuildContext context,
@@ -74,8 +80,8 @@ class TaskExecutionDetailSheet extends StatelessWidget {
     bool isOvertime = false,
     bool isRework = false,
     bool isPriority = false,
-    List<String> photos = const [],
     List<Map<String, dynamic>> checkpoints = const [],
+    Widget? actions,
   }) {
     showModalBottomSheet(
       context: context,
@@ -105,8 +111,8 @@ class TaskExecutionDetailSheet extends StatelessWidget {
         isOvertime: isOvertime,
         isRework: isRework,
         isPriority: isPriority,
-        photos: photos,
         checkpoints: checkpoints,
+        actions: actions,
       ),
     );
   }
@@ -228,43 +234,6 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                   const Divider(color: AppColors.border, height: 32),
                   if (description.isNotEmpty)
                     _detailField('Deskripsi / Jobdesc', description),
-                  
-                  if (photos.isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      'DOKUMENTASI FOTO',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.gold,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 100,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: photos.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) => ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            photos[i],
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 100,
-                              height: 100,
-                              color: AppColors.border,
-                              child: const Icon(Icons.broken_image),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
 
                   if (checkpoints.isNotEmpty) ...[
                     const SizedBox(height: 24),
@@ -318,6 +287,13 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                         ],
                       ),
                     )),
+                  ],
+
+                  if (actions != null) ...[
+                    const SizedBox(height: 32),
+                    const Divider(color: AppColors.border, height: 1),
+                    const SizedBox(height: 20),
+                    actions!,
                   ],
                 ],
               ),

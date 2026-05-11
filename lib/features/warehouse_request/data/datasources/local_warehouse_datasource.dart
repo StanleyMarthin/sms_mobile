@@ -11,26 +11,25 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
     String? approvalStatus,
     String? itemStatus,
     String? transactionType,
-  }) async =>
-      [
-        {
-          'id': 'LOCAL-001',
-          'transactionType': 'PEMINJAMAN',
-          'itemCategory': 'TOOLS',
-          'itemName': 'Kunci Torsi',
-          'qty': 1,
-          'uom': 'PCS',
-          'requester': 'Dummy User',
-          'division': 'Bengkel',
-          'divisionId': 1,
-          'employeeId': 'EMP001',
-          'requestDate': DateTime.now().toIso8601String(),
-          'itemStatus': 'OPEN',
-          'approvalStatus': 'PENDING_KD',
-          'notes': null,
-          'photoUrls': [],
-        }
-      ];
+  }) async => [
+    {
+      'id': 'LOCAL-001',
+      'transactionType': 'PEMINJAMAN',
+      'itemCategory': 'TOOLS',
+      'itemName': 'Kunci Torsi',
+      'qty': 1,
+      'uom': 'PCS',
+      'requester': 'Dummy User',
+      'division': 'Bengkel',
+      'divisionId': 1,
+      'employeeId': 'EMP001',
+      'requestDate': DateTime.now().toIso8601String(),
+      'itemStatus': 'OPEN',
+      'approvalStatus': 'APPROVED',
+      'notes': null,
+      'photoUrls': [],
+    },
+  ];
 
   @override
   Future<List<Map<String, dynamic>>> getMyItems() async => [];
@@ -48,8 +47,7 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
   Future<List<Map<String, dynamic>>> searchItems({
     required String query,
     String? category,
-  }) async =>
-      [];
+  }) async => [];
 
   @override
   Future<void> createTransaction({
@@ -111,6 +109,9 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
   }) async {}
 
   @override
+  Future<void> remindReturn({required String logId, String? notes}) async {}
+
+  @override
   Future<void> storeItem({
     required String logId,
     String? notes,
@@ -131,6 +132,5 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
     required String userId,
     required String filePath,
     String? logId,
-  }) async =>
-      null;
+  }) async => null;
 }

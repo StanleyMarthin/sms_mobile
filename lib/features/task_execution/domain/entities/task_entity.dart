@@ -103,6 +103,14 @@ class TaskEntity extends Equatable {
   /// ISO 8601 format: "2026-02-20"
   final String taskDate;
 
+  /// Planned start time for this task.
+  /// Example: "08:00"
+  final String startTime;
+
+  /// Planned finish time for this task.
+  /// Example: "16:00"
+  final String targetFinishTime;
+
   /// ISO 8601 formatted timestamp when this plandaily was created.
   /// From: trx_jobdesc_plandaily.created_at
   final String createdAt;
@@ -165,6 +173,8 @@ class TaskEntity extends Equatable {
     required this.targetHoursRevised,
     required this.remainingHours,
     required this.taskDate,
+    this.startTime = '08:00',
+    this.targetFinishTime = '16:00',
     required this.createdAt,
     this.startedAt,
     this.completedAt,
@@ -188,31 +198,47 @@ class TaskEntity extends Equatable {
     return !blockedByOtherWorker &&
         (normalizedStatus == 'PLAN' ||
             normalizedStatus == 'ASSIGNED' ||
-            normalizedStatus == 'PROSES') &&
+            normalizedStatus == 'PROSES' ||
+            normalizedStatus == 'ONPROGRESS' ||
+            normalizedStatus == 'ON_PROGRESS') &&
+        normalizedStatus != 'PENDING' &&
         !hasMonitoringRecord &&
         !isInProgress &&
         !isCompleted;
   }
 
   /// Returns true when OP has already submitted the monitoring form.
-  bool get isMonitoringLocked => hasMonitoringRecord && !isCompleted;
+  /// Ini mengunci kartu agar tidak bisa di-klik "Selesaikan" lagi 
+  /// sampai sesi pengerjaan berikutnya dimulai.
+  bool get isMonitoringLocked => hasMonitoringRecord;
 
   /// Returns true if work has started on this task.
   bool get isInProgress {
     final normalizedStatus = status.trim().toUpperCase();
-    return (startedAt != null && completedAt == null) ||
-        normalizedStatus == 'ONPROGRESS' ||
+    final isActiveStatus = normalizedStatus == 'ONPROGRESS' ||
         normalizedStatus == 'ON_PROGRESS' ||
         normalizedStatus == 'PROSES';
+
+    // Timer berjalan JIKA:
+    // 1. Status aktif di lapangan (PROSES / ONPROGRESS)
+    // 2. Waktu mulai (startedAt) sudah ada (klik Start)
+    // 3. Waktu selesai (completedAt) BELUM ada
+    // 4. Mekanik BELUM klik "Submit" untuk sesi ini (hasMonitoringRecord)
+    return isActiveStatus &&
+        startedAt != null &&
+        completedAt == null &&
+        !hasMonitoringRecord;
   }
 
-  /// Returns true if work has been completed.
+  /// Returns true if work has been completed (status is terminal).
+  /// Note: completedAt != null does NOT mean completed — a task can have
+  /// a finish_time from a submitted session but still need more work (< 100%).
   bool get isCompleted {
     final normalizedStatus = status.trim().toUpperCase();
-    return completedAt != null ||
-        normalizedStatus == 'READY_QC' ||
+    return normalizedStatus == 'READY_QC' ||
         normalizedStatus == 'DONE' ||
-        normalizedStatus == 'CANCEL';
+        normalizedStatus == 'CANCEL' ||
+        normalizedStatus == 'SUBMITTED';
   }
 
   /// Returns progress percentage based on target hours.
@@ -246,6 +272,8 @@ class TaskEntity extends Equatable {
         targetHoursRevised,
         remainingHours,
         taskDate,
+        startTime,
+        targetFinishTime,
         createdAt,
         startedAt,
         completedAt,

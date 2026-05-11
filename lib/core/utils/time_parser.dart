@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class TimeParser {
-  /// Converts a decimal hour (e.g. 2.5) to HHH:mm format (e.g. "002:30").
-  static String formatDecimalToHHmm(double decimalHours) {
+  /// Converts a decimal hour (e.g. 2.5) to HHH:mm or HH:mm format.
+  static String formatDecimalToHHmm(double decimalHours, {bool isTriple = true}) {
     if (decimalHours <= 0) return '';
     final h = decimalHours.floor();
     final m = ((decimalHours - h) * 60).round();
     if (h == 0 && m == 0) return '';
-    return '${h.toString().padLeft(3, '0')}:${m.toString().padLeft(2, '0')}';
+    return '${h.toString().padLeft(isTriple ? 3 : 2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
   /// Parses HHH:mm (e.g. "008:30"), HH:mm (e.g. "08:30"), or decimal string to decimal hours.
@@ -71,6 +71,20 @@ class TimeParser {
     minutes = minutes % 60;
 
     return '${hours.toString().padLeft(3, '0')}:${minutes.toString().padLeft(2, '0')}';
+  }
+
+  /// Formats a [DateTime] to ISO 8601 with timezone offset (e.g. "+07:00").
+  /// This prevents 7-hour timezone mismatch between Mobile and Backend.
+  static String formatIsoWithOffset(DateTime dt) {
+    final String iso = dt.toIso8601String();
+    if (iso.endsWith('Z')) return iso; // Already UTC
+    
+    final offset = dt.timeZoneOffset;
+    final sign = offset.isNegative ? '-' : '+';
+    final hours = offset.inHours.abs().toString().padLeft(2, '0');
+    final minutes = (offset.inMinutes.abs() % 60).toString().padLeft(2, '0');
+    
+    return '$iso$sign$hours:$minutes';
   }
 }
 

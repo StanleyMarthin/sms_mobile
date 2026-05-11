@@ -1,3 +1,10 @@
+/*
+Tujuan: Form pembuatan Work Order oleh KD pembuat sebelum penentuan PIC dan jam kerja oleh KD tujuan.
+Caller: WorkOrderPage FAB.
+Dependensi: WorkOrderBloc, JobPlanRepository dropdown master, AppColors.
+Main Functions: WoCreatePage, _loadDropdowns, _submit.
+Side Effects: HTTP dropdown fetch dan dispatch create WO ke bloc.
+*/
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -8,19 +15,6 @@ import '../bloc/work_order_bloc.dart';
 import '../bloc/work_order_event.dart';
 import '../bloc/work_order_state.dart';
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
-double? _parseHhmm(String raw) {
-  final s = raw.trim();
-  if (s.isEmpty) return null;
-  if (s.contains(':')) {
-    final parts = s.split(':');
-    final h = double.tryParse(parts[0]) ?? 0;
-    final m = parts.length > 1 ? (double.tryParse(parts[1]) ?? 0) : 0;
-    return h + m / 60.0;
-  }
-  return double.tryParse(s);
-}
-
 class WoCreatePage extends StatefulWidget {
   const WoCreatePage({super.key});
 
@@ -30,25 +24,33 @@ class WoCreatePage extends StatefulWidget {
 
 class _WoCreatePageState extends State<WoCreatePage> {
   // ── Dropdown data ──────────────────────────────────────────────────────
-  List<Map<String, dynamic>> _cars      = [];
-  List<Map<String, dynamic>> _panels    = [];
+  List<Map<String, dynamic>> _cars = [];
+  List<Map<String, dynamic>> _panels = [];
   List<Map<String, dynamic>> _divisions = [];
   bool _loading = true;
 
   // ── Form state ─────────────────────────────────────────────────────────
   Map<String, dynamic>? _selectedCar;
   Map<String, dynamic>? _selectedDiv;
-  String?               _selectedPanelName;  // from master
-  bool   _useFreeTextPanel    = false;
+  String? _selectedPanelName; // from master
+  bool _useFreeTextPanel = false;
   String? _selectedCategory;
 
   final _sectionNameCtrl = TextEditingController();
-  final _jobDetailCtrl   = TextEditingController();
-  final _targetHoursCtrl = TextEditingController();
+  final _jobDetailCtrl = TextEditingController();
+  final _quomCtrl = TextEditingController();
 
   DateTime _targetDate = DateTime.now().add(const Duration(days: 3));
 
-  static const _categories = ['ENGINE', 'UNDERCARRIAGE', 'ELECTRICAL', 'INTERIOR', 'EXTERIOR', 'BODY', 'CUSTOM'];
+  static const _categories = [
+    'ENGINE',
+    'UNDERCARRIAGE',
+    'ELECTRICAL',
+    'INTERIOR',
+    'EXTERIOR',
+    'BODY',
+    'CUSTOM',
+  ];
 
   @override
   void initState() {
@@ -60,7 +62,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
   void dispose() {
     _sectionNameCtrl.dispose();
     _jobDetailCtrl.dispose();
-    _targetHoursCtrl.dispose();
+    _quomCtrl.dispose();
     super.dispose();
   }
 
@@ -70,63 +72,81 @@ class _WoCreatePageState extends State<WoCreatePage> {
       final data = await repo.getDropdowns(divisionId: null, carId: carId);
       if (!mounted) return;
       setState(() {
-        _cars      = List<Map<String, dynamic>>.from(data['cars']      ?? []);
-        _panels    = List<Map<String, dynamic>>.from(data['panels']    ?? []);
+        _cars = List<Map<String, dynamic>>.from(data['cars'] ?? []);
+        _panels = List<Map<String, dynamic>>.from(data['panels'] ?? []);
         _divisions = List<Map<String, dynamic>>.from(data['divisions'] ?? []);
         if (_selectedPanelName != null &&
-            !_panels.any((panel) => panel['name']?.toString() == _selectedPanelName)) {
+            !_panels.any(
+              (panel) => panel['name']?.toString() == _selectedPanelName,
+            )) {
           _selectedPanelName = null;
         }
-        _loading   = false;
+        _loading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   void _submit() {
     if (_selectedCar == null) {
-      _snack('Pilih unit kendaraan terlebih dahulu'); return;
+      _snack('Pilih unit kendaraan terlebih dahulu');
+      return;
     }
     if (_selectedDiv == null) {
-      _snack('Pilih divisi tujuan terlebih dahulu'); return;
+      _snack('Pilih divisi tujuan terlebih dahulu');
+      return;
     }
     if (_jobDetailCtrl.text.trim().isEmpty) {
-      _snack('Deskripsi pekerjaan wajib diisi'); return;
+      _snack('Deskripsi pekerjaan wajib diisi');
+      return;
     }
     if (_useFreeTextPanel && _sectionNameCtrl.text.trim().isEmpty) {
-      _snack('Nama panel/section wajib diisi'); return;
+      _snack('Nama panel/section wajib diisi');
+      return;
     }
     if (_useFreeTextPanel && _selectedCategory == null) {
-      _snack('Pilih kategori panel untuk panel baru'); return;
+      _snack('Pilih kategori panel untuk panel baru');
+      return;
     }
 
-    final tHours = _parseHhmm(_targetHoursCtrl.text);
-
-    context.read<WorkOrderBloc>().add(CreateWorkOrder(
-      carId:           _selectedCar!['id']?.toString() ?? '',
-      targetDivId:     _selectedDiv!['id']?.toString() ?? '',
-      jobDetail:       _jobDetailCtrl.text.trim(),
-      targetDate:      '${_targetDate.year}-'
-                       '${_targetDate.month.toString().padLeft(2, '0')}-'
-                       '${_targetDate.day.toString().padLeft(2, '0')}',
-      panelName:       _useFreeTextPanel
-                         ? _sectionNameCtrl.text.trim()
-                         : _selectedPanelName,
-      sectionName:     _useFreeTextPanel ? _sectionNameCtrl.text.trim() : null,
-      panelCategory:   _selectedCategory,
-      addPanelToMaster: _useFreeTextPanel,
-      targetHours:     tHours,
-    ));
+    context.read<WorkOrderBloc>().add(
+      CreateWorkOrder(
+        carId: _selectedCar!['id']?.toString() ?? '',
+        targetDivId: _selectedDiv!['id']?.toString() ?? '',
+        jobDetail: _jobDetailCtrl.text.trim(),
+        notes: _buildCreateNotes(),
+        targetDate:
+            '${_targetDate.year}-'
+            '${_targetDate.month.toString().padLeft(2, '0')}-'
+            '${_targetDate.day.toString().padLeft(2, '0')}',
+        panelName: _useFreeTextPanel
+            ? _sectionNameCtrl.text.trim()
+            : _selectedPanelName,
+        sectionName: _useFreeTextPanel ? _sectionNameCtrl.text.trim() : null,
+        panelCategory: _selectedCategory,
+        addPanelToMaster: _useFreeTextPanel,
+      ),
+    );
     Navigator.pop(context, true);
   }
 
+  String? _buildCreateNotes() {
+    final quom = _quomCtrl.text.trim();
+    if (quom.isEmpty) return null;
+    return 'QUOM: $quom';
+  }
+
   void _snack(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: AppColors.statusLocked,
-      behavior: SnackBarBehavior.floating,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.statusLocked,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   // ── Search pickers ─────────────────────────────────────────────────────
@@ -142,85 +162,131 @@ class _WoCreatePageState extends State<WoCreatePage> {
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => StatefulBuilder(builder: (ctx, ss) {
-        final filtered = items.where((i) {
-          final lbl = label(i).toLowerCase();
-          final sub = sublabel != null ? sublabel(i).toLowerCase() : '';
-          final q   = query.toLowerCase();
-          return lbl.contains(q) || sub.contains(q);
-        }).toList();
-        return SafeArea(
-          child: FractionallySizedBox(
-            heightFactor: 0.85,
-            child: Column(children: [
-              const SizedBox(height: 8),
-              Container(height: 4, width: 40,
-                  decoration: BoxDecoration(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, ss) {
+          final filtered = items.where((i) {
+            final lbl = label(i).toLowerCase();
+            final sub = sublabel != null ? sublabel(i).toLowerCase() : '';
+            final q = query.toLowerCase();
+            return lbl.contains(q) || sub.contains(q);
+          }).toList();
+          return SafeArea(
+            child: FractionallySizedBox(
+              heightFactor: 0.85,
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  Container(
+                    height: 4,
+                    width: 40,
+                    decoration: BoxDecoration(
                       color: AppColors.border,
-                      borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(title,
-                    style: const TextStyle(
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      title,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-              ),
-              const SizedBox(height: 12),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TextField(
-                  autofocus: true,
-                  onChanged: (v) => ss(() => query = v),
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Cari...',
-                    hintStyle: const TextStyle(color: AppColors.textDisabled),
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textMuted),
-                    filled: true,
-                    fillColor: AppColors.surfaceInput,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.border)),
-                    enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.border)),
-                    focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(child: filtered.isEmpty
-                  ? const Center(child: Text('Tidak ada hasil',
-                      style: TextStyle(color: AppColors.textMuted)))
-                  : ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, __) => const Divider(
-                          height: 1, color: AppColors.border),
-                      itemBuilder: (_, i) {
-                        final item = filtered[i];
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(label(item),
-                              style: const TextStyle(color: AppColors.textPrimary)),
-                          subtitle: sublabel != null
-                              ? Text(sublabel(item),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      autofocus: true,
+                      onChanged: (v) => ss(() => query = v),
+                      style: const TextStyle(color: AppColors.textPrimary),
+                      decoration: InputDecoration(
+                        hintText: 'Cari...',
+                        hintStyle: const TextStyle(
+                          color: AppColors.textDisabled,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search_rounded,
+                          color: AppColors.textMuted,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.surfaceInput,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: AppColors.gold,
+                            width: 1.5,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Tidak ada hasil',
+                              style: TextStyle(color: AppColors.textMuted),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) => const Divider(
+                              height: 1,
+                              color: AppColors.border,
+                            ),
+                            itemBuilder: (_, i) {
+                              final item = filtered[i];
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  label(item),
                                   style: const TextStyle(
-                                      fontSize: 12, color: AppColors.textMuted))
-                              : null,
-                          onTap: () => Navigator.pop(ctx, item),
-                        );
-                      })),
-            ]),
-          ),
-        );
-      }),
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                subtitle: sublabel != null
+                                    ? Text(
+                                        sublabel(item),
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textMuted,
+                                        ),
+                                      )
+                                    : null,
+                                onTap: () => Navigator.pop(ctx, item),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -232,21 +298,25 @@ class _WoCreatePageState extends State<WoCreatePage> {
       appBar: AppBar(
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
-        title: const Text('Buat Work Order',
-            style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Buat Work Order',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.close_rounded),
             onPressed: () => Navigator.pop(context),
-          )
+          ),
         ],
         elevation: 0,
         shape: const Border(bottom: BorderSide(color: AppColors.border)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.gold),
+            )
           : BlocListener<WorkOrderBloc, WorkOrderState>(
               listener: (ctx, state) {
                 if (state is WorkOrderError) {
@@ -266,7 +336,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                           child: _TapField(
                             value: _selectedCar != null
                                 ? '${_selectedCar!['unit_name'] ?? ''}'
-                                  '\n${_selectedCar!['customer_name'] ?? ''}'
+                                      '\n${_selectedCar!['customer_name'] ?? ''}'
                                 : null,
                             hint: 'Ketuk untuk pilih unit',
                             onTap: () async {
@@ -274,7 +344,8 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                 title: 'Pilih Unit',
                                 items: _cars,
                                 label: (c) => c['unit_name']?.toString() ?? '',
-                                sublabel: (c) => c['customer_name']?.toString() ?? '',
+                                sublabel: (c) =>
+                                    c['customer_name']?.toString() ?? '',
                               );
                               if (picked != null) {
                                 setState(() {
@@ -303,7 +374,9 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                 items: _divisions,
                                 label: (d) => d['name']?.toString() ?? '',
                               );
-                              if (picked != null) setState(() => _selectedDiv = picked);
+                              if (picked != null) {
+                                setState(() => _selectedDiv = picked);
+                              }
                             },
                           ),
                         ),
@@ -325,11 +398,14 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                       title: 'Pilih Panel',
                                       items: _panels,
                                       label: (p) => p['name']?.toString() ?? '',
-                                      sublabel: (p) => p['section']?.toString() ?? '',
+                                      sublabel: (p) =>
+                                          p['section']?.toString() ?? '',
                                     );
                                     if (picked != null) {
-                                      setState(() => _selectedPanelName =
-                                          picked['name']?.toString());
+                                      setState(
+                                        () => _selectedPanelName =
+                                            picked['name']?.toString(),
+                                      );
                                     }
                                   },
                                 ),
@@ -346,19 +422,31 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                     _sectionNameCtrl.clear();
                                   }
                                 }),
-                                title: const Text('Panel tidak ada di daftar (isi manual)',
-                                    style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                                title: const Text(
+                                  'Panel tidak ada di daftar (isi manual)',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
                               ),
                               if (_useFreeTextPanel) ...[
                                 TextField(
                                   controller: _sectionNameCtrl,
-                                  style: const TextStyle(color: AppColors.textPrimary),
-                                  decoration: _inputDeco('Nama Panel / Section'),
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  decoration: _inputDeco(
+                                    'Nama Panel / Section',
+                                  ),
                                 ),
                                 const SizedBox(height: 10),
                                 const Text(
                                   'Panel manual akan otomatis ditambahkan ke master sesuai unit terpilih.',
-                                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textMuted,
+                                  ),
                                 ),
                                 const SizedBox(height: 8),
                                 DropdownButtonFormField<String>(
@@ -367,10 +455,18 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                   dropdownColor: AppColors.surfaceCard,
                                   decoration: _inputDeco('Kategori Panel *'),
                                   items: _categories
-                                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                                      .map(
+                                        (c) => DropdownMenuItem(
+                                          value: c,
+                                          child: Text(c),
+                                        ),
+                                      )
                                       .toList(),
-                                  onChanged: (v) => setState(() => _selectedCategory = v),
-                                  style: const TextStyle(color: AppColors.textPrimary),
+                                  onChanged: (v) =>
+                                      setState(() => _selectedCategory = v),
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
                               ],
                             ],
@@ -382,31 +478,46 @@ class _WoCreatePageState extends State<WoCreatePage> {
                         _SectionCard(
                           icon: Icons.assignment_rounded,
                           title: 'Detail Pekerjaan',
-                          child: TextField(
-                            controller: _jobDetailCtrl,
-                            maxLines: 4,
-                            style: const TextStyle(color: AppColors.textPrimary),
-                            decoration: _inputDeco('Deskripsikan pekerjaan yang diperlukan...'),
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: _jobDetailCtrl,
+                                maxLines: 4,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                ),
+                                decoration: _inputDeco(
+                                  'Deskripsikan pekerjaan yang diperlukan...',
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextField(
+                                controller: _quomCtrl,
+                                maxLines: 2,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
+                                ),
+                                decoration: _inputDeco(
+                                  'QUOM (opsional, akan masuk catatan)',
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 12),
 
-                        // ── Target Jam + Tanggal ──────────────────────
+                        // ── Tanggal Target ─────────────────────────────
                         _SectionCard(
                           icon: Icons.schedule_rounded,
-                          title: 'Target Proyek',
+                          title: 'Target WO',
                           child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              TextField(
-                                controller: _targetHoursCtrl,
-                                keyboardType: const TextInputType.numberWithOptions(decimal: false),
-                                style: const TextStyle(color: AppColors.textPrimary),
-                                decoration: _inputDeco('Target Jam (HHH:MM, misal 180:00)').copyWith(
-                                  helperText: 'Format: jam:menit — tidak dibatasi 23 jam',
-                                  helperStyle: const TextStyle(
-                                      fontSize: 11, color: AppColors.textMuted),
-                                  suffixIcon: const Icon(Icons.timer_outlined,
-                                      color: AppColors.textMuted, size: 20),
+                              const Text(
+                                'PIC dan jam kerja akan ditentukan KD tujuan pada tahap approval WO.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
                                 ),
                               ),
                               const SizedBox(height: 12),
@@ -422,15 +533,21 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                     context: context,
                                     initialDate: _targetDate,
                                     firstDate: DateTime.now(),
-                                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                                    lastDate: DateTime.now().add(
+                                      const Duration(days: 365),
+                                    ),
                                     builder: (ctx, child) => Theme(
                                       data: Theme.of(ctx).copyWith(
-                                          colorScheme: const ColorScheme.dark(
-                                              primary: AppColors.gold)),
+                                        colorScheme: const ColorScheme.dark(
+                                          primary: AppColors.gold,
+                                        ),
+                                      ),
                                       child: child!,
                                     ),
                                   );
-                                  if (picked != null) setState(() => _targetDate = picked);
+                                  if (picked != null) {
+                                    setState(() => _targetDate = picked);
+                                  }
                                 },
                               ),
                             ],
@@ -455,14 +572,20 @@ class _WoCreatePageState extends State<WoCreatePage> {
                         child: FilledButton.icon(
                           onPressed: _submit,
                           icon: const Icon(Icons.send_rounded),
-                          label: const Text('Kirim Work Order',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                          label: const Text(
+                            'Kirim Work Order',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.gold,
                             foregroundColor: AppColors.background,
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),
@@ -475,21 +598,24 @@ class _WoCreatePageState extends State<WoCreatePage> {
   }
 
   InputDecoration _inputDeco(String hint) => InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textDisabled),
-        filled: true,
-        fillColor: AppColors.surfaceInput,
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.border)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.border)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: const BorderSide(color: AppColors.gold, width: 1.5)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      );
+    hintText: hint,
+    hintStyle: const TextStyle(color: AppColors.textDisabled),
+    filled: true,
+    fillColor: AppColors.surfaceInput,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: AppColors.border),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: AppColors.border),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+    ),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  );
 }
 
 // ─── Reusable widgets ────────────────────────────────────────────────────────
@@ -501,8 +627,8 @@ class _SectionCard extends StatelessWidget {
     required this.child,
   });
   final IconData icon;
-  final String   title;
-  final Widget   child;
+  final String title;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -516,16 +642,21 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Icon(icon, size: 15, color: AppColors.gold),
-            const SizedBox(width: 6),
-            Text(title,
+          Row(
+            children: [
+              Icon(icon, size: 15, color: AppColors.gold),
+              const SizedBox(width: 6),
+              Text(
+                title,
                 style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.gold,
-                    letterSpacing: 0.5)),
-          ]),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.gold,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           child,
         ],
@@ -541,9 +672,9 @@ class _TapField extends StatelessWidget {
     this.value,
     this.icon = Icons.chevron_right_rounded,
   });
-  final String?   value;
-  final String    hint;
-  final IconData  icon;
+  final String? value;
+  final String hint;
+  final IconData icon;
   final VoidCallback onTap;
 
   @override
@@ -557,20 +688,27 @@ class _TapField extends StatelessWidget {
           color: AppColors.surfaceInput,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-              color: value != null ? AppColors.gold.withValues(alpha: 0.5) : AppColors.border),
+            color: value != null
+                ? AppColors.gold.withValues(alpha: 0.5)
+                : AppColors.border,
+          ),
         ),
-        child: Row(children: [
-          Expanded(
-            child: Text(
-              value ?? hint,
-              style: TextStyle(
-                color: value != null ? AppColors.textPrimary : AppColors.textDisabled,
-                fontSize: 14,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                value ?? hint,
+                style: TextStyle(
+                  color: value != null
+                      ? AppColors.textPrimary
+                      : AppColors.textDisabled,
+                  fontSize: 14,
+                ),
               ),
             ),
-          ),
-          Icon(icon, size: 18, color: AppColors.textMuted),
-        ]),
+            Icon(icon, size: 18, color: AppColors.textMuted),
+          ],
+        ),
       ),
     );
   }

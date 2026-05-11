@@ -1,6 +1,14 @@
+/*
+Tujuan: Implementasi HTTP datasource task execution untuk mobile.
+Caller: TaskRepositoryImpl.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, TimeParser.
+Main Functions: getTodaysTasks, startJobExecution, submitTaskExecution.
+Side Effects: HTTP GET/POST/PUT ke service sm_tasks.
+*/
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../../core/utils/time_parser.dart';
 import '../../domain/entities/task_execution_log.dart';
 import '../models/task_model.dart';
 import 'remote_task_datasource.dart';
@@ -34,6 +42,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   Future<List<TaskModel>> getTodaysTasks({
     required DateTime date,
     required bool isOvertime,
+    bool forceOwnOnly = false,
   }) async {
     final dateStr =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -43,6 +52,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       queryParameters: {
         'userId': sessionManager.userId ?? sessionManager.employeeId ?? '',
         'date': dateStr,
+        'isOvertime': isOvertime ? 1 : 0,
+        if (forceOwnOnly) 'scope': 'self',
       },
     );
 
@@ -75,10 +86,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   @override
   Future<TaskModel> getTaskById(String plandailyId) async {
     // GET /tasks filtered by the specific ID, then find matching one
-    final tasks = await getTodaysTasks(
-      date: DateTime.now(),
-      isOvertime: false,
-    );
+    final tasks = await getTodaysTasks(date: DateTime.now(), isOvertime: false);
     return tasks.firstWhere(
       (t) => t.plandailyId == plandailyId,
       orElse: () => throw ClientException(
@@ -116,8 +124,9 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
 
     final data = response.data as Map<String, dynamic>? ?? {};
     final respData = data['data'] as Map<String, dynamic>? ?? {};
-    final startTime = respData['startTime'] as String? ??
-        DateTime.now().toUtc().toIso8601String();
+    final startTime =
+        respData['startTime'] as String? ??
+        TimeParser.formatIsoWithOffset(DateTime.now());
 
     // Return a minimal TaskModel with updated start info
     // The BLoC will refresh the full list after start
@@ -135,7 +144,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       targetHoursRevised: 0,
       remainingHours: 0,
       taskDate: DateTime.now().toIso8601String().substring(0, 10),
-      createdAt: DateTime.now().toUtc().toIso8601String(),
+      createdAt: TimeParser.formatIsoWithOffset(DateTime.now()),
       startedAt: startTime,
       taskCategory: '',
       customDescription: '',
@@ -154,8 +163,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       'action': 'submit',
       'plandailyId': plandailyId,
       'userId': sessionManager.userId ?? sessionManager.employeeId ?? '',
-      'startTime': DateTime.now().toUtc().toIso8601String(),
-      'finishTime': DateTime.now().toUtc().toIso8601String(),
+      'startTime': TimeParser.formatIsoWithOffset(DateTime.now()),
+      'finishTime': TimeParser.formatIsoWithOffset(DateTime.now()),
       'breakDurationMinutes': breakDurationMinutes,
       'progressPercent': 100,
       'status': 'done',
@@ -182,8 +191,8 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       targetHoursRevised: 0,
       remainingHours: 0,
       taskDate: DateTime.now().toIso8601String().substring(0, 10),
-      createdAt: DateTime.now().toUtc().toIso8601String(),
-      completedAt: DateTime.now().toUtc().toIso8601String(),
+      createdAt: TimeParser.formatIsoWithOffset(DateTime.now()),
+      completedAt: TimeParser.formatIsoWithOffset(DateTime.now()),
       taskCategory: '',
       customDescription: '',
       ownerName: sessionManager.fullName ?? '',
@@ -199,47 +208,10 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     _assertRemotePhotoUrl(log.photoProcess, 'photoProcess1');
     _assertRemotePhotoUrl(log.photoAfter, 'photoAfter1');
 
-    if (normalizedStatus == 'pending') {
-      final checkpointPayload = <String, dynamic>{
-        'action': 'checkpoint',
-        'plandailyId': log.plandailyId,
-        'userId': userId,
-        'status': 'pending',
-        'progressSeen': log.progressPercent.round(),
-        if (log.dailyNotes != null && log.dailyNotes!.trim().isNotEmpty)
-          'note': log.dailyNotes!.trim(),
-      };
-
-      await apiClient.post(
-        ApiEndpoints.taskCheckpoint,
-        data: checkpointPayload,
-      );
-
-      return TaskModel(
-        plandailyId: log.plandailyId,
-        coreId: '',
-        carId: '',
-        unitName: '',
-        panelName: '',
-        jobName: '',
-        divisionName: sessionManager.divisionName ?? '',
-        status: 'PLAN',
-        isPanelLocked: false,
-        dailyTargetHours: 0,
-        targetHoursRevised: 0,
-        remainingHours: 0,
-        taskDate: DateTime.now().toIso8601String().substring(0, 10),
-        createdAt: DateTime.now().toUtc().toIso8601String(),
-        startedAt: log.startTime,
-        completedAt: log.finishTime,
-        taskCategory: '',
-        customDescription: '',
-        ownerName: sessionManager.fullName ?? '',
-        totalActualHours: 0,
-        hasMonitoringRecord: true,
-      );
-    }
-
+    // Logic Suggestion: Always use PUT action=submit even for pending status
+    // so the backend can record finishTime, duration, and close the session.
+    // This solves "waktu masih berjalan" issue where the backend actual record
+    // stays open without a finish_time.
     final payload = <String, dynamic>{
       'action': 'submit',
       'plandailyId': log.plandailyId,
@@ -247,13 +219,15 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       'startTime': log.startTime,
       'finishTime': log.finishTime,
       'breakDurationMinutes': log.breakDurationMinutes,
-      'progressPercent': log.progressPercent,
+      'progressPercent': log.progressPercent.toInt(),
       'status': normalizedStatus,
       if (log.dailyNotes != null) 'dailyNotes': log.dailyNotes,
       if (log.photoProcess != null && log.photoProcess!.isNotEmpty)
         'photoProcess1': log.photoProcess,
       if (log.photoAfter != null && log.photoAfter!.isNotEmpty)
         'photoAfter1': log.photoAfter,
+      if (log.photoBefore != null && log.photoBefore!.isNotEmpty)
+        'photoBefore1': log.photoBefore,
     };
 
     final response = await apiClient.put(
@@ -309,9 +283,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   Future<String> getUploadTicket({required String filename}) async {
     final response = await apiClient.get(
       ApiEndpoints.tasksUploadTicket,
-      queryParameters: {
-        'filename': filename,
-      },
+      queryParameters: {'filename': filename},
     );
     final rawData = response.data as Map<String, dynamic>? ?? {};
     final data = rawData['data'] as Map<String, dynamic>? ?? {};
@@ -339,19 +311,28 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       case 'CANCELLED':
         return 'CANCEL';
       case 'PENDING':
+        return 'PENDING';
       case 'PLAN':
       case 'ASSIGNED':
         return 'PLAN';
+      case 'SUBMITTED':
+        return 'SUBMITTED';
       case 'PROSES':
       case 'IN_PROGRESS':
       case 'ON_PROGRESS':
       case 'ONPROGRESS':
       case 'CHECK_PROGRESS':
-      case 'SUBMITTED':
         return 'PROSES';
       default:
         return 'PLAN';
     }
+  }
+
+  double _parseTargetHours(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is num) return value.toDouble();
+    final str = value.toString();
+    return TimeParser.parseHHmmToDecimal(str) ?? 0.0;
   }
 
   /// Maps a ViewTask-style JSON from GET /tasks response to TaskModel.
@@ -359,29 +340,62 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     final division = json['division'] as Map<String, dynamic>? ?? {};
     final unit = json['unit'] as Map<String, dynamic>? ?? {};
     final task = json['task'] as Map<String, dynamic>? ?? {};
+    final actualDurationHours = _parseTargetHours(json['actualDurationHours']);
+    final actualProgressRaw = json['actualProgress'];
+    final actualProgressPct = actualProgressRaw is int
+        ? actualProgressRaw.toDouble()
+        : (actualProgressRaw is double ? actualProgressRaw : null);
+
+    final dailyTarget = _parseTargetHours(json['dailyTargetHours']);
+    final totalTarget = _parseTargetHours(
+      task['target_hours_revised'] ??
+          task['target_hours_initial'] ??
+          dailyTarget,
+    );
+    final remaining = _parseTargetHours(task['remaining_hours'] ?? totalTarget);
+    final taskDescription = _asString(task['jobDescription']);
+    final taskNote = _asString(task['note']);
 
     return TaskModel(
       plandailyId: _asString(json['planDailyId']),
-      coreId: '',
+      coreId: _asString(json['coreId']),
       carId: _asString(unit['unitId']),
       unitName: _asString(unit['unitName'], fallback: '-'),
       panelName: _asString(task['namaPanel'], fallback: '-'),
       jobName: _asString(task['jobName'], fallback: '-'),
       divisionName: _asString(division['divisionName'], fallback: '-'),
-      status:
-          _normalizeTaskStatus(_asString(json['status'], fallback: 'PENDING')),
+      status: _normalizeTaskStatus(
+        _asString(json['status'], fallback: 'PENDING'),
+      ),
       isPanelLocked: false,
-      dailyTargetHours: 8.0,
-      targetHoursRevised: 0,
-      remainingHours: 0,
-      taskDate: DateTime.now().toIso8601String().substring(0, 10),
-      createdAt: DateTime.now().toUtc().toIso8601String(),
-      taskCategory: '',
-      customDescription: _asString(task['jobDescription']),
+      dailyTargetHours: dailyTarget,
+      targetHoursRevised: totalTarget,
+      remainingHours: remaining,
+      taskDate: _asString(
+        json['taskDate'],
+        fallback: DateTime.now().toIso8601String().substring(0, 10),
+      ),
+      startTime: _asString(task['startTime'], fallback: '08:00'),
+      targetFinishTime: _asString(task['targetFinishTime'], fallback: '16:00'),
+      createdAt: _asString(
+        json['createdAt'],
+        fallback: DateTime.now().toUtc().toIso8601String(),
+      ),
+      startedAt: json['startedAt']?.toString(),
+      completedAt: json['completedAt']?.toString(),
+      taskCategory: _asString(json['taskCategory']),
+      customDescription: [
+        if (taskDescription.isNotEmpty) taskDescription,
+        if (taskNote.isNotEmpty) 'Catatan: $taskNote',
+      ].join('\n\n'),
       ownerName: _asString(
         (json['employee'] as Map<String, dynamic>?)?['employeeName'],
       ),
-      totalActualHours: 0,
+      // Use actualProgress (submitted %) if available; otherwise fall back to
+      // actualDurationHours so the progress bar reflects what the mekanik submitted.
+      totalActualHours: actualProgressPct != null && dailyTarget > 0
+          ? (actualProgressPct / 100.0) * dailyTarget
+          : actualDurationHours,
       hasMonitoringRecord: json['hasMonitoringRecord'] as bool? ?? false,
       isRework: task['is_rework'] == 1 || task['is_rework'] == true,
       isOvertime: task['is_overtime'] == 1 || task['is_overtime'] == true,

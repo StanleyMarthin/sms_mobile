@@ -1,3 +1,10 @@
+/*
+Tujuan: Event BLoC untuk daftar, detail, create, approval, dan extension Work Order.
+Caller: WorkOrderPage, WoCreatePage, WoDetailPage.
+Dependensi: Equatable.
+Main Functions: LoadWorkOrders, LoadWorkOrderDetail, CreateWorkOrder, ApproveWo, RejectWo.
+Side Effects: Tidak langsung; menjadi input state transition pada WorkOrderBloc.
+*/
 import 'package:equatable/equatable.dart';
 
 abstract class WorkOrderEvent extends Equatable {
@@ -25,20 +32,22 @@ class LoadWorkOrderDetail extends WorkOrderEvent {
 }
 
 class CreateWorkOrder extends WorkOrderEvent {
-  final String  carId;
-  final String  targetDivId;
-  final String  jobDetail;
-  final String  targetDate;
+  final String carId;
+  final String targetDivId;
+  final String jobDetail;
+  final String? notes;
+  final String targetDate;
   final String? panelName;
   final String? sectionName;
   final String? panelCategory;
-  final bool    addPanelToMaster;
+  final bool addPanelToMaster;
   final double? targetHours;
 
   const CreateWorkOrder({
     required this.carId,
     required this.targetDivId,
     required this.jobDetail,
+    this.notes,
     required this.targetDate,
     this.panelName,
     this.sectionName,
@@ -48,18 +57,24 @@ class CreateWorkOrder extends WorkOrderEvent {
   });
 
   @override
-  List<Object?> get props => [carId, targetDivId, jobDetail, targetDate];
+  List<Object?> get props => [carId, targetDivId, jobDetail, notes, targetDate];
 }
 
 class ApproveWo extends WorkOrderEvent {
   final String woId;
   final double? estimatedHours; // wajib untuk KD_TARGET
   final String? notes;
+  final String? picId;
 
-  const ApproveWo({required this.woId, this.estimatedHours, this.notes});
+  const ApproveWo({
+    required this.woId,
+    this.estimatedHours,
+    this.notes,
+    this.picId,
+  });
 
   @override
-  List<Object?> get props => [woId, estimatedHours, notes];
+  List<Object?> get props => [woId, estimatedHours, notes, picId];
 }
 
 class RejectWo extends WorkOrderEvent {
@@ -76,7 +91,11 @@ class RequestDlExtension extends WorkOrderEvent {
   final String woId;
   final String newDeadline;
   final String reason;
-  const RequestDlExtension({required this.woId, required this.newDeadline, required this.reason});
+  const RequestDlExtension({
+    required this.woId,
+    required this.newDeadline,
+    required this.reason,
+  });
   @override
   List<Object?> get props => [woId, newDeadline, reason];
 }
@@ -85,7 +104,11 @@ class RespondDlExtension extends WorkOrderEvent {
   final String woId;
   final bool approve;
   final String? note;
-  const RespondDlExtension({required this.woId, required this.approve, this.note});
+  const RespondDlExtension({
+    required this.woId,
+    required this.approve,
+    this.note,
+  });
   @override
   List<Object?> get props => [woId, approve];
 }
@@ -94,7 +117,11 @@ class RequestHourExtension extends WorkOrderEvent {
   final String woId;
   final double requestedHours;
   final String reason;
-  const RequestHourExtension({required this.woId, required this.requestedHours, required this.reason});
+  const RequestHourExtension({
+    required this.woId,
+    required this.requestedHours,
+    required this.reason,
+  });
   @override
   List<Object?> get props => [woId, requestedHours, reason];
 }

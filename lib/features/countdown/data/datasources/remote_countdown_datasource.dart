@@ -96,6 +96,8 @@ class RemoteCountdownDataSource implements CountdownDataSource {
             ((item['total_target_hours'] as num?) ?? 0).toDouble(),
         'sectionProgress': ((item['section_progress'] as num?) ?? 0).toDouble(),
         'sectionStatus': '${item['section_status'] ?? 'PLAN'}',
+        'totalTargetHoursAlias': item['total_target_hours_alias'],
+        'totalRemainingHoursAlias': item['total_remaining_hours_alias'],
       };
     }).toList();
   }
@@ -162,6 +164,8 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       'isLockedByOtherDivision': job['is_locked']?.toString() == '1' &&
           job['current_division_id']?.toString() !=
               job['division_id']?.toString(),
+      'targetHoursRevisedAlias': job['target_hours_revised_alias'],
+      'remainingHoursAlias': job['remaining_hours_alias'],
     };
   }
 

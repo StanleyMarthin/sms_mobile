@@ -1,3 +1,10 @@
+/*
+Tujuan: Router-level section chooser untuk membuka halaman task yang sesuai berdasarkan role dan jenis section.
+Caller: app_router.dart untuk route /tasks, /overtime, dan /plans.
+Dependensi: RBAC, SessionManager, MechanicTaskPage, TaskViewPage, JobPlanPage.
+Main Functions: build.
+Side Effects: Menentukan navigasi tampilan task execution atau monitoring management.
+*/
 import 'package:flutter/material.dart';
 
 import '../../../../core/auth/rbac.dart';
@@ -30,12 +37,13 @@ class TaskSectionPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = sl<SessionManager>().role;
-    final isMechanic = hasPermission(role, Permission.dashboardMechanic);
+    final session = sl<SessionManager>();
+    final role = session.role;
+    final isOperator = hasPermission(role, Permission.dashboardMechanic);
 
     switch (kind) {
       case TaskSectionKind.tasks:
-        if (isMechanic) {
+        if (isOperator) {
           return MechanicTaskPage(
             isOvertime: false,
             title: 'Task',
@@ -49,7 +57,7 @@ class TaskSectionPage extends StatelessWidget {
           initialDate: initialDate,
         );
       case TaskSectionKind.overtime:
-        if (isMechanic) {
+        if (isOperator) {
           return MechanicTaskPage(
             isOvertime: true,
             title: 'Lembur',

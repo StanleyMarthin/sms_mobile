@@ -73,6 +73,8 @@ abstract class WarehouseDataSource {
     double? qtyReturned,
   });
 
+  Future<void> remindReturn({required String logId, String? notes});
+
   Future<void> storeItem({
     required String logId,
     String? notes,

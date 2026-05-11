@@ -1,7 +1,10 @@
-// View Task Model — JSON-serializable data model for GET /api/v1/tasks.
-//
-// Maps the nested JSON response structure to Dart objects and provides
-// conversion to domain entities.
+/*
+Tujuan: Model data task view untuk menormalkan payload monitoring/task API menjadi entity domain yang stabil.
+Caller: ApiViewTaskDataSource, LocalViewTaskDataSource, dan repository task monitoring.
+Dependensi: ViewTaskEntity dan struktur response GET /api/v1/tasks.
+Main Functions: TaskCheckpointSessionModel.fromJson, TaskDetailModel.fromJson, ViewTaskModel.fromJson, toEntity.
+Side Effects: Tidak ada; hanya parsing dan normalisasi data in-memory.
+*/
 library;
 
 import '../../domain/entities/view_task_entity.dart';
@@ -39,14 +42,80 @@ bool _asBool(dynamic value, {bool fallback = false}) {
   return fallback;
 }
 
+String? _normalizeClockValue(Object? value) {
+  if (value == null) return null;
+  if (value is num) return _secondsToClock(value.toDouble());
+
+  final raw = value.toString().trim();
+  if (raw.isEmpty || raw == '-' || raw.toLowerCase() == 'null') return null;
+
+  final numeric = double.tryParse(raw);
+  if (numeric != null) return _secondsToClock(numeric);
+
+  final directMatch = RegExp(r'(\d{1,2}):(\d{2})(?::\d{2})?').firstMatch(raw);
+  if (directMatch != null) {
+    final hour = directMatch.group(1)!.padLeft(2, '0');
+    final minute = directMatch.group(2)!;
+    return '$hour:$minute';
+  }
+
+  final normalizedIsoSource = raw.contains(' ') && !raw.contains('T')
+      ? raw.replaceFirst(' ', 'T')
+      : raw;
+  final parsedDateTime = DateTime.tryParse(normalizedIsoSource);
+  if (parsedDateTime == null) return null;
+
+  final local = parsedDateTime.isUtc
+      ? parsedDateTime.toLocal()
+      : parsedDateTime;
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
+
+String _secondsToClock(double seconds) {
+  final totalMinutes = (seconds / 60).round();
+  final hours = ((totalMinutes ~/ 60) % 24).toString().padLeft(2, '0');
+  final minutes = (totalMinutes % 60).toString().padLeft(2, '0');
+  return '$hours:$minutes';
+}
+
+String? _pickClockValue(Iterable<Object?> candidates, {String? fallback}) {
+  for (final candidate in candidates) {
+    final normalized = _normalizeClockValue(candidate);
+    if (normalized != null) return normalized;
+  }
+  return fallback;
+}
+
+String? _extractNoteRangeClock(Object? value, {required bool takeStart}) {
+  if (value == null) return null;
+  final raw = value.toString().trim();
+  if (raw.isEmpty) return null;
+
+  final match = RegExp(
+    r'(\d{1,2}:\d{2})(?::\d{2})?\s*-\s*(\d{1,2}:\d{2})(?::\d{2})?',
+  ).firstMatch(raw);
+  if (match == null) return null;
+
+  return _normalizeClockValue(takeStart ? match.group(1) : match.group(2));
+}
+
+String? _extractFirstClockFromText(Object? value) {
+  if (value == null) return null;
+  final raw = value.toString().trim();
+  if (raw.isEmpty) return null;
+
+  final match = RegExp(r'(\d{1,2}:\d{2})(?::\d{2})?').firstMatch(raw);
+  if (match == null) return null;
+  return _normalizeClockValue(match.group(1));
+}
+
 class TaskCheckpointReviewerModel {
   final String role;
   final String name;
 
-  const TaskCheckpointReviewerModel({
-    required this.role,
-    required this.name,
-  });
+  const TaskCheckpointReviewerModel({required this.role, required this.name});
 
   factory TaskCheckpointReviewerModel.fromJson(Map<String, dynamic> json) {
     return TaskCheckpointReviewerModel(
@@ -55,10 +124,7 @@ class TaskCheckpointReviewerModel {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'role': role,
-        'name': name,
-      };
+  Map<String, dynamic> toJson() => {'role': role, 'name': name};
 
   TaskCheckpointReviewer toEntity() =>
       TaskCheckpointReviewer(role: role, name: name);
@@ -88,6 +154,7 @@ class TaskCheckpointSessionModel {
   });
 
   factory TaskCheckpointSessionModel.fromJson(Map<String, dynamic> json) {
+    final note = _asString(json['note']);
     final reviewerItems = (json['reviewers'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(TaskCheckpointReviewerModel.fromJson)
@@ -98,50 +165,77 @@ class TaskCheckpointSessionModel {
 
     return TaskCheckpointSessionModel(
       sessionNumber: _asInt(json['sessionNumber'], fallback: 1),
-      startWorkTime: json['startWorkTime'] as String? ?? '--:--',
-      finishWorkTime: json['finishWorkTime'] as String? ??
-          json['checkpointTime'] as String? ??
+      startWorkTime:
+          _pickClockValue(
+            [
+              json['startWorkTime'],
+              json['start_time'],
+              json['startTime'],
+              _extractNoteRangeClock(note, takeStart: true),
+            ],
+            fallback: _pickClockValue([
+              json['checkpointTime'],
+              json['checkpoint_time'],
+              json['time'],
+              _extractFirstClockFromText(note),
+            ], fallback: '--:--'),
+          ) ??
+          '--:--',
+      finishWorkTime:
+          _pickClockValue([
+            json['finishWorkTime'],
+            json['finish_time'],
+            json['finishTime'],
+            _extractNoteRangeClock(note, takeStart: false),
+            json['checkpointTime'],
+            json['checkpoint_time'],
+            json['time'],
+          ], fallback: _extractFirstClockFromText(note) ?? '--:--') ??
           '--:--',
       progress: _asInt(json['progress']),
-      checkpointTime: json['checkpointTime'] as String? ?? '--:--',
+      checkpointTime:
+          _pickClockValue([
+            json['checkpointTime'],
+            json['checkpoint_time'],
+            json['time'],
+            _extractFirstClockFromText(note),
+          ], fallback: '--:--') ??
+          '--:--',
       jobStatus: json['jobStatus'] as String? ?? 'ON_PROGRESS',
       actorRole: json['actorRole'] as String? ?? 'kd',
       actorName: json['actorName'] as String? ?? 'SYSTEM',
       reviewers: reviewerItems.isNotEmpty
           ? reviewerItems
           : (legacyValidated && legacyRole != null && legacyName != null)
-              ? [
-                  TaskCheckpointReviewerModel(
-                      role: legacyRole, name: legacyName)
-                ]
-              : const [],
+          ? [TaskCheckpointReviewerModel(role: legacyRole, name: legacyName)]
+          : const [],
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'sessionNumber': sessionNumber,
-        'startWorkTime': startWorkTime,
-        'finishWorkTime': finishWorkTime,
-        'progress': progress,
-        'checkpointTime': checkpointTime,
-        'jobStatus': jobStatus,
-        'actorRole': actorRole,
-        'actorName': actorName,
-        'isValidated': reviewers.isNotEmpty,
-        'reviewers': reviewers.map((item) => item.toJson()).toList(),
-      };
+    'sessionNumber': sessionNumber,
+    'startWorkTime': startWorkTime,
+    'finishWorkTime': finishWorkTime,
+    'progress': progress,
+    'checkpointTime': checkpointTime,
+    'jobStatus': jobStatus,
+    'actorRole': actorRole,
+    'actorName': actorName,
+    'isValidated': reviewers.isNotEmpty,
+    'reviewers': reviewers.map((item) => item.toJson()).toList(),
+  };
 
   TaskCheckpointSession toEntity() => TaskCheckpointSession(
-        sessionNumber: sessionNumber,
-        startWorkTime: startWorkTime,
-        finishWorkTime: finishWorkTime,
-        progress: progress,
-        checkpointTime: checkpointTime,
-        jobStatus: jobStatus,
-        actorRole: actorRole,
-        actorName: actorName,
-        reviewers: reviewers.map((item) => item.toEntity()).toList(),
-      );
+    sessionNumber: sessionNumber,
+    startWorkTime: startWorkTime,
+    finishWorkTime: finishWorkTime,
+    progress: progress,
+    checkpointTime: checkpointTime,
+    jobStatus: jobStatus,
+    actorRole: actorRole,
+    actorName: actorName,
+    reviewers: reviewers.map((item) => item.toEntity()).toList(),
+  );
 }
 
 class TaskFinalValidationModel {
@@ -170,20 +264,20 @@ class TaskFinalValidationModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'role': role,
-        'name': name,
-        'note': note,
-        'time': time,
-        'approved': approved,
-      };
+    'role': role,
+    'name': name,
+    'note': note,
+    'time': time,
+    'approved': approved,
+  };
 
   TaskFinalValidation toEntity() => TaskFinalValidation(
-        role: role,
-        name: name,
-        note: note,
-        time: time,
-        approved: approved,
-      );
+    role: role,
+    name: name,
+    note: note,
+    time: time,
+    approved: approved,
+  );
 }
 
 /// Model for the division nested object in the task response.
@@ -204,14 +298,12 @@ class TaskDivisionModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'divisionId': divisionId,
-        'divisionName': divisionName,
-      };
+    'divisionId': divisionId,
+    'divisionName': divisionName,
+  };
 
-  TaskDivision toEntity() => TaskDivision(
-        divisionId: divisionId,
-        divisionName: divisionName,
-      );
+  TaskDivision toEntity() =>
+      TaskDivision(divisionId: divisionId, divisionName: divisionName);
 }
 
 /// Model for the unit nested object in the task response.
@@ -219,10 +311,7 @@ class TaskUnitModel {
   final String unitId;
   final String unitName;
 
-  const TaskUnitModel({
-    required this.unitId,
-    required this.unitName,
-  });
+  const TaskUnitModel({required this.unitId, required this.unitName});
 
   factory TaskUnitModel.fromJson(Map<String, dynamic> json) {
     return TaskUnitModel(
@@ -231,15 +320,9 @@ class TaskUnitModel {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'unitId': unitId,
-        'unitName': unitName,
-      };
+  Map<String, dynamic> toJson() => {'unitId': unitId, 'unitName': unitName};
 
-  TaskUnit toEntity() => TaskUnit(
-        unitId: unitId,
-        unitName: unitName,
-      );
+  TaskUnit toEntity() => TaskUnit(unitId: unitId, unitName: unitName);
 }
 
 /// Model for the employee nested object in the task response.
@@ -260,14 +343,12 @@ class TaskEmployeeModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'employeeId': employeeId,
-        'employeeName': employeeName,
-      };
+    'employeeId': employeeId,
+    'employeeName': employeeName,
+  };
 
-  TaskEmployee toEntity() => TaskEmployee(
-        employeeId: employeeId,
-        employeeName: employeeName,
-      );
+  TaskEmployee toEntity() =>
+      TaskEmployee(employeeId: employeeId, employeeName: employeeName);
 }
 
 /// Model for the task detail nested object in the task response.
@@ -295,32 +376,50 @@ class TaskDetailModel {
       namaPanel: _asString(json['namaPanel'], fallback: '-'),
       jobName: _asString(json['jobName'], fallback: '-'),
       jobDescription: _asString(json['jobDescription']),
-      startTime: _asString(json['startTime'], fallback: '-'),
-      targetFinishTime: _asString(json['targetFinishTime'], fallback: '-'),
+      startTime:
+          _pickClockValue([
+            json['startTime'],
+            json['start_time'],
+            json['targetStartHours'],
+            json['target_start_hours'],
+            json['targetStartTime'],
+            json['target_start_time'],
+          ], fallback: '-') ??
+          '-',
+      targetFinishTime:
+          _pickClockValue([
+            json['targetFinishTime'],
+            json['target_finish_time'],
+            json['finishTime'],
+            json['finish_time'],
+            json['targetFinishHours'],
+            json['target_finish_hours'],
+          ], fallback: '-') ??
+          '-',
       isRework: _asBool(json['is_rework']) || _asBool(json['isRework']),
       breakDuration: _asInt(json['breakDuration']),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'namaPanel': namaPanel,
-        'jobName': jobName,
-        'jobDescription': jobDescription,
-        'startTime': startTime,
-        'targetFinishTime': targetFinishTime,
-        'is_rework': isRework ? 1 : 0,
-        'breakDuration': breakDuration,
-      };
+    'namaPanel': namaPanel,
+    'jobName': jobName,
+    'jobDescription': jobDescription,
+    'startTime': startTime,
+    'targetFinishTime': targetFinishTime,
+    'is_rework': isRework ? 1 : 0,
+    'breakDuration': breakDuration,
+  };
 
   TaskDetail toEntity() => TaskDetail(
-        namaPanel: namaPanel,
-        jobName: jobName,
-        jobDescription: jobDescription,
-        startTime: startTime,
-        targetFinishTime: targetFinishTime,
-        isRework: isRework,
-        breakDuration: breakDuration,
-      );
+    namaPanel: namaPanel,
+    jobName: jobName,
+    jobDescription: jobDescription,
+    startTime: startTime,
+    targetFinishTime: targetFinishTime,
+    isRework: isRework,
+    breakDuration: breakDuration,
+  );
 }
 
 /// Top-level model for a single task in the GET /api/v1/tasks response.
@@ -354,11 +453,13 @@ class ViewTaskModel {
   });
 
   factory ViewTaskModel.fromJson(Map<String, dynamic> json) {
-    final taskJson = json['task'] as Map<String, dynamic>;
-    final checkpointItems = (json['checkpointHistory'] as List<dynamic>? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .map(TaskCheckpointSessionModel.fromJson)
-        .toList();
+    final taskJson = json['task'] as Map<String, dynamic>? ?? {};
+    final checkpointItems =
+        (json['checkpointHistory'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(TaskCheckpointSessionModel.fromJson)
+            .toList()
+          ..sort((a, b) => a.sessionNumber.compareTo(b.sessionNumber));
     final finalValidationItems =
         (json['finalValidations'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
@@ -372,35 +473,42 @@ class ViewTaskModel {
     final legacyTime = legacyValidation?['time'] as String? ?? '';
 
     final photosJson = json['photos'] as Map<String, dynamic>? ?? {};
-    final pBefore = (photosJson['before'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
-    final pProcess = (photosJson['process'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
-    final pAfter = (photosJson['after'] as List<dynamic>? ?? []).map((e) => e.toString()).toList();
+    final pBefore = (photosJson['before'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toList();
+    final pProcess = (photosJson['process'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toList();
+    final pAfter = (photosJson['after'] as List<dynamic>? ?? [])
+        .map((e) => e.toString())
+        .toList();
 
     return ViewTaskModel(
       planDailyId: _asString(json['planDailyId']),
-      division:
-          TaskDivisionModel.fromJson(json['division'] as Map<String, dynamic>),
+      division: TaskDivisionModel.fromJson(
+        json['division'] as Map<String, dynamic>,
+      ),
       unit: TaskUnitModel.fromJson(json['unit'] as Map<String, dynamic>),
-      employee:
-          TaskEmployeeModel.fromJson(json['employee'] as Map<String, dynamic>),
+      employee: TaskEmployeeModel.fromJson(
+        json['employee'] as Map<String, dynamic>,
+      ),
       task: TaskDetailModel.fromJson(taskJson),
       status: _asString(json['status'], fallback: 'PLAN'),
       checkpointHistory: checkpointItems,
       finalValidations: finalValidationItems.isNotEmpty
           ? finalValidationItems
           : (legacyApproved && legacyRole != null && legacyName != null)
-              ? [
-                  TaskFinalValidationModel(
-                    role: legacyRole,
-                    name: legacyName,
-                    note: legacyNote,
-                    time: legacyTime,
-                    approved: true,
-                  ),
-                ]
-              : const [],
-      maxCheckpointSessions:
-          _asInt(json['maxCheckpointSessions'], fallback: 3),
+          ? [
+              TaskFinalValidationModel(
+                role: legacyRole,
+                name: legacyName,
+                note: legacyNote,
+                time: legacyTime,
+                approved: true,
+              ),
+            ]
+          : const [],
+      maxCheckpointSessions: _asInt(json['maxCheckpointSessions'], fallback: 3),
       photosBefore: pBefore,
       photosProcess: pProcess,
       photosAfter: pAfter,
@@ -408,32 +516,33 @@ class ViewTaskModel {
   }
 
   Map<String, dynamic> toJson() => {
-        'planDailyId': planDailyId,
-        'division': division.toJson(),
-        'unit': unit.toJson(),
-        'employee': employee.toJson(),
-        'task': task.toJson(),
-        'status': status,
-        'checkpointHistory':
-            checkpointHistory.map((item) => item.toJson()).toList(),
-        'finalValidations':
-            finalValidations.map((item) => item.toJson()).toList(),
-        'validation':
-            finalValidations.isNotEmpty ? finalValidations.last.toJson() : null,
-        'maxCheckpointSessions': maxCheckpointSessions,
-      };
+    'planDailyId': planDailyId,
+    'division': division.toJson(),
+    'unit': unit.toJson(),
+    'employee': employee.toJson(),
+    'task': task.toJson(),
+    'status': status,
+    'checkpointHistory': checkpointHistory
+        .map((item) => item.toJson())
+        .toList(),
+    'finalValidations': finalValidations.map((item) => item.toJson()).toList(),
+    'validation': finalValidations.isNotEmpty
+        ? finalValidations.last.toJson()
+        : null,
+    'maxCheckpointSessions': maxCheckpointSessions,
+  };
 
   ViewTaskEntity toEntity() => ViewTaskEntity(
-        planDailyId: planDailyId,
-        division: division.toEntity(),
-        unit: unit.toEntity(),
-        employee: employee.toEntity(),
-        task: task.toEntity(),
-        status: status,
-        checkpointHistory:
-            checkpointHistory.map((item) => item.toEntity()).toList(),
-        finalValidations:
-            finalValidations.map((item) => item.toEntity()).toList(),
-        maxCheckpointSessions: maxCheckpointSessions,
-      );
+    planDailyId: planDailyId,
+    division: division.toEntity(),
+    unit: unit.toEntity(),
+    employee: employee.toEntity(),
+    task: task.toEntity(),
+    status: status,
+    checkpointHistory: checkpointHistory
+        .map((item) => item.toEntity())
+        .toList(),
+    finalValidations: finalValidations.map((item) => item.toEntity()).toList(),
+    maxCheckpointSessions: maxCheckpointSessions,
+  );
 }

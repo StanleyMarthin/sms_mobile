@@ -1,3 +1,10 @@
+/*
+Tujuan: Datasource lokal untuk simulasi task execution termasuk scope self-only.
+Caller: TaskRepositoryImpl saat mode dummy/local.
+Dependensi: LocalMockApiStore, SessionManager, dummy task data.
+Main Functions: getTodaysTasks, startJobExecution, submitTaskExecution.
+Side Effects: Baca/tulis mock store lokal.
+*/
 /// Local dummy data source for MVP development and testing.
 ///
 /// Implements [RemoteTaskDataSource] with in-memory data based on
@@ -27,10 +34,7 @@ import '../../domain/entities/task_execution_log.dart';
 ///   3. To Do, locked — MB 190 SL, Ganti Shockbreaker (locked by Aries)
 ///   4. Completed — PORSCHE 911, Kuras Oli Mesin & Ganti Filter
 class LocalTaskDataSource implements RemoteTaskDataSource {
-  LocalTaskDataSource({
-    required this.store,
-    required this.sessionManager,
-  });
+  LocalTaskDataSource({required this.store, required this.sessionManager});
 
   final LocalMockApiStore store;
   final SessionManager sessionManager;
@@ -39,6 +43,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
   Future<List<TaskModel>> getTodaysTasks({
     required DateTime date,
     required bool isOvertime,
+    bool forceOwnOnly = false,
   }) async {
     // Simulate network latency.
     await Future<void>.delayed(const Duration(milliseconds: 800));
@@ -52,7 +57,9 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     final currentUserId = sessionManager.userId;
     final role = sessionManager.role;
     final visibleTasks = tasks.where((task) {
-      if (role == 'op' && currentUserId != null && currentUserId.isNotEmpty) {
+      if ((forceOwnOnly || role == 'op') &&
+          currentUserId != null &&
+          currentUserId.isNotEmpty) {
         return task['assignedUserId'] == currentUserId;
       }
       return true;
@@ -69,9 +76,9 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     final tasks = await _loadTasks();
     final task = tasks.cast<Map<String, dynamic>?>().firstWhere(
-          (item) => item?['plandailyId'] == plandailyId,
-          orElse: () => null,
-        );
+      (item) => item?['plandailyId'] == plandailyId,
+      orElse: () => null,
+    );
     if (task == null) {
       throw DataFormatException(message: 'Task tidak ditemukan: $plandailyId');
     }
@@ -132,8 +139,10 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
 
     final task = TaskModel.fromJson(tasks[index]);
     final nowStr = DateTime.now().toIso8601String();
-    final newRemaining =
-        (task.remainingHours - task.dailyTargetHours).clamp(0.0, 9999.0);
+    final newRemaining = (task.remainingHours - task.dailyTargetHours).clamp(
+      0.0,
+      9999.0,
+    );
 
     final updated = task.copyWith(
       status: newRemaining <= 0 ? 'DONE' : 'PROSES',
@@ -158,11 +167,13 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
   Future<TaskModel> submitTaskExecution(TaskExecutionLog executionLog) async {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     final tasks = await _loadTasks();
-    final index =
-        tasks.indexWhere((t) => t['plandailyId'] == executionLog.plandailyId);
+    final index = tasks.indexWhere(
+      (t) => t['plandailyId'] == executionLog.plandailyId,
+    );
     if (index == -1) {
       throw DataFormatException(
-          message: 'Task tidak ditemukan: ${executionLog.plandailyId}');
+        message: 'Task tidak ditemukan: ${executionLog.plandailyId}',
+      );
     }
 
     final taskRow = tasks[index];
@@ -281,14 +292,12 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
       key: LocalMockApiStore.taskViewKey,
       seedBuilder: DummyTaskViewData.seedTasks,
     );
-    final index =
-        viewTasks.indexWhere((item) => item['planDailyId'] == plandailyId);
+    final index = viewTasks.indexWhere(
+      (item) => item['planDailyId'] == plandailyId,
+    );
     if (index == -1) return;
     viewTasks[index]['status'] = status;
-    await store.writeList(
-      key: LocalMockApiStore.taskViewKey,
-      value: viewTasks,
-    );
+    await store.writeList(key: LocalMockApiStore.taskViewKey, value: viewTasks);
   }
 
   Future<void> _syncCountdownAndQc({
@@ -318,25 +327,30 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
       if (matchIndex >= 0) {
         carId = entry.key;
         countdownItem = entry.value[matchIndex];
-        final targetHours =
-            (countdownItem['targetHoursRevised'] as num).toDouble();
+        final targetHours = (countdownItem['targetHoursRevised'] as num)
+            .toDouble();
         final durationHours = _calculateWorkedHours(executionLog);
         final actualHours =
             executionLog.isDone || executionLog.progressPercent >= 100
-                ? targetHours
-                : (targetHours * (executionLog.progressPercent / 100))
-                    .clamp(0.0, targetHours);
-        countdownItem['totalActualHours'] =
-            actualHours > 0 ? actualHours : durationHours;
-        countdownItem['remainingHours'] = (targetHours -
-                (countdownItem['totalActualHours'] as num).toDouble())
-            .clamp(0.0, targetHours);
-        countdownItem['actualProgressPercent'] =
-            executionLog.progressPercent.round().clamp(0, 100);
+            ? targetHours
+            : (targetHours * (executionLog.progressPercent / 100)).clamp(
+                0.0,
+                targetHours,
+              );
+        countdownItem['totalActualHours'] = actualHours > 0
+            ? actualHours
+            : durationHours;
+        countdownItem['remainingHours'] =
+            (targetHours -
+                    (countdownItem['totalActualHours'] as num).toDouble())
+                .clamp(0.0, targetHours);
+        countdownItem['actualProgressPercent'] = executionLog.progressPercent
+            .round()
+            .clamp(0, 100);
         countdownItem['status'] =
             executionLog.isDone || executionLog.progressPercent >= 100
-                ? 'DONE'
-                : 'PROSES';
+            ? 'DONE'
+            : 'PROSES';
 
         final detailList = details[coreId] ?? <Map<String, dynamic>>[];
         detailList.add({
@@ -352,8 +366,9 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
               (taskRow['dailyTargetHours'] as num?)?.toDouble() ?? 0.0,
           'durationHours': durationHours,
           'remainingHours': countdownItem['remainingHours'],
-          'overtimeHours':
-              (taskRow['isOvertime'] == true) ? durationHours : 0.0,
+          'overtimeHours': (taskRow['isOvertime'] == true)
+              ? durationHours
+              : 0.0,
           'percentage': executionLog.progressPercent,
           'status': executionLog.isDone ? 'DONE' : 'PROSES',
         });
@@ -411,8 +426,8 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     units[unitIndex]['progress'] = average;
     units[unitIndex]['status'] =
         countdownItems.every((item) => item['status'] == 'DONE')
-            ? 'DONE'
-            : 'PROSES';
+        ? 'DONE'
+        : 'PROSES';
   }
 
   Map<String, dynamic> _qcItemFromTask(Map<String, dynamic> taskRow) {

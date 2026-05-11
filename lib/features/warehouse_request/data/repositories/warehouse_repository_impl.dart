@@ -83,32 +83,31 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     double? qtyReturned,
     List<String>? photoUrls,
     String? sourceTransactionId,
-  }) =>
-      dataSource.createTransaction(
-        transactionType: transactionType,
-        itemCategory: itemCategory,
-        itemName: itemName,
-        qty: qty,
-        uom: uom,
-        requester: requester,
-        division: division,
-        divisionId: divisionId,
-        employeeId: employeeId,
-        carId: carId,
-        coreId: coreId,
-        unitName: unitName,
-        panelName: panelName,
-        jobdesc: jobdesc,
-        stockCardId: stockCardId,
-        installToUnit: installToUnit,
-        targetSearchDate: targetSearchDate,
-        deadlineDate: deadlineDate,
-        notes: notes,
-        itemCondition: itemCondition,
-        qtyReturned: qtyReturned,
-        photoUrls: photoUrls,
-        sourceTransactionId: sourceTransactionId,
-      );
+  }) => dataSource.createTransaction(
+    transactionType: transactionType,
+    itemCategory: itemCategory,
+    itemName: itemName,
+    qty: qty,
+    uom: uom,
+    requester: requester,
+    division: division,
+    divisionId: divisionId,
+    employeeId: employeeId,
+    carId: carId,
+    coreId: coreId,
+    unitName: unitName,
+    panelName: panelName,
+    jobdesc: jobdesc,
+    stockCardId: stockCardId,
+    installToUnit: installToUnit,
+    targetSearchDate: targetSearchDate,
+    deadlineDate: deadlineDate,
+    notes: notes,
+    itemCondition: itemCondition,
+    qtyReturned: qtyReturned,
+    photoUrls: photoUrls,
+    sourceTransactionId: sourceTransactionId,
+  );
 
   // ── setApprovalStatus ───────────────────────────────────────
   @override
@@ -118,14 +117,13 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     String? notes,
     int? storageLocationId,
     String? locationDetail,
-  }) =>
-      dataSource.setApprovalStatus(
-        logId: logId,
-        approved: approved,
-        notes: notes,
-        storageLocationId: storageLocationId,
-        locationDetail: locationDetail,
-      );
+  }) => dataSource.setApprovalStatus(
+    logId: logId,
+    approved: approved,
+    notes: notes,
+    storageLocationId: storageLocationId,
+    locationDetail: locationDetail,
+  );
 
   // ── installItem ─────────────────────────────────────────────
   @override
@@ -139,14 +137,13 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     int? storageLocationId,
     String? locationDetail,
     List<String>? photoUrls,
-  }) =>
-      dataSource.markReady(
-        logId: logId,
-        notes: notes,
-        storageLocationId: storageLocationId,
-        locationDetail: locationDetail,
-        photoUrls: photoUrls,
-      );
+  }) => dataSource.markReady(
+    logId: logId,
+    notes: notes,
+    storageLocationId: storageLocationId,
+    locationDetail: locationDetail,
+    photoUrls: photoUrls,
+  );
 
   @override
   Future<void> releaseItem({required String logId, String? notes}) =>
@@ -159,13 +156,16 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     String? notes,
     String? itemCondition,
     double? qtyReturned,
-  }) =>
-      dataSource.returnItem(
-        logId: logId,
-        notes: notes,
-        itemCondition: itemCondition,
-        qtyReturned: qtyReturned,
-      );
+  }) => dataSource.returnItem(
+    logId: logId,
+    notes: notes,
+    itemCondition: itemCondition,
+    qtyReturned: qtyReturned,
+  );
+
+  @override
+  Future<void> remindReturn({required String logId, String? notes}) =>
+      dataSource.remindReturn(logId: logId, notes: notes);
 
   @override
   Future<void> storeItem({
@@ -173,13 +173,12 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     String? notes,
     int? storageLocationId,
     String? locationDetail,
-  }) =>
-      dataSource.storeItem(
-        logId: logId,
-        notes: notes,
-        storageLocationId: storageLocationId,
-        locationDetail: locationDetail,
-      );
+  }) => dataSource.storeItem(
+    logId: logId,
+    notes: notes,
+    storageLocationId: storageLocationId,
+    locationDetail: locationDetail,
+  );
 
   @override
   Future<void> locateItem({
@@ -187,13 +186,12 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
     String? notes,
     int? storageLocationId,
     String? locationDetail,
-  }) =>
-      dataSource.locateItem(
-        logId: logId,
-        notes: notes,
-        storageLocationId: storageLocationId,
-        locationDetail: locationDetail,
-      );
+  }) => dataSource.locateItem(
+    logId: logId,
+    notes: notes,
+    storageLocationId: storageLocationId,
+    locationDetail: locationDetail,
+  );
 
   // ── uploadPhoto ─────────────────────────────────────────────
   @override

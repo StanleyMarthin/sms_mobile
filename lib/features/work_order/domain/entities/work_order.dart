@@ -1,4 +1,57 @@
+/*
+Tujuan: Entity dan helper normalisasi status Work Order lintas approval, countdown, dan jobdesc.
+Caller: WorkOrderRemoteDataSource, WorkOrderBloc, WoDetailPage, WoCard, dan JobPlanPage saat WO jadi source jobdesc.
+Dependensi: Equatable.
+Main Functions: normalizeWoStage, normalizeWoStatus, WorkOrder, WoApprovalStage.
+Side Effects: Tidak langsung; dipakai untuk menjaga konsistensi mapping data API/Redis ke UI.
+*/
 import 'package:equatable/equatable.dart';
+
+String normalizeWoStage(String? raw) {
+  final value = raw?.trim().toUpperCase() ?? '';
+  return switch (value) {
+    'PENDING_TARGET_KD' ||
+    'PENDING_KD' ||
+    'PENDING_KD_APPROVAL' ||
+    'PENDING_KD_TARGET' => 'PENDING_KD_TARGET',
+    'PENDING_ADVISOR' ||
+    'PENDING_ADV' ||
+    'PENDING_ADVISOR_APPROVAL' => 'PENDING_ADVISOR',
+    'PENDING_KP' ||
+    'PENDING_PROJECT_HEAD' ||
+    'PENDING_KEPALA_PROJECT' ||
+    'PENDING_KP_APPROVAL' => 'PENDING_KP',
+    'PENDING_MP' ||
+    'PENDING_PM' ||
+    'PENDING_MANAGER' ||
+    'PENDING_PROJECT_MANAGER' ||
+    'PENDING_MP_APPROVAL' => 'PENDING_MP',
+    _ => value,
+  };
+}
+
+String normalizeWoStatus(String? rawStatus, {String? currentStage}) {
+  final value = rawStatus?.trim().toUpperCase() ?? '';
+  if (value.isEmpty) {
+    final normalizedStage = normalizeWoStage(currentStage);
+    if (normalizedStage.startsWith('PENDING_')) return 'OPEN';
+    return normalizedStage.isEmpty ? 'OPEN' : normalizedStage;
+  }
+
+  return switch (value) {
+    'CREATED' || 'OPEN' || 'SUBMITTED' => 'OPEN',
+    'COUNTDOWN_READY' || 'COUNTDOWN_CREATED' => 'COUNTDOWN_CREATED',
+    'IN_PROGRESS' || 'ON_PROGRESS' || 'PROGRESS' || 'PROSES' => 'ON_PROGRESS',
+    'COMPLETED' || 'FINISHED' || 'SELESAI' || 'DONE' => 'DONE',
+    'REJECT' || 'REJECTED' => 'REJECTED',
+    'APPROVED' => 'APPROVED',
+    _ => () {
+      final normalizedStage = normalizeWoStage(value);
+      if (normalizedStage.startsWith('PENDING_')) return 'OPEN';
+      return value;
+    }(),
+  };
+}
 
 /// Approval stage dari Redis state
 class WoApprovalStage extends Equatable {
@@ -19,13 +72,13 @@ class WoApprovalStage extends Equatable {
   });
 
   factory WoApprovalStage.fromJson(Map<String, dynamic> j) => WoApprovalStage(
-        role: '${j['role'] ?? ''}',
-        userId: j['user_id']?.toString(),
-        name: j['name']?.toString(),
-        actionAt: j['action_at']?.toString(),
-        notes: j['notes']?.toString(),
-        estimatedHours: (j['estimated_hours'] as num?)?.toDouble(),
-      );
+    role: '${j['role'] ?? ''}',
+    userId: j['user_id']?.toString(),
+    name: j['name']?.toString(),
+    actionAt: j['action_at']?.toString(),
+    notes: j['notes']?.toString(),
+    estimatedHours: (j['estimated_hours'] as num?)?.toDouble(),
+  );
 
   @override
   List<Object?> get props => [role, userId, actionAt];
@@ -47,7 +100,7 @@ class WorkOrder extends Equatable {
   final double? estimatedHours;
   final String status;
 
-  /// Stage dari Redis: PENDING_KD_TARGET | PENDING_ADVISOR | PENDING_KP | PENDING_MP | APPROVED
+  /// Stage approval aktif dari Redis/API setelah dinormalisasi.
   final String? currentStage;
 
   /// Apakah unit punya advisor (dari Redis state)
@@ -63,7 +116,12 @@ class WorkOrder extends Equatable {
   final String? approvalDate;
   final String? notes;
 
-  /// Untuk countdown setelah APPROVED
+  /// PIC/Pelaksana yang dipilih KD Target
+  final String? picId;
+  final String? picName;
+  final bool accAdvisor;
+
+  /// Referensi countdown/core job setelah final approval.
   final String? coreId;
 
   const WorkOrder({
@@ -87,15 +145,30 @@ class WorkOrder extends Equatable {
     this.requestDate,
     this.approvalDate,
     this.notes,
+    this.picId,
+    this.picName,
+    this.accAdvisor = false,
     this.coreId,
   });
 
   // ── Status helpers ──
-  bool get isOpen => status == 'OPEN' || currentStage != null;
-  bool get isApproved => status == 'APPROVED';
+  bool get isOpen =>
+      status == 'OPEN' ||
+      status == 'SUBMITTED' ||
+      (currentStage?.startsWith('PENDING_') ?? false);
+  bool get isApproved => status == 'APPROVED' || status == 'COUNTDOWN_CREATED';
+  bool get isInProgress => status == 'ON_PROGRESS';
   bool get isRejected => status == 'REJECTED';
   bool get isDone => status == 'DONE';
-  bool get isActive => !isApproved && !isDone && !isRejected;
+  bool get hasCountdownLink =>
+      (coreId ?? '').trim().isNotEmpty || isApproved || isInProgress || isDone;
+  bool get isReadyForJobdesc =>
+      status == 'APPROVED' ||
+      status == 'COUNTDOWN_CREATED' ||
+      status == 'ON_PROGRESS';
+
+  /// ACTIVE = semua status yang belum benar-benar selesai dikerjakan
+  bool get isActive => !isDone && !isRejected;
 
   bool get waitingKdTarget => currentStage == 'PENDING_KD_TARGET';
   bool get waitingAdvisor => currentStage == 'PENDING_ADVISOR';
@@ -103,7 +176,9 @@ class WorkOrder extends Equatable {
   bool get waitingMp => currentStage == 'PENDING_MP';
 
   String get stageBadge {
-    if (isApproved) return 'APPROVED';
+    if (status == 'COUNTDOWN_CREATED') return 'COUNTDOWN_CREATED';
+    if (isInProgress) return 'ON_PROGRESS';
+    if (status == 'APPROVED') return 'APPROVED';
     if (isRejected) return 'REJECTED';
     if (isDone) return 'DONE';
     return currentStage ?? status;
@@ -130,6 +205,9 @@ class WorkOrder extends Equatable {
     String? requestDate,
     String? approvalDate,
     String? notes,
+    String? picId,
+    String? picName,
+    bool? accAdvisor,
     String? coreId,
   }) {
     return WorkOrder(
@@ -153,10 +231,19 @@ class WorkOrder extends Equatable {
       requestDate: requestDate ?? this.requestDate,
       approvalDate: approvalDate ?? this.approvalDate,
       notes: notes ?? this.notes,
+      picId: picId ?? this.picId,
+      picName: picName ?? this.picName,
+      accAdvisor: accAdvisor ?? this.accAdvisor,
       coreId: coreId ?? this.coreId,
     );
   }
 
   @override
-  List<Object?> get props => [id, woNumber, status, currentStage, estimatedHours];
+  List<Object?> get props => [
+    id,
+    woNumber,
+    status,
+    currentStage,
+    estimatedHours,
+  ];
 }

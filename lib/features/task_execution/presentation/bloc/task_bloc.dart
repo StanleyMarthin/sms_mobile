@@ -1,7 +1,16 @@
+/*
+Tujuan: Orkestrasi state task execution mekanik termasuk mode self-only untuk management.
+Caller: MechanicTaskPage dan sheet eksekusi task.
+Dependensi: TaskRepository, StartJobUseCase, TaskDraftStorage, UploadService, FCMService.
+Main Functions: _onLoadTodaysTasks, _onStartTaskFlow, _onSubmitExecution.
+Side Effects: HTTP call, upload foto, simpan draft lokal, alarm/notifikasi.
+*/
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../utils/task_execution_helper.dart';
 import '../../../../core/services/alarm_timer_service.dart';
+import '../../../../core/services/fcm_service.dart';
 import '../../../../core/services/upload_service.dart';
 import '../../data/datasources/task_draft_storage.dart';
 import '../../domain/entities/task_draft.dart';
@@ -28,6 +37,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   final UploadService uploadService;
   DateTime _selectedDate = DateTime.now();
   bool _isOvertime = false;
+  bool _forceOwnOnly = false;
 
   Timer? _jobTimer;
   final Map<String, Set<int>> _playedAlarms = {};
@@ -48,8 +58,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<SubmitExecutionEvent>(_onSubmitExecution);
 
     // Mulai background polling untuk alarm (Cek setiap 15 detik)
-    _jobTimer =
-        Timer.periodic(const Duration(seconds: 15), (_) => _checkAlarms());
+    _jobTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) => _checkAlarms(),
+    );
   }
 
   @override
@@ -83,22 +95,69 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
           // Threshold check
           if (remaining <= 10 && remaining > 5) {
-            _triggerAlarm(task.plandailyId, 10, 1);
+            _triggerAlarm(task.plandailyId, task.unitName, 10, 1);
           } else if (remaining <= 5 && remaining > 0) {
-            _triggerAlarm(task.plandailyId, 5, 2);
+            _triggerAlarm(task.plandailyId, task.unitName, 5, 2);
           } else if (remaining <= 0) {
-            _triggerAlarm(task.plandailyId, 0, 3);
+            _triggerAlarm(task.plandailyId, task.unitName, 0, 3);
           }
         }
       }
     }
   }
 
-  void _triggerAlarm(String taskId, int minuteMark, int times) {
+  void _triggerAlarm(
+    String taskId,
+    String unitName,
+    int minuteMark,
+    int times,
+  ) {
     _playedAlarms.putIfAbsent(taskId, () => <int>{});
     if (!_playedAlarms[taskId]!.contains(minuteMark)) {
       _playedAlarms[taskId]!.add(minuteMark);
-      AlarmTimerService().playReminder(times);
+
+      String message =
+          'Waktu pengerjaan $unitName tersisa $minuteMark menit lagi.';
+      if (minuteMark == 0) {
+        message = 'Waktu pengerjaan $unitName sudah HABIS! Segera selesaikan.';
+      }
+
+      AlarmTimerService().playReminder(
+        times,
+        taskId: taskId,
+        unitName: unitName,
+        message: message,
+      );
+    }
+  }
+
+  void _scheduleBackgroundAlarms(List<TaskEntity> tasks) {
+    for (final t in tasks) {
+      if (t.isInProgress && t.startedAt != null) {
+        DateTime? startedAtDt = DateTime.tryParse(t.startedAt!);
+        
+        // Handle HH:mm format
+        if (startedAtDt == null && t.startedAt!.length == 5 && t.startedAt!.contains(':')) {
+          final parts = t.startedAt!.split(':');
+          final now = DateTime.now();
+          startedAtDt = DateTime(
+            now.year,
+            now.month,
+            now.day,
+            int.parse(parts[0]),
+            int.parse(parts[1]),
+          );
+        }
+
+        if (startedAtDt != null) {
+          FCMService().scheduleTaskAlarms(
+            taskId: t.plandailyId,
+            startedAt: startedAtDt,
+            targetHours: t.dailyTargetHours,
+            unitName: t.unitName,
+          );
+        }
+      }
     }
   }
 
@@ -128,12 +187,14 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   ) async {
     _selectedDate = event.date;
     _isOvertime = event.isOvertime;
+    _forceOwnOnly = event.forceOwnOnly;
     emit(const TaskLoading());
 
     final results = await Future.wait([
       taskRepository.getTodaysTasks(
         date: _selectedDate,
         isOvertime: _isOvertime,
+        forceOwnOnly: _forceOwnOnly,
       ),
       taskDraftStorage.getAllDrafts(),
     ]);
@@ -144,8 +205,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     taskResult.fold(
       (failure) =>
           emit(TaskError(message: failure.message ?? 'Gagal memuat tugas')),
-      (tasks) =>
-          emit(TaskLoaded(tasks: tasks as List<TaskEntity>, drafts: drafts)),
+      (tasks) {
+        final taskList = tasks as List<TaskEntity>;
+        _scheduleBackgroundAlarms(taskList);
+        emit(TaskLoaded(tasks: taskList, drafts: drafts));
+      },
     );
   }
 
@@ -158,26 +222,25 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     final result = await taskRepository.getTodaysTasks(
       date: _selectedDate,
       isOvertime: _isOvertime,
+      forceOwnOnly: _forceOwnOnly,
     );
     // Also refresh drafts
     final drafts = await taskDraftStorage.getAllDrafts();
 
-    result.fold(
-      (failure) {
-        final currentState = state;
-        if (currentState is TaskLoaded) {
-          emit(TaskActionError(
+    result.fold((failure) {
+      final currentState = state;
+      if (currentState is TaskLoaded) {
+        emit(
+          TaskActionError(
             tasks: currentState.tasks,
             drafts: currentDrafts,
             message: failure.message ?? 'Gagal memperbarui tugas',
-          ));
-        } else {
-          emit(
-              TaskError(message: failure.message ?? 'Gagal memperbarui tugas'));
-        }
-      },
-      (tasks) => emit(TaskLoaded(tasks: tasks, drafts: drafts)),
-    );
+          ),
+        );
+      } else {
+        emit(TaskError(message: failure.message ?? 'Gagal memperbarui tugas'));
+      }
+    }, (tasks) => emit(TaskLoaded(tasks: tasks, drafts: drafts)));
   }
 
   // ─────────────────────────────────────────────────
@@ -199,17 +262,21 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       final updatedDrafts = Map<String, TaskDraft>.from(currentDrafts)
         ..[event.draft.plandailyId] = event.draft;
 
-      emit(TaskActionSuccess(
-        tasks: currentTasks,
-        drafts: updatedDrafts,
-        message: 'Pekerjaan dimulai — draft tersimpan',
-      ));
+      emit(
+        TaskActionSuccess(
+          tasks: currentTasks,
+          drafts: updatedDrafts,
+          message: 'Pekerjaan dimulai — draft tersimpan',
+        ),
+      );
     } catch (e) {
-      emit(TaskActionError(
-        tasks: currentTasks,
-        drafts: currentDrafts,
-        message: 'Gagal menyimpan draft: $e',
-      ));
+      emit(
+        TaskActionError(
+          tasks: currentTasks,
+          drafts: currentDrafts,
+          message: 'Gagal menyimpan draft: $e',
+        ),
+      );
     }
   }
 
@@ -228,18 +295,17 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   // ─────────────────────────────────────────────────
 
   /// Handles starting a job execution.
-  Future<void> _onStartJob(
-    StartJobEvent event,
-    Emitter<TaskState> emit,
-  ) async {
+  Future<void> _onStartJob(StartJobEvent event, Emitter<TaskState> emit) async {
     final currentTasks = _getCurrentTasks();
     final currentDrafts = _getCurrentDrafts();
 
-    emit(TaskActionLoading(
-      tasks: currentTasks,
-      drafts: currentDrafts,
-      actionTaskId: event.plandailyId,
-    ));
+    emit(
+      TaskActionLoading(
+        tasks: currentTasks,
+        drafts: currentDrafts,
+        actionTaskId: event.plandailyId,
+      ),
+    );
 
     final result = await startJobUseCase(
       StartJobParams(plandailyId: event.plandailyId),
@@ -247,32 +313,71 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     await result.fold(
       (failure) async {
-        emit(TaskActionError(
-          tasks: currentTasks,
-          drafts: currentDrafts,
-          message: failure.message ?? 'Gagal memulai pekerjaan',
-        ));
+        emit(
+          TaskActionError(
+            tasks: currentTasks,
+            drafts: currentDrafts,
+            message: failure.message ?? 'Gagal memulai pekerjaan',
+          ),
+        );
       },
       (updatedTask) async {
         final refreshResult = await taskRepository.getTodaysTasks(
           date: _selectedDate,
           isOvertime: _isOvertime,
+          forceOwnOnly: _forceOwnOnly,
         );
         refreshResult.fold(
           (failure) {
             final updatedTasks = _updateTaskInList(currentTasks, updatedTask);
-            emit(TaskActionSuccess(
-              tasks: updatedTasks,
-              drafts: currentDrafts,
-              message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
-            ));
+            emit(
+              TaskActionSuccess(
+                tasks: updatedTasks,
+                drafts: currentDrafts,
+                message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
+              ),
+            );
           },
           (freshTasks) {
-            emit(TaskActionSuccess(
-              tasks: freshTasks,
-              drafts: currentDrafts,
-              message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
-            ));
+            // Schedule background alarms for the started task
+            try {
+              final t = freshTasks.firstWhere(
+                (e) => e.plandailyId == event.plandailyId,
+              );
+              if (t.startedAt != null) {
+                DateTime? startedAtDt = DateTime.tryParse(t.startedAt!);
+                
+                // Handle HH:mm format from server
+                if (startedAtDt == null && t.startedAt!.length == 5 && t.startedAt!.contains(':')) {
+                  final parts = t.startedAt!.split(':');
+                  final now = DateTime.now();
+                  startedAtDt = DateTime(
+                    now.year,
+                    now.month,
+                    now.day,
+                    int.parse(parts[0]),
+                    int.parse(parts[1]),
+                  );
+                }
+
+                if (startedAtDt != null) {
+                  FCMService().scheduleTaskAlarms(
+                    taskId: t.plandailyId,
+                    startedAt: startedAtDt,
+                    targetHours: t.dailyTargetHours,
+                    unitName: t.unitName,
+                  );
+                }
+              }
+            } catch (_) {}
+
+            emit(
+              TaskActionSuccess(
+                tasks: freshTasks,
+                drafts: currentDrafts,
+                message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
+              ),
+            );
           },
         );
       },
@@ -286,11 +391,13 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     final currentTasks = _getCurrentTasks();
     final currentDrafts = _getCurrentDrafts();
 
-    emit(TaskActionLoading(
-      tasks: currentTasks,
-      drafts: currentDrafts,
-      actionTaskId: event.plandailyId,
-    ));
+    emit(
+      TaskActionLoading(
+        tasks: currentTasks,
+        drafts: currentDrafts,
+        actionTaskId: event.plandailyId,
+      ),
+    );
 
     try {
       String? finalPhotoBeforePath = event.draft.photoBeforePath;
@@ -325,11 +432,13 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
       await result.fold(
         (failure) async {
-          emit(TaskActionError(
-            tasks: currentTasks,
-            drafts: currentDrafts,
-            message: failure.message ?? 'Gagal memulai pekerjaan',
-          ));
+          emit(
+            TaskActionError(
+              tasks: currentTasks,
+              drafts: currentDrafts,
+              message: failure.message ?? 'Gagal memulai pekerjaan',
+            ),
+          );
         },
         (updatedTask) async {
           final storedDraft = event.draft.copyWith(
@@ -342,33 +451,40 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           final refreshResult = await taskRepository.getTodaysTasks(
             date: _selectedDate,
             isOvertime: _isOvertime,
+            forceOwnOnly: _forceOwnOnly,
           );
 
           refreshResult.fold(
             (failure) {
               final updatedTasks = _updateTaskInList(currentTasks, updatedTask);
-              emit(TaskActionSuccess(
-                tasks: updatedTasks,
-                drafts: updatedDrafts,
-                message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
-              ));
+              emit(
+                TaskActionSuccess(
+                  tasks: updatedTasks,
+                  drafts: updatedDrafts,
+                  message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
+                ),
+              );
             },
             (freshTasks) {
-              emit(TaskActionSuccess(
-                tasks: freshTasks,
-                drafts: updatedDrafts,
-                message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
-              ));
+              emit(
+                TaskActionSuccess(
+                  tasks: freshTasks,
+                  drafts: updatedDrafts,
+                  message: 'Pekerjaan dimulai: ${updatedTask.jobName}',
+                ),
+              );
             },
           );
         },
       );
     } catch (e) {
-      emit(TaskActionError(
-        tasks: currentTasks,
-        drafts: currentDrafts,
-        message: 'Terjadi kesalahan sistem saat memulai pekerjaan: $e',
-      ));
+      emit(
+        TaskActionError(
+          tasks: currentTasks,
+          drafts: currentDrafts,
+          message: 'Terjadi kesalahan sistem saat memulai pekerjaan: $e',
+        ),
+      );
     }
   }
 
@@ -380,42 +496,54 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     final currentTasks = _getCurrentTasks();
     final currentDrafts = _getCurrentDrafts();
 
-    emit(TaskActionLoading(
-      tasks: currentTasks,
-      drafts: currentDrafts,
-      actionTaskId: event.plandailyId,
-    ));
+    emit(
+      TaskActionLoading(
+        tasks: currentTasks,
+        drafts: currentDrafts,
+        actionTaskId: event.plandailyId,
+      ),
+    );
 
     final result = await taskRepository.finishJobExecution(event.plandailyId);
 
     await result.fold(
       (failure) async {
-        emit(TaskActionError(
-          tasks: currentTasks,
-          drafts: currentDrafts,
-          message: failure.message ?? 'Gagal menyelesaikan pekerjaan',
-        ));
+        emit(
+          TaskActionError(
+            tasks: currentTasks,
+            drafts: currentDrafts,
+            message: failure.message ?? 'Gagal menyelesaikan pekerjaan',
+          ),
+        );
       },
       (updatedTask) async {
         final refreshResult = await taskRepository.getTodaysTasks(
           date: _selectedDate,
           isOvertime: _isOvertime,
+          forceOwnOnly: _forceOwnOnly,
         );
         refreshResult.fold(
           (failure) {
             final updatedTasks = _updateTaskInList(currentTasks, updatedTask);
-            emit(TaskActionSuccess(
-              tasks: updatedTasks,
-              drafts: currentDrafts,
-              message: 'Pekerjaan selesai: ${updatedTask.jobName}',
-            ));
+            emit(
+              TaskActionSuccess(
+                tasks: updatedTasks,
+                drafts: currentDrafts,
+                message: 'Pekerjaan selesai: ${updatedTask.jobName}',
+              ),
+            );
           },
           (freshTasks) {
-            emit(TaskActionSuccess(
-              tasks: freshTasks,
-              drafts: currentDrafts,
-              message: 'Pekerjaan selesai: ${updatedTask.jobName}',
-            ));
+            // Cancel background alarms
+            FCMService().cancelTaskAlarms(event.plandailyId);
+
+            emit(
+              TaskActionSuccess(
+                tasks: freshTasks,
+                drafts: currentDrafts,
+                message: 'Pekerjaan selesai: ${updatedTask.jobName}',
+              ),
+            );
           },
         );
       },
@@ -436,11 +564,13 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     final currentTasks = _getCurrentTasks();
     final currentDrafts = _getCurrentDrafts();
 
-    emit(TaskActionLoading(
-      tasks: currentTasks,
-      drafts: currentDrafts,
-      actionTaskId: log.plandailyId,
-    ));
+    emit(
+      TaskActionLoading(
+        tasks: currentTasks,
+        drafts: currentDrafts,
+        actionTaskId: log.plandailyId,
+      ),
+    );
 
     try {
       final task = currentTasks.firstWhere(
@@ -502,52 +632,73 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         photoAfter: afterUrl,
       );
 
-      final result = await taskRepository.submitTaskExecution(updatedLog);
+      final logs = TaskExecutionHelper.splitOvertime(updatedLog);
+      late TaskEntity lastUpdatedTask;
 
-      await result.fold(
-        (failure) async {
-          emit(TaskActionError(
-            tasks: currentTasks,
-            drafts: currentDrafts,
-            message: failure.message ?? 'Gagal mensubmit pekerjaan',
-          ));
-        },
-        (updatedTask) async {
-          await taskDraftStorage.deleteDraft(log.plandailyId);
-          final updatedDrafts = Map<String, TaskDraft>.from(currentDrafts)
-            ..remove(log.plandailyId);
+      for (var i = 0; i < logs.length; i++) {
+        final result = await taskRepository.submitTaskExecution(logs[i]);
+        
+        bool isError = false;
+        result.fold(
+          (failure) {
+            isError = true;
+            emit(
+              TaskActionError(
+                tasks: currentTasks,
+                drafts: currentDrafts,
+                message: 'Gagal mensubmit bagian ke-${i + 1}: ${failure.message}',
+              ),
+            );
+          },
+          (updatedTask) {
+            lastUpdatedTask = updatedTask;
+          },
+        );
+        if (isError) return;
+      }
 
-          final refreshResult = await taskRepository.getTodaysTasks(
-            date: _selectedDate,
-            isOvertime: _isOvertime,
+      // If we reach here, all parts submitted successfully
+      FCMService().cancelTaskAlarms(log.plandailyId);
+      await taskDraftStorage.deleteDraft(log.plandailyId);
+      final updatedDrafts = Map<String, TaskDraft>.from(currentDrafts)
+        ..remove(log.plandailyId);
+
+      final refreshResult = await taskRepository.getTodaysTasks(
+        date: _selectedDate,
+        isOvertime: _isOvertime,
+        forceOwnOnly: _forceOwnOnly,
+      );
+
+      refreshResult.fold(
+        (failure) {
+          final updatedTasks = _updateTaskInList(currentTasks, lastUpdatedTask);
+          emit(
+            TaskActionSuccess(
+              tasks: updatedTasks,
+              drafts: updatedDrafts,
+              message: 'Pekerjaan selesai disubmit (${logs.length} bagian)',
+            ),
           );
-
-          refreshResult.fold(
-            (failure) {
-              final updatedTasks = _updateTaskInList(currentTasks, updatedTask);
-              emit(TaskActionSuccess(
-                tasks: updatedTasks,
-                drafts: updatedDrafts,
-                message: 'Pekerjaan selesai disubmit: ${updatedTask.jobName}',
-              ));
-            },
-            (freshTasks) {
-              emit(TaskActionSuccess(
-                tasks: freshTasks,
-                drafts: updatedDrafts,
-                message: 'Pekerjaan selesai disubmit: ${updatedTask.jobName}',
-              ));
-            },
+        },
+        (freshTasks) {
+          emit(
+            TaskActionSuccess(
+              tasks: freshTasks,
+              drafts: updatedDrafts,
+              message: 'Pekerjaan selesai disubmit (${logs.length} bagian)',
+            ),
           );
         },
       );
     } catch (e) {
-      emit(TaskActionError(
-        tasks: currentTasks,
-        drafts: currentDrafts,
-        message:
-            'Kegagalan upload foto R2: Menghentikan submission otomatis untuk menghindari error referensi dummy local path. Error: $e',
-      ));
+      emit(
+        TaskActionError(
+          tasks: currentTasks,
+          drafts: currentDrafts,
+          message:
+              'Kegagalan upload foto R2: Menghentikan submission otomatis untuk menghindari error referensi dummy local path. Error: $e',
+        ),
+      );
     }
   }
 
@@ -568,8 +719,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     TaskEntity updatedTask,
   ) {
     return tasks
-        .map((task) =>
-            task.plandailyId == updatedTask.plandailyId ? updatedTask : task)
+        .map(
+          (task) =>
+              task.plandailyId == updatedTask.plandailyId ? updatedTask : task,
+        )
         .toList();
   }
 }

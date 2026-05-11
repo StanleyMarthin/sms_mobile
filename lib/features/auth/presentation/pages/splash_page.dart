@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:android_id/android_id.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -178,13 +179,33 @@ class _SplashPageState extends State<SplashPage>
       timestamp: timestamp,
     );
 
+    // Get actual location for sm_user_devices table
+    Map<String, double> location = {'lat': -6.200000, 'lng': 106.816666};
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (serviceEnabled) {
+        LocationPermission permission = await Geolocator.checkPermission();
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission();
+        }
+        if (permission == LocationPermission.whileInUse ||
+            permission == LocationPermission.always) {
+          final pos = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.low,
+            timeLimit: const Duration(seconds: 3),
+          );
+          location = {'lat': pos.latitude, 'lng': pos.longitude};
+        }
+      }
+    } catch (_) {}
+
     return {
       'deviceId': deviceId,
       'deviceModel': Platform.isAndroid ? 'Android Device' : 'iOS Device',
       'osVersion': Platform.operatingSystemVersion,
       'appVersion': appVersion,
       'timestamp': timestamp,
-      'location': {'lat': -6.200000, 'lng': 106.816666},
+      'location': location,
       'eddsaSignature': signatureExtra['eddsaSignature'],
       if (signatureExtra['devicePublicKey'] != null)
         'devicePublicKey': signatureExtra['devicePublicKey'],

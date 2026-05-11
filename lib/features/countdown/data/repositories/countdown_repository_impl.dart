@@ -64,6 +64,8 @@ class CountdownRepositoryImpl implements CountdownRepository {
       totalTargetHours: ((item['totalTargetHours'] as num?) ?? 0).toDouble(),
       sectionProgress: ((item['sectionProgress'] as num?) ?? 0).toDouble(),
       sectionStatus: (item['sectionStatus'] as String?) ?? 'PLAN',
+      totalTargetHoursAlias: item['totalTargetHoursAlias'] as String?,
+      totalRemainingHoursAlias: item['totalRemainingHoursAlias'] as String?,
     )).toList();
   }
 
@@ -153,6 +155,8 @@ class CountdownRepositoryImpl implements CountdownRepository {
       approvedRevisionByName: item['extensionApprovedByName'] as String?,
       rejectedRevisionByName: item['extensionRejectedByName'] as String?,
       isLockedByOtherDivision: item['isLockedByOtherDivision'] as bool? ?? false,
+      targetHoursRevisedAlias: item['targetHoursRevisedAlias'] as String?,
+      remainingHoursAlias: item['remainingHoursAlias'] as String?,
     );
   }
 

@@ -1,3 +1,10 @@
+/*
+Tujuan: Implementasi repository Work Order yang menjembatani bloc/domain dengan remote datasource.
+Caller: Dependency injection untuk WorkOrderRepository.
+Dependensi: WorkOrderRemoteDataSource, SessionManager, ApiClient failure mapper, WorkOrder entity.
+Main Functions: getWorkOrders, getWorkOrderById, createWorkOrder, approveWorkOrder, rejectWorkOrder.
+Side Effects: Menjalankan HTTP request ke datasource dan memetakan error ke Failure.
+*/
 import 'package:fpdart/fpdart.dart';
 import 'package:dio/dio.dart';
 
@@ -37,15 +44,21 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     int limit = 30,
   }) async {
     try {
-      return Right(await dataSource.getWorkOrders(view: view, page: page, limit: limit));
-    } catch (e, s) { return _handle(e, s); }
+      return Right(
+        await dataSource.getWorkOrders(view: view, page: page, limit: limit),
+      );
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
   Future<Either<Failure, WorkOrder>> getWorkOrderById(String woId) async {
     try {
       return Right(await dataSource.getWorkOrderById(woId));
-    } catch (e, s) { return _handle(e, s); }
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -53,26 +66,32 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     required String carId,
     required String targetDivId,
     required String jobDetail,
+    String? notes,
     required String targetDate,
     String? panelName,
     String? sectionName,
     String? panelCategory,
-    bool    addPanelToMaster = false,
+    bool addPanelToMaster = false,
     double? targetHours,
   }) async {
     try {
-      return Right(await dataSource.createWorkOrder(
-        carId:            carId,
-        targetDivId:      targetDivId,
-        jobDetail:        jobDetail,
-        targetDate:       targetDate,
-        panelName:        panelName,
-        sectionName:      sectionName,
-        panelCategory:    panelCategory,
-        addPanelToMaster: addPanelToMaster,
-        targetHours:      targetHours,
-      ));
-    } catch (e, s) { return _handle(e, s); }
+      return Right(
+        await dataSource.createWorkOrder(
+          carId: carId,
+          targetDivId: targetDivId,
+          jobDetail: jobDetail,
+          notes: notes,
+          targetDate: targetDate,
+          panelName: panelName,
+          sectionName: sectionName,
+          panelCategory: panelCategory,
+          addPanelToMaster: addPanelToMaster,
+          targetHours: targetHours,
+        ),
+      );
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -80,10 +99,20 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     required String woId,
     double? estimatedHours,
     String? notes,
+    String? picId,
   }) async {
     try {
-      return Right(await dataSource.approveWorkOrder(woId: woId, estimatedHours: estimatedHours, notes: notes));
-    } catch (e, s) { return _handle(e, s); }
+      return Right(
+        await dataSource.approveWorkOrder(
+          woId: woId,
+          estimatedHours: estimatedHours,
+          notes: notes,
+          picId: picId,
+        ),
+      );
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -94,7 +123,9 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     try {
       await dataSource.rejectWorkOrder(woId: woId, rejectReason: rejectReason);
       return const Right(null);
-    } catch (e, s) { return _handle(e, s); }
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -104,9 +135,15 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     required String reason,
   }) async {
     try {
-      await dataSource.requestDeadlineExtension(woId: woId, newDeadline: newDeadline, reason: reason);
+      await dataSource.requestDeadlineExtension(
+        woId: woId,
+        newDeadline: newDeadline,
+        reason: reason,
+      );
       return const Right(null);
-    } catch (e, s) { return _handle(e, s); }
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -116,9 +153,15 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     String? note,
   }) async {
     try {
-      await dataSource.respondDeadlineExtension(woId: woId, approve: approve, note: note);
+      await dataSource.respondDeadlineExtension(
+        woId: woId,
+        approve: approve,
+        note: note,
+      );
       return const Right(null);
-    } catch (e, s) { return _handle(e, s); }
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -128,9 +171,15 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     required String reason,
   }) async {
     try {
-      await dataSource.requestHourExtension(woId: woId, hours: requestedHours, reason: reason);
+      await dataSource.requestHourExtension(
+        woId: woId,
+        hours: requestedHours,
+        reason: reason,
+      );
       return const Right(null);
-    } catch (e, s) { return _handle(e, s); }
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
@@ -141,15 +190,22 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     try {
       await dataSource.respondHourExtension(woId: woId, approve: approve);
       return const Right(null);
-    } catch (e, s) { return _handle(e, s); }
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 
   @override
   Future<Either<Failure, Map<String, dynamic>>> getDropdowns({
     String? carId,
+    String? divisionId,
   }) async {
     try {
-      return Right(await dataSource.getDropdowns(carId: carId));
-    } catch (e, s) { return _handle(e, s); }
+      return Right(
+        await dataSource.getDropdowns(carId: carId, divisionId: divisionId),
+      );
+    } catch (e, s) {
+      return _handle(e, s);
+    }
   }
 }

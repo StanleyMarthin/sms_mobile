@@ -44,69 +44,78 @@ class DateFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.gold.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        children: [
-          // Left arrow
-          _arrowButton(Icons.chevron_left, () {
-            onDateChanged(selectedDate.subtract(const Duration(days: 1)));
-          }),
-
-          const SizedBox(width: 4),
-
-          // Tappable date display
-          Expanded(
-            child: GestureDetector(
-              onTap: () => _pickDate(context),
-              child: Column(
-                children: [
-                  if (label != null)
-                    Text(
-                      label!,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textMuted.withValues(alpha: 0.7),
-                      ),
-                    ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.calendar_today_rounded,
-                          size: 14, color: AppColors.gold),
-                      const SizedBox(width: 6),
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.18)),
+        ),
+        child: Row(
+          children: [
+            // Left arrow
+            _arrowButton(Icons.chevron_left, () {
+              onDateChanged(selectedDate.subtract(const Duration(days: 1)));
+            }),
+  
+            const SizedBox(width: 4),
+  
+            // Tappable date display
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _pickDate(context),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min, // Ensure it doesn't try to take infinite height
+                  children: [
+                    if (label != null)
                       Text(
-                        _formatDate(selectedDate),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.gold,
+                        label!,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.textMuted.withValues(alpha: 0.7),
                         ),
                       ),
-                    ],
-                  ),
-                  if (_isToday)
-                    const Text(
-                      'Hari ini',
-                      style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min, // Avoid overflow in nested rows
+                      children: [
+                        const Icon(Icons.calendar_today_rounded,
+                            size: 14, color: AppColors.gold),
+                        const SizedBox(width: 6),
+                        Flexible( // Allow text to shrink if needed
+                          child: Text(
+                            _formatDate(selectedDate),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.gold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                ],
+                    if (_isToday)
+                      const Text(
+                        'Hari ini',
+                        style: TextStyle(fontSize: 10, color: AppColors.textMuted),
+                      ),
+                  ],
+                ),
               ),
             ),
-          ),
-
-          const SizedBox(width: 4),
-
-          // Right arrow
-          _arrowButton(Icons.chevron_right, () {
-            onDateChanged(selectedDate.add(const Duration(days: 1)));
-          }),
-        ],
+  
+            const SizedBox(width: 4),
+  
+            // Right arrow
+            _arrowButton(Icons.chevron_right, () {
+              onDateChanged(selectedDate.add(const Duration(days: 1)));
+            }),
+          ],
+        ),
       ),
     );
   }

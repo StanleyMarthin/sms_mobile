@@ -1,3 +1,10 @@
+/*
+Tujuan: Implementasi repository task execution yang menjembatani domain ke datasource.
+Caller: TaskBloc dan StartJobUseCase.
+Dependensi: RemoteTaskDataSource, Failure mapper, TaskEntity.
+Main Functions: getTodaysTasks, startJobExecution, submitTaskExecution.
+Side Effects: HTTP call ke datasource remote dan konversi exception ke failure.
+*/
 /// TaskRepositoryImpl is the data layer repository implementation.
 ///
 /// This is the critical bridge between the domain and data layers:
@@ -69,9 +76,7 @@ class TaskRepositoryImpl implements TaskRepository {
   ///
   /// final repository = TaskRepositoryImpl(dataSource);
   /// ```
-  const TaskRepositoryImpl({
-    required this.remoteDataSource,
-  });
+  const TaskRepositoryImpl({required this.remoteDataSource});
 
   /// Maps exceptions to appropriate Failure objects.
   ///
@@ -139,27 +144,25 @@ class TaskRepositoryImpl implements TaskRepository {
     }
 
     if (exception is DataFormatException) {
-      return DataParsingFailure(
-        message: exception.message,
-      );
+      return DataParsingFailure(message: exception.message);
     }
 
     /// Fallback for unmapped exceptions
-    return UnknownFailure(
-      message: 'An unexpected error occurred: $exception',
-    );
+    return UnknownFailure(message: 'An unexpected error occurred: $exception');
   }
 
   @override
   Future<Either<Failure, List<TaskEntity>>> getTodaysTasks({
     required DateTime date,
     required bool isOvertime,
+    bool forceOwnOnly = false,
   }) async {
     try {
       /// Fetch task models from API for today's date
       final taskModels = await remoteDataSource.getTodaysTasks(
         date: date,
         isOvertime: isOvertime,
+        forceOwnOnly: forceOwnOnly,
       );
 
       /// Convert all models to entities and return success
@@ -217,7 +220,8 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<Either<Failure, TaskEntity>> finishJobExecution(
-      String plandailyId) async {
+    String plandailyId,
+  ) async {
     try {
       /// Call data source to finish job (unlock panel)
       final taskModel = await remoteDataSource.finishJobExecution(plandailyId);
@@ -235,8 +239,9 @@ class TaskRepositoryImpl implements TaskRepository {
       /// Call data source to submit full execution log
       /// This handles starting, updating progress, and finishing a job
       /// including time logging, progress %, notes, and photos
-      final taskModel =
-          await remoteDataSource.submitTaskExecution(executionLog);
+      final taskModel = await remoteDataSource.submitTaskExecution(
+        executionLog,
+      );
       return Right(taskModel.toEntity());
     } catch (e) {
       return Left(_mapExceptionToFailure(e));

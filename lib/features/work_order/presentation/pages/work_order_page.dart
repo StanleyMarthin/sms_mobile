@@ -1,3 +1,10 @@
+/*
+Tujuan: Halaman daftar Work Order aktif/selesai dengan tab, refresh, dan aksi buka detail/create.
+Caller: FeatureShellPage route `/work-orders`.
+Dependensi: WorkOrderBloc, SessionManager, WoCard, WoDetailPage, WoCreatePage.
+Main Functions: WorkOrderPage, _openDetail, _openCreate.
+Side Effects: HTTP load/refresh daftar WO dan navigasi ke detail/create.
+*/
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -19,7 +26,8 @@ class WorkOrderPage extends StatefulWidget {
   State<WorkOrderPage> createState() => _WorkOrderPageState();
 }
 
-class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProviderStateMixin {
+class _WorkOrderPageState extends State<WorkOrderPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   late WorkOrderBloc _bloc;
 
@@ -30,7 +38,9 @@ class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProvider
     _bloc = sl<WorkOrderBloc>()..add(const LoadWorkOrders(view: 'ACTIVE'));
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
-        _bloc.add(LoadWorkOrders(view: _tabCtrl.index == 0 ? 'ACTIVE' : 'DONE'));
+        _bloc.add(
+          LoadWorkOrders(view: _tabCtrl.index == 0 ? 'ACTIVE' : 'DONE'),
+        );
       }
     });
   }
@@ -45,7 +55,11 @@ class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProvider
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
     final role = session.role ?? '';
-    final canCreate = ['KD', 'KETUA_DIVISI', 'ADMIN'].contains(role.toUpperCase());
+    final canCreate = [
+      'KD',
+      'KETUA_DIVISI',
+      'ADMIN',
+    ].contains(role.toUpperCase());
 
     return BlocProvider.value(
       value: _bloc,
@@ -56,11 +70,18 @@ class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProvider
           elevation: 0,
           title: const Text(
             'Work Order',
-            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 18),
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+            ),
           ),
           actions: [
             IconButton(
-              icon: const Icon(Icons.refresh_rounded, color: AppColors.textMuted),
+              icon: const Icon(
+                Icons.refresh_rounded,
+                color: AppColors.textMuted,
+              ),
               onPressed: () => _bloc.add(const RefreshWorkOrders()),
             ),
           ],
@@ -79,43 +100,57 @@ class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProvider
         body: BlocConsumer<WorkOrderBloc, WorkOrderState>(
           listener: (ctx, state) {
             if (state is WorkOrderActionSuccess) {
-              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColors.statusDone,
-                behavior: SnackBarBehavior.floating,
-              ));
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppColors.statusDone,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
             }
             if (state is WorkOrderError) {
-              ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                content: Text(state.message),
-                backgroundColor: AppColors.statusLocked,
-                behavior: SnackBarBehavior.floating,
-              ));
+              ScaffoldMessenger.of(ctx).showSnackBar(
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: AppColors.statusLocked,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
             }
           },
           builder: (ctx, state) {
             if (state is WorkOrderLoading || state is WorkOrderInitial) {
-              return const Center(child: CircularProgressIndicator(color: AppColors.gold));
+              return const Center(
+                child: CircularProgressIndicator(color: AppColors.gold),
+              );
             }
             if (state is WorkOrderError) {
-              return _ErrorView(message: state.message, onRetry: () => _bloc.add(const RefreshWorkOrders()));
+              return _ErrorView(
+                message: state.message,
+                onRetry: () => _bloc.add(const RefreshWorkOrders()),
+              );
             }
 
             final wos = state is WorkOrderLoaded
                 ? state.workOrders
                 : state is WorkOrderActionSuccess
-                    ? state.workOrders
-                    : <dynamic>[];
+                ? state.workOrders
+                : <dynamic>[];
 
-            if (wos.isEmpty) return _EmptyView(canCreate: canCreate, onTap: () => _openCreate(context));
+            if (wos.isEmpty) {
+              return _EmptyView(
+                canCreate: canCreate,
+                onTap: () => _openCreate(context),
+              );
+            }
 
             return RefreshIndicator(
               color: AppColors.gold,
               onRefresh: () async => _bloc.add(const RefreshWorkOrders()),
               child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
                 itemCount: wos.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final wo = wos[i];
                   return WoCard(
@@ -135,7 +170,10 @@ class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProvider
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('Buat WO', style: TextStyle(fontWeight: FontWeight.w700)),
+                label: const Text(
+                  'Buat WO',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               )
             : null,
       ),
@@ -143,17 +181,25 @@ class _WorkOrderPageState extends State<WorkOrderPage> with SingleTickerProvider
   }
 
   void _openDetail(BuildContext context, String woId) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(
-      value: _bloc,
-      child: WoDetailPage(woId: woId),
-    )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: _bloc,
+          child: WoDetailPage(woId: woId),
+        ),
+      ),
+    );
   }
 
   void _openCreate(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => BlocProvider.value(
-      value: _bloc,
-      child: const WoCreatePage(),
-    )));
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            BlocProvider.value(value: _bloc, child: const WoCreatePage()),
+      ),
+    );
   }
 }
 
@@ -164,19 +210,33 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.error_outline, size: 48, color: AppColors.statusLocked),
-          const SizedBox(height: 12),
-          Text(message, style: const TextStyle(color: AppColors.textMuted, fontSize: 13), textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Coba Lagi'),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.gold, side: const BorderSide(color: AppColors.gold)),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(
+          Icons.error_outline,
+          size: 48,
+          color: AppColors.statusLocked,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          message,
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Coba Lagi'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.gold,
+            side: const BorderSide(color: AppColors.gold),
           ),
-        ]),
-      );
+        ),
+      ],
+    ),
+  );
 }
 
 class _EmptyView extends StatelessWidget {
@@ -186,22 +246,39 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.assignment_outlined, size: 56, color: AppColors.gold),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.08),
+            shape: BoxShape.circle,
           ),
-          const SizedBox(height: 16),
-          const Text('Belum ada Work Order', style: TextStyle(fontSize: 15, color: AppColors.textMuted, fontWeight: FontWeight.w600)),
-          if (canCreate) ...[
-            const SizedBox(height: 8),
-            const Text('Tekan tombol di bawah untuk membuat WO baru',
-                style: TextStyle(fontSize: 12, color: AppColors.textDisabled), textAlign: TextAlign.center),
-          ],
-        ]),
-      );
+          child: const Icon(
+            Icons.assignment_outlined,
+            size: 56,
+            color: AppColors.gold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Belum ada Work Order',
+          style: TextStyle(
+            fontSize: 15,
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (canCreate) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Tekan tombol di bawah untuk membuat WO baru',
+            style: TextStyle(fontSize: 12, color: AppColors.textDisabled),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ],
+    ),
+  );
 }

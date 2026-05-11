@@ -1,3 +1,10 @@
+/*
+Tujuan: Sheet mulai pekerjaan untuk menangkap jam mulai, foto before, dan ringkasan detail job.
+Caller: TaskListPage saat user menekan CTA mulai pada task card.
+Dependensi: AppColors, GoRouter, SharedPreferences, InAppCameraPage, TaskDraft, TaskEntity.
+Main Functions: show, _taskInfoCard, _pickPhoto, _startButton.
+Side Effects: Menyimpan route kamera sementara, membuka kamera, dan mengirim draft start ke bloc.
+*/
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,23 +17,11 @@ import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/entities/task_entity.dart';
 
-/// Simple bottom sheet for **Step 1: Mulai Pekerjaan**.
-///
-/// Only captures:
-/// - Start time (auto-filled with current time, editable)
-/// - Photo Before (required by backend)
-///
-/// On "Mulai", creates a [TaskDraft] and passes it to [onStart].
-/// This draft is saved locally — NO API call at this step.
 class TaskStartSheet extends StatefulWidget {
   final TaskEntity task;
   final void Function(TaskDraft draft) onStart;
 
-  const TaskStartSheet({
-    super.key,
-    required this.task,
-    required this.onStart,
-  });
+  const TaskStartSheet({super.key, required this.task, required this.onStart});
 
   /// Show as a modal bottom sheet.
   static Future<void> show({
@@ -78,17 +73,15 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
+      initialChildSize: 0.68,
       minChildSize: 0.4,
-      maxChildSize: 0.8,
+      maxChildSize: 0.85,
       builder: (context, scrollController) {
         return Container(
           decoration: const BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            border: Border(
-              top: BorderSide(color: AppColors.gold, width: 2),
-            ),
+            border: Border(top: BorderSide(color: AppColors.gold, width: 2)),
           ),
           child: ListView(
             controller: scrollController,
@@ -110,8 +103,11 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
               // Header
               Row(
                 children: [
-                  const Icon(Icons.play_circle_outline,
-                      color: AppColors.gold, size: 24),
+                  const Icon(
+                    Icons.play_circle_outline,
+                    color: AppColors.gold,
+                    size: 24,
+                  ),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
@@ -125,8 +121,11 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close,
-                        color: AppColors.textMuted, size: 22),
+                    icon: const Icon(
+                      Icons.close,
+                      color: AppColors.textMuted,
+                      size: 22,
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -184,6 +183,8 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
 
   Widget _taskInfoCard() {
     final t = widget.task;
+    final hasExtraDetail =
+        t.customDescription.isNotEmpty && t.customDescription != t.jobName;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -194,44 +195,63 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.directions_car_outlined,
-                  size: 16, color: AppColors.textMuted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  t.unitName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              const Icon(Icons.build_outlined,
-                  size: 14, color: AppColors.textMuted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${t.panelName} • ${t.jobName}',
-                  style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
+          _readOnlyField('Unit', t.unitName, Icons.directions_car_outlined),
+          const Divider(color: AppColors.border, height: 16),
+          _readOnlyField('Panel', t.panelName, Icons.dashboard_outlined),
+          const Divider(color: AppColors.border, height: 16),
+          _readOnlyField('Pekerjaan', t.jobName, Icons.build_outlined),
+          if (hasExtraDetail) ...[
+            const Divider(color: AppColors.border, height: 16),
+            _readOnlyField(
+              'Detail Pekerjaan',
+              t.customDescription,
+              Icons.description_outlined,
+              maxLines: 4,
+            ),
+          ],
         ],
       ),
+    );
+  }
+
+  Widget _readOnlyField(
+    String label,
+    String value,
+    IconData icon, {
+    int maxLines = 3,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: AppColors.textMuted),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textMuted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: maxLines,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -357,8 +377,11 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                           color: AppColors.background.withValues(alpha: 0.7),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.close,
-                            size: 16, color: AppColors.textPrimary),
+                        child: const Icon(
+                          Icons.close,
+                          size: 16,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -367,13 +390,18 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
             : const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_a_photo_outlined,
-                      size: 32, color: AppColors.textDisabled),
+                  Icon(
+                    Icons.add_a_photo_outlined,
+                    size: 32,
+                    color: AppColors.textDisabled,
+                  ),
                   SizedBox(height: 6),
                   Text(
                     'Tap untuk ambil foto',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textDisabled),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textDisabled,
+                    ),
                   ),
                 ],
               ),

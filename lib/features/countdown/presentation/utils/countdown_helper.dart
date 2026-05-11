@@ -33,11 +33,21 @@ class CountdownHelper {
   static String effectiveCountdownStatus(CountdownJobdesc item) {
     final raw = item.status.toLowerCase();
     if (raw == 'done') return 'DONE';
-    if (raw == 'qcready' || raw == 'qc_ready' || raw == 'ready_qc')
+    if (raw == 'qcready' || raw == 'qc_ready' || raw == 'ready_qc') {
       return 'QC READY';
+    }
     if (item.qcLastStatus?.toLowerCase() == 'lolos') return 'DONE';
     if (raw == 'proses') return 'PROSES';
     return item.status.toUpperCase();
+  }
+
+  /// Returns true when workshop execution is finished, including items that
+  /// are already waiting for QC after reaching 100% progress.
+  static bool isWorkCompleted(CountdownJobdesc item) {
+    final effectiveStatus = effectiveCountdownStatus(item).toUpperCase();
+    return effectiveStatus == 'DONE' ||
+        effectiveStatus == 'QC READY' ||
+        item.progress >= 100;
   }
 
   /// Returns visual data (color, icon, label) for a given status string.
@@ -163,8 +173,9 @@ class CountdownHelper {
     final labels = <String>[];
     if (selectedSection != 'all') labels.add('Section: $selectedSection');
     if (selectedPanel != 'all') labels.add('Panel: $selectedPanel');
-    if (selectedStatus != 'all')
+    if (selectedStatus != 'all') {
       labels.add(statusProgressLabel(selectedStatus));
+    }
     if (selectedSort != 'deadline_asc') labels.add(_sortLabel(selectedSort));
     return labels;
   }
@@ -237,6 +248,28 @@ class CountdownHelper {
     return '${parts[0].padLeft(2, '0')}:${parts[1].padLeft(2, '0')}';
   }
 
+  /// Formats hours to a string including workdays (1 day = 8 hours).
+  static String formatWorkHours(double hours) {
+    if (hours <= 0) return '0j';
+    
+    // Jika kurang dari 1 jam, tampilkan menit
+    if (hours < 1.0) {
+      final mins = (hours * 60).round();
+      return '${mins}m';
+    }
+    
+    final hrsStr = hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1);
+    
+    // Hanya tampilkan hari jika durasi cukup signifikan (misal >= 4 jam / 0.5 hari)
+    if (hours >= 4.0) {
+      final workDays = hours / 8.0;
+      final daysStr = workDays.toStringAsFixed(workDays.truncateToDouble() == workDays ? 0 : 2);
+      return '${hrsStr}j (${daysStr} hari)';
+    }
+    
+    return '${hrsStr}j';
+  }
+
   /// Returns break duration in minutes for a given [date].
   /// Mon–Thu & Sat: 60 min (12:00–13:00)
   /// Fri: 90 min (11:30–13:00)
@@ -256,10 +289,33 @@ class CountdownHelper {
         : 12 * 60;       // 12:00
   }
 
-  /// Returns true if finish time is after 17:00 — overtime territory.
-  static bool isOvertimeByTime(TimeOfDay finishTime) {
-    return finishTime.hour > 17 ||
-        (finishTime.hour == 17 && finishTime.minute > 0);
+  /// Returns true if finish time is into overtime territory based on day of week.
+  /// Mon–Fri: > 17:00
+  /// Sat: > 14:00
+  /// Sun: Always true (overtime)
+  static bool isOvertimeByTime(TimeOfDay finishTime, {DateTime? date}) {
+    final refDate = date ?? DateTime.now();
+    final hour = finishTime.hour;
+    final minute = finishTime.minute;
+
+    if (refDate.weekday == DateTime.sunday) return true;
+
+    if (refDate.weekday == DateTime.saturday) {
+      return hour > 14 || (hour == 14 && minute > 0);
+    }
+
+    // Mon-Fri
+    return hour > 17 || (hour == 17 && minute > 0);
+  }
+
+  /// Returns the "Normal" threshold time for a given [date].
+  /// Mon-Fri: 17:00
+  /// Sat: 14:00
+  static TimeOfDay normalThresholdForDate(DateTime date) {
+    if (date.weekday == DateTime.saturday) {
+      return const TimeOfDay(hour: 14, minute: 0);
+    }
+    return const TimeOfDay(hour: 17, minute: 0);
   }
 
   /// Calculates finish time given start time and work duration.
@@ -277,7 +333,7 @@ class CountdownHelper {
     var extra = 0;
     final refDate = date ?? DateTime.now();
     final breakStart = breakStartMinutesForDate(refDate);
-    final breakEnd = 13 * 60; // always 13:00
+    const breakEnd = 13 * 60; // always 13:00
     final breakDuration = breakMinutesForDate(refDate);
     if (breakDuration > 0 &&
         startMins < breakEnd &&

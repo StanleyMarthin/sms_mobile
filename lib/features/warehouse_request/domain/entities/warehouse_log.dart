@@ -84,12 +84,20 @@ class WarehouseLog {
   bool get isAnyPending => isPendingKd || isPendingWh || isPendingPpic;
   bool get isApproved => approvalStatus == 'APPROVED';
   bool get isRejected => approvalStatus == 'REJECTED';
-  bool get isReady => itemStatus == 'READY';
-  bool get isReleased => itemStatus == 'RELEASED';
-  bool get isReturned => itemStatus == 'RETURNED';
-  bool get isInstalled => itemStatus == 'INSTALLED';
-  bool get isStored => itemStatus == 'STORED';
   bool get isPenyimpanan => transactionType == 'PENYIMPANAN';
+  String get normalizedItemStatus {
+    final status = itemStatus.trim().toUpperCase();
+    if (status.isNotEmpty) return status;
+    if (isApproved && !isPenyimpanan) return 'OPEN';
+    return status;
+  }
+
+  bool get isOpen => normalizedItemStatus == 'OPEN';
+  bool get isReady => normalizedItemStatus == 'READY';
+  bool get isReleased => normalizedItemStatus == 'RELEASED';
+  bool get isReturned => normalizedItemStatus == 'RETURNED';
+  bool get isInstalled => normalizedItemStatus == 'INSTALLED';
+  bool get isStored => normalizedItemStatus == 'STORED';
   bool get isInstallToUnit => (notes ?? '').contains('[INSTALL_TO_UNIT]');
   bool get needsLocate =>
       isPenyimpanan &&
@@ -101,7 +109,7 @@ class WarehouseLog {
     if (isRejected) return 'DITOLAK';
     if (isAnyPending) return approvalStatus.replaceAll('_', ' ');
     if (isReady) return 'READY';
-    return itemStatus;
+    return normalizedItemStatus;
   }
 }
 

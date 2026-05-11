@@ -1,3 +1,10 @@
+/*
+Tujuan: Adapter repository job plan dari datasource ke entity domain.
+Caller: UI job plan melalui dependency injection.
+Dependensi: JobPlanDataSource dan entity JobPlan.
+Main Functions: mapping browse/draft/approval response ke JobPlan.
+Side Effects: HTTP/mock I/O melalui datasource.
+*/
 library;
 
 import '../../domain/entities/job_plan.dart';
@@ -70,12 +77,13 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     int offset = 0,
   }) async {
     final maps = await dataSource.browsePlans(
-        divisionId: divisionId,
-        unitId: unitId,
-        role: role,
-        taskDate: taskDate,
-        limit: limit,
-        offset: offset);
+      divisionId: divisionId,
+      unitId: unitId,
+      role: role,
+      taskDate: taskDate,
+      limit: limit,
+      offset: offset,
+    );
     return maps.map(_mapPlan).toList();
   }
 
@@ -85,13 +93,20 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<void> saveDraft(
-      {required String userId,
-      required List<Map<String, dynamic>> items,
-      required String sourceType,
-      String? note}) {
+  Future<void> saveDraft({
+    required String userId,
+    required List<Map<String, dynamic>> items,
+    required String sourceType,
+    bool replaceItems = true,
+    String? note,
+  }) {
     return dataSource.saveDraft(
-        userId: userId, items: items, sourceType: sourceType, note: note);
+      userId: userId,
+      items: items,
+      sourceType: sourceType,
+      replaceItems: replaceItems,
+      note: note,
+    );
   }
 
   @override
@@ -105,45 +120,62 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<List<String>> submitDraft(
-      {required String userId,
-      required List<Map<String, dynamic>> items,
-      required String sourceType,
-      String? note}) {
+  Future<List<String>> submitDraft({
+    required String userId,
+    required List<Map<String, dynamic>> items,
+    required String sourceType,
+    String? note,
+  }) {
     return dataSource.submitDraft(
-        userId: userId, items: items, sourceType: sourceType, note: note);
+      userId: userId,
+      items: items,
+      sourceType: sourceType,
+      note: note,
+    );
   }
 
   @override
-  Future<JobPlan> approvePlan(
-      {required String planId, required String userId}) async {
+  Future<JobPlan> approvePlan({
+    required String planId,
+    required String userId,
+  }) async {
     final result = await dataSource.approvePlan(planId: planId, userId: userId);
     return _mapPlan(result);
   }
 
   @override
-  Future<JobPlan> rejectPlan(
-      {required String planId,
-      required String userId,
-      required String rejectNote}) async {
+  Future<JobPlan> rejectPlan({
+    required String planId,
+    required String userId,
+    required String rejectNote,
+  }) async {
     final result = await dataSource.rejectPlan(
-        planId: planId, userId: userId, rejectNote: rejectNote);
+      planId: planId,
+      userId: userId,
+      rejectNote: rejectNote,
+    );
     return _mapPlan(result);
   }
 
   @override
-  Future<JobPlan> resubmitPlan(
-      {required String planId,
-      required String userId,
-      required List<Map<String, dynamic>> items}) async {
+  Future<JobPlan> resubmitPlan({
+    required String planId,
+    required String userId,
+    required List<Map<String, dynamic>> items,
+  }) async {
     final result = await dataSource.resubmitPlan(
-        planId: planId, userId: userId, items: items);
+      planId: planId,
+      userId: userId,
+      items: items,
+    );
     return _mapPlan(result);
   }
 
   @override
-  Future<void> deleteRejectedPlan(
-      {required String planId, required String userId}) async {
+  Future<void> deleteRejectedPlan({
+    required String planId,
+    required String userId,
+  }) async {
     return dataSource.deleteRejectedPlan(planId: planId, userId: userId);
   }
 
@@ -195,10 +227,13 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<JobPlan> reviewPlan(
-      {required String planId, required bool approved}) async {
+  Future<JobPlan> reviewPlan({
+    required String planId,
+    required bool approved,
+  }) async {
     return _mapPlan(
-        await dataSource.reviewPlan(planId: planId, approved: approved));
+      await dataSource.reviewPlan(planId: planId, approved: approved),
+    );
   }
 
   @override
@@ -220,13 +255,17 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     final targetHours = _parseHours(
       item['targetHours'] ?? item['target_hours'] ?? item['dailyTargetHours'],
     );
-    final startTime = _normalizeTime(item['startTime'] ??
-            item['start_time'] ??
-            item['targetStartHours']) ??
+    final startTime =
+        _normalizeTime(
+          item['startTime'] ?? item['start_time'] ?? item['targetStartHours'],
+        ) ??
         '08:00';
-    final finishTime = _normalizeTime(item['finishTime'] ??
-            item['finish_time'] ??
-            item['targetFinishHours']) ??
+    final finishTime =
+        _normalizeTime(
+          item['finishTime'] ??
+              item['finish_time'] ??
+              item['targetFinishHours'],
+        ) ??
         _addHours(startTime, targetHours);
 
     return JobPlan(
@@ -235,46 +274,57 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       carId: (item['carId'] ?? item['car_id'] ?? '').toString(),
       sourceType: (item['sourceType'] ?? item['source_type'] ?? 'ADDITIONAL')
           .toString(),
-      sourceRefId:
-          (item['sourceRefId'] ?? item['source_ref_id'] ?? '').toString(),
+      sourceRefId: (item['sourceRefId'] ?? item['source_ref_id'] ?? '')
+          .toString(),
       unitName: (item['unitName'] ?? item['unit_name'] ?? '').toString(),
       panelName: (item['panelName'] ?? item['panel_name'] ?? '').toString(),
       assignedDivision:
           (item['assignedDivision'] ?? item['assigned_division'] ?? '')
               .toString(),
-      assignedUserId:
-          (item['assignedUserId'] ?? item['assigned_user_id'] ?? '').toString(),
-      assignedTo: (item['assignedUserName'] ??
-              item['assignedTo'] ??
-              item['assigned_to'] ??
-              '')
+      assignedUserId: (item['assignedUserId'] ?? item['assigned_user_id'] ?? '')
           .toString(),
-      description:
-          (item['jobdescription'] ?? item['description'] ?? '').toString(),
+      assignedTo:
+          (item['assignedUserName'] ??
+                  item['assignedTo'] ??
+                  item['assigned_to'] ??
+                  '')
+              .toString(),
+      description: (item['jobdescription'] ?? item['description'] ?? '')
+          .toString(),
       targetHours: targetHours,
-      workDate: (item['workDate'] ??
-              item['work_date'] ??
-              item['deadline'] ??
-              item['taskDate'] ??
-              item['task_date'] ??
-              '')
-          .toString(),
+      workDate:
+          (item['workDate'] ??
+                  item['work_date'] ??
+                  item['deadline'] ??
+                  item['taskDate'] ??
+                  item['task_date'] ??
+                  '')
+              .toString(),
       startTime: startTime,
       finishTime: finishTime,
       isOvertime:
           (item['isOvertime'] ?? item['is_overtime'] ?? false) == true ||
-              (item['isOvertime'] ?? item['is_overtime'] ?? 0) == 1,
-      deadline: (item['deadline'] ??
-              item['deadlineDate'] ??
-              item['deadline_date'] ??
-              '')
-          .toString(),
+          (item['isOvertime'] ?? item['is_overtime'] ?? 0) == 1,
+      deadline:
+          (item['deadline'] ??
+                  item['deadlineDate'] ??
+                  item['deadline_date'] ??
+                  '')
+              .toString(),
       status: _normalizeApprovalStatus((item['status'] ?? '').toString()),
       note: (item['note'] ?? '').toString(),
-      panelCustomNote: item['panelCustomNote']?.toString() ??
+      panelCustomNote:
+          item['panelCustomNote']?.toString() ??
           item['panel_custom_note']?.toString(),
       rejectNote:
           item['rejectNote']?.toString() ?? item['reject_note']?.toString(),
+      targetHoursAlias:
+          item['targetHours_alias']?.toString() ??
+          item['target_hours_alias']?.toString() ??
+          item['dailyTargetHours_alias']?.toString(),
+      remainingHoursAlias:
+          item['remainingHours_alias']?.toString() ??
+          item['remaining_hours_alias']?.toString(),
     );
   }
 
@@ -283,17 +333,14 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       'PENDING_PM' ||
       'PENDING_MANAGER' ||
       'PENDING_MP_APPROVAL' ||
-      'MENUNGGU MP' =>
-        'PENDING_MP',
+      'MENUNGGU MP' => 'PENDING_MP',
       'PENDING_PROJECT_HEAD' ||
       'PENDING_KEPALA_PROJECT' ||
       'PENDING_KP_APPROVAL' ||
-      'MENUNGGU KP' =>
-        'PENDING_KP',
+      'MENUNGGU KP' => 'PENDING_KP',
       'PENDING_ADVISOR' ||
       'PENDING_ADVISOR_APPROVAL' ||
-      'MENUNGGU ADV' =>
-        'PENDING_ADV',
+      'MENUNGGU ADV' => 'PENDING_ADV',
       final s => s,
     };
   }
@@ -343,7 +390,8 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   String _addHours(String startTime, double hours) {
     final parts = startTime.split(':');
     if (parts.length < 2 || hours <= 0) return startTime;
-    final totalMinutes = (int.tryParse(parts[0]) ?? 8) * 60 +
+    final totalMinutes =
+        (int.tryParse(parts[0]) ?? 8) * 60 +
         (int.tryParse(parts[1]) ?? 0) +
         (hours * 60).round();
     final h = '${(totalMinutes ~/ 60) % 24}'.padLeft(2, '0');

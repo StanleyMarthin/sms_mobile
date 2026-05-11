@@ -8,7 +8,6 @@ import '../../../../core/session/session_manager.dart';
 import '../../../countdown/presentation/pages/countdown_page.dart';
 import '../../../job_plan/presentation/pages/job_plan_page.dart';
 import '../../../monitoring/presentation/pages/monitoring_page.dart';
-import '../../../notifications/presentation/pages/notifications_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../qc/presentation/pages/qc_page.dart';
 import '../../../warehouse_request/presentation/pages/warehouse_request_page.dart';
@@ -20,7 +19,7 @@ import 'operator_dashboard_overview_page.dart';
 ///
 /// For KD/Advisor/PM → top TabBar with contract-aligned feature tabs.
 /// For Operator/Lapangan → bottom navigation with dashboard, tasks,
-/// warehouse, notifications, and profile.
+/// warehouse, and profile.
 class DashboardPage extends StatefulWidget {
   final int initialTab;
   const DashboardPage({super.key, this.initialTab = 0});
@@ -61,8 +60,31 @@ class _DashboardPageState extends State<DashboardPage>
     super.dispose();
   }
 
+  bool _hasSessionPermission(Permission permission) {
+    if (hasPermission(_session.role, permission)) return true;
+    switch (permission) {
+      case Permission.warehouseRequest:
+        return _session.hasPerm(Perms.warehouseRequest);
+      case Permission.warehouseApprove:
+        return _session.hasPerm(Perms.warehouseApprove);
+      case Permission.warehouseLogsView:
+        return _session.hasPerm(Perms.warehouseLogs);
+      case Permission.notificationsView:
+        return _session.hasPerm(Perms.notificationsView);
+      case Permission.profileView:
+        return _session.hasPerm(Perms.profileView);
+      default:
+        return false;
+    }
+  }
+
   /// Roles with dashboardKd use top tabs; mechanic uses bottom nav.
-  bool get _useTopTabs => hasPermission(_session.role, Permission.dashboardKd);
+  bool get _useTopTabs =>
+      hasPermission(_session.role, Permission.dashboardKd) ||
+      ((_hasSessionPermission(Permission.warehouseLogsView) ||
+              _hasSessionPermission(Permission.warehouseApprove) ||
+              _hasSessionPermission(Permission.profileView)) &&
+          !hasPermission(_session.role, Permission.dashboardMechanic));
 
   /// Build the list of tabs based on the user's role permissions.
   List<_DashTab> _buildTabs() {
@@ -86,8 +108,7 @@ class _DashboardPageState extends State<DashboardPage>
   /// 1. Tugas — today's normal tasks (isOvertime=false)
   /// 2. Lembur — overtime tasks (isOvertime=true)
   /// 3. Peminjaman — warehouse tool/material request & return
-  /// 4. Laporan — work report / logbook history
-  /// 5. Profil — user info, permissions, logout
+  /// 4. Profil — user info, permissions, logout
   List<_DashTab> _buildLapanganTabs() {
     return [
       _DashTab(
@@ -109,12 +130,6 @@ class _DashboardPageState extends State<DashboardPage>
         builder: () => const WarehouseRequestPage(),
       ),
       _DashTab(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Notif',
-        builder: () => const NotificationsPage(),
-      ),
-      _DashTab(
         icon: Icons.person_outline_rounded,
         activeIcon: Icons.person_rounded,
         label: 'Profil',
@@ -128,93 +143,100 @@ class _DashboardPageState extends State<DashboardPage>
     final tabs = <_DashTab>[];
 
     if (hasPermission(role, Permission.monitoringView)) {
-      tabs.add(_DashTab(
-        icon: Icons.dashboard_outlined,
-        activeIcon: Icons.dashboard,
-        label: 'Dashboard',
-        builder: () => const MonitoringPage(),
-      ));
+      tabs.add(
+        _DashTab(
+          icon: Icons.dashboard_outlined,
+          activeIcon: Icons.dashboard,
+          label: 'Dashboard',
+          builder: () => const MonitoringPage(),
+        ),
+      );
     }
 
     if (hasPermission(role, Permission.unitsView) ||
         hasPermission(role, Permission.countdownView)) {
-      tabs.add(_DashTab(
-        icon: Icons.directions_car_outlined,
-        activeIcon: Icons.directions_car,
-        label: 'Units',
-        builder: () => const CountdownPage(),
-      ));
+      tabs.add(
+        _DashTab(
+          icon: Icons.directions_car_outlined,
+          activeIcon: Icons.directions_car,
+          label: 'Units',
+          builder: () => const CountdownPage(),
+        ),
+      );
     }
 
     if (hasPermission(role, Permission.taskView)) {
-      tabs.add(_DashTab(
-        icon: Icons.checklist_outlined,
-        activeIcon: Icons.checklist,
-        label: 'Tasks',
-        builder: () => const TasksPage(),
-      ));
+      tabs.add(
+        _DashTab(
+          icon: Icons.checklist_outlined,
+          activeIcon: Icons.checklist,
+          label: 'Tasks',
+          builder: () => const TasksPage(),
+        ),
+      );
     }
 
     if (hasPermission(role, Permission.jobPlanCreate) ||
         hasPermission(role, Permission.jobPlanReview) ||
         hasPermission(role, Permission.jobPlanUpdate)) {
-      tabs.add(_DashTab(
-        icon: Icons.event_note_outlined,
-        activeIcon: Icons.event_note,
-        label: 'Job Plan',
-        builder: () => const JobPlanPage(),
-      ));
+      tabs.add(
+        _DashTab(
+          icon: Icons.event_note_outlined,
+          activeIcon: Icons.event_note,
+          label: 'Job Plan',
+          builder: () => const JobPlanPage(),
+        ),
+      );
     }
 
     if (hasPermission(role, Permission.qcSubmit) ||
         hasPermission(role, Permission.qcValidate) ||
         hasPermission(role, Permission.qcView)) {
-      tabs.add(_DashTab(
-        icon: Icons.verified_outlined,
-        activeIcon: Icons.verified,
-        label: 'QC',
-        builder: () => const QcTab(),
-      ));
+      tabs.add(
+        _DashTab(
+          icon: Icons.verified_outlined,
+          activeIcon: Icons.verified,
+          label: 'QC',
+          builder: () => const QcTab(),
+        ),
+      );
     }
 
     if (hasPermission(role, Permission.woCreate) ||
         hasPermission(role, Permission.woView)) {
-      tabs.add(_DashTab(
-        icon: Icons.assignment_outlined,
-        activeIcon: Icons.assignment,
-        label: 'WO',
-        builder: () => const WorkOrderPage(),
-      ));
+      tabs.add(
+        _DashTab(
+          icon: Icons.assignment_outlined,
+          activeIcon: Icons.assignment,
+          label: 'WO',
+          builder: () => const WorkOrderPage(),
+        ),
+      );
     }
 
-    if (hasPermission(role, Permission.warehouseApprove) ||
-        hasPermission(role, Permission.warehouseRequest) ||
-        hasPermission(role, Permission.warehouseLogsView)) {
-      tabs.add(_DashTab(
-        icon: Icons.inventory_2_outlined,
-        activeIcon: Icons.inventory_2,
-        label: 'Warehouse',
-        builder: () => const WarehouseRequestPage(),
-      ));
-    }
-
-    if (hasPermission(role, Permission.notificationsView)) {
-      tabs.add(_DashTab(
-        icon: Icons.notifications_outlined,
-        activeIcon: Icons.notifications,
-        label: 'Notif',
-        builder: () => const NotificationsPage(),
-      ));
+    if (_hasSessionPermission(Permission.warehouseApprove) ||
+        _hasSessionPermission(Permission.warehouseRequest) ||
+        _hasSessionPermission(Permission.warehouseLogsView)) {
+      tabs.add(
+        _DashTab(
+          icon: Icons.inventory_2_outlined,
+          activeIcon: Icons.inventory_2,
+          label: 'Warehouse',
+          builder: () => const WarehouseRequestPage(),
+        ),
+      );
     }
 
     // ── Profil (PROFILE_VIEW) ──
-    if (hasPermission(role, Permission.profileView)) {
-      tabs.add(_DashTab(
-        icon: Icons.person_outline_rounded,
-        activeIcon: Icons.person_rounded,
-        label: 'Profil',
-        builder: () => const ProfilePage(),
-      ));
+    if (_hasSessionPermission(Permission.profileView)) {
+      tabs.add(
+        _DashTab(
+          icon: Icons.person_outline_rounded,
+          activeIcon: Icons.person_rounded,
+          label: 'Profil',
+          builder: () => const ProfilePage(),
+        ),
+      );
     }
 
     return tabs;
@@ -233,12 +255,14 @@ class _DashboardPageState extends State<DashboardPage>
   // ── App Bar ──────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar() {
     // Use jabatan from BE login response; fallback to role-based label.
-    final roleName = _session.jabatan ?? switch (_session.role) {
-      'kd' => 'Kepala Divisi',
-      'pm' => 'Project Manager',
-      'adv' => 'Advisor',
-      _ => 'Operator / Lapangan',
-    };
+    final roleName =
+        _session.jabatan ??
+        switch (_session.role) {
+          'kd' => 'Kepala Divisi',
+          'pm' => 'Project Manager',
+          'adv' => 'Advisor',
+          _ => 'Operator / Lapangan',
+        };
 
     return AppBar(
       backgroundColor: AppColors.surfaceCard,
@@ -264,15 +288,21 @@ class _DashboardPageState extends State<DashboardPage>
       ),
       centerTitle: true,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-            size: 20, color: AppColors.gold),
+        icon: const Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 20,
+          color: AppColors.gold,
+        ),
         tooltip: 'Kembali ke Home',
         onPressed: () => context.pop(),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.logout_rounded,
-              color: AppColors.textSecondary, size: 22),
+          icon: const Icon(
+            Icons.logout_rounded,
+            color: AppColors.textSecondary,
+            size: 22,
+          ),
           tooltip: 'Logout',
           onPressed: () {
             _session.logout();
@@ -298,23 +328,29 @@ class _DashboardPageState extends State<DashboardPage>
             indicatorWeight: 2,
             labelColor: AppColors.gold,
             unselectedLabelColor: AppColors.textDisabled,
-            labelStyle:
-                const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            unselectedLabelStyle:
-                const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+            labelStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.normal,
+            ),
             tabAlignment: TabAlignment.start,
             tabs: _tabs
-                .map((t) => Tab(
-                      height: 40,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(t.icon, size: 16),
-                          const SizedBox(width: 4),
-                          Text(t.label),
-                        ],
-                      ),
-                    ))
+                .map(
+                  (t) => Tab(
+                    height: 40,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(t.icon, size: 16),
+                        const SizedBox(width: 4),
+                        Text(t.label),
+                      ],
+                    ),
+                  ),
+                )
                 .toList(),
           ),
         ],
@@ -332,7 +368,7 @@ class _DashboardPageState extends State<DashboardPage>
   // ── Top Tab Body (KD/Advisor/PM) ─────────────────────────
   Widget _buildTopTabBody() {
     return TabBarView(
-              key: const PageStorageKey("dashboardTab"),
+      key: const PageStorageKey("dashboardTab"),
       controller: _tabController,
       children: _tabs.map((t) => t.builder()).toList(),
     );
@@ -357,10 +393,7 @@ class _DashboardPageState extends State<DashboardPage>
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(
-              _tabs.length,
-              (i) => _navItem(i, _tabs[i]),
-            ),
+            children: List.generate(_tabs.length, (i) => _navItem(i, _tabs[i])),
           ),
         ),
       ),

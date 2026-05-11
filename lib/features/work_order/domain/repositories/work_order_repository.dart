@@ -1,3 +1,10 @@
+/*
+Tujuan: Kontrak repository Work Order untuk list, detail, create, approval, dan extension.
+Caller: WorkOrderBloc.
+Dependensi: Either, Failure, WorkOrder entity.
+Main Functions: getWorkOrders, getWorkOrderById, createWorkOrder, approveWorkOrder.
+Side Effects: Tidak langsung; diimplementasikan oleh data layer.
+*/
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
@@ -19,11 +26,12 @@ abstract class WorkOrderRepository {
     required String carId,
     required String targetDivId,
     required String jobDetail,
+    String? notes,
     required String targetDate,
     String? panelName,
     String? sectionName,
     String? panelCategory,
-    bool    addPanelToMaster = false,
+    bool addPanelToMaster = false,
     double? targetHours,
   });
 
@@ -32,6 +40,7 @@ abstract class WorkOrderRepository {
     required String woId,
     double? estimatedHours,
     String? notes,
+    String? picId,
   });
 
   /// Reject WO dengan alasan wajib
@@ -65,5 +74,8 @@ abstract class WorkOrderRepository {
   });
 
   /// Dropdown master data (cars, panels, divisions)
-  Future<Either<Failure, Map<String, dynamic>>> getDropdowns({String? carId});
+  Future<Either<Failure, Map<String, dynamic>>> getDropdowns({
+    String? carId,
+    String? divisionId,
+  });
 }

@@ -1,5 +1,7 @@
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/di/injection.dart';
+import '../../../../core/session/session_manager.dart';
 import '../models/device_init_model.dart';
 import '../models/login_model.dart';
 import 'auth_datasource.dart';
@@ -33,6 +35,7 @@ class RemoteAuthDataSource implements AuthDataSource {
       data: {
         'employeeId': employeeId,
         'password': password,
+        'deviceId': sl<SessionManager>().deviceId,
         if (fcmToken != null) 'fcmToken': fcmToken,
       },
     );

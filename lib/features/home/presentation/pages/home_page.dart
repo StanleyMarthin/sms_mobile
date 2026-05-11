@@ -22,7 +22,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
-    final menus = _buildMenusForRole(session.role);
+    final menus = _buildMenusForSession(session);
 
     return PopScope(
       canPop: false,
@@ -83,10 +83,14 @@ class HomePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           side: const BorderSide(color: AppColors.border),
         ),
-        title: const Text('Keluar Aplikasi?',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: const Text('Apakah Anda yakin ingin keluar?',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+        title: const Text(
+          'Keluar Aplikasi?',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+        ),
+        content: const Text(
+          'Apakah Anda yakin ingin keluar?',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -102,8 +106,10 @@ class HomePage extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.statusLocked,
             ),
-            child: const Text('Keluar',
-                style: TextStyle(color: AppColors.textPrimary)),
+            child: const Text(
+              'Keluar',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
@@ -119,9 +125,7 @@ class HomePage extends StatelessWidget {
         gradient: LinearGradient(
           colors: [Color(0xFF1A1608), Color(0xFF131008)],
         ),
-        border: Border(
-          bottom: BorderSide(color: AppColors.border),
-        ),
+        border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       child: Row(
         children: [
@@ -156,7 +160,8 @@ class HomePage extends StatelessWidget {
   Widget _buildGreeting(SessionManager session) {
     final name = session.fullName ?? 'User';
     // Use jabatan from BE login response; fallback to role-based label.
-    final role = session.jabatan ??
+    final role =
+        session.jabatan ??
         switch (session.role) {
           'kd' => 'Kepala Divisi',
           'pm' => 'Project Manager',
@@ -232,12 +237,15 @@ class HomePage extends StatelessWidget {
               },
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                      color: AppColors.statusLocked.withValues(alpha: 0.4)),
+                    color: AppColors.statusLocked.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: const Text(
                   'Logout',
@@ -485,8 +493,26 @@ class _MenuItem {
 // ═══════════════════════════════════════════════════════════════
 // RBAC-driven menu builder
 // ═══════════════════════════════════════════════════════════════
-List<_MenuItem> _buildMenusForRole(String? role) {
-  final perms = getPermissions(role);
+bool _hasSessionPermission(SessionManager session, Permission permission) {
+  if (hasPermission(session.role, permission)) return true;
+  switch (permission) {
+    case Permission.warehouseRequest:
+      return session.hasPerm(Perms.warehouseRequest);
+    case Permission.warehouseApprove:
+      return session.hasPerm(Perms.warehouseApprove);
+    case Permission.warehouseLogsView:
+      return session.hasPerm(Perms.warehouseLogs);
+    case Permission.notificationsView:
+      return session.hasPerm(Perms.notificationsView);
+    case Permission.profileView:
+      return session.hasPerm(Perms.profileView);
+    default:
+      return false;
+  }
+}
+
+List<_MenuItem> _buildMenusForSession(SessionManager session) {
+  final perms = getPermissions(session.role);
   final menus = <_MenuItem>[];
 
   Color alt() => (menus.length % 2 == 0) ? AppColors.gold : AppColors.orange;
@@ -495,30 +521,38 @@ List<_MenuItem> _buildMenusForRole(String? role) {
   // Lapangan / Mechanic: menus map to 5-tab bottom-nav layout
   // ══════════════════════════════════════════════════════════
   if (perms.contains(Permission.dashboardMechanic)) {
-    menus.add(_MenuItem(
-      icon: Icons.assignment,
-      label: 'Tugas',
-      route: '/tasks',
-      color: alt(),
-    ));
-    menus.add(_MenuItem(
-      icon: Icons.more_time_outlined,
-      label: 'Lembur',
-      route: '/overtime',
-      color: alt(),
-    ));
-    menus.add(_MenuItem(
-      icon: Icons.inventory_2_outlined,
-      label: 'Warehouse',
-      route: '/warehouse',
-      color: alt(),
-    ));
-    menus.add(_MenuItem(
-      icon: Icons.person_outline_rounded,
-      label: 'Profil',
-      route: '/profile',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.assignment,
+        label: 'Tugas',
+        route: '/tasks',
+        color: alt(),
+      ),
+    );
+    menus.add(
+      _MenuItem(
+        icon: Icons.more_time_outlined,
+        label: 'Lembur',
+        route: '/overtime',
+        color: alt(),
+      ),
+    );
+    menus.add(
+      _MenuItem(
+        icon: Icons.inventory_2_outlined,
+        label: 'Warehouse',
+        route: '/warehouse',
+        color: alt(),
+      ),
+    );
+    menus.add(
+      _MenuItem(
+        icon: Icons.person_outline_rounded,
+        label: 'Profil',
+        route: '/profile',
+        color: alt(),
+      ),
+    );
 
     return menus;
   }
@@ -528,102 +562,123 @@ List<_MenuItem> _buildMenusForRole(String? role) {
   // ══════════════════════════════════════════════════════════
 
   if (perms.contains(Permission.taskView)) {
-    menus.add(_MenuItem(
-      icon: Icons.checklist_outlined,
-      label: 'Tugas',
-      route: '/tasks',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.checklist_outlined,
+        label: 'Tugas',
+        route: '/tasks',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.taskView)) {
-    menus.add(_MenuItem(
-      icon: Icons.more_time_outlined,
-      label: 'Lembur',
-      route: '/overtime',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.more_time_outlined,
+        label: 'Lembur',
+        route: '/overtime',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.jobPlanCreate) ||
       perms.contains(Permission.jobPlanReview) ||
       perms.contains(Permission.jobPlanUpdate)) {
-    menus.add(_MenuItem(
-      icon: Icons.event_note_outlined,
-      label: 'Plan',
-      route: '/plans',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.event_note_outlined,
+        label: 'Plan',
+        route: '/plans',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.unitsView) ||
       perms.contains(Permission.countdownView)) {
-    menus.add(_MenuItem(
-      icon: Icons.directions_car_outlined,
-      label: 'Countdown',
-      route: '/countdown',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.directions_car_outlined,
+        label: 'Countdown',
+        route: '/countdown',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.monitoringView)) {
-    menus.add(_MenuItem(
-      icon: Icons.monitor_outlined,
-      label: 'Monitoring',
-      route: '/monitoring',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.monitor_outlined,
+        label: 'Monitoring',
+        route: '/monitoring',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.qcSubmit) ||
       perms.contains(Permission.qcValidate) ||
       perms.contains(Permission.qcView)) {
-    menus.add(_MenuItem(
-      icon: Icons.verified_outlined,
-      label: 'QC',
-      route: '/qc',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.verified_outlined,
+        label: 'QC',
+        route: '/qc',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.woCreate) ||
       perms.contains(Permission.woView)) {
-    menus.add(_MenuItem(
-      icon: Icons.assignment_outlined,
-      label: 'Work\nOrder',
-      route: '/work-orders',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.assignment_outlined,
+        label: 'Work\nOrder',
+        route: '/work-orders',
+        color: alt(),
+      ),
+    );
   }
 
-  if (perms.contains(Permission.warehouseApprove) ||
-      perms.contains(Permission.warehouseRequest) ||
-      perms.contains(Permission.warehouseLogsView)) {
-    menus.add(_MenuItem(
-      icon: Icons.inventory_2_outlined,
-      label: 'Warehouse',
-      route: '/warehouse',
-      color: alt(),
-    ));
+  if (_hasSessionPermission(session, Permission.warehouseApprove) ||
+      _hasSessionPermission(session, Permission.warehouseRequest) ||
+      _hasSessionPermission(session, Permission.warehouseLogsView)) {
+    menus.add(
+      _MenuItem(
+        icon: Icons.inventory_2_outlined,
+        label: 'Warehouse',
+        route: '/warehouse',
+        color: alt(),
+      ),
+    );
   }
 
   if (perms.contains(Permission.prView)) {
-    menus.add(_MenuItem(
-      icon: Icons.shopping_cart_outlined,
-      label: 'Purchase\nRequest',
-      route: '/pr',
-      color: alt(),
-    ));
+    menus.add(
+      _MenuItem(
+        icon: Icons.shopping_cart_outlined,
+        label: 'Purchase\nRequest',
+        route: '/pr',
+        color: alt(),
+      ),
+    );
   }
 
   // ── Profil (PROFILE_VIEW) ──
-  if (perms.contains(Permission.profileView)) {
-    menus.add(_MenuItem(
-      icon: Icons.person_outline_rounded,
-      label: 'Profil',
-      route: '/profile',
-      color: alt(),
-    ));
+  if (_hasSessionPermission(session, Permission.profileView) ||
+      perms.contains(Permission.profileView)) {
+    menus.add(
+      _MenuItem(
+        icon: Icons.person_outline_rounded,
+        label: 'Profil',
+        route: '/profile',
+        color: alt(),
+      ),
+    );
   }
 
   return menus;

@@ -1,3 +1,10 @@
+/*
+Tujuan: Datasource remote job plan untuk draft, browse, submit, dan approval via API.
+Caller: JobPlanRepositoryImpl.
+Dependensi: ApiClient, ApiEndpoints, SessionManager.
+Main Functions: saveDraft, getDraft, submitDraft, browsePlans, createPlan.
+Side Effects: HTTP GET/POST/PUT ke service sm_job_plan.
+*/
 library;
 
 import '../../../../core/network/api_client.dart';
@@ -7,6 +14,10 @@ import 'job_plan_datasource.dart';
 
 class RemoteJobPlanDataSource implements JobPlanDataSource {
   static final Map<String, String> _statusOverrides = {};
+  static final RegExp _legacyPokPattern = RegExp(
+    r'(?:^|\|)\s*POK:\s*(.+)$',
+    caseSensitive: false,
+  );
 
   RemoteJobPlanDataSource({
     required this.apiClient,
@@ -35,6 +46,86 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'ketua_divisi' => 'KD',
       'kepala_divisi' => 'KD',
       _ => role.toUpperCase(),
+    };
+  }
+
+  String _resolveNote({
+    String? note,
+    String? jobDescription,
+    String? panelName,
+  }) {
+    final raw = (note ?? '').trim();
+    if (raw.isNotEmpty) {
+      final pokMatch = _legacyPokPattern.firstMatch(raw);
+      final pokValue = pokMatch?.group(1)?.trim() ?? '';
+      if (pokValue.isNotEmpty) return pokValue;
+
+      final upper = raw.toUpperCase();
+      final looksLegacyMeta =
+          upper.contains('SUMBER:') ||
+          upper.contains('LEMBUR:') ||
+          upper.contains('URGENT:');
+      if (!looksLegacyMeta) return raw;
+    }
+
+    final parts = <String>[
+      if ((jobDescription ?? '').trim().isNotEmpty) jobDescription!.trim(),
+      if ((panelName ?? '').trim().isNotEmpty) panelName!.trim(),
+    ];
+    return parts.join(' - ');
+  }
+
+  String _itemPanelName(Map<String, dynamic> item) =>
+      (item['panelName'] ??
+              item['panel_name'] ??
+              item['sectionName'] ??
+              item['panelCustomNote'] ??
+              item['panel_custom_note'] ??
+              '')
+          .toString();
+
+  String _itemJobDescription(Map<String, dynamic> item) =>
+      (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
+
+  Map<String, dynamic> _normalizeDraftItem(
+    Map<String, dynamic> item, {
+    String? draftNote,
+  }) {
+    final normalized = Map<String, dynamic>.from(item);
+    normalized['note'] = _resolveNote(
+      note: normalized['note']?.toString() ?? draftNote,
+      jobDescription: _itemJobDescription(normalized),
+      panelName: _itemPanelName(normalized),
+    );
+    return normalized;
+  }
+
+  String? _resolveSharedSourceRefId(List<Map<String, dynamic>> items) {
+    final sourceRefs = items
+        .map((item) => item['sourceRefId']?.toString().trim() ?? '')
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    if (sourceRefs.length == 1) return sourceRefs.first;
+    return null;
+  }
+
+  Map<String, dynamic> _normalizeDraftPayloadMap(Map<String, dynamic> payload) {
+    final items = (payload['items'] as List<dynamic>? ?? const <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .map(Map<String, dynamic>.from)
+        .toList();
+    final firstItem = items.isNotEmpty ? items.first : <String, dynamic>{};
+    final normalizedNote = _resolveNote(
+      note: payload['note']?.toString(),
+      jobDescription: _itemJobDescription(firstItem),
+      panelName: _itemPanelName(firstItem),
+    );
+    return {
+      ...payload,
+      'note': normalizedNote,
+      'items': items
+          .map((item) => _normalizeDraftItem(item, draftNote: normalizedNote))
+          .toList(),
     };
   }
 
@@ -73,8 +164,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
 
     final normalized = merged.values.map(_normalizePlan).toList();
     normalized.sort((a, b) {
-      final byDate =
-          b['workDate'].toString().compareTo(a['workDate'].toString());
+      final byDate = b['workDate'].toString().compareTo(
+        a['workDate'].toString(),
+      );
       if (byDate != 0) return byDate;
       return b['planId'].toString().compareTo(a['planId'].toString());
     });
@@ -105,8 +197,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final rawItems = payload is Map<String, dynamic>
         ? (payload['items'] as List<dynamic>? ?? [])
         : payload is List<dynamic>
-            ? payload
-            : const <dynamic>[];
+        ? payload
+        : const <dynamic>[];
 
     final items = rawItems.whereType<Map<String, dynamic>>().map((item) {
       if (item.containsKey('planId')) return _normalizePlan(item);
@@ -118,13 +210,14 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // ─── GET /sm/job-plans?action=browse ────────────────────────────
   // Returns List (for KD) or List (division/unit steps)
   @override
-  Future<List<Map<String, dynamic>>> browsePlans(
-      {String? divisionId,
-      String? unitId,
-      String? role,
-      String? taskDate,
-      int limit = 100,
-      int offset = 0}) async {
+  Future<List<Map<String, dynamic>>> browsePlans({
+    String? divisionId,
+    String? unitId,
+    String? role,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  }) async {
     final response = await apiClient.get(
       ApiEndpoints.jobPlans,
       queryParameters: {
@@ -179,15 +272,17 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'panels': _asMapList(payload['panels']),
       'jobTypes': _asMapList(payload['jobTypes']),
       'divisions': _asMapList(payload['divisions']),
-      'users':
-          _asMapList(payload['users']).map(_normalizeDropdownUser).toList(),
+      'users': _asMapList(
+        payload['users'],
+      ).map(_normalizeDropdownUser).toList(),
     };
   }
 
   // ─── GET /sm/job-plans/dropdowns (for additional form) ─────────
   @override
-  Future<Map<String, dynamic>> getAdditionalDropdowns(
-      {String? divisionId}) async {
+  Future<Map<String, dynamic>> getAdditionalDropdowns({
+    String? divisionId,
+  }) async {
     final response = await apiClient.get(
       ApiEndpoints.jobPlanDropdowns,
       queryParameters: {if (divisionId != null) 'divisionId': divisionId},
@@ -195,8 +290,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final payload = response.data as Map<String, dynamic>? ?? {};
     return {
       ...payload,
-      'users':
-          _asMapList(payload['users']).map(_normalizeDropdownUser).toList(),
+      'users': _asMapList(
+        payload['users'],
+      ).map(_normalizeDropdownUser).toList(),
     };
   }
 
@@ -225,7 +321,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         queryParameters: {'action': 'draft', 'userId': userId},
       );
       final payload = response.data;
-      if (payload is Map<String, dynamic>) return payload;
+      if (payload is Map<String, dynamic>) {
+        return _normalizeDraftPayloadMap(payload);
+      }
       return null;
     } catch (_) {
       return null;
@@ -234,27 +332,46 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
 
   // ─── POST /sm/job-plans  action=save_draft ─────────────────────
   @override
-  Future<void> saveDraft(
-      {required String userId,
-      required List<Map<String, dynamic>> items,
-      required String sourceType,
-      String? note}) async {
-    await apiClient.post(ApiEndpoints.jobPlans, data: {
-      'action': 'save_draft',
-      'userId': userId,
-      'sourceType': sourceType,
-      'note': note,
-      'items': items,
-    });
+  Future<void> saveDraft({
+    required String userId,
+    required List<Map<String, dynamic>> items,
+    required String sourceType,
+    bool replaceItems = true,
+    String? note,
+  }) async {
+    final normalizedItems = items
+        .map((item) => _normalizeDraftItem(item, draftNote: note))
+        .toList();
+    final firstItem = normalizedItems.isNotEmpty
+        ? normalizedItems.first
+        : <String, dynamic>{};
+    final sourceRefId = _resolveSharedSourceRefId(normalizedItems);
+    final normalizedNote = _resolveNote(
+      note: note,
+      jobDescription: _itemJobDescription(firstItem),
+      panelName: _itemPanelName(firstItem),
+    );
+    await apiClient.post(
+      ApiEndpoints.jobPlans,
+      data: {
+        'action': 'save_draft',
+        'userId': userId,
+        'sourceType': sourceType,
+        if (sourceRefId != null) 'sourceRefId': sourceRefId,
+        'replaceItems': replaceItems,
+        'note': normalizedNote,
+        'items': normalizedItems,
+      },
+    );
   }
 
   // ─── POST /sm/job-plans  action=delete_draft ───────────────────
   @override
   Future<void> deleteDraft({required String userId}) async {
-    await apiClient.post(ApiEndpoints.jobPlans, data: {
-      'action': 'delete_draft',
-      'userId': userId,
-    });
+    await apiClient.post(
+      ApiEndpoints.jobPlans,
+      data: {'action': 'delete_draft', 'userId': userId},
+    );
   }
 
   // ─── POST /sm/job-plans  action=submit ─────────────────────────
@@ -263,18 +380,35 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   //   isOvertime, jobDescription
   // BE returns: { "createdIds": [...] }
   @override
-  Future<List<String>> submitDraft(
-      {required String userId,
-      required List<Map<String, dynamic>> items,
-      required String sourceType,
-      String? note}) async {
-    final response = await apiClient.post(ApiEndpoints.jobPlans, data: {
-      'action': 'submit',
-      'userId': userId,
-      'sourceType': sourceType,
-      'note': note,
-      'items': items,
-    });
+  Future<List<String>> submitDraft({
+    required String userId,
+    required List<Map<String, dynamic>> items,
+    required String sourceType,
+    String? note,
+  }) async {
+    final normalizedItems = items
+        .map((item) => _normalizeDraftItem(item, draftNote: note))
+        .toList();
+    final firstItem = normalizedItems.isNotEmpty
+        ? normalizedItems.first
+        : <String, dynamic>{};
+    final sourceRefId = _resolveSharedSourceRefId(normalizedItems);
+    final normalizedNote = _resolveNote(
+      note: note,
+      jobDescription: _itemJobDescription(firstItem),
+      panelName: _itemPanelName(firstItem),
+    );
+    final response = await apiClient.post(
+      ApiEndpoints.jobPlans,
+      data: {
+        'action': 'submit',
+        'userId': userId,
+        'sourceType': sourceType,
+        if (sourceRefId != null) 'sourceRefId': sourceRefId,
+        'note': normalizedNote,
+        'items': normalizedItems,
+      },
+    );
     final payload = response.data;
     List<dynamic> ids = const [];
     if (payload is Map<String, dynamic>) {
@@ -309,10 +443,16 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final divisionId = await _resolveDivisionId(assignedDivision);
     final panelId = await _resolvePanelId(panelName);
     final jobTypeId = await _resolveJobTypeId(description, assignedDivision);
+    final normalizedNote = _resolveNote(
+      note: note,
+      jobDescription: description,
+      panelName: panelName,
+    );
 
     final item = <String, dynamic>{
       if (coreId.trim().isNotEmpty) 'coreId': coreId,
       if (carId.trim().isNotEmpty) 'carId': carId,
+      if (sourceRefId.trim().isNotEmpty) 'sourceRefId': sourceRefId,
       'divisionId': divisionId,
       'panelId': panelId,
       'panelCustomNote': panelName,
@@ -326,13 +466,17 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'jobDescription': description,
     };
 
-    final response = await apiClient.post(ApiEndpoints.jobPlans, data: {
-      'action': 'submit',
-      'userId': sessionManager.employeeId ?? '',
-      'sourceType': sourceType.toUpperCase(),
-      'note': note,
-      'items': [item],
-    });
+    final response = await apiClient.post(
+      ApiEndpoints.jobPlans,
+      data: {
+        'action': 'submit',
+        'userId': sessionManager.employeeId ?? '',
+        'sourceType': sourceType.toUpperCase(),
+        if (sourceRefId.trim().isNotEmpty) 'sourceRefId': sourceRefId,
+        'note': normalizedNote,
+        'items': [item],
+      },
+    );
 
     final payload = response.data;
     List<dynamic> createdIds = const [];
@@ -342,8 +486,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
 
     if (createdIds.isNotEmpty) {
       final plans = await getPlans();
-      final matched =
-          plans.where((p) => createdIds.contains(p['planId'])).toList();
+      final matched = plans
+          .where((p) => createdIds.contains(p['planId']))
+          .toList();
       if (matched.isNotEmpty) return matched.first;
     }
 
@@ -374,13 +519,14 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // BE req: { action, userId, planId }
   // BE res: { "planId": "..." }
   @override
-  Future<Map<String, dynamic>> approvePlan(
-      {required String planId, required String userId}) async {
-    final response = await apiClient.put(ApiEndpoints.jobPlans, data: {
-      'action': 'approve',
-      'userId': userId,
-      'planId': planId,
-    });
+  Future<Map<String, dynamic>> approvePlan({
+    required String planId,
+    required String userId,
+  }) async {
+    final response = await apiClient.put(
+      ApiEndpoints.jobPlans,
+      data: {'action': 'approve', 'userId': userId, 'planId': planId},
+    );
     final payload = response.data;
     if (payload is Map<String, dynamic>) return payload;
     return {'planId': planId};
@@ -389,16 +535,20 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // ─── PUT /sm/job-plans  action=reject ──────────────────────────
   // BE req: { action, userId, planId, rejectNote }
   @override
-  Future<Map<String, dynamic>> rejectPlan(
-      {required String planId,
-      required String userId,
-      required String rejectNote}) async {
-    final response = await apiClient.put(ApiEndpoints.jobPlans, data: {
-      'action': 'reject',
-      'userId': userId,
-      'planId': planId,
-      'rejectNote': rejectNote, // BE field: rejectNote (bukan rejectNotes)
-    });
+  Future<Map<String, dynamic>> rejectPlan({
+    required String planId,
+    required String userId,
+    required String rejectNote,
+  }) async {
+    final response = await apiClient.put(
+      ApiEndpoints.jobPlans,
+      data: {
+        'action': 'reject',
+        'userId': userId,
+        'planId': planId,
+        'rejectNote': rejectNote, // BE field: rejectNote (bukan rejectNotes)
+      },
+    );
     final payload = response.data;
     if (payload is Map<String, dynamic>) return payload;
     return {'planId': planId};
@@ -407,16 +557,20 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // ─── PUT /sm/job-plans  action=resubmit ────────────────────────
   // BE req: { action, userId, planId, items: [{startTime, finishTime, targetHours}] }
   @override
-  Future<Map<String, dynamic>> resubmitPlan(
-      {required String planId,
-      required String userId,
-      required List<Map<String, dynamic>> items}) async {
-    final response = await apiClient.put(ApiEndpoints.jobPlans, data: {
-      'action': 'resubmit',
-      'userId': userId,
-      'planId': planId,
-      'items': items,
-    });
+  Future<Map<String, dynamic>> resubmitPlan({
+    required String planId,
+    required String userId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await apiClient.put(
+      ApiEndpoints.jobPlans,
+      data: {
+        'action': 'resubmit',
+        'userId': userId,
+        'planId': planId,
+        'items': items,
+      },
+    );
     final payload = response.data;
     if (payload is Map<String, dynamic>) return payload;
     return {'planId': planId};
@@ -424,22 +578,27 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
 
   // ─── PUT /sm/job-plans  action=delete ──────────────────────────
   @override
-  Future<void> deleteRejectedPlan(
-      {required String planId, required String userId}) async {
-    await apiClient.put(ApiEndpoints.jobPlans, data: {
-      'action': 'delete',
-      'userId': userId,
-      'planId': planId,
-    });
+  Future<void> deleteRejectedPlan({
+    required String planId,
+    required String userId,
+  }) async {
+    await apiClient.put(
+      ApiEndpoints.jobPlans,
+      data: {'action': 'delete', 'userId': userId, 'planId': planId},
+    );
   }
 
   // ─── reviewPlan → maps to approve/reject ───────────────────────
   @override
-  Future<Map<String, dynamic>> reviewPlan(
-      {required String planId, required bool approved}) async {
+  Future<Map<String, dynamic>> reviewPlan({
+    required String planId,
+    required bool approved,
+  }) async {
     if (approved) {
       await approvePlan(
-          planId: planId, userId: sessionManager.employeeId ?? '');
+        planId: planId,
+        userId: sessionManager.employeeId ?? '',
+      );
       if (_roleCode == 'ADV') {
         _statusOverrides[planId] = 'PENDING_KP';
       } else if (_roleCode == 'KP') {
@@ -449,9 +608,10 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       }
     } else {
       await rejectPlan(
-          planId: planId,
-          userId: sessionManager.employeeId ?? '',
-          rejectNote: 'Ditolak via mobile');
+        planId: planId,
+        userId: sessionManager.employeeId ?? '',
+        rejectNote: 'Ditolak via mobile',
+      );
       _statusOverrides[planId] = 'REJECTED';
     }
 
@@ -485,21 +645,23 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // ─── updatePlan → maps to resubmit ─────────────────────────────
   // BE tidak punya action=update; gunakan resubmit dengan 1 item
   @override
-  Future<Map<String, dynamic>> updatePlan(
-      {required String planId,
-      required double targetHours,
-      required String deadline}) async {
+  Future<Map<String, dynamic>> updatePlan({
+    required String planId,
+    required double targetHours,
+    required String deadline,
+  }) async {
     await resubmitPlan(
-        planId: planId,
-        userId: sessionManager.employeeId ?? '',
-        items: [
-          {
-            'targetHours': targetHours,
-            'taskDate': deadline,
-            'startTime': '08:00',
-            'finishTime': '16:00'
-          },
-        ]);
+      planId: planId,
+      userId: sessionManager.employeeId ?? '',
+      items: [
+        {
+          'targetHours': targetHours,
+          'taskDate': deadline,
+          'startTime': '08:00',
+          'finishTime': '16:00',
+        },
+      ],
+    );
 
     final plans = await getPlans();
     return plans.firstWhere(
@@ -535,14 +697,15 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         '${item['assignedUserName'] ?? item['employeeName'] ?? item['full_name'] ?? (assignedUserId.isNotEmpty ? assignedUserId : '-')}';
     final assignedDivision =
         '${item['divisionName'] ?? item['division_name'] ?? item['division'] ?? ''}';
-    final dailyTarget =
-        _parseHours(item['targetHours'] ?? item['dailyTargetHours']);
+    final dailyTarget = _parseHours(
+      item['targetHours'] ?? item['dailyTargetHours'],
+    );
     final startTime =
         _normalizeTime(item['startTime'] ?? item['targetStartHours']) ??
-            '08:00';
+        '08:00';
     final finishTime =
         _normalizeTime(item['finishTime'] ?? item['targetFinishHours']) ??
-            _addHours(startTime, dailyTarget);
+        _addHours(startTime, dailyTarget);
     final taskDate = _toDate(item['taskDate']);
     final normalizedStatus = _normalizeApprovalStatus(_pickStatusValue(item));
 
@@ -567,7 +730,12 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
           ? taskDate
           : _toDate(item['deadlineDate']),
       'status': normalizedStatus,
-      'note': '${item['note'] ?? ''}',
+      'note': _resolveNote(
+        note: item['note']?.toString(),
+        jobDescription:
+            '${item['jobdescription'] ?? item['description'] ?? ''}',
+        panelName: '${item['panelName'] ?? item['panel_name'] ?? '-'}',
+      ),
     };
   }
 
@@ -576,7 +744,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'status',
       'approvalStatus',
       'planStatus',
-      'currentStatus'
+      'currentStatus',
     ]) {
       final value = item[key];
       if (value == null) continue;
@@ -590,12 +758,10 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return switch (rawStatus.trim().toUpperCase()) {
       'PENDING_PM' ||
       'PENDING_MANAGER' ||
-      'PENDING_MP_APPROVAL' =>
-        'PENDING_MP',
+      'PENDING_MP_APPROVAL' => 'PENDING_MP',
       'PENDING_PROJECT_HEAD' ||
       'PENDING_KEPALA_PROJECT' ||
-      'PENDING_KP_APPROVAL' =>
-        'PENDING_KP',
+      'PENDING_KP_APPROVAL' => 'PENDING_KP',
       'PENDING_ADVISOR' || 'PENDING_ADVISOR_APPROVAL' => 'PENDING_ADV',
       final s => s,
     };
@@ -652,7 +818,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   Future<String> _resolveJobTypeId(
-      String description, String divisionName) async {
+    String description,
+    String divisionName,
+  ) async {
     final dropdowns = await _getOrFetchDropdowns();
     final dName = divisionName.toUpperCase();
     String divId = '';
@@ -734,7 +902,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   String _addHours(String startTime, double hours) {
     final parts = startTime.split(':');
     if (parts.length < 2 || hours <= 0) return startTime;
-    final totalMinutes = (int.tryParse(parts[0]) ?? 8) * 60 +
+    final totalMinutes =
+        (int.tryParse(parts[0]) ?? 8) * 60 +
         (int.tryParse(parts[1]) ?? 0) +
         (hours * 60).round();
     final h = '${(totalMinutes ~/ 60) % 24}'.padLeft(2, '0');
@@ -752,8 +921,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
 
   Map<String, dynamic> _normalizeDropdownUser(Map<String, dynamic> item) {
     final normalized = Map<String, dynamic>.from(item);
-    final fullName =
-        (normalized['full_name'] ?? normalized['name'] ?? '').toString();
+    final fullName = (normalized['full_name'] ?? normalized['name'] ?? '')
+        .toString();
     normalized['full_name'] = fullName;
     normalized['name'] = fullName;
     return normalized;

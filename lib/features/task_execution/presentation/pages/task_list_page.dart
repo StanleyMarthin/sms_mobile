@@ -1,3 +1,10 @@
+/*
+Tujuan: Menampilkan daftar task mekanik per tanggal/unit termasuk mode self-only.
+Caller: MechanicTaskPage.
+Dependensi: TaskBloc, SessionManager, TaskCard, sheet start/submit task.
+Main Functions: build, _checkAutoNavigate, _showExecutionSheet.
+Side Effects: Dispatch event load/retry task dan buka modal eksekusi.
+*/
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -11,6 +18,7 @@ import '../bloc/task_state.dart';
 import '../widgets/task_card.dart';
 import '../widgets/task_execution_sheet.dart';
 import '../widgets/task_start_sheet.dart';
+import '../widgets/task_execution_detail_sheet.dart';
 
 /// Mechanic's task list — shows today's assignments.
 ///
@@ -23,6 +31,7 @@ class TaskListPage extends StatefulWidget {
   final DateTime selectedDate;
   final String title;
   final String? focusTaskId;
+  final bool forceOwnOnly;
 
   const TaskListPage({
     super.key,
@@ -30,6 +39,7 @@ class TaskListPage extends StatefulWidget {
     required this.selectedDate,
     required this.title,
     this.focusTaskId,
+    this.forceOwnOnly = false,
   });
 
   @override
@@ -40,12 +50,18 @@ class _TaskListPageState extends State<TaskListPage> {
   bool _hasAutoNavigated = false;
 
   void _checkAutoNavigate(List<TaskEntity>? tasks) {
-    if (widget.focusTaskId == null || _hasAutoNavigated || tasks == null || tasks.isEmpty) return;
-    
+    if (widget.focusTaskId == null ||
+        _hasAutoNavigated ||
+        tasks == null ||
+        tasks.isEmpty)
+      return;
+
     try {
-      final targetTask = tasks.firstWhere((t) => t.plandailyId == widget.focusTaskId);
+      final targetTask = tasks.firstWhere(
+        (t) => t.plandailyId == widget.focusTaskId,
+      );
       _hasAutoNavigated = true;
-      
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final taskBloc = context.read<TaskBloc>();
@@ -57,6 +73,7 @@ class _TaskListPageState extends State<TaskListPage> {
                 title: targetTask.unitName,
                 unitName: targetTask.unitName,
                 focusTaskId: widget.focusTaskId,
+                isOvertime: widget.isOvertime,
               ),
             ),
           ),
@@ -81,15 +98,23 @@ class _TaskListPageState extends State<TaskListPage> {
         if (state is TaskError) {
           return _ErrorView(
             message: state.message,
-            onRetry: () => context.read<TaskBloc>().add(LoadTodaysTasksEvent(
-                  isOvertime: widget.isOvertime,
-                  date: widget.selectedDate,
-                )),
+            onRetry: () => context.read<TaskBloc>().add(
+              LoadTodaysTasksEvent(
+                isOvertime: widget.isOvertime,
+                date: widget.selectedDate,
+                forceOwnOnly: widget.forceOwnOnly,
+              ),
+            ),
           );
         }
 
-        final tasks = _sortedTasks(_extractTasks(state));
-        
+        final tasks = _sortedTasks(
+          _extractTasks(state)
+              .where((t) => t.isOvertime == widget.isOvertime)
+              .toList(),
+        );
+
+
         // Auto navigate if needed
         _checkAutoNavigate(tasks);
 
@@ -128,6 +153,7 @@ class _TaskListPageState extends State<TaskListPage> {
                             title: unitEntry.key,
                             unitName: unitEntry.key,
                             focusTaskId: widget.focusTaskId,
+                            isOvertime: widget.isOvertime,
                           ),
                         ),
                       ),
@@ -156,7 +182,8 @@ class _TaskListPageState extends State<TaskListPage> {
   }
 
   List<MapEntry<String, List<TaskEntity>>> _groupByUnit(
-      List<TaskEntity> tasks) {
+    List<TaskEntity> tasks,
+  ) {
     final grouped = <String, List<TaskEntity>>{};
     for (final task in tasks) {
       grouped.putIfAbsent(task.unitName, () => []).add(task);
@@ -186,7 +213,7 @@ class _TaskListPageState extends State<TaskListPage> {
       'Rabu',
       'Kamis',
       'Jumat',
-      'Sabtu'
+      'Sabtu',
     ];
     final monthNames = [
       '',
@@ -201,7 +228,7 @@ class _TaskListPageState extends State<TaskListPage> {
       'September',
       'Oktober',
       'November',
-      'Desember'
+      'Desember',
     ];
     final dateStr =
         '${dayNames[date.weekday % 7]}, ${date.day} ${monthNames[date.month]} ${date.year}';
@@ -299,12 +326,12 @@ class _TaskListPageState extends State<TaskListPage> {
     }
   }
 
-  List<dynamic>? _extractTasks(TaskState state) {
+  List<TaskEntity> _extractTasks(TaskState state) {
     if (state is TaskLoaded) return state.tasks;
     if (state is TaskActionLoading) return state.tasks;
     if (state is TaskActionSuccess) return state.tasks;
     if (state is TaskActionError) return state.tasks;
-    return null;
+    return const [];
   }
 }
 
@@ -325,8 +352,11 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline,
-                size: 56, color: AppColors.statusLocked),
+            const Icon(
+              Icons.error_outline,
+              size: 56,
+              color: AppColors.statusLocked,
+            ),
             const SizedBox(height: 16),
             const Text(
               'Terjadi Kesalahan',
@@ -341,18 +371,24 @@ class _ErrorView extends StatelessWidget {
               message,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, color: AppColors.gold),
-              label: const Text('Coba Lagi',
-                  style: TextStyle(color: AppColors.gold)),
+              label: const Text(
+                'Coba Lagi',
+                style: TextStyle(color: AppColors.gold),
+              ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ],
@@ -378,8 +414,11 @@ class _EmptyView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.assignment_outlined,
-                size: 56, color: AppColors.textDisabled),
+            const Icon(
+              Icons.assignment_outlined,
+              size: 56,
+              color: AppColors.textDisabled,
+            ),
             const SizedBox(height: 16),
             const Text(
               'Tidak Ada Task',
@@ -394,18 +433,24 @@ class _EmptyView extends StatelessWidget {
               'Belum ada task yang dijadwalkan untuk hari ini.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh, color: AppColors.gold),
-              label: const Text('Refresh',
-                  style: TextStyle(color: AppColors.gold)),
+              label: const Text(
+                'Refresh',
+                style: TextStyle(color: AppColors.gold),
+              ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
             ),
           ],
@@ -462,7 +507,9 @@ class _DrilldownTile extends StatelessWidget {
                   Text(
                     subtitle,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.textMuted),
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -480,8 +527,11 @@ class _DrilldownTile extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                const Icon(Icons.chevron_right_rounded,
-                    size: 20, color: AppColors.textMuted),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: AppColors.textMuted,
+                ),
               ],
             ),
           ],
@@ -496,11 +546,13 @@ class _MechanicJobdescPage extends StatefulWidget {
     required this.title,
     required this.unitName,
     required this.focusTaskId,
+    required this.isOvertime,
   });
 
   final String title;
   final String unitName;
   final String? focusTaskId;
+  final bool isOvertime;
 
   @override
   State<_MechanicJobdescPage> createState() => _MechanicJobdescPageState();
@@ -518,13 +570,15 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
   void _checkAutoOpen() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.focusTaskId == null || _hasAutoOpened || !mounted) return;
-      
+
       final taskBloc = context.read<TaskBloc>();
       final state = taskBloc.state;
       final tasks = _extractTasks(state);
-      
+
       try {
-        final task = tasks.firstWhere((t) => t.plandailyId == widget.focusTaskId);
+        final task = tasks.firstWhere(
+          (t) => t.plandailyId == widget.focusTaskId,
+        );
         _hasAutoOpened = true;
         _showExecutionSheet(context, task);
       } catch (_) {
@@ -544,14 +598,21 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
       ),
       body: BlocBuilder<TaskBloc, TaskState>(
         builder: (context, state) {
-          final tasks = _extractTasks(state)
-              .where((task) => task.unitName == widget.unitName)
-              .toList()
-            ..sort(
-                (a, b) => a.customDescription.compareTo(b.customDescription));
+          final tasks =
+              _extractTasks(state)
+                  .where(
+                    (task) =>
+                        task.unitName == widget.unitName &&
+                        task.isOvertime == widget.isOvertime,
+                  )
+                  .toList()
+                ..sort(
+                  (a, b) => a.customDescription.compareTo(b.customDescription),
+                );
           final drafts = _extractDrafts(state);
-          final actionTaskId =
-              state is TaskActionLoading ? state.actionTaskId : null;
+          final actionTaskId = state is TaskActionLoading
+              ? state.actionTaskId
+              : null;
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
@@ -582,6 +643,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
                   onTap: () => _showExecutionSheet(context, task),
                   onStartPressed: () => _showExecutionSheet(context, task),
                   onFinishPressed: () => _showExecutionSheet(context, task),
+                  onViewDetail: () => _showTaskDetailSheet(context, task),
                 ),
               ),
             ],
@@ -614,7 +676,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Panel dikunci oleh ${task.lockedByName ?? "mekanik lain"}. Tidak dapat memulai pekerjaan.',
+            'Panel dikunci oleh ${task.lockedByName ?? "Divisi lain"}. Tidak dapat memulai pekerjaan.',
           ),
           backgroundColor: AppColors.statusLocked.withValues(alpha: 0.9),
           behavior: SnackBarBehavior.floating,
@@ -633,9 +695,9 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
         task: task,
         draft: existingDraft,
         onSubmit: (executionLog) {
-          context
-              .read<TaskBloc>()
-              .add(SubmitExecutionEvent(executionLog: executionLog));
+          context.read<TaskBloc>().add(
+            SubmitExecutionEvent(executionLog: executionLog),
+          );
         },
         onDraftSave: (draft) {
           context.read<TaskBloc>().add(SaveDraftEvent(draft: draft));
@@ -647,13 +709,95 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
         task: task,
         onStart: (draft) {
           context.read<TaskBloc>().add(
-                StartTaskFlowEvent(
-                  plandailyId: task.plandailyId,
-                  draft: draft,
-                ),
-              );
+            StartTaskFlowEvent(plandailyId: task.plandailyId, draft: draft),
+          );
         },
       );
     }
+  }
+
+  void _showTaskDetailSheet(BuildContext context, TaskEntity task) {
+    final target = task.dailyTargetHours > 0
+        ? task.dailyTargetHours
+        : task.targetHoursRevised;
+
+    String _fmtTime(String? iso) {
+      if (iso == null || iso.isEmpty) return '--:--';
+      final dt = DateTime.tryParse(iso);
+      if (dt == null) return '--:--';
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+
+    String _formatDuration(double hours) {
+      final totalMinutes = (hours * 60).round();
+      if (totalMinutes <= 0) return '0j 0m';
+      final h = totalMinutes ~/ 60;
+      final m = totalMinutes % 60;
+      if (h > 0 && m > 0) return '${h}j ${m}m';
+      if (h > 0) return '${h}j';
+      return '${m}m';
+    }
+
+    double actualHours = task.totalActualHours;
+    if (task.isInProgress && task.startedAt != null) {
+      final start = DateTime.tryParse(task.startedAt!);
+      if (start != null) {
+        final now = DateTime.now();
+        actualHours += now.difference(start).inSeconds / 3600.0;
+      }
+    }
+
+    TaskExecutionDetailSheet.show(
+      context: context,
+      title: 'Detail Pengerjaan',
+      unitName: task.unitName,
+      panelName: task.panelName,
+      jobName: task.jobName,
+      description: task.customDescription,
+      divisionName: task.divisionName,
+      taskDate: task.taskDate,
+      planStartTime: task.startTime,
+      planFinishTime: task.targetFinishTime,
+      planDuration: _formatDuration(task.dailyTargetHours),
+      actualStartTime: _fmtTime(task.startedAt),
+      actualFinishTime: _fmtTime(task.completedAt),
+      actualDuration: _formatDuration(actualHours),
+      progress: task.progressPercent,
+      status: task.status,
+      category: task.taskCategory,
+      operatorName: task.ownerName,
+      isOvertime: task.isOvertime,
+      isRework: task.isRework,
+      isPriority: task.isPriority,
+    );
+  }
+
+  Widget _detailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13, color: AppColors.textMuted,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

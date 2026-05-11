@@ -26,7 +26,12 @@ enum UserRole {
       'op' || 'team_lapangan' => UserRole.op,
       'kd' || 'ketua_divisi' => UserRole.kd,
       'adv' || 'advisor' => UserRole.adv,
-      'kepala_gudang' || 'gudang' || 'admin_gudang' => UserRole.kd,
+      'kepala_gudang' ||
+      'gudang' ||
+      'admin_gudang' ||
+      'gudang_tools' ||
+      'gudang_sparepart' ||
+      'gudang_bahan' => UserRole.kd,
       'ppic' || 'ppc' || 'manager_gudang' => UserRole.kd,
       'pm' ||
       'mp' ||
@@ -34,8 +39,7 @@ enum UserRole {
       'admin' ||
       'kepala_produksi' ||
       'manager_operational' ||
-      'mis' =>
-        UserRole.pm,
+      'mis' => UserRole.pm,
       _ => null,
     };
   }
@@ -55,7 +59,6 @@ enum Permission {
   woReject, // Reject a WO
   woExtendDeadline, // Extend deadline (only requesting KD)
   woView, // View work orders
-
   // ── QC ─────────────────────────────────────────────────
   qcView, // View QC checks
   qcSubmit,
@@ -164,12 +167,20 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.warehouseLogsView,
     Permission.notificationsView,
     Permission.profileView,
+    Permission.dashboardKd,
+  },
+  'warehouse_staff': {
+    Permission.warehouseLogsView,
+    Permission.notificationsView,
+    Permission.profileView,
+    Permission.dashboardKd,
   },
   'ppic': {
     Permission.warehouseApprove,
     Permission.warehouseLogsView,
     Permission.notificationsView,
     Permission.profileView,
+    Permission.dashboardKd,
   },
   'op': {
     Permission.taskExecute,
@@ -195,9 +206,10 @@ Set<Permission> getPermissions(String? role) {
   final normalized = role.toLowerCase();
 
   // Alias new BE roles to legacy FE roles to maintain UI mappings
-  if (normalized == 'manager_produksi' ||
+  if (normalized == 'admin') {
+    return {...?rolePermissions['pm'], ...?rolePermissions['warehouse']};
+  } else if (normalized == 'manager_produksi' ||
       normalized == 'mp' ||
-      normalized == 'admin' ||
       normalized == 'kepala_produksi' ||
       normalized == 'manager_operational' ||
       normalized == 'mis') {
@@ -212,6 +224,10 @@ Set<Permission> getPermissions(String? role) {
       normalized == 'gudang' ||
       normalized == 'admin_gudang') {
     return rolePermissions['warehouse'] ?? {};
+  } else if (normalized == 'gudang_tools' ||
+      normalized == 'gudang_sparepart' ||
+      normalized == 'gudang_bahan') {
+    return rolePermissions['warehouse_staff'] ?? {};
   } else if (normalized == 'ppic' ||
       normalized == 'ppc' ||
       normalized == 'manager_gudang') {

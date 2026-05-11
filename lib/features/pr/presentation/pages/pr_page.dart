@@ -1,3 +1,9 @@
+/// Tujuan: Halaman daftar dan pembuatan Purchase Request (PR).
+/// Caller: AppRouter (/pr).
+/// Dependensi: RemotePrDataSource, ApiClient, SessionManager.
+/// Main Functions: _fetchPrs(), _approvePr(), _showCreatePrSheet().
+/// Side Effects: HTTP GET/POST ke backend PR service.
+
 import 'package:flutter/material.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -86,7 +92,6 @@ class _PrPageState extends State<PrPage> {
     // Optional query to filter dummy cars
     List<Map<String,dynamic>> matchingCars = [];
     var carQuery = '';
-    var isFetchingCars = true;
     
     // Fetch real cars
     sl<ApiClient>().get(ApiEndpoints.jobPlanDropdowns).then((res) {
@@ -99,7 +104,6 @@ class _PrPageState extends State<PrPage> {
     }).catchError((_) {}).whenComplete(() {
       if (mounted) {
         // Force rebuild of sheet state if possible, though StatefulBuilder will do it.
-        // We'll just rely on the user typing to refresh or we can call setState later.
       }
     });
 
@@ -112,7 +116,6 @@ class _PrPageState extends State<PrPage> {
       ),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
-          // Because getCars is async, if they loaded, we stop showing loading indicator
           final filteredCars = matchingCars.where((c) {
              final n = '${c['unit_name']}'.toLowerCase();
              final p = '${c['police_number']}'.toLowerCase();
@@ -148,7 +151,7 @@ class _PrPageState extends State<PrPage> {
                              ...filteredCars.map((c) => ListTile(
                                 title: Text('${c['unit_name']}', style: const TextStyle(color: AppColors.textPrimary)),
                                 subtitle: Text('${c['police_number']}', style: const TextStyle(color: AppColors.textMuted)),
-                                tileColor: selectedCarId == c['id'] ? AppColors.gold.withOpacity(0.2) : null,
+                                tileColor: selectedCarId == c['id'] ? AppColors.gold.withValues(alpha: 0.2) : null,
                                 onTap: () {
                                   setSheetState(() {
                                     selectedCarId = c['id'] as String;

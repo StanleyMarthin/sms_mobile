@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -8,7 +6,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
-import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../../task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../domain/entities/warehouse_log.dart';
 import '../../domain/repositories/warehouse_repository.dart';
@@ -36,9 +33,138 @@ String _warehouseCategoryLabel(String t) =>
       'TOOLS': 'Tools',
       'BAHAN': 'Bahan',
       'SPARE_PART': 'Spare Part',
+      'SPAREPART': 'Spare Part',
+      'MATERIAL': 'Bahan',
       'CONSUMABLE': 'Consumable',
     }[t] ??
     t;
+
+String _normalizeWarehouseCategory(String category) {
+  final raw = category.trim().toUpperCase().replaceAll('-', '_');
+  switch (raw) {
+    case 'SPAREPART':
+    case 'SPARE_PART':
+      return 'SPARE_PART';
+    case 'MATERIAL':
+    case 'BAHAN':
+      return 'BAHAN';
+    default:
+      return raw;
+  }
+}
+
+enum _WarehousePageMode { requester, console }
+
+class _DivisionFilterOption {
+  const _DivisionFilterOption({required this.key, required this.label});
+
+  final String key;
+  final String label;
+}
+
+class _UsageGroup {
+  const _UsageGroup({
+    required this.id,
+    required this.requester,
+    required this.division,
+    required this.items,
+  });
+
+  final String id;
+  final String requester;
+  final String division;
+  final List<WarehouseLog> items;
+
+  int get itemCount => items.length;
+  DateTime get lastActivity =>
+      items.first.actualReleaseDate ?? items.first.requestDate;
+}
+
+const Set<String> _warehouseManagerRoles = {
+  'KEPALA_GUDANG',
+  'ADMIN_GUDANG',
+  'GUDANG',
+  'ADMIN',
+};
+
+String _normalizeWarehouseRole(String role, [String? jabatan]) {
+  final raw = '$role ${jabatan ?? ''}'
+      .toUpperCase()
+      .replaceAll('—', ' ')
+      .replaceAll('-', ' ')
+      .replaceAll('_', ' ');
+
+  bool has(String value) => raw.contains(value);
+  bool hasAll(List<String> values) => values.every(has);
+
+  if (has('GUDANG') && has('TOOLS')) return 'GUDANG_TOOLS';
+  if (has('GUDANG') && (has('SPAREPART') || hasAll(['SPARE', 'PART']))) {
+    return 'GUDANG_SPAREPART';
+  }
+  if (has('GUDANG') && (has('BAHAN') || has('MATERIAL') || has('CONSUMABLE'))) {
+    return 'GUDANG_BAHAN';
+  }
+  if (has('KEPALA GUDANG') || hasAll(['KEPALA', 'GUDANG'])) {
+    return 'KEPALA_GUDANG';
+  }
+  if (has('ADMIN GUDANG')) return 'ADMIN_GUDANG';
+  if (has('PPIC') || has('PPC') || hasAll(['MANAGER', 'GUDANG'])) {
+    return 'PPIC';
+  }
+  if (has('KETUA DIVISI')) return 'KETUA_DIVISI';
+  if (has('TEAM LAPANGAN')) return 'TEAM_LAPANGAN';
+  return role.toUpperCase();
+}
+
+String _divisionKey(WarehouseLog log) {
+  final division = log.division.trim().isEmpty ? 'Tanpa Divisi' : log.division;
+  return '${log.divisionId ?? 0}|${division.toUpperCase()}';
+}
+
+Set<String>? _warehouseScopeForRole(String role) {
+  switch (role.toUpperCase()) {
+    case 'GUDANG_TOOLS':
+      return const {'TOOLS'};
+    case 'GUDANG_SPAREPART':
+      return const {'SPARE_PART'};
+    case 'GUDANG_BAHAN':
+      return const {'BAHAN', 'CONSUMABLE'};
+    default:
+      return null;
+  }
+}
+
+bool _canProcessWarehouseCategory(String role, String category) {
+  final normalizedRole = role.toUpperCase();
+  if (_warehouseManagerRoles.contains(normalizedRole)) return true;
+  final scope = _warehouseScopeForRole(normalizedRole);
+  if (scope == null) return false;
+  return scope.contains(_normalizeWarehouseCategory(category));
+}
+
+String _warehouseScopeLabel(String role) {
+  switch (role.toUpperCase()) {
+    case 'GUDANG_TOOLS':
+      return 'Scope tools';
+    case 'GUDANG_SPAREPART':
+      return 'Scope spare part';
+    case 'GUDANG_BAHAN':
+      return 'Scope bahan & consumable';
+    case 'KEPALA_GUDANG':
+      return 'Scope seluruh gudang';
+    case 'PPIC':
+    case 'PPC':
+    case 'MANAGER_GUDANG':
+      return 'Scope approval PPIC';
+    case 'KD':
+    case 'KETUA_DIVISI':
+      return 'Scope approval divisi';
+    case 'ADMIN':
+      return 'Scope seluruh gudang';
+    default:
+      return 'Scope warehouse';
+  }
+}
 
 class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     with SingleTickerProviderStateMixin {
@@ -51,15 +177,20 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   List<WarehouseLog> _pendingList = [];
   DateTime _logsDateFilter = DateTime.now();
   DateTime _historyDateFilter = DateTime.now();
+  final Set<String> _selectedApprovalIds = <String>{};
+  final Set<String> _selectedReminderGroupIds = <String>{};
+  String? _selectedUsingDivisionKey;
 
   bool _isLoading = true;
+  bool _isBulkApproving = false;
+  bool _isSendingReminder = false;
 
   @override
   void initState() {
     super.initState();
     _session = sl<SessionManager>();
     _repo = sl<WarehouseRepository>();
-    _tabController = TabController(length: _isApprover ? 2 : 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadAll();
   }
 
@@ -70,10 +201,50 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   }
 
   // ── role helpers ──────────────────────────────────────────────
-  String get _role => (_session.role ?? '').toUpperCase();
-  bool get _isApprover =>
-      hasPermission(_session.role, Permission.warehouseApprove);
-  bool get _isWh => {'KEPALA_GUDANG', 'ADMIN'}.contains(_role);
+  String get _role =>
+      _normalizeWarehouseRole(_session.role ?? '', _session.jabatan);
+  bool get _hasWarehouseLogsAccess =>
+      _session.hasPerm(Perms.warehouseLogs) ||
+      hasPermission(_role, Permission.warehouseLogsView);
+  bool get _canApprove =>
+      _session.hasPerm(Perms.warehouseApprove) ||
+      hasPermission(_role, Permission.warehouseApprove);
+  bool get _canRequest =>
+      _session.hasPerm(Perms.warehouseRequest) ||
+      hasPermission(_role, Permission.warehouseRequest);
+  bool get _isWarehouseStaffByPermissionsOnly =>
+      _hasWarehouseLogsAccess && !_canRequest && !_canApprove;
+  bool get _canProcessWarehouse =>
+      _warehouseManagerRoles.contains(_role) ||
+      _warehouseScopeForRole(_role) != null ||
+      _isWarehouseStaffByPermissionsOnly;
+  _WarehousePageMode get _mode =>
+      (_canApprove ||
+          _canProcessWarehouse ||
+          (_hasWarehouseLogsAccess && !_canRequest))
+      ? _WarehousePageMode.console
+      : _WarehousePageMode.requester;
+
+  bool _canProcessLogForCurrentUser(WarehouseLog log) {
+    return _canProcessWarehouseCategory(_role, log.itemCategory) ||
+        _isWarehouseStaffByPermissionsOnly;
+  }
+
+  bool _canApproveLog(WarehouseLog log) {
+    if (!_canApprove) return false;
+    if (_role == 'ADMIN' || _role == 'MIS') return log.isAnyPending;
+    if (_role == 'KD' || _role == 'KETUA_DIVISI') return log.isPendingKd;
+    if (_role == 'KEPALA_GUDANG' ||
+        _role == 'ADMIN_GUDANG' ||
+        _role == 'GUDANG') {
+      return log.isPendingWh;
+    }
+    if (_role == 'PPIC' || _role == 'PPC') return log.isPendingPpic;
+    return false;
+  }
+
+  bool _canBulkApproveLog(WarehouseLog log) =>
+      _canApproveLog(log) && !log.isPenyimpanan;
 
   // ── load ──────────────────────────────────────────────────────
   Future<void> _loadAll() async {
@@ -81,16 +252,35 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     try {
       final results = await Future.wait<List<WarehouseLog>>([
         _repo.getLogs(),
-        if (_isApprover) _repo.getPendingApprovals(),
-        if (!_isApprover) _repo.getMyItems(),
+        if (_mode == _WarehousePageMode.console && _canApprove)
+          _repo.getPendingApprovals()
+        else
+          Future.value(const <WarehouseLog>[]),
+        if (_mode == _WarehousePageMode.requester)
+          _repo.getMyItems()
+        else
+          Future.value(const <WarehouseLog>[]),
       ]);
       if (!mounted) return;
+      final validSelection = results[1]
+          .where(_canBulkApproveLog)
+          .map((item) => item.id)
+          .where(_selectedApprovalIds.contains)
+          .toSet();
+      final usingDivisionKeys = _visibleUsingItemsFrom(
+        results[0],
+      ).map(_divisionKey).toSet();
       setState(() {
         _myLogs = results[0];
-        if (_isApprover) {
-          _pendingList = results[1];
-        } else {
-          _myItems = results[1];
+        _pendingList = results[1];
+        _myItems = results[2];
+        _selectedApprovalIds
+          ..clear()
+          ..addAll(validSelection);
+        _selectedReminderGroupIds.clear();
+        if (_selectedUsingDivisionKey != null &&
+            !usingDivisionKeys.contains(_selectedUsingDivisionKey)) {
+          _selectedUsingDivisionKey = null;
         }
         _isLoading = false;
       });
@@ -121,133 +311,647 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         .toList();
   }
 
+  List<WarehouseLog> _visibleUsingItemsFrom(List<WarehouseLog> source) {
+    final items = source.where((log) {
+      if (!log.isReleased && !log.isInstalled) return false;
+      if (_mode == _WarehousePageMode.console && _canProcessWarehouse) {
+        return _canProcessLogForCurrentUser(log);
+      }
+      return true;
+    }).toList();
+    items.sort((a, b) {
+      final aDate = a.actualReleaseDate ?? a.requestDate;
+      final bDate = b.actualReleaseDate ?? b.requestDate;
+      return bDate.compareTo(aDate);
+    });
+    return items;
+  }
+
+  List<WarehouseLog> get _usingItems => _visibleUsingItemsFrom(_myLogs);
+
+  List<_DivisionFilterOption> get _usingDivisionOptions {
+    final map = <String, String>{};
+    for (final item in _usingItems) {
+      final label = item.division.trim().isEmpty
+          ? 'Tanpa Divisi'
+          : item.division;
+      map[_divisionKey(item)] = label;
+    }
+    final options = map.entries
+        .map(
+          (entry) => _DivisionFilterOption(key: entry.key, label: entry.value),
+        )
+        .toList();
+    options.sort((a, b) => a.label.compareTo(b.label));
+    return options;
+  }
+
+  List<WarehouseLog> get _filteredUsingItems {
+    if (_selectedUsingDivisionKey == null) return _usingItems;
+    return _usingItems
+        .where((item) => _divisionKey(item) == _selectedUsingDivisionKey)
+        .toList();
+  }
+
+  List<_UsageGroup> get _usingGroups {
+    final grouped = <String, List<WarehouseLog>>{};
+    final requesterMeta = <String, ({String requester, String division})>{};
+
+    for (final item in _filteredUsingItems) {
+      final key = '${item.employeeId ?? item.requester}|${_divisionKey(item)}';
+      grouped.putIfAbsent(key, () => <WarehouseLog>[]).add(item);
+      requesterMeta[key] = (
+        requester: item.requester,
+        division: item.division.trim().isEmpty ? 'Tanpa Divisi' : item.division,
+      );
+    }
+
+    final groups = grouped.entries.map((entry) {
+      final items = entry.value
+        ..sort((a, b) {
+          final aDate = a.actualReleaseDate ?? a.requestDate;
+          final bDate = b.actualReleaseDate ?? b.requestDate;
+          return bDate.compareTo(aDate);
+        });
+      final meta = requesterMeta[entry.key]!;
+      return _UsageGroup(
+        id: entry.key,
+        requester: meta.requester,
+        division: meta.division,
+        items: items,
+      );
+    }).toList();
+
+    groups.sort((a, b) => b.lastActivity.compareTo(a.lastActivity));
+    return groups;
+  }
+
+  int get _selectedReminderCount => _usingGroups
+      .where((group) => _selectedReminderGroupIds.contains(group.id))
+      .length;
+
+  bool get _areAllRemindersSelected =>
+      _usingGroups.isNotEmpty &&
+      _usingGroups.every(
+        (group) => _selectedReminderGroupIds.contains(group.id),
+      );
+
+  void _toggleReminderSelection(String groupId, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedReminderGroupIds.add(groupId);
+      } else {
+        _selectedReminderGroupIds.remove(groupId);
+      }
+    });
+  }
+
+  void _toggleSelectAllReminders() {
+    if (_usingGroups.isEmpty) return;
+    setState(() {
+      if (_areAllRemindersSelected) {
+        _selectedReminderGroupIds.removeAll(
+          _usingGroups.map((group) => group.id),
+        );
+      } else {
+        _selectedReminderGroupIds.addAll(_usingGroups.map((group) => group.id));
+      }
+    });
+  }
+
+  String _reminderSummaryForGroup(_UsageGroup group) {
+    if (group.items.length == 1) {
+      return 'Harap kembalikan ${group.items.first.itemName} ke gudang.';
+    }
+    final names = group.items.take(3).map((item) => item.itemName).join(', ');
+    final suffix = group.items.length > 3 ? ', dan lainnya' : '';
+    return 'Harap kembalikan ${group.items.length} barang ke gudang: $names$suffix.';
+  }
+
+  Future<void> _sendReminderForGroup(_UsageGroup group) async {
+    await _repo.remindReturn(
+      logId: group.items.first.id,
+      notes: _reminderSummaryForGroup(group),
+    );
+  }
+
+  Future<void> _submitBulkReminder() async {
+    if (_isSendingReminder) return;
+    final selectedGroups = _usingGroups
+        .where((group) => _selectedReminderGroupIds.contains(group.id))
+        .toList();
+    if (selectedGroups.isEmpty) {
+      AppNotification.showWarning(context, 'Pilih anggota dulu.');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text(
+          'Kirim Reminder',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Kirim reminder ke ${selectedGroups.length} anggota terpilih?',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.background,
+            ),
+            child: const Text('Kirim'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isSendingReminder = true);
+    final failedIds = <String>{};
+    var successCount = 0;
+
+    for (final group in selectedGroups) {
+      try {
+        await _sendReminderForGroup(group);
+        successCount += 1;
+      } catch (_) {
+        failedIds.add(group.id);
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isSendingReminder = false;
+      _selectedReminderGroupIds
+        ..clear()
+        ..addAll(failedIds);
+    });
+
+    if (failedIds.isEmpty) {
+      AppNotification.showSuccess(
+        context,
+        'Reminder terkirim ke $successCount anggota',
+      );
+      return;
+    }
+
+    final failedCount = failedIds.length;
+    final prefix = successCount > 0 ? '$successCount berhasil. ' : '';
+    AppNotification.showError(
+      context,
+      '$prefix$failedCount reminder gagal dikirim.',
+    );
+  }
+
+  List<WarehouseLog> get _warehouseActionItems {
+    return _myLogs.where((log) {
+      if (!_canProcessLogForCurrentUser(log)) return false;
+      if (log.isApproved && !log.isPenyimpanan && log.isOpen) {
+        return true;
+      }
+      if (log.isReady) return true;
+      if (log.itemCategory == 'TOOLS' && log.isReturned) return true;
+      if (log.isPenyimpanan && log.isStored) return true;
+      return false;
+    }).toList();
+  }
+
+  List<WarehouseLog> get _consoleInboxItems {
+    final map = <String, WarehouseLog>{};
+    for (final item in _pendingList) {
+      map[item.id] = item;
+    }
+    for (final item in _warehouseActionItems) {
+      map[item.id] = item;
+    }
+    final items = map.values.toList();
+    items.sort((a, b) {
+      final rankCompare = _queueRank(a).compareTo(_queueRank(b));
+      if (rankCompare != 0) return rankCompare;
+      return b.requestDate.compareTo(a.requestDate);
+    });
+    return items;
+  }
+
+  List<WarehouseLog> get _bulkApprovalItems =>
+      _pendingList.where(_canBulkApproveLog).toList();
+
+  int get _selectedApprovalCount => _bulkApprovalItems
+      .where((item) => _selectedApprovalIds.contains(item.id))
+      .length;
+
+  bool get _areAllBulkApprovalSelected =>
+      _bulkApprovalItems.isNotEmpty &&
+      _bulkApprovalItems.every(
+        (item) => _selectedApprovalIds.contains(item.id),
+      );
+
+  int _queueRank(WarehouseLog log) {
+    if (log.isAnyPending) return 0;
+    if (log.isApproved && !log.isPenyimpanan && log.isOpen) {
+      return 1;
+    }
+    if (log.isReady) return 2;
+    if (log.itemCategory == 'TOOLS' && log.isReturned) return 3;
+    if (log.isPenyimpanan && log.isStored) return 4;
+    return 9;
+  }
+
+  void _toggleApprovalSelection(String logId, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedApprovalIds.add(logId);
+      } else {
+        _selectedApprovalIds.remove(logId);
+      }
+    });
+  }
+
+  void _toggleSelectAllApprovals() {
+    if (_bulkApprovalItems.isEmpty) return;
+    setState(() {
+      if (_areAllBulkApprovalSelected) {
+        _selectedApprovalIds.removeAll(
+          _bulkApprovalItems.map((item) => item.id),
+        );
+      } else {
+        _selectedApprovalIds.addAll(_bulkApprovalItems.map((item) => item.id));
+      }
+    });
+  }
+
+  Future<void> _submitBulkApproval(bool approved) async {
+    if (_isBulkApproving) return;
+    final selectedItems = _bulkApprovalItems
+        .where((item) => _selectedApprovalIds.contains(item.id))
+        .toList();
+    if (selectedItems.isEmpty) {
+      AppNotification.showWarning(context, 'Pilih item dulu.');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: Text(
+          approved ? 'Setujui Beberapa Item' : 'Tolak Beberapa Item',
+          style: const TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          approved
+              ? 'Setujui ${selectedItems.length} item yang dipilih?'
+              : 'Tolak ${selectedItems.length} item yang dipilih?',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: approved
+                  ? AppColors.statusDone
+                  : AppColors.statusLocked,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(approved ? 'Setujui' : 'Tolak'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isBulkApproving = true);
+    final failedIds = <String>[];
+    var successCount = 0;
+    for (final item in selectedItems) {
+      try {
+        await _repo.setApprovalStatus(logId: item.id, approved: approved);
+        successCount += 1;
+      } catch (_) {
+        failedIds.add(item.id);
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _isBulkApproving = false;
+      _selectedApprovalIds
+        ..clear()
+        ..addAll(failedIds);
+    });
+    await _loadAll();
+    if (!mounted) return;
+
+    if (failedIds.isEmpty) {
+      AppNotification.showSuccess(
+        context,
+        approved
+            ? '$successCount item disetujui'
+            : '$successCount item ditolak',
+      );
+      return;
+    }
+
+    final failedCount = failedIds.length;
+    final prefix = successCount > 0 ? '$successCount berhasil. ' : '';
+    AppNotification.showError(
+      context,
+      '$prefix$failedCount item gagal diproses.',
+    );
+  }
+
   // ── build ─────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final tabs = _isApprover
-        ? ['Perlu Persetujuan', 'Semua Aktivitas']
-        : ['Berjalan', 'Barang Saya', 'Riwayat'];
+    final tabs = _mode == _WarehousePageMode.console
+        ? [
+            _canProcessWarehouse ? 'Antrean' : 'Persetujuan',
+            'Sedang Dipakai',
+            'Aktivitas',
+          ]
+        : ['Pengajuan', 'Sedang Dipakai', 'Riwayat'];
 
-    return Column(children: [
-      // Tab bar
-      Container(
-        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: TabBar(
-          controller: _tabController,
-          indicator: BoxDecoration(
-            color: AppColors.gold.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
+    return Column(
+      children: [
+        // Tab bar
+        Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(vertical: 8),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppColors.border, width: 0.5),
+            ),
           ),
-          labelColor: AppColors.gold,
-          unselectedLabelColor: AppColors.textMuted,
-          labelStyle:
-              const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          dividerHeight: 0,
-          tabs: tabs.map((t) => Tab(text: t)).toList(),
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: false,
+            indicatorSize: TabBarIndicatorSize.label,
+            indicator: const UnderlineTabIndicator(
+              borderSide: BorderSide(width: 3, color: AppColors.gold),
+              insets: EdgeInsets.symmetric(horizontal: 16),
+            ),
+            labelColor: AppColors.gold,
+            unselectedLabelColor: AppColors.textMuted,
+            labelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+            dividerHeight: 0,
+            tabs: tabs.map((t) {
+              final isPrimary =
+                  (_mode == _WarehousePageMode.console && t == tabs.first) ||
+                  (_mode == _WarehousePageMode.requester && t == 'Pengajuan');
+              return Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isPrimary) ...[
+                      const Icon(Icons.warehouse_outlined, size: 16),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(t),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
         ),
-      ),
-      Expanded(
-        child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.gold))
-            : TabBarView(
-                controller: _tabController,
-                children: _isApprover
-                    ? [_pendingTab(), _logsTab()]
-                    : [_activeTab(), _myItemsTab(), _historyTab()],
-              ),
-      ),
-    ]);
+        Expanded(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.gold),
+                )
+              : TabBarView(
+                  controller: _tabController,
+                  children: _mode == _WarehousePageMode.console
+                      ? [_consoleTab(), _usingTab(), _logsTab()]
+                      : [_activeTab(), _myItemsTab(), _historyTab()],
+                ),
+        ),
+      ],
+    );
   }
 
   // ─ Tabs for OP ───────────────────────────────────────────────
   Widget _activeTab() => _listScaffold(
-        items: _activeItems,
-        emptyMsg: 'Tidak ada transaksi aktif',
-        fab: FloatingActionButton.extended(
-          heroTag: 'wh_fab_req',
-          onPressed: () async {
-            final ctx = await ActiveJobPicker.show(context);
-            if (!mounted) return;
-            final ok = await WarehouseRequestSheet.show(
-                context: context, jobContext: ctx);
-            if (ok && mounted) _loadAll();
-          },
-          backgroundColor: AppColors.gold,
-          foregroundColor: AppColors.background,
-          icon: const Icon(Icons.add_rounded, size: 20),
-          label: const Text('Ajukan',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-        ),
-      );
+    items: _activeItems,
+    emptyMsg: 'Tidak ada transaksi aktif',
+    fab: _canRequest
+        ? FloatingActionButton.extended(
+            heroTag: 'wh_fab_req',
+            onPressed: () async {
+              final ctx = await ActiveJobPicker.show(context);
+              if (!mounted) return;
+              final ok = await WarehouseRequestSheet.show(
+                context: context,
+                jobContext: ctx,
+              );
+              if (ok && mounted) _loadAll();
+            },
+            backgroundColor: AppColors.gold,
+            foregroundColor: AppColors.background,
+            icon: const Icon(Icons.add_rounded, size: 20),
+            label: const Text(
+              'Ajukan',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          )
+        : null,
+  );
 
   Widget _myItemsTab() => _listScaffold(
-        items: _myItems,
-        emptyMsg: 'Tidak ada barang yang sedang Anda pegang',
-        fab: FloatingActionButton.extended(
-          heroTag: 'wh_fab_store',
-          onPressed: () async {
-            if (await WarehouseStorageSheet.show(context: context)) _loadAll();
-          },
-          backgroundColor: const Color(0xFF5B8EFF),
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.archive_outlined, size: 20),
-          label: const Text('Simpan Barang',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-        ),
-      );
+    items: _myItems,
+    emptyMsg: 'Tidak ada barang yang sedang Anda pegang',
+  );
 
-  // ─ Tabs for approvers ────────────────────────────────────────
-  Widget _pendingTab() => _listScaffold(
-      items: _pendingList,
-      emptyMsg: 'Tidak ada aktivitas yang menunggu persetujuan');
+  // ─ Tabs for warehouse console ────────────────────────────────
+  Widget _consoleTab() => Column(
+    children: [
+      if (_canProcessWarehouse) ...[
+        _WarehouseRoleBanner(
+          title: 'Antrean Gudang',
+          subtitle: _warehouseScopeLabel(_role),
+        ),
+        _WarehouseConsoleSummary(
+          waitingApproval: _pendingList.length,
+          needPrepare: _warehouseActionItems
+              .where(
+                (log) => log.isApproved && !log.isPenyimpanan && log.isOpen,
+              )
+              .length,
+          readyToHandover: _warehouseActionItems
+              .where((log) => log.isReady)
+              .length,
+          needStoreOrLocate: _warehouseActionItems
+              .where(
+                (log) =>
+                    (log.itemCategory == 'TOOLS' && log.isReturned) ||
+                    (log.isPenyimpanan && log.isStored),
+              )
+              .length,
+        ),
+      ],
+      if (_canApprove && _bulkApprovalItems.isNotEmpty)
+        _ApprovalBulkBar(
+          selectedCount: _selectedApprovalCount,
+          areAllSelected: _areAllBulkApprovalSelected,
+          isBusy: _isBulkApproving,
+          onToggleAll: _toggleSelectAllApprovals,
+          onApprove: () => _submitBulkApproval(true),
+          onReject: () => _submitBulkApproval(false),
+        ),
+      Expanded(
+        child: _listScaffold(
+          items: _consoleInboxItems,
+          emptyMsg: _canProcessWarehouse
+              ? 'Tidak ada antrean gudang yang perlu diproses'
+              : 'Tidak ada persetujuan yang menunggu',
+        ),
+      ),
+    ],
+  );
+
+  Widget _usingTab() {
+    final groups = _usingGroups;
+    return Column(
+      children: [
+        if (_mode == _WarehousePageMode.console)
+          _WarehouseRoleBanner(
+            title: 'Sedang Dipakai',
+            subtitle: _warehouseScopeLabel(_role),
+          ),
+        _UsageOverviewBar(
+          memberCount: groups.length,
+          itemCount: _filteredUsingItems.length,
+        ),
+        _DivisionFilterBar(
+          options: _usingDivisionOptions,
+          selectedKey: _selectedUsingDivisionKey,
+          onSelected: (key) {
+            setState(() {
+              _selectedUsingDivisionKey = key;
+              _selectedReminderGroupIds.clear();
+            });
+          },
+        ),
+        if (_usingGroups.isNotEmpty)
+          _ReminderBulkBar(
+            selectedCount: _selectedReminderCount,
+            areAllSelected: _areAllRemindersSelected,
+            isBusy: _isSendingReminder,
+            onToggleAll: _toggleSelectAllReminders,
+            onSend: _submitBulkReminder,
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            color: AppColors.gold,
+            onRefresh: _loadAll,
+            child: groups.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.24,
+                      ),
+                      const _EmptyState(
+                        message: 'Belum ada anggota yang sedang memakai barang',
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    itemCount: groups.length,
+                    itemBuilder: (_, index) => _UsageGroupCard(
+                      group: groups[index],
+                      showSelection: true,
+                      selected: _selectedReminderGroupIds.contains(
+                        groups[index].id,
+                      ),
+                      selectionBusy: _isSendingReminder,
+                      onSelectedChanged: (selected) =>
+                          _toggleReminderSelection(groups[index].id, selected),
+                      onRemind: () async {
+                        try {
+                          await _sendReminderForGroup(groups[index]);
+                          if (!mounted) return;
+                          AppNotification.showSuccess(
+                            context,
+                            'Reminder terkirim ke ${groups[index].requester}',
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+                          AppNotification.showError(
+                            context,
+                            'Gagal kirim reminder: $e',
+                          );
+                        }
+                      },
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _logsTab() => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: DateFilterBar(
-              selectedDate: _logsDateFilter,
-              onDateChanged: (date) {
-                setState(() => _logsDateFilter = date);
-              },
-              label: 'Filter',
-            ),
-          ),
-          Expanded(
-            child: _listScaffold(
-              items: _filteredLogItems,
-              emptyMsg: 'Tidak ada aktivitas pada tanggal ini',
-            ),
-          ),
-        ],
-      );
+    children: [
+      if (_mode == _WarehousePageMode.console)
+        _WarehouseRoleBanner(
+          title: 'Aktivitas Warehouse',
+          subtitle: _warehouseScopeLabel(_role),
+        ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: DateFilterBar(
+          selectedDate: _logsDateFilter,
+          onDateChanged: (date) {
+            setState(() => _logsDateFilter = date);
+          },
+          label: 'Filter',
+        ),
+      ),
+      Expanded(
+        child: _listScaffold(
+          items: _filteredLogItems,
+          emptyMsg: 'Tidak ada aktivitas pada tanggal ini',
+        ),
+      ),
+    ],
+  );
 
   Widget _historyTab() => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: DateFilterBar(
-              selectedDate: _historyDateFilter,
-              onDateChanged: (date) {
-                setState(() => _historyDateFilter = date);
-              },
-              label: 'Filter',
-            ),
-          ),
-          Expanded(
-            child: _listScaffold(
-              items: _filteredHistoryItems,
-              emptyMsg: 'Tidak ada riwayat pada tanggal ini',
-            ),
-          ),
-        ],
-      );
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: DateFilterBar(
+          selectedDate: _historyDateFilter,
+          onDateChanged: (date) {
+            setState(() => _historyDateFilter = date);
+          },
+          label: 'Filter',
+        ),
+      ),
+      Expanded(
+        child: _listScaffold(
+          items: _filteredHistoryItems,
+          emptyMsg: 'Tidak ada riwayat pada tanggal ini',
+        ),
+      ),
+    ],
+  );
 
   // ─ Shared scroll scaffold ────────────────────────────────────
   Widget _listScaffold({
@@ -255,146 +959,48 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     required String emptyMsg,
     Widget? fab,
   }) {
-    return Stack(children: [
-      RefreshIndicator(
-        color: AppColors.gold,
-        onRefresh: _loadAll,
-        child: items.isEmpty
-            ? ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                children: [
-                  SizedBox(height: MediaQuery.of(context).size.height * 0.28),
-                  _EmptyState(message: emptyMsg),
-                  const SizedBox(height: 12),
-                ],
-              )
-            : ListView.builder(
-                padding: EdgeInsets.fromLTRB(16, 12, 16, fab != null ? 88 : 24),
-                itemCount: items.length,
-                itemBuilder: (_, i) => _LogCard(
-                  log: items[i],
-                  isApprover: _isApprover,
-                  isWh: _isWh,
-                  currentRole: _session.role ?? '',
-                  currentUserId: _session.userId ?? _session.employeeId ?? '',
-                  repo: _repo,
-                  onDone: _loadAll,
-                ),
-              ),
-      ),
-      if (fab != null) Positioned(right: 16, bottom: 24, child: fab),
-    ]);
-  }
-
-  Widget _dateFilterBar({
-    required DateTime? selectedDate,
-    required VoidCallback onPick,
-    required VoidCallback onReset,
-  }) {
-    final label = selectedDate == null
-        ? 'Semua tanggal'
-        : DateFormat('d MMM yyyy', 'id_ID').format(selectedDate);
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: onPick,
-              borderRadius: BorderRadius.circular(10),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.borderSubtle),
-                ),
-                child: Row(
+    return Stack(
+      children: [
+        RefreshIndicator(
+          color: AppColors.gold,
+          onRefresh: _loadAll,
+          child: items.isEmpty
+              ? ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   children: [
-                    const Icon(
-                      Icons.calendar_today_outlined,
-                      size: 16,
-                      color: AppColors.gold,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.28),
+                    _EmptyState(message: emptyMsg),
+                    const SizedBox(height: 12),
                   ],
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    12,
+                    16,
+                    fab != null ? 88 : 24,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (_, i) => _LogCard(
+                    log: items[i],
+                    canApprove: _canApprove,
+                    canProcessWarehouse: _canProcessWarehouse,
+                    forceWarehouseProcessing:
+                        _isWarehouseStaffByPermissionsOnly,
+                    currentRole: _role,
+                    currentUserId: _session.userId ?? _session.employeeId ?? '',
+                    repo: _repo,
+                    onDone: _loadAll,
+                    showSelection: _canBulkApproveLog(items[i]),
+                    selected: _selectedApprovalIds.contains(items[i].id),
+                    selectionBusy: _isBulkApproving,
+                    onSelectedChanged: (selected) =>
+                        _toggleApprovalSelection(items[i].id, selected),
+                  ),
                 ),
-              ),
-            ),
-          ),
-          if (selectedDate != null) ...[
-            const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: onReset,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textMuted,
-                side: const BorderSide(color: AppColors.border),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Reset',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Future<void> _pickLogsDate() async {
-    final picked = await _showFilterDatePicker(_logsDateFilter);
-    if (picked == null || !mounted) {
-      return;
-    }
-    setState(() => _logsDateFilter = picked);
-  }
-
-  Future<void> _pickHistoryDate() async {
-    final picked = await _showFilterDatePicker(_historyDateFilter);
-    if (picked == null || !mounted) {
-      return;
-    }
-    setState(() => _historyDateFilter = picked);
-  }
-
-  Future<DateTime?> _showFilterDatePicker(DateTime? selectedDate) async {
-    final now = DateTime.now();
-    return showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? now,
-      firstDate: DateTime(now.year - 2),
-      lastDate: DateTime(now.year + 1),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.dark(
-            primary: AppColors.gold,
-            surface: AppColors.surfaceCard,
-          ),
         ),
-        child: child!,
-      ),
+        if (fab != null) Positioned(right: 16, bottom: 24, child: fab),
+      ],
     );
   }
 
@@ -464,60 +1070,809 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+class _WarehouseRoleBanner extends StatelessWidget {
+  const _WarehouseRoleBanner({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(
+                Icons.warehouse_outlined,
+                size: 12,
+                color: AppColors.gold,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: AppColors.gold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WarehouseConsoleSummary extends StatelessWidget {
+  const _WarehouseConsoleSummary({
+    required this.waitingApproval,
+    required this.needPrepare,
+    required this.readyToHandover,
+    required this.needStoreOrLocate,
+  });
+
+  final int waitingApproval;
+  final int needPrepare;
+  final int readyToHandover;
+  final int needStoreOrLocate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        scrollDirection: Axis.horizontal,
+        children: [
+          _StatPill(
+            label: 'ACC',
+            value: waitingApproval,
+            color: AppColors.statusInProgress,
+          ),
+          _StatPill(
+            label: 'Siapkan',
+            value: needPrepare,
+            color: const Color(0xFF13B8A6),
+          ),
+          _StatPill(
+            label: 'Siap Ambil',
+            value: readyToHandover,
+            color: AppColors.gold,
+          ),
+          _StatPill(
+            label: 'Masuk',
+            value: needStoreOrLocate,
+            color: const Color(0xFF5B8EFF),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageOverviewBar extends StatelessWidget {
+  const _UsageOverviewBar({required this.memberCount, required this.itemCount});
+
+  final int memberCount;
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          _OverviewMetric(
+            icon: Icons.people_outline_rounded,
+            label: 'Anggota',
+            value: '$memberCount',
+          ),
+          const SizedBox(width: 10),
+          Container(width: 1, height: 28, color: AppColors.border),
+          const SizedBox(width: 10),
+          _OverviewMetric(
+            icon: Icons.inventory_2_outlined,
+            label: 'Barang',
+            value: '$itemCount',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverviewMetric extends StatelessWidget {
+  const _OverviewMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, size: 16, color: AppColors.gold),
+        ),
+        const SizedBox(width: 10),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DivisionFilterBar extends StatelessWidget {
+  const _DivisionFilterBar({
+    required this.options,
+    required this.selectedKey,
+    required this.onSelected,
+  });
+
+  final List<_DivisionFilterOption> options;
+  final String? selectedKey;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (options.isEmpty) return const SizedBox(height: 2);
+    return SizedBox(
+      height: 42,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        scrollDirection: Axis.horizontal,
+        children: [
+          _DivisionChip(
+            label: 'Semua',
+            selected: selectedKey == null,
+            onTap: () => onSelected(null),
+          ),
+          for (final option in options)
+            _DivisionChip(
+              label: option.label,
+              selected: option.key == selectedKey,
+              onTap: () => onSelected(option.key),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DivisionChip extends StatelessWidget {
+  const _DivisionChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        showCheckmark: false,
+        labelStyle: TextStyle(
+          color: selected ? AppColors.background : AppColors.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+        side: BorderSide(
+          color: selected
+              ? AppColors.gold
+              : AppColors.border.withValues(alpha: 0.9),
+        ),
+        backgroundColor: AppColors.surfaceCard,
+        selectedColor: AppColors.gold,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+      ),
+    );
+  }
+}
+
+class _ApprovalBulkBar extends StatelessWidget {
+  const _ApprovalBulkBar({
+    required this.selectedCount,
+    required this.areAllSelected,
+    required this.isBusy,
+    required this.onToggleAll,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final int selectedCount;
+  final bool areAllSelected;
+  final bool isBusy;
+  final VoidCallback onToggleAll;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: selectedCount > 0
+            ? AppColors.gold.withValues(alpha: 0.08)
+            : AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selectedCount > 0
+              ? AppColors.gold.withValues(alpha: 0.28)
+              : AppColors.border,
+        ),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: areAllSelected,
+            onChanged: isBusy ? null : (_) => onToggleAll(),
+            activeColor: AppColors.gold,
+            visualDensity: VisualDensity.compact,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            selectedCount == 0 ? 'Pilih Semua' : '$selectedCount dipilih',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: selectedCount > 0 ? AppColors.gold : AppColors.textMuted,
+            ),
+          ),
+          const Spacer(),
+          if (selectedCount > 0) ...[
+            TextButton(
+              onPressed: isBusy ? null : onReject,
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.statusLocked,
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text(
+                'Tolak',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 4),
+            FilledButton.icon(
+              onPressed: isBusy ? null : onApprove,
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.statusDone,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: isBusy
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.done_all_rounded, size: 16),
+              label: const Text(
+                'ACC',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReminderBulkBar extends StatelessWidget {
+  const _ReminderBulkBar({
+    required this.selectedCount,
+    required this.areAllSelected,
+    required this.isBusy,
+    required this.onToggleAll,
+    required this.onSend,
+  });
+
+  final int selectedCount;
+  final bool areAllSelected;
+  final bool isBusy;
+  final VoidCallback onToggleAll;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: selectedCount > 0
+            ? AppColors.gold.withValues(alpha: 0.08)
+            : AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selectedCount > 0
+              ? AppColors.gold.withValues(alpha: 0.28)
+              : AppColors.border,
+        ),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: areAllSelected,
+            onChanged: isBusy ? null : (_) => onToggleAll(),
+            activeColor: AppColors.gold,
+            visualDensity: VisualDensity.compact,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 2),
+          Text(
+            selectedCount == 0
+                ? 'Pilih Semua'
+                : '$selectedCount anggota dipilih',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: selectedCount > 0 ? AppColors.gold : AppColors.textMuted,
+            ),
+          ),
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: isBusy ? null : onSend,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.background,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: isBusy
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.background,
+                    ),
+                  )
+                : const Icon(Icons.notifications_active_outlined, size: 16),
+            label: const Text(
+              'Reminder',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  const _StatPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = value > 0;
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: hasData ? color.withValues(alpha: 0.12) : AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: hasData ? color.withValues(alpha: 0.4) : AppColors.border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$value',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: hasData ? color : AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: hasData ? AppColors.textPrimary : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageGroupCard extends StatelessWidget {
+  const _UsageGroupCard({
+    required this.group,
+    this.showSelection = false,
+    this.selected = false,
+    this.selectionBusy = false,
+    this.onSelectedChanged,
+    this.onRemind,
+  });
+
+  final _UsageGroup group;
+  final bool showSelection;
+  final bool selected;
+  final bool selectionBusy;
+  final ValueChanged<bool>? onSelectedChanged;
+  final VoidCallback? onRemind;
+  static final _df = DateFormat('d MMM', 'id_ID');
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  color: AppColors.gold,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      group.requester,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      group.division,
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (showSelection)
+                Checkbox(
+                  value: selected,
+                  onChanged: selectionBusy
+                      ? null
+                      : (value) => onSelectedChanged?.call(value ?? false),
+                  activeColor: AppColors.gold,
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${group.itemCount} barang',
+                  style: const TextStyle(
+                    color: AppColors.gold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...group.items.map(
+            (item) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _UsageItemRow(log: item, dateFormat: _df),
+            ),
+          ),
+          if (onRemind != null) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: selectionBusy ? null : onRemind,
+                icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                label: const Text('Reminder'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.gold,
+                  side: BorderSide(
+                    color: AppColors.gold.withValues(alpha: 0.5),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _UsageItemRow extends StatelessWidget {
+  const _UsageItemRow({required this.log, required this.dateFormat});
+
+  final WarehouseLog log;
+  final DateFormat dateFormat;
+
+  @override
+  Widget build(BuildContext context) {
+    final statusLabel = log.isInstalled ? 'Terpasang' : 'Dipakai';
+    final accent = log.isInstalled ? AppColors.gold : const Color(0xFF13B8A6);
+    final subtitleParts = <String>[
+      '${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
+      if (log.unitName != null && log.unitName!.trim().isNotEmpty)
+        log.unitName!,
+      if (log.jobdesc != null && log.jobdesc!.trim().isNotEmpty) log.jobdesc!,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.9)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  log.itemName,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitleParts.join(' · '),
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              height: 1.35,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.calendar_today_outlined,
+                size: 11,
+                color: AppColors.textMuted,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                dateFormat.format(log.actualReleaseDate ?? log.requestDate),
+                style: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // LOG CARD
 // ═══════════════════════════════════════════════════════════════
 class _LogCard extends StatelessWidget {
   const _LogCard({
     required this.log,
-    required this.isApprover,
-    required this.isWh,
+    required this.canApprove,
+    required this.canProcessWarehouse,
+    required this.forceWarehouseProcessing,
     required this.currentRole,
     required this.currentUserId,
     required this.repo,
     required this.onDone,
+    this.showSelection = false,
+    this.selected = false,
+    this.selectionBusy = false,
+    this.onSelectedChanged,
   });
 
   final WarehouseLog log;
-  final bool isApprover;
-  final bool isWh;
+  final bool canApprove;
+  final bool canProcessWarehouse;
+  final bool forceWarehouseProcessing;
   final String currentRole;
   final String currentUserId;
   final WarehouseRepository repo;
   final VoidCallback onDone;
+  final bool showSelection;
+  final bool selected;
+  final bool selectionBusy;
+  final ValueChanged<bool>? onSelectedChanged;
 
   static final _df = DateFormat('d MMM yy', 'id_ID');
   bool get _isOwner =>
       currentUserId.isNotEmpty && log.employeeId == currentUserId;
+  bool get _isWarehouseProcessor =>
+      canProcessWarehouse &&
+      (forceWarehouseProcessing ||
+          _canProcessWarehouseCategory(currentRole, log.itemCategory));
   bool get _isPrivilegedReleaseRole =>
-      {'KD', 'KEPALA_GUDANG', 'PPIC', 'ADMIN'}.contains(
-        currentRole.toUpperCase(),
-      );
+      _isWarehouseProcessor ||
+      {
+        'KD',
+        'KEPALA_GUDANG',
+        'PPIC',
+        'ADMIN',
+        'KETUA_DIVISI',
+        'PPC',
+        'MANAGER_GUDANG',
+        'MIS',
+      }.contains(currentRole.toUpperCase());
   bool get _canReady =>
-      isWh && log.isApproved && !log.isPenyimpanan && log.itemStatus == 'OPEN';
-  bool get _canLocate => isWh && log.isPenyimpanan && log.isStored;
-  bool get _canStore => isWh && log.itemCategory == 'TOOLS' && log.isReturned;
+      _isWarehouseProcessor &&
+      log.isApproved &&
+      !log.isPenyimpanan &&
+      log.isOpen;
+  bool get _canLocate =>
+      _isWarehouseProcessor && log.isPenyimpanan && log.isStored;
+  bool get _canStore =>
+      _isWarehouseProcessor && log.itemCategory == 'TOOLS' && log.isReturned;
   bool get _canRelease => (_isPrivilegedReleaseRole || _isOwner) && log.isReady;
   bool get _canInstall => _isOwner && log.isReleased;
   bool get _canReturn => _isOwner && (log.isReleased || log.isInstalled);
+  bool get _canRemindReturn =>
+      !_isOwner && _isWarehouseProcessor && (log.isReleased || log.isInstalled);
 
   // status colours / icons ──────────────────────────────────────
   Color get _statusColor {
     if (log.isRejected) return AppColors.statusLocked;
-    if (log.itemStatus == 'LOST') return const Color(0xFF111111);
+    if (log.normalizedItemStatus == 'LOST') return const Color(0xFF111111);
     if (log.isStored) return const Color(0xFF5B8EFF);
     if (log.isReturned) return const Color(0xFF8B5CF6);
     if (log.isReady) return const Color(0xFF13B8A6);
     if (log.isAnyPending) return AppColors.statusInProgress;
     if (log.isReleased) return AppColors.statusDone;
     if (log.isApproved) return const Color(0xFF7C8799);
-    if (log.itemStatus == 'OPEN') return AppColors.textMuted;
+    if (log.isOpen) return AppColors.textMuted;
     return AppColors.textMuted;
   }
 
   IconData get _icon {
     if (log.isRejected) return Icons.cancel_outlined;
-    if (log.itemStatus == 'LOST') return Icons.error_outline_rounded;
+    if (log.normalizedItemStatus == 'LOST') return Icons.error_outline_rounded;
     if (log.isStored) return Icons.archive_rounded;
     if (log.isReturned) return Icons.check_circle_outline_rounded;
     if (log.isInstalled) return Icons.build_circle_outlined;
@@ -531,249 +1886,315 @@ class _LogCard extends StatelessWidget {
     if (log.isPendingKd) return 'Menunggu Ketua Divisi';
     if (log.isPendingWh) return 'Menunggu Gudang';
     if (log.isPendingPpic) return 'Menunggu PPIC';
-    if (_canReady) return 'Siapkan Barang';
+    if (_canReady) return 'Perlu Disiapkan';
+    if (_canRelease && !_isOwner) return 'Menunggu Diambil';
+    if (_canStore) return 'Masuk Gudang';
+    if (_canLocate) {
+      return log.needsLocate ? 'Tentukan Lokasi' : 'Perbarui Lokasi';
+    }
     if (log.isReady) return 'Siap Diambil';
     if (log.isStored) return 'Sudah Disimpan';
     if (log.isReturned) return 'Dikembalikan';
     if (log.isReleased) return 'Sudah Diambil';
-    if (log.isApproved) return 'Menunggu Gudang';
-    if (log.itemStatus == 'LOST') return 'Hilang';
+    if (log.isApproved) return 'Diproses Gudang';
+    if (log.normalizedItemStatus == 'LOST') return 'Hilang';
     return 'Menunggu';
   }
 
-  String _cleanNotes(String n) => n
-      .replaceAll('[INSTALL_TO_UNIT]', '')
-      .replaceAll('[PENYIMPANAN]', '')
-      .trim();
+  String _cleanNotes(String n) {
+    final idx = n.indexOf('[APPROVAL_HISTORY]');
+    if (idx != -1) n = n.substring(0, idx);
+    return n
+        .replaceAll('[INSTALL_TO_UNIT]', '')
+        .replaceAll('[PENYIMPANAN]', '')
+        .trim();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: log.isAnyPending
-              ? _statusColor.withValues(alpha: 0.35)
-              : AppColors.border,
+    return GestureDetector(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _LogDetailSheet(
+          log: log,
+          footer: _showActions() ? _buildActions(context) : null,
         ),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Header ──────────────────────────────────────────────
-        Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(7),
-                    decoration: BoxDecoration(
-                      color: _statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(_icon, size: 18, color: _statusColor),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                      child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? AppColors.gold.withValues(alpha: 0.55)
+                : log.isAnyPending
+                ? _statusColor.withValues(alpha: 0.35)
+                : AppColors.border,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Text(log.itemName,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${_warehouseTrxLabel(log.transactionType)} · ${_warehouseCategoryLabel(log.itemCategory)} · '
-                        '${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textMuted),
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: _statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(_icon, size: 18, color: _statusColor),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              log.itemName,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${_warehouseTrxLabel(log.transactionType)} · ${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textMuted,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (showSelection) ...[
+                            Checkbox(
+                              value: selected,
+                              onChanged: selectionBusy
+                                  ? null
+                                  : (value) =>
+                                        onSelectedChanged?.call(value ?? false),
+                              activeColor: AppColors.gold,
+                              visualDensity: VisualDensity.compact,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _statusColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              _badge.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: _statusColor,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  )),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(_badge,
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: _statusColor,
-                            letterSpacing: 0.2)),
                   ),
-                ]),
-                const SizedBox(height: 10),
-                Wrap(spacing: 16, runSpacing: 4, children: [
-                  if (log.unitName != null)
-                    _chip(Icons.directions_car_outlined, log.unitName!),
-                  _chip(Icons.person_outline_rounded, log.requester),
-                  _chip(Icons.business_outlined, log.division),
-                  _chip(Icons.calendar_today_outlined,
-                      _df.format(log.requestDate)),
-                  if (log.isReady)
-                    _chip(Icons.notifications_active_outlined,
-                        'Menunggu pengambilan',
-                        color: const Color(0xFF13B8A6)),
-                  if (log.actualReleaseDate != null)
-                    _chip(Icons.check_circle_outline,
-                        'Keluar: ${_df.format(log.actualReleaseDate!)}',
-                        color: AppColors.statusDone),
-                  if (log.actualReturnDate != null)
-                    _chip(Icons.assignment_return_outlined,
-                        'Kembali: ${_df.format(log.actualReturnDate!)}',
-                        color: AppColors.statusDone),
-                  if (log.itemCondition != null)
-                    _chip(Icons.info_outline, 'Kondisi: ${log.itemCondition}',
-                        color: log.itemCondition == 'GOOD'
-                            ? AppColors.statusDone
-                            : AppColors.statusLocked),
-                  if (log.locationDetail?.isNotEmpty ?? false)
-                    _chip(Icons.place_outlined, log.locationDetail!,
-                        color: const Color(0xFF5B8EFF)),
-                ]),
-                if (log.notes != null &&
-                    _cleanNotes(log.notes!).isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text('Catatan: ${_cleanNotes(log.notes!)}',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppColors.textSecondary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
-                ],
-                if (log.photoUrls != null && log.photoUrls!.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  _PhotoStrip(photoUrls: log.photoUrls!),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 4,
+                    children: [
+                      if (log.unitName != null)
+                        _chip(Icons.directions_car_outlined, log.unitName!),
+                      _chip(Icons.person_outline_rounded, log.requester),
+                      _chip(Icons.business_outlined, log.division),
+                      _chip(
+                        Icons.calendar_today_outlined,
+                        _df.format(log.requestDate),
+                      ),
+                    ],
+                  ),
+                  if (log.notes != null &&
+                      _cleanNotes(log.notes!).isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Catatan: ${_cleanNotes(log.notes!)}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  if (log.photoUrls != null && log.photoUrls!.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _PhotoStrip(photoUrls: log.photoUrls!),
+                  ],
                 ],
-                if (log.approvalHistory.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _ApprovalTimeline(steps: log.approvalHistory),
-                ],
-              ],
-            )),
-        // ── Action buttons ──────────────────────────────────────
-        if (_showActions(isApprover)) _buildActions(context),
-      ]),
+              ),
+            ),
+            // ── Action buttons ──────────────────────────────────────
+            if (_showActions()) _buildActions(context),
+          ],
+        ),
+      ),
     );
   }
 
   bool get _canApproveThis {
-    if (!isApprover) return false;
+    if (!canApprove) return false;
     final r = currentRole.toUpperCase();
     if (r == 'ADMIN' || r == 'MIS') return log.isAnyPending;
     if (r == 'KD' || r == 'KETUA_DIVISI') return log.isPendingKd;
-    if (r == 'KEPALA_GUDANG' || r == 'ADMIN_GUDANG' || r == 'GUDANG') return log.isPendingWh;
+    if (r == 'KEPALA_GUDANG' || r == 'ADMIN_GUDANG' || r == 'GUDANG') {
+      return log.isPendingWh;
+    }
     if (r == 'PPIC' || r == 'PPC') return log.isPendingPpic;
     return false;
   }
 
-  bool _showActions(bool approver) {
+  bool _showActions() {
     return _canApproveThis ||
         _canReady ||
         _canLocate ||
         _canStore ||
         _canRelease ||
         _canInstall ||
-        _canReturn;
+        _canReturn ||
+        _canRemindReturn;
   }
 
   Widget _buildActions(BuildContext context) => Container(
-        decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: AppColors.border))),
-        padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-        child: Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            if (_canApproveThis) ...[
-              _actionBtn(
-                context,
-                'Tolak',
-                Icons.cancel_outlined,
-                AppColors.statusLocked,
-                () => _doApproval(context, false),
-                outlined: true,
-              ),
-              _actionBtn(
-                context,
-                'Setujui',
-                Icons.check_circle_outline,
-                AppColors.statusDone,
-                () => _doApproval(context, true),
-              ),
-            ],
-            if (_canReady)
-              _actionBtn(
-                context,
-                'Siapkan',
-                Icons.inventory_rounded,
-                const Color(0xFF13B8A6),
-                () => _doReady(context),
-              ),
-            if (_canRelease)
-              _actionBtn(
-                context,
-                'Konfirmasi Ambil',
-                Icons.north_east_rounded,
-                const Color(0xFF13B8A6),
-                () => _doRelease(context),
-              ),
-            if (_canInstall)
-              _actionBtn(
-                context,
-                'Install',
-                Icons.build_circle_outlined,
-                AppColors.gold,
-                () => _doInstall(context),
-              ),
-            if (_canReturn)
-              _actionBtn(
-                context,
-                'Kembalikan',
-                Icons.assignment_return_outlined,
-                AppColors.statusLocked,
-                () => _doReturn(context),
-                outlined: true,
-              ),
-            if (_canStore)
-              _actionBtn(
-                context,
-                'Simpan Lagi',
-                Icons.archive_rounded,
-                const Color(0xFF5B8EFF),
-                () => _doStore(context),
-              ),
-            if (_canLocate)
-              _actionBtn(
-                context,
-                log.needsLocate ? 'Tentukan Lokasi' : 'Ubah Lokasi',
-                Icons.place_outlined,
-                const Color(0xFF5B8EFF),
-                () => _doLocate(context),
-                outlined: !log.needsLocate,
-              ),
-          ],
-        ),
-      );
+    decoration: const BoxDecoration(
+      border: Border(top: BorderSide(color: AppColors.border)),
+    ),
+    padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+    child: Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        if (_canApproveThis) ...[
+          _actionBtn(
+            context,
+            'Tolak',
+            Icons.cancel_outlined,
+            AppColors.statusLocked,
+            () => _doApproval(context, false),
+            outlined: true,
+          ),
+          _actionBtn(
+            context,
+            'Setujui',
+            Icons.check_circle_outline,
+            AppColors.statusDone,
+            () => _doApproval(context, true),
+          ),
+        ],
+        if (_canReady)
+          _actionBtn(
+            context,
+            'Tandai Siap',
+            Icons.inventory_rounded,
+            const Color(0xFF13B8A6),
+            () => _doReady(context),
+          ),
+        if (_canRelease)
+          _actionBtn(
+            context,
+            _isOwner ? 'Ambil' : 'Sudah Diambil',
+            Icons.north_east_rounded,
+            const Color(0xFF13B8A6),
+            () => _doRelease(context),
+          ),
+        if (_canInstall)
+          _actionBtn(
+            context,
+            'Install',
+            Icons.build_circle_outlined,
+            AppColors.gold,
+            () => _doInstall(context),
+          ),
+        if (_canReturn)
+          _actionBtn(
+            context,
+            'Kembalikan',
+            Icons.assignment_return_outlined,
+            AppColors.statusLocked,
+            () => _doReturn(context),
+            outlined: true,
+          ),
+        if (_canRemindReturn)
+          _actionBtn(
+            context,
+            'Reminder',
+            Icons.notifications_active_outlined,
+            AppColors.gold,
+            () => _doRemindReturn(context),
+            outlined: true,
+          ),
+        if (_canStore)
+          _actionBtn(
+            context,
+            'Masuk Gudang',
+            Icons.archive_rounded,
+            const Color(0xFF5B8EFF),
+            () => _doStore(context),
+          ),
+        if (_canLocate)
+          _actionBtn(
+            context,
+            log.needsLocate ? 'Tentukan Lokasi' : 'Ubah Lokasi',
+            Icons.place_outlined,
+            const Color(0xFF5B8EFF),
+            () => _doLocate(context),
+            outlined: !log.needsLocate,
+          ),
+      ],
+    ),
+  );
 
   Widget _chip(IconData icon, String label, {Color? color}) {
     final c = color ?? AppColors.textMuted;
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: c),
-      const SizedBox(width: 4),
-      Text(label, style: TextStyle(fontSize: 11, color: c)),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: c),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: c)),
+      ],
+    );
   }
 
-  Widget _actionBtn(BuildContext ctx, String label, IconData icon, Color color,
-      VoidCallback onTap,
-      {bool outlined = false}) {
+  Widget _actionBtn(
+    BuildContext ctx,
+    String label,
+    IconData icon,
+    Color color,
+    VoidCallback onTap, {
+    bool outlined = false,
+  }) {
     return outlined
         ? OutlinedButton.icon(
             onPressed: onTap,
@@ -787,8 +2208,10 @@ class _LogCard extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              textStyle:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           )
         : FilledButton.icon(
@@ -803,8 +2226,10 @@ class _LogCard extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              textStyle:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           );
   }
@@ -815,7 +2240,9 @@ class _LogCard extends StatelessWidget {
       await repo.installItem(logId: log.id);
       if (ctx.mounted) {
         AppNotification.showSuccess(
-            ctx, '${log.itemName} berhasil ditandai terpasang');
+          ctx,
+          '${log.itemName} berhasil ditandai terpasang',
+        );
         onDone();
       }
     } catch (e) {
@@ -829,15 +2256,12 @@ class _LogCard extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _WarehouseFlowSheet(
-        title: 'Siapkan Barang',
-        subtitle: 'Perbarui status barang dan lokasi penyimpanan bila perlu.',
-        actionLabel: 'Simpan',
+        title: 'Tandai Siap Diambil',
+        subtitle: 'Simpan status dan kirim notifikasi ke peminjam.',
+        actionLabel: 'Tandai Siap',
         accentColor: const Color(0xFF13B8A6),
         icon: Icons.inventory_rounded,
         showLocationPicker: true,
-        enablePhotoCapture: true,
-        photoSlot: 'warehouse_ready',
-        photoLabel: 'Foto Barang Gudang',
         repo: repo,
         onSubmit: ({notes, storageLocationId, locationDetail, photoUrls}) {
           return repo.markReady(
@@ -859,7 +2283,7 @@ class _LogCard extends StatelessWidget {
       if (ctx.mounted) {
         AppNotification.showSuccess(
           ctx,
-          '${log.itemName} berhasil dikonfirmasi',
+          '${log.itemName} sudah ditandai diambil',
         );
         onDone();
       }
@@ -880,6 +2304,52 @@ class _LogCard extends StatelessWidget {
     if (ok == true && ctx.mounted) onDone();
   }
 
+  Future<void> _doRemindReturn(BuildContext ctx) async {
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        title: const Text(
+          'Kirim Reminder',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Kirim reminder pengembalian untuk ${log.requester}?',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.background,
+            ),
+            child: const Text('Kirim'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await repo.remindReturn(logId: log.id);
+      if (ctx.mounted) {
+        AppNotification.showSuccess(
+          ctx,
+          'Reminder terkirim ke ${log.requester}',
+        );
+      }
+    } catch (e) {
+      if (ctx.mounted) {
+        AppNotification.showError(ctx, 'Gagal kirim reminder: $e');
+      }
+    }
+  }
+
   Future<void> _doApproval(BuildContext ctx, bool approved) async {
     final ok = await showModalBottomSheet<bool>(
       context: ctx,
@@ -896,8 +2366,8 @@ class _LogCard extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _WarehouseFlowSheet(
-        title: 'Simpan Kembali Tools',
-        subtitle: 'Perbarui lokasi bila tools sudah masuk kembali.',
+        title: 'Masuk Gudang',
+        subtitle: 'Simpan kembali tools yang sudah kembali.',
         actionLabel: 'Simpan',
         accentColor: const Color(0xFF5B8EFF),
         icon: Icons.archive_rounded,
@@ -944,6 +2414,282 @@ class _LogCard extends StatelessWidget {
   }
 }
 
+class _LogDetailSheet extends StatelessWidget {
+  const _LogDetailSheet({required this.log, this.footer});
+  final WarehouseLog log;
+  final Widget? footer;
+
+  static final _df = DateFormat('EEEE, d MMMM yyyy HH:mm', 'id_ID');
+
+  String _cleanNotes(String? n) {
+    if (n == null) return '';
+    final idx = n.indexOf('[APPROVAL_HISTORY]');
+    if (idx != -1) n = n.substring(0, idx);
+    return n
+        .replaceAll('[INSTALL_TO_UNIT]', '')
+        .replaceAll('[PENYIMPANAN]', '')
+        .trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        12,
+        20,
+        MediaQuery.of(context).padding.bottom + 20,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      log.itemName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'ID Transaksi: #${log.id.split("-").first}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _statusBadge(),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionHeader('Informasi Barang'),
+                  _detailRow(
+                    Icons.swap_horiz_rounded,
+                    'Tipe Transaksi',
+                    _warehouseTrxLabel(log.transactionType),
+                  ),
+                  _detailRow(
+                    Icons.category_outlined,
+                    'Kategori',
+                    _warehouseCategoryLabel(log.itemCategory),
+                  ),
+                  _detailRow(
+                    Icons.numbers_rounded,
+                    'Jumlah',
+                    '${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
+                  ),
+                  if (log.itemCondition != null)
+                    _detailRow(
+                      Icons.info_outline,
+                      'Kondisi',
+                      log.itemCondition!,
+                      valueColor: log.itemCondition == 'GOOD'
+                          ? AppColors.statusDone
+                          : AppColors.statusLocked,
+                    ),
+                  const SizedBox(height: 20),
+                  _sectionHeader('Konteks Kerja'),
+                  _detailRow(
+                    Icons.person_outline_rounded,
+                    'Pemohon',
+                    log.requester,
+                  ),
+                  _detailRow(Icons.business_outlined, 'Divisi', log.division),
+                  if (log.unitName != null)
+                    _detailRow(
+                      Icons.directions_car_outlined,
+                      'Unit Mobil',
+                      log.unitName!,
+                    ),
+                  if (log.jobdesc != null)
+                    _detailRow(
+                      Icons.assignment_outlined,
+                      'Pekerjaan',
+                      log.jobdesc!,
+                    ),
+                  const SizedBox(height: 20),
+                  _sectionHeader('Waktu & Lokasi'),
+                  _detailRow(
+                    Icons.calendar_today_outlined,
+                    'Tgl Pengajuan',
+                    _df.format(log.requestDate),
+                  ),
+                  if (log.actualReleaseDate != null)
+                    _detailRow(
+                      Icons.north_east_rounded,
+                      'Tgl Keluar',
+                      _df.format(log.actualReleaseDate!),
+                    ),
+                  if (log.actualReturnDate != null)
+                    _detailRow(
+                      Icons.assignment_return_outlined,
+                      'Tgl Kembali',
+                      _df.format(log.actualReturnDate!),
+                    ),
+                  if (log.locationDetail != null)
+                    _detailRow(
+                      Icons.place_outlined,
+                      'Lokasi Simpan',
+                      log.locationDetail!,
+                      valueColor: const Color(0xFF5B8EFF),
+                    ),
+                  if (_cleanNotes(log.notes).isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _sectionHeader('Catatan Tambahan'),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Text(
+                        _cleanNotes(log.notes),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (log.photoUrls != null && log.photoUrls!.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _sectionHeader('Lampiran Foto'),
+                    const SizedBox(height: 8),
+                    _PhotoStrip(photoUrls: log.photoUrls!),
+                  ],
+                  if (log.approvalHistory.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _sectionHeader('Riwayat Persetujuan'),
+                    const SizedBox(height: 12),
+                    _ApprovalTimeline(steps: log.approvalHistory),
+                  ],
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+          if (footer != null) ...[const SizedBox(height: 8), footer!],
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Text(
+      title.toUpperCase(),
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: AppColors.gold,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
+
+  Widget _detailRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 14, color: AppColors.textMuted),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  softWrap: true,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: valueColor ?? AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statusBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.gold.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        log.displayStatus,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+          color: AppColors.gold,
+        ),
+      ),
+    );
+  }
+}
+
 class _PhotoStrip extends StatelessWidget {
   const _PhotoStrip({required this.photoUrls});
 
@@ -969,8 +2715,11 @@ class _PhotoStrip extends StatelessWidget {
               height: 76,
               color: AppColors.background,
               alignment: Alignment.center,
-              child: const Icon(Icons.broken_image_outlined,
-                  color: AppColors.textMuted, size: 20),
+              child: const Icon(
+                Icons.broken_image_outlined,
+                color: AppColors.textMuted,
+                size: 20,
+              ),
             ),
           ),
         ),
@@ -991,7 +2740,7 @@ class _ApprovalTimeline extends StatelessWidget {
       case 'PENDING_KD':
         return 'Ketua Divisi';
       case 'PENDING_KEPALA_GUDANG':
-        return 'Gudang';
+        return 'Kepala Gudang';
       case 'PENDING_PPIC':
         return 'PPIC';
       default:
@@ -1023,8 +2772,9 @@ class _ApprovalTimeline extends StatelessWidget {
           const SizedBox(height: 10),
           ...steps.map((step) {
             final approved = step.action.toUpperCase() == 'APPROVED';
-            final color =
-                approved ? AppColors.statusDone : AppColors.statusLocked;
+            final color = approved
+                ? AppColors.statusDone
+                : AppColors.statusLocked;
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
@@ -1094,12 +2844,13 @@ class _ApprovalTimeline extends StatelessWidget {
   }
 }
 
-typedef _WarehouseSheetSubmit = Future<void> Function({
-  String? notes,
-  int? storageLocationId,
-  String? locationDetail,
-  List<String>? photoUrls,
-});
+typedef _WarehouseSheetSubmit =
+    Future<void> Function({
+      String? notes,
+      int? storageLocationId,
+      String? locationDetail,
+      List<String>? photoUrls,
+    });
 
 class _WarehouseFlowSheet extends StatefulWidget {
   const _WarehouseFlowSheet({
@@ -1111,9 +2862,6 @@ class _WarehouseFlowSheet extends StatefulWidget {
     required this.repo,
     required this.onSubmit,
     this.showLocationPicker = false,
-    this.enablePhotoCapture = false,
-    this.photoSlot = 'warehouse',
-    this.photoLabel = 'Ambil Foto',
     this.initialLocationDetail,
   });
 
@@ -1125,9 +2873,6 @@ class _WarehouseFlowSheet extends StatefulWidget {
   final WarehouseRepository repo;
   final _WarehouseSheetSubmit onSubmit;
   final bool showLocationPicker;
-  final bool enablePhotoCapture;
-  final String photoSlot;
-  final String photoLabel;
   final String? initialLocationDetail;
 
   @override
@@ -1138,11 +2883,8 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
   final _notesCtrl = TextEditingController();
   final _locationDetailCtrl = TextEditingController();
   List<Map<String, dynamic>> _locations = [];
-  final List<String> _photoPaths = [];
-  final List<String> _photoUrls = [];
   int? _storageLocationId;
   bool _isLoadingLocations = false;
-  bool _isUploadingPhoto = false;
   bool _isSaving = false;
 
   @override
@@ -1175,8 +2917,9 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.surfaceCard,
@@ -1207,8 +2950,11 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                       color: widget.accentColor.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child:
-                        Icon(widget.icon, size: 18, color: widget.accentColor),
+                    child: Icon(
+                      widget.icon,
+                      size: 18,
+                      color: widget.accentColor,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1292,26 +3038,15 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                   ),
                 ),
               ],
-              if (widget.enablePhotoCapture) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Foto Barang',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _photoPicker(),
-              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _notesCtrl,
                 minLines: 2,
                 maxLines: 3,
-                style:
-                    const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Catatan (opsional)',
                   prefixIcon: Icon(
@@ -1363,7 +3098,7 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
         locationDetail: _locationDetailCtrl.text.trim().isEmpty
             ? null
             : _locationDetailCtrl.text.trim(),
-        photoUrls: _photoUrls.isEmpty ? null : _photoUrls,
+        photoUrls: null,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -1372,126 +3107,6 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
       if (mounted) AppNotification.showError(context, 'Gagal: $e');
     } finally {
       if (mounted) setState(() => _isSaving = false);
-    }
-  }
-
-  Widget _photoPicker() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        OutlinedButton.icon(
-          onPressed: _isUploadingPhoto ? null : _captureAndUploadPhoto,
-          icon: _isUploadingPhoto
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.textPrimary,
-                  ),
-                )
-              : const Icon(Icons.camera_alt_outlined, size: 18),
-          label: Text(
-            _isUploadingPhoto ? 'Mengupload...' : 'Ambil Foto',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.textPrimary,
-            side: const BorderSide(color: AppColors.border),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
-        if (_photoPaths.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 84,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: _photoPaths.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, index) => Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.file(
-                      File(_photoPaths[index]),
-                      width: 84,
-                      height: 84,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _photoPaths.removeAt(index);
-                          _photoUrls.removeAt(index);
-                        });
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: AppColors.background.withValues(alpha: 0.7),
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: const Icon(
-                          Icons.close,
-                          size: 14,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Future<void> _captureAndUploadPhoto() async {
-    final path = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => InAppCameraPage(
-          slot: widget.photoSlot,
-          label: widget.photoLabel,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
-    if (!mounted || path == null) {
-      return;
-    }
-
-    setState(() => _isUploadingPhoto = true);
-    try {
-      final session = sl<SessionManager>();
-      final photoUrl = await widget.repo.uploadPhoto(
-        userId: session.userId ?? session.employeeId ?? '',
-        filePath: path,
-      );
-      if (photoUrl == null || photoUrl.isEmpty) {
-        throw Exception('Upload foto gagal');
-      }
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _photoPaths.add(path);
-        _photoUrls.add(photoUrl);
-      });
-    } catch (e) {
-      if (mounted) {
-        AppNotification.showError(context, 'Upload foto gagal: $e');
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isUploadingPhoto = false);
-      }
     }
   }
 }
@@ -1551,8 +3166,9 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.surfaceCard,
@@ -1586,20 +3202,30 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
               const SizedBox(height: 4),
               Text(
                 widget.log.itemName,
-                style:
-                    const TextStyle(fontSize: 13, color: AppColors.textMuted),
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
               ),
               const SizedBox(height: 16),
-              _summaryRow(Icons.swap_horiz_rounded,
-                  '${_warehouseTrxLabel(widget.log.transactionType)} · ${_warehouseCategoryLabel(widget.log.itemCategory)}'),
-              _summaryRow(Icons.numbers_outlined,
-                  '${widget.log.qty % 1 == 0 ? widget.log.qty.toInt() : widget.log.qty} ${widget.log.uom}'),
+              _summaryRow(
+                Icons.swap_horiz_rounded,
+                '${_warehouseTrxLabel(widget.log.transactionType)} · ${_warehouseCategoryLabel(widget.log.itemCategory)}',
+              ),
+              _summaryRow(
+                Icons.numbers_outlined,
+                '${widget.log.qty % 1 == 0 ? widget.log.qty.toInt() : widget.log.qty} ${widget.log.uom}',
+              ),
               if (widget.log.unitName != null)
                 _summaryRow(
-                    Icons.directions_car_outlined, widget.log.unitName!),
+                  Icons.directions_car_outlined,
+                  widget.log.unitName!,
+                ),
               if (widget.log.itemCondition != null)
-                _summaryRow(Icons.info_outline,
-                    'Kondisi: ${widget.log.itemCondition!}'),
+                _summaryRow(
+                  Icons.info_outline,
+                  'Kondisi: ${widget.log.itemCondition!}',
+                ),
               if (widget.log.photoUrls != null &&
                   widget.log.photoUrls!.isNotEmpty) ...[
                 const SizedBox(height: 14),
@@ -1653,8 +3279,11 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: const InputDecoration(
                     hintText: 'Detail tambahan lokasi (opsional)',
-                    prefixIcon: Icon(Icons.place_outlined,
-                        color: AppColors.textMuted, size: 20),
+                    prefixIcon: Icon(
+                      Icons.place_outlined,
+                      color: AppColors.textMuted,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
@@ -1663,14 +3292,19 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                 controller: _notesCtrl,
                 minLines: 2,
                 maxLines: 3,
-                style:
-                    const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                ),
                 decoration: InputDecoration(
                   hintText: widget.approved
                       ? 'Catatan persetujuan (opsional)'
                       : 'Alasan penolakan (opsional)',
-                  prefixIcon: const Icon(Icons.notes_outlined,
-                      color: AppColors.textMuted, size: 20),
+                  prefixIcon: const Icon(
+                    Icons.notes_outlined,
+                    color: AppColors.textMuted,
+                    size: 20,
+                  ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -1685,15 +3319,17 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : Icon(widget.approved
-                        ? Icons.check_circle_outline
-                        : Icons.cancel_outlined),
+                    : Icon(
+                        widget.approved
+                            ? Icons.check_circle_outline
+                            : Icons.cancel_outlined,
+                      ),
                 label: Text(
                   _isSaving
                       ? 'Menyimpan...'
                       : widget.approved
-                          ? 'Setujui'
-                          : 'Tolak',
+                      ? 'Setujui'
+                      : 'Tolak',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 style: FilledButton.styleFrom(
@@ -1724,8 +3360,10 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
           Expanded(
             child: Text(
               text,
-              style:
-                  const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
         ],
@@ -1739,8 +3377,9 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
       await widget.repo.setApprovalStatus(
         logId: widget.log.id,
         approved: widget.approved,
-        notes:
-            _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+        notes: _notesCtrl.text.trim().isNotEmpty
+            ? _notesCtrl.text.trim()
+            : null,
         storageLocationId: _storageLocationId,
         locationDetail: _locationDetailCtrl.text.trim().isNotEmpty
             ? _locationDetailCtrl.text.trim()
@@ -1793,102 +3432,125 @@ class _ReturnSheetState extends State<_ReturnSheet> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding:
-            EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surfaceCard,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+    child: Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                  child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                          color: AppColors.border,
-                          borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 16),
-              const Text('Kembalikan Barang',
-                  style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.textPrimary)),
-              const SizedBox(height: 4),
-              Text(widget.log.itemName,
-                  style: const TextStyle(
-                      fontSize: 13, color: AppColors.textMuted)),
-              const SizedBox(height: 20),
-              if (!_isBahan) ...[
-                const Text('Kondisi Barang',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textMuted)),
-                const SizedBox(height: 8),
-                _conditionRow(),
-                const SizedBox(height: 14),
-              ] else ...[
-                const Text('Qty Sisa (dikembalikan)',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textMuted)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _qtyCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: InputDecoration(
-                    hintText: 'Qty asli: ${widget.log.qty} ${widget.log.uom}',
-                    prefixIcon: const Icon(Icons.numbers_outlined,
-                        color: AppColors.textMuted, size: 20),
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
-              TextField(
-                controller: _notesCtrl,
-                minLines: 2,
-                maxLines: 3,
-                style:
-                    const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                decoration: const InputDecoration(
-                  hintText: 'Catatan pengembalian (opsional)',
-                  prefixIcon: Icon(Icons.notes_outlined,
-                      color: AppColors.textMuted, size: 20),
+          const SizedBox(height: 16),
+          const Text(
+            'Kembalikan Barang',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            widget.log.itemName,
+            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 20),
+          if (!_isBahan) ...[
+            const Text(
+              'Kondisi Barang',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _conditionRow(),
+            const SizedBox(height: 14),
+          ] else ...[
+            const Text(
+              'Qty Sisa (dikembalikan)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _qtyCtrl,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Qty asli: ${widget.log.qty} ${widget.log.uom}',
+                prefixIcon: const Icon(
+                  Icons.numbers_outlined,
+                  color: AppColors.textMuted,
+                  size: 20,
                 ),
               ),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _isSaving ? null : _submit,
-                icon: _isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.assignment_return_outlined, size: 18),
-                label: Text(
-                    _isSaving ? 'Menyimpan...' : 'Konfirmasi Pengembalian',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: AppColors.background,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          TextField(
+            controller: _notesCtrl,
+            minLines: 2,
+            maxLines: 3,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            decoration: const InputDecoration(
+              hintText: 'Catatan pengembalian (opsional)',
+              prefixIcon: Icon(
+                Icons.notes_outlined,
+                color: AppColors.textMuted,
+                size: 20,
               ),
-            ],
+            ),
           ),
-        ),
-      );
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: _isSaving ? null : _submit,
+            icon: _isSaving
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.assignment_return_outlined, size: 18),
+            label: Text(
+              _isSaving ? 'Menyimpan...' : 'Konfirmasi Pengembalian',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.background,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _conditionRow() {
     const opts = ['GOOD', 'DAMAGED', 'SCRAP'];
@@ -1896,36 +3558,43 @@ class _ReturnSheetState extends State<_ReturnSheet> {
     const colors = [
       AppColors.statusDone,
       AppColors.statusInProgress,
-      AppColors.statusLocked
+      AppColors.statusLocked,
     ];
     return Row(
-        children: List.generate(3, (i) {
-      final active = _condition == opts[i];
-      return Expanded(
+      children: List.generate(3, (i) {
+        final active = _condition == opts[i];
+        return Expanded(
           child: Padding(
-        padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
-        child: GestureDetector(
-          onTap: () => setState(() => _condition = opts[i]),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: active
-                  ? colors[i].withValues(alpha: 0.15)
-                  : AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: active ? colors[i] : AppColors.border),
-            ),
-            child: Text(labels[i],
-                textAlign: TextAlign.center,
-                style: TextStyle(
+            padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
+            child: GestureDetector(
+              onTap: () => setState(() => _condition = opts[i]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: active
+                      ? colors[i].withValues(alpha: 0.15)
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: active ? colors[i] : AppColors.border,
+                  ),
+                ),
+                child: Text(
+                  labels[i],
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: active ? colors[i] : AppColors.textMuted)),
+                    color: active ? colors[i] : AppColors.textMuted,
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
-      ));
-    }));
+        );
+      }),
+    );
   }
 
   Future<void> _submit() async {
@@ -1937,15 +3606,18 @@ class _ReturnSheetState extends State<_ReturnSheet> {
       }
       await widget.repo.returnItem(
         logId: widget.log.id,
-        notes:
-            _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+        notes: _notesCtrl.text.trim().isNotEmpty
+            ? _notesCtrl.text.trim()
+            : null,
         itemCondition: _isBahan ? null : _condition,
         qtyReturned: qty,
       );
       if (mounted) {
         Navigator.of(context).pop(true);
         AppNotification.showSuccess(
-            context, '${widget.log.itemName} berhasil dikembalikan');
+          context,
+          '${widget.log.itemName} berhasil dikembalikan',
+        );
       }
     } catch (e) {
       if (mounted) {

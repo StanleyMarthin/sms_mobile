@@ -1,3 +1,10 @@
+/*
+Tujuan: Data source task monitoring management untuk baca task view dan simpan checkpoint ke API.
+Caller: ViewTaskRepositoryImpl.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, ViewTaskModel.
+Main Functions: getViewTasks, saveCheckpoint, updateCheckpointSession, validateCheckpointSession.
+Side Effects: HTTP GET/POST ke service task monitoring.
+*/
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -75,25 +82,15 @@ class ApiViewTaskDataSource implements ViewTaskDataSource {
     required String checkpointTime,
     required String jobStatus,
   }) async {
-    final userId = sessionManager.userId ?? sessionManager.employeeId ?? '';
-    final normalizedStatus =
-        jobStatus.toUpperCase() == 'DONE' ? 'done' : 'pending';
-    final payload = <String, dynamic>{
-      'action': 'checkpoint',
-      'plandailyId': planDailyId,
-      'userId': userId,
-      'progressSeen': progress,
-      'status': normalizedStatus,
-      'note': 'Checkpoint $checkpointTime ($startWorkTime-$finishWorkTime)',
-    };
-    if (normalizedStatus == 'done') {
-      payload['progressFinal'] = progress;
-    }
-
-    await apiClient.post(
-      ApiEndpoints.taskCheckpoint,
-      data: payload,
+    final payload = _buildCheckpointPayload(
+      planDailyId: planDailyId,
+      startWorkTime: startWorkTime,
+      finishWorkTime: finishWorkTime,
+      progress: progress,
+      checkpointTime: checkpointTime,
+      jobStatus: jobStatus,
     );
+    await apiClient.post(ApiEndpoints.taskCheckpoint, data: payload);
 
     return _fetchTaskById(planDailyId);
   }
@@ -108,15 +105,56 @@ class ApiViewTaskDataSource implements ViewTaskDataSource {
     required String checkpointTime,
     required String jobStatus,
   }) async {
-    // Backend does not expose update checkpoint session; append as new checkpoint.
-    return saveCheckpoint(
+    final payload = _buildCheckpointPayload(
       planDailyId: planDailyId,
       startWorkTime: startWorkTime,
       finishWorkTime: finishWorkTime,
       progress: progress,
       checkpointTime: checkpointTime,
       jobStatus: jobStatus,
+      sessionNumber: sessionNumber,
     );
+
+    await apiClient.post(ApiEndpoints.taskCheckpoint, data: payload);
+
+    return _fetchTaskById(planDailyId);
+  }
+
+  Map<String, dynamic> _buildCheckpointPayload({
+    required String planDailyId,
+    required String startWorkTime,
+    required String finishWorkTime,
+    required int progress,
+    required String checkpointTime,
+    required String jobStatus,
+    int? sessionNumber,
+  }) {
+    final userId = sessionManager.userId ?? sessionManager.employeeId ?? '';
+    final normalizedStatus = jobStatus.toUpperCase() == 'DONE'
+        ? 'done'
+        : 'pending';
+    final note = 'Checkpoint $checkpointTime ($startWorkTime-$finishWorkTime)';
+
+    return <String, dynamic>{
+      'action': 'checkpoint',
+      'plandailyId': planDailyId,
+      'userId': userId,
+      'progressSeen': progress,
+      'status': normalizedStatus,
+      'jobStatus': jobStatus.toUpperCase(),
+      'note': note,
+      if (normalizedStatus == 'done') 'progressFinal': progress,
+      if (sessionNumber != null) 'sessionNumber': sessionNumber,
+      if (sessionNumber != null)
+        'monitoringCheckpoints': [
+          {
+            'sessionNumber': sessionNumber,
+            'time': checkpointTime,
+            'progress': progress,
+            'note': note,
+          },
+        ],
+    };
   }
 
   @override

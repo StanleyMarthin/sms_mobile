@@ -1,10 +1,17 @@
+/*
+Tujuan: Halaman monitoring task management dengan polymorphic UI untuk self-task vs checkpoint.
+Caller: TasksPage dan drilldown task section/unit management.
+Dependensi: TaskViewBloc, SessionManager, RBAC, MechanicTaskPage.
+Main Functions: build, _buildTaskActionArea, _openSelfExecutionFlow, _showCheckpointDialog.
+Side Effects: Load task management, navigasi ke flow mekanik, submit checkpoint management.
+*/
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../core/utils/time_parser.dart';
+import '../../../../core/session/session_manager.dart';
 import '../../domain/entities/task_filter.dart';
 import '../../domain/entities/view_task_entity.dart';
 import '../bloc/task_view/task_view_bloc.dart';
@@ -13,6 +20,7 @@ import '../bloc/task_view/task_view_state.dart';
 import '../widgets/date_filter_bar.dart';
 import '../widgets/task_filters.dart';
 import '../widgets/view_task_card.dart';
+import 'mechanic_task_page.dart';
 
 /// Management task page — displays task list for a specific [TaskType].
 ///
@@ -37,9 +45,14 @@ class TaskViewPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<TaskViewBloc>()
-        ..add(LoadViewTasks(
+        ..add(
+          LoadViewTasks(
             filter: TaskFilter(
-                type: taskType, date: initialDate ?? DateTime.now()))),
+              type: taskType,
+              date: initialDate ?? DateTime.now(),
+            ),
+          ),
+        ),
       child: _TaskViewContent(taskType: taskType, focusTaskId: focusTaskId),
     );
   }
@@ -107,7 +120,8 @@ class _TaskViewContent extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
-            child: _buildFilterSection(context, state.filter, false)),
+          child: _buildFilterSection(context, state.filter, false),
+        ),
         SliverFillRemaining(
           child: Center(
             child: Padding(
@@ -115,8 +129,11 @@ class _TaskViewContent extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline,
-                      size: 56, color: AppColors.statusLocked),
+                  const Icon(
+                    Icons.error_outline,
+                    size: 56,
+                    color: AppColors.statusLocked,
+                  ),
                   const SizedBox(height: 16),
                   const Text(
                     'Terjadi Kesalahan',
@@ -131,22 +148,26 @@ class _TaskViewContent extends StatelessWidget {
                     state.message,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        height: 1.4),
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   OutlinedButton.icon(
-                    onPressed: () => context
-                        .read<TaskViewBloc>()
-                        .add(LoadViewTasks(filter: state.filter)),
+                    onPressed: () => context.read<TaskViewBloc>().add(
+                      LoadViewTasks(filter: state.filter),
+                    ),
                     icon: const Icon(Icons.refresh, color: AppColors.gold),
-                    label: const Text('Coba Lagi',
-                        style: TextStyle(color: AppColors.gold)),
+                    label: const Text(
+                      'Coba Lagi',
+                      style: TextStyle(color: AppColors.gold),
+                    ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.gold),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
                   ),
                 ],
@@ -161,51 +182,188 @@ class _TaskViewContent extends StatelessWidget {
   // ── Loaded view with task list ────────────────────────
   Widget _buildLoadedView(BuildContext context, TaskViewLoaded state) {
     final tasks = _sortTasks(state.tasks);
+    final groupedDivisions = _groupByDivision(tasks);
+
+    // Jika hanya ada 1 divisi (kasus KD), langsung tampilkan Unitnya saja agar simple.
+    final skipDivision = groupedDivisions.length == 1;
 
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
           child: _buildFilterSection(
-              context, state.filter, state.canFilterDivision),
+            context,
+            state.filter,
+            state.canFilterDivision,
+          ),
         ),
+
+        // Tambahkan Ringkasan Status Monitoring di paling atas
+        SliverToBoxAdapter(child: _buildMonitoringSummary(tasks)),
+
         SliverToBoxAdapter(child: _buildSectionHeader(state)),
+
         if (tasks.isEmpty)
           const SliverFillRemaining(child: _EmptyView())
+        else if (skipDivision)
+          _buildDirectUnitList(context, state, groupedDivisions.first.value)
         else
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final divisionEntry = _groupByDivision(tasks)[index];
-                return _DrilldownTile(
-                  icon: Icons.category_outlined,
-                  title: divisionEntry.key,
-                  subtitle:
-                      '${_uniqueUnitCount(divisionEntry.value)} kendaraan • ${divisionEntry.value.length} pekerjaan',
-                  trailingLabel: _statusSummary(divisionEntry.value),
-                  onTap: () {
-                    final taskViewBloc = context.read<TaskViewBloc>();
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => BlocProvider.value(
-                          value: taskViewBloc,
-                          child: _TaskUnitDrilldownPage(
-                            title: divisionEntry.key,
-                            divisionName: divisionEntry.key,
-                            taskType: taskType,
-                            focusTaskId: focusTaskId,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-              childCount: _groupByDivision(tasks).length,
-            ),
-          ),
+          _buildDivisionList(context, groupedDivisions),
+
         // Bottom padding
         const SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
+    );
+  }
+
+  Widget _buildMonitoringSummary(List<ViewTaskEntity> tasks) {
+    if (tasks.isEmpty) return const SizedBox.shrink();
+
+    final active = tasks
+        .where((t) => t.status == 'PROSES' || t.status == 'CHECK_PROGRESS')
+        .length;
+    final done = tasks.where((t) => t.status == 'DONE').length;
+    final pending = tasks.length - active - done;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Row(
+        children: [
+          _summaryCounter('Belum', pending, AppColors.orange),
+          const SizedBox(width: 8),
+          _summaryCounter('Aktif', active, AppColors.gold),
+          const SizedBox(width: 8),
+          _summaryCounter('Selesai', done, AppColors.statusDone),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCounter(String label, int count, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDivisionList(
+    BuildContext context,
+    List<MapEntry<String, List<ViewTaskEntity>>> entries,
+  ) {
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final entry = entries[index];
+        return _DrilldownTile(
+          icon: Icons.category_outlined,
+          title: entry.key,
+          subtitle:
+              '${_uniqueUnitCount(entry.value)} kendaraan • ${entry.value.length} pekerjaan',
+          trailingLabel: _statusSummary(entry.value),
+          onTap: () => _navigateToUnits(context, entry.key, entry.key),
+        );
+      }, childCount: entries.length),
+    );
+  }
+
+  Widget _buildDirectUnitList(
+    BuildContext context,
+    TaskViewLoaded state,
+    List<ViewTaskEntity> divisionTasks,
+  ) {
+    final groupedUnits = <String, List<ViewTaskEntity>>{};
+    for (final task in divisionTasks) {
+      groupedUnits.putIfAbsent(task.unit.unitName, () => []).add(task);
+    }
+    final entries = groupedUnits.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final entry = entries[index];
+        return _DrilldownTile(
+          icon: Icons.directions_car_filled_outlined,
+          title: entry.key,
+          subtitle:
+              '${entry.value.length} pekerjaan • ${_operatorSummary(entry.value)}',
+          trailingLabel: _statusSummary(entry.value),
+          onTap: () => _navigateToJobdescs(
+            context,
+            entry.key,
+            entry.key,
+            state.filter.divisionId ??
+                divisionTasks.first.division.divisionName,
+          ),
+        );
+      }, childCount: entries.length),
+    );
+  }
+
+  void _navigateToUnits(
+    BuildContext context,
+    String title,
+    String divisionName,
+  ) {
+    final taskViewBloc = context.read<TaskViewBloc>();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: taskViewBloc,
+          child: _TaskUnitDrilldownPage(
+            title: title,
+            divisionName: divisionName,
+            taskType: taskType,
+            focusTaskId: focusTaskId,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToJobdescs(
+    BuildContext context,
+    String title,
+    String unitName,
+    String divisionName,
+  ) {
+    final taskViewBloc = context.read<TaskViewBloc>();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => BlocProvider.value(
+          value: taskViewBloc,
+          child: _TaskJobdescPage(
+            title: title,
+            unitName: unitName,
+            divisionName: divisionName,
+            taskType: taskType,
+            focusTaskId: focusTaskId,
+          ),
+        ),
+      ),
     );
   }
 
@@ -221,7 +379,8 @@ class _TaskViewContent extends StatelessWidget {
   }
 
   List<MapEntry<String, List<ViewTaskEntity>>> _groupByDivision(
-      List<ViewTaskEntity> tasks) {
+    List<ViewTaskEntity> tasks,
+  ) {
     final grouped = <String, List<ViewTaskEntity>>{};
     for (final task in tasks) {
       grouped.putIfAbsent(task.division.divisionName, () => []).add(task);
@@ -234,12 +393,21 @@ class _TaskViewContent extends StatelessWidget {
   int _uniqueUnitCount(List<ViewTaskEntity> tasks) =>
       tasks.map((task) => task.unit.unitId).toSet().length;
 
+  String _operatorSummary(List<ViewTaskEntity> tasks) {
+    final employees = tasks.map((task) => task.employee.employeeName).toSet();
+    if (employees.isEmpty) return 'Belum ada mekanik';
+    if (employees.length == 1) return employees.first;
+    return '${employees.length} mekanik';
+  }
+
   String _statusSummary(List<ViewTaskEntity> tasks) {
     final active = tasks
-        .where((task) =>
-            task.status == 'PROSES' ||
-            task.status == 'CHECK_PROGRESS' ||
-            task.status == 'SUBMITTED')
+        .where(
+          (task) =>
+              task.status == 'PROSES' ||
+              task.status == 'CHECK_PROGRESS' ||
+              task.status == 'SUBMITTED',
+        )
         .length;
     if (active > 0) {
       return '$active berjalan';
@@ -253,7 +421,10 @@ class _TaskViewContent extends StatelessWidget {
 
   // ── Filter section ────────────────────────────────────
   Widget _buildFilterSection(
-      BuildContext context, TaskFilter filter, bool canFilterDivision) {
+    BuildContext context,
+    TaskFilter filter,
+    bool canFilterDivision,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 4),
       child: Column(
@@ -282,7 +453,9 @@ class _TaskViewContent extends StatelessWidget {
                       child: Text(
                         _activeFilterLabel(filter),
                         style: const TextStyle(
-                            fontSize: 11, color: AppColors.textMuted),
+                          fontSize: 11,
+                          color: AppColors.textMuted,
+                        ),
                       ),
                     ),
                   InkWell(
@@ -298,15 +471,20 @@ class _TaskViewContent extends StatelessWidget {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          const Icon(Icons.tune_rounded,
-                              size: 18, color: AppColors.gold),
+                          const Icon(
+                            Icons.tune_rounded,
+                            size: 18,
+                            color: AppColors.gold,
+                          ),
                           if (_activeFilterCount(filter) > 0)
                             Positioned(
                               top: -6,
                               right: -6,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 5, vertical: 1),
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.gold,
                                   borderRadius: BorderRadius.circular(999),
@@ -377,16 +555,16 @@ class _TaskViewContent extends StatelessWidget {
                 const SizedBox(height: 12),
                 TaskDivisionFilter(
                   selectedDivisionId: filter.divisionId,
-                  onDivisionChanged: (id) => context
-                      .read<TaskViewBloc>()
-                      .add(ChangeTaskDivision(divisionId: id)),
+                  onDivisionChanged: (id) => context.read<TaskViewBloc>().add(
+                    ChangeTaskDivision(divisionId: id),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TaskUnitFilter(
                   selectedUnitId: filter.unitId,
-                  onUnitChanged: (id) => context
-                      .read<TaskViewBloc>()
-                      .add(ChangeTaskUnit(unitId: id)),
+                  onUnitChanged: (id) => context.read<TaskViewBloc>().add(
+                    ChangeTaskUnit(unitId: id),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -394,12 +572,12 @@ class _TaskViewContent extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
-                          context
-                              .read<TaskViewBloc>()
-                              .add(const ChangeTaskDivision(divisionId: null));
-                          context
-                              .read<TaskViewBloc>()
-                              .add(const ChangeTaskUnit(unitId: null));
+                          context.read<TaskViewBloc>().add(
+                            const ChangeTaskDivision(divisionId: null),
+                          );
+                          context.read<TaskViewBloc>().add(
+                            const ChangeTaskUnit(unitId: null),
+                          );
                         },
                         icon: const Icon(Icons.refresh_rounded, size: 16),
                         label: const Text('Reset'),
@@ -490,19 +668,33 @@ class _TaskViewContent extends StatelessWidget {
     TaskViewLoaded state,
     dynamic task,
   ) {
+    if (task is! ViewTaskEntity) {
+      return null;
+    }
+
     final isBusy = state.actionTaskId == task.planDailyId;
-    final checkpointClosed =
-        task.isDone || !task.hasRemainingCheckpointSessions;
+    final isSelfExecutionCandidate = _isSelfExecutionCandidate(
+      state: state,
+      task: task,
+    );
+
+    if (isSelfExecutionCandidate) {
+      return _buildSelfExecutionPanel(context, state, task);
+    }
+
+    // Pimpinan (KD/ADV/PM) harus selalu bisa melakukan monitoring/intervensi
+    // meskipun status sudah DONE atau READY_QC, untuk kebutuhan audit/koreksi.
     final canInputCheckpoint =
         hasPermission(state.role, Permission.taskCheckpoint) &&
-            _canCheckpoint(task.status) &&
-            !checkpointClosed;
+        _canCheckpoint(task.status);
+
     final canReviewCheckpoint =
         hasPermission(state.role, Permission.taskCheckpoint) &&
-            task.checkpointHistory.isNotEmpty;
+        task.checkpointHistory.isNotEmpty;
+
     final canFinalValidate =
         hasPermission(state.role, Permission.taskCheckpoint) &&
-            _canFinalValidate(task.status);
+        _canFinalValidate(task.status);
 
     if (!canInputCheckpoint && !canReviewCheckpoint && !canFinalValidate) {
       return null;
@@ -512,13 +704,7 @@ class _TaskViewContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (canInputCheckpoint) ...[
-          _buildCheckpointActionPanel(
-            context,
-            state,
-            task,
-            isBusy,
-            checkpointClosed: checkpointClosed,
-          ),
+          _buildCheckpointActionPanel(context, state, task, isBusy),
         ],
         if (canReviewCheckpoint) ...[
           if (canInputCheckpoint) const SizedBox(height: 10),
@@ -530,6 +716,114 @@ class _TaskViewContent extends StatelessWidget {
           _buildFinalValidationPanel(context, state, task, isBusy),
         ],
       ],
+    );
+  }
+
+  bool _isSelfExecutionCandidate({
+    required TaskViewLoaded state,
+    required ViewTaskEntity task,
+  }) {
+    if (taskType == TaskType.plan) return false;
+    if (state.role == 'op') return false;
+    if (task.isDone || task.isValidated || task.hasFinalValidation) {
+      return false;
+    }
+
+    final session = sl<SessionManager>();
+    final currentIds = <String>{
+      if ((session.userId ?? '').trim().isNotEmpty) session.userId!.trim(),
+      if ((session.employeeId ?? '').trim().isNotEmpty)
+        session.employeeId!.trim(),
+    };
+
+    return currentIds.contains(task.employee.employeeId.trim());
+  }
+
+  Widget _buildSelfExecutionPanel(
+    BuildContext context,
+    TaskViewLoaded state,
+    ViewTaskEntity task,
+  ) {
+    final isOvertime = state.filter.type == TaskType.overtime;
+    final ctaLabel = task.isAssigned
+        ? 'Mulai sebagai PIC'
+        : 'Lanjutkan sebagai PIC';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.play_circle_outline,
+                size: 16,
+                color: AppColors.gold,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Self execution',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Jobdesc ini ter-assign ke Anda. Gunakan flow anggota biasa agar tidak perlu input checkpoint manual.',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _openSelfExecutionFlow(
+                context,
+                task: task,
+                date: state.filter.date,
+                isOvertime: isOvertime,
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.background,
+              ),
+              icon: const Icon(Icons.play_circle_outline),
+              label: Text(ctaLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openSelfExecutionFlow(
+    BuildContext context, {
+    required ViewTaskEntity task,
+    required DateTime date,
+    required bool isOvertime,
+  }) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MechanicTaskPage(
+          isOvertime: isOvertime,
+          title: isOvertime ? 'Lembur Saya' : 'Task Saya',
+          focusTaskId: task.planDailyId,
+          initialDate: date,
+          forceOwnOnly: true,
+        ),
+      ),
     );
   }
 
@@ -556,8 +850,11 @@ class _TaskViewContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.verified_outlined,
-                  size: 16, color: AppColors.statusDone),
+              const Icon(
+                Icons.verified_outlined,
+                size: 16,
+                color: AppColors.statusDone,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -614,10 +911,10 @@ class _TaskViewContent extends StatelessWidget {
                 isBusy
                     ? 'Memvalidasi...'
                     : alreadyValidatedByRole
-                        ? 'Role ini sudah validasi'
-                        : validatorCount > 0
-                            ? 'Tambah validasi role ini'
-                            : 'Validasi pekerjaan',
+                    ? 'Role ini sudah validasi'
+                    : validatorCount > 0
+                    ? 'Tambah validasi role ini'
+                    : 'Validasi pekerjaan',
               ),
             ),
           ),
@@ -646,8 +943,11 @@ class _TaskViewContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.rule_folder_outlined,
-                  size: 16, color: AppColors.gold),
+              const Icon(
+                Icons.rule_folder_outlined,
+                size: 16,
+                color: AppColors.gold,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -674,19 +974,28 @@ class _TaskViewContent extends StatelessWidget {
   }
 
   Widget _buildCheckpointActionPanel(
-      BuildContext context, TaskViewLoaded state, dynamic task, bool isBusy,
-      {required bool checkpointClosed}) {
-    final canCheckpointByRole =
-        hasPermission(state.role, Permission.taskCheckpoint);
-    final canSubmitCheckpoint =
-        canCheckpointByRole && !checkpointClosed && !isBusy;
+    BuildContext context,
+    TaskViewLoaded state,
+    dynamic task,
+    bool isBusy,
+  ) {
+    final canCheckpointByRole = hasPermission(
+      state.role,
+      Permission.taskCheckpoint,
+    );
+
     final sessionNow = task.checkpointHistory.length;
     final sessionMax = task.maxCheckpointSessions as int;
+
+    // Batasi hanya 3x input jika masih proses (OP)
+    final isUnderLimit = sessionNow < sessionMax;
+    final canSubmitCheckpoint = canCheckpointByRole && !isBusy && isUnderLimit;
+
     final statusLabel = task.isDone
-        ? 'Done'
-        : (sessionNow >= sessionMax
-            ? 'Batas Tercapai'
-            : '$sessionNow/$sessionMax');
+        ? 'Selesai'
+        : (!isUnderLimit
+              ? 'Batas $sessionNow sesi terpenuhi'
+              : 'Sesi $sessionNow/$sessionMax');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -706,7 +1015,7 @@ class _TaskViewContent extends StatelessWidget {
                 children: [
                   const Expanded(
                     child: Text(
-                      'Monitoring Jobdesc',
+                      'Monitoring',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -717,7 +1026,9 @@ class _TaskViewContent extends StatelessWidget {
                   Text(
                     statusLabel,
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted),
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -739,12 +1050,8 @@ class _TaskViewContent extends StatelessWidget {
               isBusy
                   ? 'Menyimpan...'
                   : !canCheckpointByRole
-                      ? 'Role Tidak Diizinkan'
-                      : task.isDone
-                          ? 'Sudah Done'
-                          : task.hasRemainingCheckpointSessions
-                              ? 'Input Monitoring'
-                              : 'Batas Tercapai',
+                  ? 'Tidak diizinkan'
+                  : 'Input monitoring',
             ),
           ),
         ),
@@ -771,25 +1078,35 @@ class _TaskViewContent extends StatelessWidget {
 
   Future<void> _showCheckpointDialog(
     BuildContext context,
-    dynamic task, {
-    dynamic editingSession,
+    ViewTaskEntity task, {
+    TaskCheckpointSession? editingSession,
   }) async {
+    final currentSystemProgress = _currentCheckpointProgress(
+      task,
+      editingSession: editingSession,
+    );
+    final defaultStartWorkTime = _defaultCheckpointStartTime(
+      task,
+      editingSession: editingSession,
+    );
+    final defaultFinishWorkTime = _defaultCheckpointFinishTime(
+      task,
+      editingSession: editingSession,
+    );
+
     final progressCtrl = TextEditingController(
-      text: editingSession != null
-          ? editingSession.progress.toString()
-          : (task.isAssigned ? '20' : '80'),
+      text: currentSystemProgress.toString(),
     );
-    final startWorkTimeCtrl = TextEditingController(
-      text: editingSession?.startWorkTime ?? '08:00',
-    );
-    final finishWorkTimeCtrl = TextEditingController(
-      text: editingSession?.finishWorkTime ?? _defaultCheckpointTime(),
-    );
+
+    // KD biasanya melakukan monitoring di waktu sekarang
     final checkpointTimeCtrl = TextEditingController(
       text: editingSession?.checkpointTime ?? _defaultCheckpointTime(),
     );
-    String jobStatus = editingSession?.jobStatus ??
-        (progressCtrl.text == '100' ? 'DONE' : 'ON_PROGRESS');
+
+    String jobStatus =
+        editingSession?.jobStatus ??
+        (int.tryParse(progressCtrl.text) == 100 ? 'DONE' : 'ON_PROGRESS');
+
     final isEditing = editingSession != null;
 
     await showDialog<void>(
@@ -797,21 +1114,42 @@ class _TaskViewContent extends StatelessWidget {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surfaceCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: Text(
-            isEditing ? 'Edit Monitoring' : 'Monitoring Jobdesc',
+            isEditing ? 'Edit Monitoring' : 'Monitoring Progres',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
           content: SingleChildScrollView(
             child: SizedBox(
-              width: 520,
+              width: 400,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // --- Info Unit & Job ---
                   Text(
-                    '${task.unit.unitName} • ${task.task.namaPanel}',
-                    style: const TextStyle(color: AppColors.textSecondary),
+                    task.task.namaPanel,
+                    style: const TextStyle(
+                      color: AppColors.gold,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  Text(
+                    task.task.jobDescription.isNotEmpty
+                        ? task.task.jobDescription
+                        : task.task.jobName,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 20),
+
+                  // --- Status Report Mekanik (Informasi Utama) ---
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -820,136 +1158,60 @@ class _TaskViewContent extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: AppColors.borderSubtle),
                     ),
-                    child: Text(
-                      'Riwayat: ${task.checkpointHistory.length}',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textMuted),
-                    ),
-                  ),
-                  if (task.checkpointHistory.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.borderSubtle),
-                      ),
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          headingRowHeight: 30,
-                          dataRowMinHeight: 30,
-                          dataRowMaxHeight: 42,
-                          horizontalMargin: 8,
-                          columnSpacing: 14,
-                          columns: const [
-                            DataColumn(label: Text('Sesi')),
-                            DataColumn(label: Text('Start')),
-                            DataColumn(label: Text('Finish')),
-                            DataColumn(label: Text('Check')),
-                            DataColumn(label: Text('Durasi')),
-                            DataColumn(label: Text('Prog')),
-                            DataColumn(label: Text('Status')),
-                          ],
-                          rows: task.checkpointHistory.map<DataRow>((session) {
-                            return DataRow(
-                              cells: [
-                                DataCell(Text('${session.sessionNumber}')),
-                                DataCell(Text(session.startWorkTime)),
-                                DataCell(Text(session.finishWorkTime)),
-                                DataCell(Text(session.checkpointTime)),
-                                DataCell(Text(session.workedDurationLabel)),
-                                DataCell(Text('${session.progress}%')),
-                                DataCell(Text(session.jobStatusLabel)),
-                              ],
-                            );
-                          }).toList(),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Progress terakhir:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: startWorkTimeCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [HHMMFormatter()],
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: InputDecoration(
-                      labelText: 'Jam mulai kerja',
-                      suffixIcon: IconButton(
-                        onPressed: () async {
-                          final picked = await _pickClockTime(
-                            context: dialogContext,
-                            initialValue: startWorkTimeCtrl.text.trim(),
-                          );
-                          if (picked == null) return;
-
-                          setDialogState(() {
-                            startWorkTimeCtrl.text = picked;
-
-                            final startMinutes = _parseClockToMinutes(picked);
-                            final finishMinutes = _parseClockToMinutes(
-                                finishWorkTimeCtrl.text.trim());
-                            if (startMinutes != null &&
-                                (finishMinutes == null ||
-                                    finishMinutes < startMinutes)) {
-                              finishWorkTimeCtrl.text =
-                                  _addMinutesToClock(picked, 60);
-                            }
-
-                            final updatedFinishMinutes = _parseClockToMinutes(
-                                finishWorkTimeCtrl.text.trim());
-                            final checkpointMinutes = _parseClockToMinutes(
-                                checkpointTimeCtrl.text.trim());
-                            if (updatedFinishMinutes != null &&
-                                (checkpointMinutes == null ||
-                                    checkpointMinutes < updatedFinishMinutes)) {
-                              checkpointTimeCtrl.text =
-                                  finishWorkTimeCtrl.text.trim();
-                            }
-                          });
-                        },
-                        icon: const Icon(Icons.access_time_rounded),
-                      ),
+                        Text(
+                          '$currentSystemProgress%',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: finishWorkTimeCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [HHMMFormatter()],
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: InputDecoration(
-                      labelText: 'Jam selesai kerja',
-                      suffixIcon: IconButton(
-                        onPressed: () async {
-                          final picked = await _pickClockTime(
-                            context: dialogContext,
-                            initialValue: finishWorkTimeCtrl.text.trim(),
-                          );
-                          if (picked == null) return;
+                  const SizedBox(height: 20),
 
-                          setDialogState(() {
-                            finishWorkTimeCtrl.text = picked;
-
-                            final finishMinutes = _parseClockToMinutes(picked);
-                            final checkpointMinutes = _parseClockToMinutes(
-                                checkpointTimeCtrl.text.trim());
-                            if (finishMinutes != null &&
-                                (checkpointMinutes == null ||
-                                    checkpointMinutes < finishMinutes)) {
-                              checkpointTimeCtrl.text = picked;
-                            }
-                          });
-                        },
-                        icon: const Icon(Icons.access_time_rounded),
-                      ),
+                  // --- Input Progres KD ---
+                  const Text(
+                    'Progress pantauan (0-100)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   TextField(
                     controller: progressCtrl,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(labelText: 'Progres (%)'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.gold,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.surfaceInput,
+                      suffixText: '%',
+                      suffixStyle: const TextStyle(
+                        fontSize: 18,
+                        color: AppColors.textMuted,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                     onChanged: (value) {
                       final parsed = int.tryParse(value.trim()) ?? 0;
                       if (parsed >= 100 && jobStatus != 'DONE') {
@@ -959,39 +1221,73 @@ class _TaskViewContent extends StatelessWidget {
                       }
                     },
                   ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: checkpointTimeCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [HHMMFormatter()],
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: InputDecoration(
-                      labelText: 'Jam monitoring',
-                      suffixIcon: IconButton(
-                        onPressed: () async {
+                  const SizedBox(height: 16),
+
+                  // --- Jam Monitoring ---
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time_rounded,
+                        size: 16,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Waktu monitoring:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                      const Spacer(),
+                      InkWell(
+                        onTap: () async {
                           final picked = await _pickClockTime(
                             context: dialogContext,
                             initialValue: checkpointTimeCtrl.text.trim(),
                           );
-                          if (picked == null) return;
-                          setDialogState(
-                              () => checkpointTimeCtrl.text = picked);
+                          if (picked != null) {
+                            setDialogState(
+                              () => checkpointTimeCtrl.text = picked,
+                            );
+                          }
                         },
-                        icon: const Icon(Icons.access_time_rounded),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: AppColors.border),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            checkpointTimeCtrl.text,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 16),
+
+                  // --- Status Pekerjaan ---
                   DropdownButtonFormField<String>(
                     initialValue: jobStatus,
-                    decoration:
-                        const InputDecoration(labelText: 'Status pekerjaan'),
+                    decoration: const InputDecoration(
+                      labelText: 'Status monitoring',
+                    ),
                     dropdownColor: AppColors.surfaceCard,
                     items: const [
                       DropdownMenuItem(
-                          value: 'ON_PROGRESS', child: Text('On Progress')),
+                        value: 'ON_PROGRESS',
+                        child: Text('On Progress'),
+                      ),
                       DropdownMenuItem(value: 'DONE', child: Text('Selesai')),
-                      DropdownMenuItem(value: 'CANCEL', child: Text('Cancel')),
+                      DropdownMenuItem(
+                        value: 'PENDING',
+                        child: Text('Pending'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -999,6 +1295,79 @@ class _TaskViewContent extends StatelessWidget {
                       }
                     },
                   ),
+                  if (jobStatus == 'PENDING') ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.orange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.orange.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: AppColors.orange,
+                            size: 16,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Status pending hanya menandai hasil monitoring, bukan mengubah hasil kerja anggota.',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.orange,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // --- Riwayat Singkat (Vertical Timeline) ---
+                  if (task.checkpointHistory.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Riwayat monitoring',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ...task.checkpointHistory.reversed
+                        .take(2)
+                        .map(
+                          (session) => Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 4,
+                                  height: 24,
+                                  color: AppColors.gold.withValues(alpha: 0.3),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    '${session.checkpointTime} • ${session.progress}% • ${session.jobStatusLabel}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                  ],
                 ],
               ),
             ),
@@ -1006,58 +1375,49 @@ class _TaskViewContent extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Batal'),
+              child: const Text(
+                'BATAL',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             ),
             FilledButton(
               onPressed: () {
-                final validationMessage = _validateCheckpointTimes(
-                  startWorkTime: startWorkTimeCtrl.text.trim(),
-                  finishWorkTime: finishWorkTimeCtrl.text.trim(),
-                  checkpointTime: checkpointTimeCtrl.text.trim(),
-                );
-                if (validationMessage != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(validationMessage),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor:
-                          AppColors.statusLocked.withValues(alpha: 0.92),
-                    ),
-                  );
-                  return;
-                }
+                final progressVal = int.tryParse(progressCtrl.text.trim()) ?? 0;
 
                 if (isEditing) {
                   context.read<TaskViewBloc>().add(
-                        UpdateTaskCheckpointSession(
-                          planDailyId: task.planDailyId,
-                          sessionNumber: editingSession.sessionNumber as int,
-                          startWorkTime: startWorkTimeCtrl.text.trim(),
-                          finishWorkTime: finishWorkTimeCtrl.text.trim(),
-                          progress: int.tryParse(progressCtrl.text.trim()) ?? 0,
-                          checkpointTime: checkpointTimeCtrl.text.trim(),
-                          jobStatus: jobStatus,
-                        ),
-                      );
+                    UpdateTaskCheckpointSession(
+                      planDailyId: task.planDailyId,
+                      sessionNumber: editingSession.sessionNumber,
+                      startWorkTime: defaultStartWorkTime,
+                      finishWorkTime: defaultFinishWorkTime,
+                      progress: progressVal,
+                      checkpointTime: checkpointTimeCtrl.text.trim(),
+                      jobStatus: jobStatus,
+                    ),
+                  );
                 } else {
                   context.read<TaskViewBloc>().add(
-                        SaveTaskCheckpoint(
-                          planDailyId: task.planDailyId,
-                          startWorkTime: startWorkTimeCtrl.text.trim(),
-                          finishWorkTime: finishWorkTimeCtrl.text.trim(),
-                          progress: int.tryParse(progressCtrl.text.trim()) ?? 0,
-                          checkpointTime: checkpointTimeCtrl.text.trim(),
-                          jobStatus: jobStatus,
-                        ),
-                      );
+                    SaveTaskCheckpoint(
+                      planDailyId: task.planDailyId,
+                      startWorkTime: defaultStartWorkTime,
+                      finishWorkTime: defaultFinishWorkTime,
+                      progress: progressVal,
+                      checkpointTime: checkpointTimeCtrl.text.trim(),
+                      jobStatus: jobStatus,
+                    ),
+                  );
                 }
                 Navigator.pop(dialogContext);
               },
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-              child: Text(isEditing ? 'Simpan Edit' : 'Simpan Sesi'),
+              child: Text(isEditing ? 'Simpan perubahan' : 'Simpan monitoring'),
             ),
           ],
         ),
@@ -1067,15 +1427,15 @@ class _TaskViewContent extends StatelessWidget {
 
   Future<void> _showCheckpointReviewDialog(
     BuildContext context,
-    dynamic task,
-    dynamic session,
+    ViewTaskEntity task,
+    TaskCheckpointSession session,
   ) async {
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
         title: Text(
-          'Sesi ${session.sessionNumber} • Review Check Progress',
+          'Monitoring ${session.sessionNumber}',
           style: const TextStyle(color: AppColors.textPrimary),
         ),
         content: Column(
@@ -1083,22 +1443,38 @@ class _TaskViewContent extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${task.unit.unitName} • ${task.task.namaPanel}',
+              '${task.task.namaPanel} • ${task.unit.unitName}',
               style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 12),
             Text(
-              'Mulai ${session.startWorkTime} • selesai ${session.finishWorkTime} • check ${session.checkpointTime} • ${session.workedDurationLabel} • ${session.progress}% • ${session.jobStatusLabel}',
-              style:
-                  const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+              '${session.progress}% • ${session.jobStatusLabel}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              session.isValidated
-                  ? 'Tervalidasi: ${session.reviewersLabel}'
-                  : 'Checkpoint backend langsung tercatat ke validation saat disimpan.',
+              'Mulai ${session.startWorkTime} • selesai ${session.finishWorkTime} • cek ${session.checkpointTime} • durasi ${session.workedDurationLabel}',
               style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
+            if (session.isValidated) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Tervalidasi: ${session.reviewersLabel}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Catatan monitoring ini tidak mengubah hasil kerja anggota.',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -1115,7 +1491,7 @@ class _TaskViewContent extends StatelessWidget {
               foregroundColor: AppColors.gold,
               side: const BorderSide(color: AppColors.gold),
             ),
-            child: const Text('Edit'),
+            child: const Text('Ubah'),
           ),
         ],
       ),
@@ -1163,35 +1539,43 @@ class _TaskViewContent extends StatelessWidget {
     return '$hour:$minute';
   }
 
-  String? _validateCheckpointTimes({
-    required String startWorkTime,
-    required String finishWorkTime,
-    required String checkpointTime,
+  int _currentCheckpointProgress(
+    ViewTaskEntity task, {
+    TaskCheckpointSession? editingSession,
   }) {
-    final startMinutes = _parseClockToMinutes(startWorkTime);
-    if (startMinutes == null) {
-      return 'Jam mulai kerja harus memakai format HH:mm.';
+    if (editingSession != null) {
+      return editingSession.progress.clamp(0, 100);
     }
-
-    final finishMinutes = _parseClockToMinutes(finishWorkTime);
-    if (finishMinutes == null) {
-      return 'Jam selesai kerja harus memakai format HH:mm.';
+    if (task.checkpointHistory.isNotEmpty) {
+      return task.checkpointHistory.last.progress.clamp(0, 100);
     }
-
-    final checkpointMinutes = _parseClockToMinutes(checkpointTime);
-    if (checkpointMinutes == null) {
-      return 'Jam check progress harus memakai format HH:mm.';
+    if (task.isDone || task.hasFinalValidation) {
+      return 100;
     }
+    return 0;
+  }
 
-    if (finishMinutes < startMinutes) {
-      return 'Jam selesai kerja tidak boleh lebih awal dari jam mulai kerja.';
+  String _defaultCheckpointStartTime(
+    ViewTaskEntity task, {
+    TaskCheckpointSession? editingSession,
+  }) {
+    final candidate = editingSession?.startWorkTime ?? task.task.startTime;
+    return _parseClockToMinutes(candidate) == null ? '08:00' : candidate;
+  }
+
+  String _defaultCheckpointFinishTime(
+    ViewTaskEntity task, {
+    TaskCheckpointSession? editingSession,
+  }) {
+    final candidate =
+        editingSession?.finishWorkTime ?? task.task.targetFinishTime;
+    if (_parseClockToMinutes(candidate) != null) {
+      return candidate;
     }
-
-    if (checkpointMinutes < finishMinutes) {
-      return 'Jam check progress tidak boleh lebih awal dari jam selesai kerja.';
-    }
-
-    return null;
+    return _addMinutesToClock(
+      _defaultCheckpointStartTime(task, editingSession: editingSession),
+      8 * 60,
+    );
   }
 
   int? _parseClockToMinutes(String value) {
@@ -1207,7 +1591,9 @@ class _TaskViewContent extends StatelessWidget {
   }
 
   Future<void> _showFinalValidationDialog(
-      BuildContext context, dynamic task) async {
+    BuildContext context,
+    dynamic task,
+  ) async {
     final noteCtrl = TextEditingController(
       text: 'Pekerjaan selesai dan siap ditutup final.',
     );
@@ -1239,8 +1625,9 @@ class _TaskViewContent extends StatelessWidget {
               minLines: 2,
               maxLines: 3,
               style: const TextStyle(color: AppColors.textPrimary),
-              decoration:
-                  const InputDecoration(labelText: 'Catatan Validasi Final'),
+              decoration: const InputDecoration(
+                labelText: 'Catatan Validasi Final',
+              ),
             ),
           ],
         ),
@@ -1252,11 +1639,11 @@ class _TaskViewContent extends StatelessWidget {
           FilledButton(
             onPressed: () {
               context.read<TaskViewBloc>().add(
-                    ValidateTaskFinal(
-                      planDailyId: task.planDailyId,
-                      note: noteCtrl.text.trim(),
-                    ),
-                  );
+                ValidateTaskFinal(
+                  planDailyId: task.planDailyId,
+                  note: noteCtrl.text.trim(),
+                ),
+              );
               Navigator.pop(dialogContext);
             },
             style: FilledButton.styleFrom(
@@ -1285,8 +1672,11 @@ class _EmptyView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assignment_outlined,
-                size: 56, color: AppColors.textDisabled),
+            Icon(
+              Icons.assignment_outlined,
+              size: 56,
+              color: AppColors.textDisabled,
+            ),
             SizedBox(height: 16),
             Text(
               'Tidak Ada Task',
@@ -1301,7 +1691,10 @@ class _EmptyView extends StatelessWidget {
               'Tidak ditemukan task dengan filter yang dipilih.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             ),
           ],
         ),
@@ -1381,8 +1774,10 @@ class _DrilldownTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.gold.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
@@ -1443,8 +1838,9 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
       ),
       body: BlocBuilder<TaskViewBloc, TaskViewState>(
         builder: (context, state) {
-          final tasks =
-              state is TaskViewLoaded ? state.tasks : const <ViewTaskEntity>[];
+          final tasks = state is TaskViewLoaded
+              ? state.tasks
+              : const <ViewTaskEntity>[];
           final divisionTasks = tasks
               .where((task) => task.division.divisionName == divisionName)
               .toList();
@@ -1477,13 +1873,17 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
               const SizedBox(height: 12),
               ...entries.map((entry) {
                 final unitTasks = List<ViewTaskEntity>.from(entry.value)
-                  ..sort((a, b) =>
-                      a.task.jobDescription.compareTo(b.task.jobDescription));
+                  ..sort(
+                    (a, b) =>
+                        a.task.jobDescription.compareTo(b.task.jobDescription),
+                  );
                 final active = unitTasks
-                    .where((task) =>
-                        task.status == 'PROSES' ||
-                        task.status == 'CHECK_PROGRESS' ||
-                        task.status == 'SUBMITTED')
+                    .where(
+                      (task) =>
+                          task.status == 'PROSES' ||
+                          task.status == 'CHECK_PROGRESS' ||
+                          task.status == 'SUBMITTED',
+                    )
                     .length;
                 final trailingLabel = active > 0
                     ? '$active berjalan'
@@ -1503,6 +1903,7 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
                           child: _TaskJobdescPage(
                             title: entry.key,
                             unitName: entry.key,
+                            divisionName: divisionName,
                             taskType: taskType,
                             focusTaskId: focusTaskId,
                           ),
@@ -1524,19 +1925,23 @@ class _TaskJobdescPage extends StatelessWidget {
   const _TaskJobdescPage({
     required this.title,
     required this.unitName,
+    required this.divisionName,
     required this.taskType,
     required this.focusTaskId,
   });
 
   final String title;
   final String unitName;
+  final String divisionName;
   final TaskType taskType;
   final String? focusTaskId;
 
   @override
   Widget build(BuildContext context) {
-    final viewContent =
-        _TaskViewContent(taskType: taskType, focusTaskId: focusTaskId);
+    final viewContent = _TaskViewContent(
+      taskType: taskType,
+      focusTaskId: focusTaskId,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -1553,16 +1958,21 @@ class _TaskJobdescPage extends StatelessWidget {
             );
           }
 
-          final tasks = List<ViewTaskEntity>.from(
-            state.tasks.where((task) => task.unit.unitName == unitName),
-          )..sort((a, b) {
-              final aFocus = a.planDailyId == focusTaskId ? 1 : 0;
-              final bFocus = b.planDailyId == focusTaskId ? 1 : 0;
-              if (aFocus != bFocus) {
-                return bFocus.compareTo(aFocus);
-              }
-              return a.task.jobDescription.compareTo(b.task.jobDescription);
-            });
+          final tasks =
+              List<ViewTaskEntity>.from(
+                state.tasks.where(
+                  (task) =>
+                      task.unit.unitName == unitName &&
+                      task.division.divisionName == divisionName,
+                ),
+              )..sort((a, b) {
+                final aFocus = a.planDailyId == focusTaskId ? 1 : 0;
+                final bFocus = b.planDailyId == focusTaskId ? 1 : 0;
+                if (aFocus != bFocus) {
+                  return bFocus.compareTo(aFocus);
+                }
+                return a.task.jobDescription.compareTo(b.task.jobDescription);
+              });
 
           if (tasks.isEmpty) {
             return const _EmptyView();
@@ -1591,18 +2001,24 @@ class _TaskJobdescPage extends StatelessWidget {
               ...tasks.map(
                 (task) => ViewTaskCard(
                   task: task,
+                  taskDate: state.filter.date.toIso8601String().substring(0, 10),
                   isHighlighted: task.planDailyId == focusTaskId,
                   showEmployee: state.role != 'op',
                   showDivision: false,
                   onCheckpointTap:
                       hasPermission(state.role, Permission.taskCheckpoint) &&
-                              task.checkpointHistory.isNotEmpty
-                          ? (session) =>
-                              viewContent._showCheckpointReviewDialog(
-                                  context, task, session)
-                          : null,
-                  actionArea:
-                      viewContent._buildTaskActionArea(context, state, task),
+                          task.checkpointHistory.isNotEmpty
+                      ? (TaskCheckpointSession session) => viewContent._showCheckpointReviewDialog(
+                          context,
+                          task,
+                          session,
+                        )
+                      : null,
+                  actionArea: viewContent._buildTaskActionArea(
+                    context,
+                    state,
+                    task,
+                  ),
                 ),
               ),
             ],

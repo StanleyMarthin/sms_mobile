@@ -23,6 +23,8 @@ class JobPlan {
     required this.note,
     this.panelCustomNote,
     this.rejectNote,
+    this.targetHoursAlias,
+    this.remainingHoursAlias,
   });
 
   final String planId;
@@ -46,4 +48,6 @@ class JobPlan {
   final String note;
   final String? panelCustomNote;
   final String? rejectNote;
+  final String? targetHoursAlias;
+  final String? remainingHoursAlias;
 }

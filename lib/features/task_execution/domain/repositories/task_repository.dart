@@ -1,3 +1,10 @@
+/*
+Tujuan: Kontrak domain untuk operasi task execution dan self-execution milik management.
+Caller: StartJobUseCase, TaskBloc, dan flow task execution management.
+Dependensi: Failure model domain, TaskEntity, TaskExecutionLog.
+Main Functions: getTodaysTasks, startJobExecution, submitTaskExecution, recordBreak.
+Side Effects: Tidak ada langsung; implementasi turunannya melakukan HTTP call dan upload flow.
+*/
 /// Abstract TaskRepository interface in the domain layer.
 ///
 /// This is the central contract between the domain and data layers.
@@ -65,6 +72,7 @@ abstract class TaskRepository {
   Future<Either<Failure, List<TaskEntity>>> getTodaysTasks({
     required DateTime date,
     required bool isOvertime,
+    bool forceOwnOnly = false,
   });
 
   /// Fetches a single task by its plandailyId along with its current panel lock status.

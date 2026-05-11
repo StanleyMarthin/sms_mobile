@@ -36,8 +36,10 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     if (itemStatus != null) q['itemStatus'] = itemStatus;
     if (transactionType != null) q['transactionType'] = transactionType;
 
-    final res =
-        await apiClient.get(ApiEndpoints.warehouseLogs, queryParameters: q);
+    final res = await apiClient.get(
+      ApiEndpoints.warehouseLogs,
+      queryParameters: q,
+    );
     final data = (res.data as Map<String, dynamic>?) ?? {};
     return _listOf(data['logs']);
   }
@@ -47,8 +49,10 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
   Future<List<Map<String, dynamic>>> getMyItems() async {
     final uid = _userId;
     if (uid.isEmpty) return [];
-    final res = await apiClient
-        .get(ApiEndpoints.warehouseMyItems, queryParameters: {'userId': uid});
+    final res = await apiClient.get(
+      ApiEndpoints.warehouseMyItems,
+      queryParameters: {'userId': uid},
+    );
     final data = (res.data as Map<String, dynamic>?) ?? {};
     return _listOf(data['items']);
   }
@@ -58,8 +62,10 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
   Future<List<Map<String, dynamic>>> getPendingApprovals() async {
     final uid = _userId;
     if (uid.isEmpty) return [];
-    final res = await apiClient.get(ApiEndpoints.warehousePendingApproval,
-        queryParameters: {'userId': uid});
+    final res = await apiClient.get(
+      ApiEndpoints.warehousePendingApproval,
+      queryParameters: {'userId': uid},
+    );
     final data = (res.data as Map<String, dynamic>?) ?? {};
     return _listOf(data['items']);
   }
@@ -70,8 +76,10 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     final uid = _userId;
     final q = <String, dynamic>{'userId': uid};
     if (carId != null) q['carId'] = carId;
-    final res = await apiClient.get(ApiEndpoints.warehouseStockCard,
-        queryParameters: q);
+    final res = await apiClient.get(
+      ApiEndpoints.warehouseStockCard,
+      queryParameters: q,
+    );
     final data = (res.data as Map<String, dynamic>?) ?? {};
     return _listOf(data['items']);
   }
@@ -173,27 +181,33 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     int? storageLocationId,
     String? locationDetail,
   }) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': approved ? 'approve' : 'reject',
-      'userId': _userId,
-      'logId': logId,
-      'approved': approved,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-      if (storageLocationId != null) 'storageLocationId': storageLocationId,
-      if (locationDetail != null && locationDetail.isNotEmpty)
-        'locationDetail': locationDetail,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': approved ? 'approve' : 'reject',
+        'userId': _userId,
+        'logId': logId,
+        'approved': approved,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (storageLocationId != null) 'storageLocationId': storageLocationId,
+        if (locationDetail != null && locationDetail.isNotEmpty)
+          'locationDetail': locationDetail,
+      },
+    );
   }
 
   // ── installItem ─────────────────────────────────────────────
   @override
   Future<void> installItem({required String logId, String? notes}) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': 'install',
-      'userId': _userId,
-      'logId': logId,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'install',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
   }
 
   @override
@@ -204,26 +218,32 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     String? locationDetail,
     List<String>? photoUrls,
   }) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': 'ready',
-      'userId': _userId,
-      'logId': logId,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-      if (storageLocationId != null) 'storageLocationId': storageLocationId,
-      if (locationDetail != null && locationDetail.isNotEmpty)
-        'locationDetail': locationDetail,
-      if (photoUrls != null && photoUrls.isNotEmpty) 'photoUrls': photoUrls,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'ready',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (storageLocationId != null) 'storageLocationId': storageLocationId,
+        if (locationDetail != null && locationDetail.isNotEmpty)
+          'locationDetail': locationDetail,
+        if (photoUrls != null && photoUrls.isNotEmpty) 'photoUrls': photoUrls,
+      },
+    );
   }
 
   @override
   Future<void> releaseItem({required String logId, String? notes}) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': 'release',
-      'userId': _userId,
-      'logId': logId,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'release',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
   }
 
   // ── returnItem ──────────────────────────────────────────────
@@ -234,14 +254,30 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     String? itemCondition,
     double? qtyReturned,
   }) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': 'return',
-      'userId': _userId,
-      'logId': logId,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-      if (itemCondition != null) 'itemCondition': itemCondition,
-      if (qtyReturned != null) 'qtyReturned': qtyReturned,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'return',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (itemCondition != null) 'itemCondition': itemCondition,
+        if (qtyReturned != null) 'qtyReturned': qtyReturned,
+      },
+    );
+  }
+
+  @override
+  Future<void> remindReturn({required String logId, String? notes}) async {
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'remind_return',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
   }
 
   @override
@@ -251,15 +287,18 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     int? storageLocationId,
     String? locationDetail,
   }) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': 'store',
-      'userId': _userId,
-      'logId': logId,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-      if (storageLocationId != null) 'storageLocationId': storageLocationId,
-      if (locationDetail != null && locationDetail.isNotEmpty)
-        'locationDetail': locationDetail,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'store',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (storageLocationId != null) 'storageLocationId': storageLocationId,
+        if (locationDetail != null && locationDetail.isNotEmpty)
+          'locationDetail': locationDetail,
+      },
+    );
   }
 
   @override
@@ -269,15 +308,18 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
     int? storageLocationId,
     String? locationDetail,
   }) async {
-    await apiClient.put(ApiEndpoints.warehouse, data: {
-      'action': 'locate',
-      'userId': _userId,
-      'logId': logId,
-      if (notes != null && notes.isNotEmpty) 'notes': notes,
-      if (storageLocationId != null) 'storageLocationId': storageLocationId,
-      if (locationDetail != null && locationDetail.isNotEmpty)
-        'locationDetail': locationDetail,
-    });
+    await apiClient.put(
+      ApiEndpoints.warehouse,
+      data: {
+        'action': 'locate',
+        'userId': _userId,
+        'logId': logId,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (storageLocationId != null) 'storageLocationId': storageLocationId,
+        if (locationDetail != null && locationDetail.isNotEmpty)
+          'locationDetail': locationDetail,
+      },
+    );
   }
 
   // ── uploadPhoto ─────────────────────────────────────────────
@@ -323,11 +365,11 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
 
       // stream upload
       file.openRead().listen(
-            (data) => request.sink.add(data),
-            onDone: () => request.sink.close(),
-            onError: (e) => request.sink.addError(e),
-            cancelOnError: true,
-          );
+        (data) => request.sink.add(data),
+        onDone: () => request.sink.close(),
+        onError: (e) => request.sink.addError(e),
+        cancelOnError: true,
+      );
 
       final response = await request.send();
 

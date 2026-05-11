@@ -1,3 +1,10 @@
+/*
+Tujuan: Definisi event untuk TaskBloc pada flow task execution mekanik.
+Caller: MechanicTaskPage, TaskListPage, TaskStartSheet, dan TaskExecutionSheet.
+Dependensi: Equatable, TaskDraft, TaskExecutionLog.
+Main Functions: LoadTodaysTasksEvent, StartTaskFlowEvent, SubmitExecutionEvent.
+Side Effects: Tidak ada langsung; event memicu HTTP/upload lewat bloc.
+*/
 import 'package:equatable/equatable.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/entities/task_execution_log.dart';
@@ -19,14 +26,16 @@ abstract class TaskEvent extends Equatable {
 class LoadTodaysTasksEvent extends TaskEvent {
   final bool isOvertime;
   final DateTime date;
+  final bool forceOwnOnly;
 
   const LoadTodaysTasksEvent({
     this.isOvertime = false,
     required this.date,
+    this.forceOwnOnly = false,
   });
 
   @override
-  List<Object?> get props => [isOvertime, date];
+  List<Object?> get props => [isOvertime, date, forceOwnOnly];
 }
 
 /// Triggered when user pulls to refresh the task list.
@@ -73,10 +82,7 @@ class StartTaskFlowEvent extends TaskEvent {
   final String plandailyId;
   final TaskDraft draft;
 
-  const StartTaskFlowEvent({
-    required this.plandailyId,
-    required this.draft,
-  });
+  const StartTaskFlowEvent({required this.plandailyId, required this.draft});
 
   @override
   List<Object?> get props => [plandailyId, draft];

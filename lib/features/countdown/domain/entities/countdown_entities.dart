@@ -48,6 +48,8 @@ class CountdownSection {
     required this.totalTargetHours,
     required this.sectionProgress,
     required this.sectionStatus,
+    this.totalTargetHoursAlias,
+    this.totalRemainingHoursAlias,
   });
   final int panelId;
   final String sectionName;
@@ -57,6 +59,8 @@ class CountdownSection {
   final double totalTargetHours;
   final double sectionProgress;
   final String sectionStatus;
+  final String? totalTargetHoursAlias;
+  final String? totalRemainingHoursAlias;
 }
 
 class CountdownJobdesc {
@@ -96,6 +100,8 @@ class CountdownJobdesc {
     this.rejectedRevisionByName,
     this.rejectedRevisionAt,
     this.isLockedByOtherDivision = false,
+    this.targetHoursRevisedAlias,
+    this.remainingHoursAlias,
   });
 
   final String id;
@@ -133,6 +139,8 @@ class CountdownJobdesc {
   final String? rejectedRevisionByName;
   final DateTime? rejectedRevisionAt;
   final bool isLockedByOtherDivision;
+  final String? targetHoursRevisedAlias;
+  final String? remainingHoursAlias;
 }
 
 class CountdownDetailItem {

@@ -104,7 +104,7 @@ class _AlarmPageState extends State<AlarmPage> with SingleTickerProviderStateMix
                   ),
                 ),
                 child: const Text(
-                  'MATIKAN ALARM',
+                  'ABAIKAN PENGINGAT',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),

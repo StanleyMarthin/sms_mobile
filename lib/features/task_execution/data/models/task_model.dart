@@ -66,6 +66,8 @@ class TaskModel {
   final double targetHoursRevised;
   final double remainingHours;
   final String taskDate;
+  final String startTime;
+  final String targetFinishTime;
   final String createdAt;
   final String? startedAt;
   final String? completedAt;
@@ -93,6 +95,8 @@ class TaskModel {
     required this.targetHoursRevised,
     required this.remainingHours,
     required this.taskDate,
+    this.startTime = '08:00',
+    this.targetFinishTime = '16:00',
     required this.createdAt,
     this.startedAt,
     this.completedAt,
@@ -171,6 +175,8 @@ class TaskModel {
     targetHoursRevised: targetHoursRevised,
     remainingHours: remainingHours,
     taskDate: taskDate,
+    startTime: startTime,
+    targetFinishTime: targetFinishTime,
     createdAt: createdAt,
     startedAt: startedAt,
     completedAt: completedAt,
@@ -202,6 +208,8 @@ class TaskModel {
     double? targetHoursRevised,
     double? remainingHours,
     String? taskDate,
+    String? startTime,
+    String? targetFinishTime,
     String? createdAt,
     String? startedAt,
     String? completedAt,
@@ -229,6 +237,8 @@ class TaskModel {
       targetHoursRevised: targetHoursRevised ?? this.targetHoursRevised,
       remainingHours: remainingHours ?? this.remainingHours,
       taskDate: taskDate ?? this.taskDate,
+      startTime: startTime ?? this.startTime,
+      targetFinishTime: targetFinishTime ?? this.targetFinishTime,
       createdAt: createdAt ?? this.createdAt,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,

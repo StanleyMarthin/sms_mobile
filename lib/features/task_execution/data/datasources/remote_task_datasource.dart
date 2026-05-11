@@ -1,3 +1,10 @@
+/*
+Tujuan: Kontrak datasource remote untuk fetch dan aksi task execution termasuk scope self-only.
+Caller: TaskRepositoryImpl dan implementasi datasource task execution.
+Dependensi: TaskModel, TaskExecutionLog.
+Main Functions: getTodaysTasks, startJobExecution, submitTaskExecution.
+Side Effects: Implementasi turunannya melakukan HTTP call ke service task.
+*/
 // RemoteTaskDataSource — abstract interface and exception classes
 // for task data operations.
 library;
@@ -24,10 +31,7 @@ class ServerException implements Exception {
   /// Human-readable error message.
   final String? message;
 
-  ServerException({
-    this.statusCode,
-    this.message = 'Server Exception',
-  });
+  ServerException({this.statusCode, this.message = 'Server Exception'});
 
   @override
   String toString() => 'ServerException(statusCode: $statusCode): $message';
@@ -41,10 +45,7 @@ class ClientException implements Exception {
   /// Human-readable error message.
   final String? message;
 
-  ClientException({
-    this.statusCode,
-    this.message = 'Client Exception',
-  });
+  ClientException({this.statusCode, this.message = 'Client Exception'});
 
   @override
   String toString() => 'ClientException(statusCode: $statusCode): $message';
@@ -102,6 +103,7 @@ abstract class RemoteTaskDataSource {
   Future<List<TaskModel>> getTodaysTasks({
     required DateTime date,
     required bool isOvertime,
+    bool forceOwnOnly = false,
   });
 
   /// Fetches a single task by its plandailyId with current panel lock status.
@@ -218,8 +220,10 @@ abstract class RemoteTaskDataSource {
   ///   - DioException: If network error occurs
   ///
   /// Expected API endpoint: POST /api/mechanic/tasks/{plandailyId}/finish
-  Future<TaskModel> finishJobExecution(String plandailyId,
-      {int breakDurationMinutes = 60});
+  Future<TaskModel> finishJobExecution(
+    String plandailyId, {
+    int breakDurationMinutes = 60,
+  });
 
   /// Submits a full task execution log with times, progress, and photos.
   ///

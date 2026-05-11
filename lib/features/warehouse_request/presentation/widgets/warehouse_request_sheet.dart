@@ -33,6 +33,28 @@ class WarehouseJobContext {
   final DateTime? deadlineDate;
 }
 
+class _WarehouseDraftItem {
+  const _WarehouseDraftItem({
+    required this.itemName,
+    required this.qty,
+    required this.uom,
+  });
+
+  final String itemName;
+  final double qty;
+  final String uom;
+}
+
+class _PendingWarehouseSubmitItem {
+  const _PendingWarehouseSubmitItem({
+    required this.item,
+    this.fromForm = false,
+  });
+
+  final _WarehouseDraftItem item;
+  final bool fromForm;
+}
+
 /// Sheet request barang gudang (PEMINJAMAN / PENGAMBILAN).
 /// Untuk PENYIMPANAN gunakan [WarehouseStorageSheet].
 class WarehouseRequestSheet extends StatefulWidget {
@@ -65,6 +87,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   final _qtyCtrl = TextEditingController(text: '1');
   final _uomCtrl = TextEditingController(text: 'PCS');
   final _notesCtrl = TextEditingController();
+  final List<_WarehouseDraftItem> _draftItems = [];
 
   String _itemCategory = 'SPARE_PART';
   String _transactionType = 'PEMINJAMAN';
@@ -143,11 +166,40 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     });
   }
 
+  void _handleCategoryChange(String value) {
+    if (_draftItems.isNotEmpty) {
+      AppNotification.showWarning(
+        context,
+        'Kosongkan daftar dulu untuk ganti kategori.',
+      );
+      return;
+    }
+    setState(() {
+      _itemCategory = value;
+      _syncTrxType();
+    });
+  }
+
+  void _handleTransactionChange(String value) {
+    if (_draftItems.isNotEmpty) {
+      AppNotification.showWarning(
+        context,
+        'Kirim atau hapus daftar dulu untuk ganti tipe.',
+      );
+      return;
+    }
+    setState(() {
+      _transactionType = value;
+      if (_transactionType != 'PENGAMBILAN') _installToUnit = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.surfaceCard,
@@ -166,7 +218,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                 const SizedBox(height: 14),
                 if (_isLinked) ...[
                   _jobBanner(),
-                  const SizedBox(height: 16)
+                  const SizedBox(height: 16),
                 ] else if (_itemCategory != 'TOOLS') ...[
                   _label('Unit / Kendaraan'),
                   const SizedBox(height: 8),
@@ -188,23 +240,31 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                       activeThumbColor: AppColors.gold,
                       activeTrackColor: AppColors.gold.withValues(alpha: 0.35),
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Langsung dipasang ke unit',
-                          style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600)),
+                      title: const Text(
+                        'Langsung dipasang ke unit',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       subtitle: const Text(
-                          'Gunakan bila barang langsung terpasang.',
-                          style: TextStyle(
-                              color: AppColors.textMuted, fontSize: 11)),
+                        'Gunakan bila barang langsung terpasang.',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
                       onChanged: (v) => setState(() => _installToUnit = v),
                     ),
                     const SizedBox(height: 8),
                   ],
                 ] else ...[
-                  _infoBox(_itemCategory == 'BAHAN'
-                      ? 'Bahan dipakai langsung dan tidak perlu dikembalikan.'
-                      : 'Tools dipinjam lalu dikembalikan setelah selesai digunakan.'),
+                  _infoBox(
+                    _itemCategory == 'BAHAN'
+                        ? 'ACC: Ketua Divisi → Kepala Gudang → PPIC.'
+                        : 'Tools langsung ke admin gudang.',
+                  ),
                   const SizedBox(height: 14),
                 ],
                 _label('Nama Barang'),
@@ -216,8 +276,9 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                   onSelected: _onItemSelected,
                 ),
                 const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
+                Row(
+                  children: [
+                    Expanded(
                       flex: 2,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -227,19 +288,25 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                           TextField(
                             controller: _qtyCtrl,
                             keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true),
-                            style:
-                                const TextStyle(color: AppColors.textPrimary),
+                              decimal: true,
+                            ),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
                             decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.numbers_outlined,
-                                  color: AppColors.textMuted, size: 20),
+                              prefixIcon: Icon(
+                                Icons.numbers_outlined,
+                                color: AppColors.textMuted,
+                                size: 20,
+                              ),
                               hintText: '1',
                             ),
                           ),
                         ],
-                      )),
-                  const SizedBox(width: 12),
-                  Expanded(
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
                       flex: 2,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,26 +315,44 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                           const SizedBox(height: 8),
                           TextField(
                             controller: _uomCtrl,
-                            style:
-                                const TextStyle(color: AppColors.textPrimary),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
                             decoration: const InputDecoration(hintText: 'PCS'),
                           ),
                         ],
-                      )),
-                ]),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
-                _label('Catatan (opsional)'),
+                _addItemButton(),
+                if (_draftItems.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  _draftList(),
+                ],
+                const SizedBox(height: 14),
+                _label(
+                  _draftItems.length > 1
+                      ? 'Catatan (semua item)'
+                      : 'Catatan (opsional)',
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _notesCtrl,
                   minLines: 2,
                   maxLines: 3,
                   style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 13),
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Catatan tambahan bila diperlukan',
-                    prefixIcon: Icon(Icons.notes_outlined,
-                        color: AppColors.textMuted, size: 20),
+                    prefixIcon: Icon(
+                      Icons.notes_outlined,
+                      color: AppColors.textMuted,
+                      size: 20,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -282,72 +367,92 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
 
   // ── sub-widgets ───────────────────────────────────────────────
   Widget _handle() => Center(
-        child: Container(
-          width: 40,
-          height: 4,
-          decoration: BoxDecoration(
-              color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+    child: Container(
+      width: 40,
+      height: 4,
+      decoration: BoxDecoration(
+        color: AppColors.border,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    ),
+  );
+
+  Widget _title() => Row(
+    children: [
+      const Icon(Icons.warehouse_outlined, color: AppColors.gold, size: 20),
+      const SizedBox(width: 8),
+      Text(
+        _isLinked ? 'Ajukan Barang untuk Pekerjaan' : 'Ajukan Barang',
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
         ),
-      );
+      ),
+    ],
+  );
 
-  Widget _title() => Row(children: [
-        const Icon(Icons.warehouse_outlined, color: AppColors.gold, size: 20),
-        const SizedBox(width: 8),
-        Text(_isLinked ? 'Ajukan Barang untuk Pekerjaan' : 'Ajukan Barang',
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary)),
-      ]);
-
-  Widget _label(String t) => Text(t,
-      style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textMuted,
-          letterSpacing: 0.3));
+  Widget _label(String t) => Text(
+    t,
+    style: const TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      color: AppColors.textMuted,
+      letterSpacing: 0.3,
+    ),
+  );
 
   Widget _infoBox(String msg) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            msg,
+            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+          ),
         ),
-        child: Row(children: [
-          const Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
-          const SizedBox(width: 8),
-          Expanded(
-              child: Text(msg,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textMuted))),
-        ]),
-      );
+      ],
+    ),
+  );
 
   Widget _jobBanner() {
     final ctx = widget.jobContext!;
     final today = DateTime.now();
     final todayD = DateTime(today.year, today.month, today.day);
-    final isToday = ctx.targetSearchDate == null ||
-        (DateTime(ctx.targetSearchDate!.year, ctx.targetSearchDate!.month,
-                ctx.targetSearchDate!.day) ==
+    final isToday =
+        ctx.targetSearchDate == null ||
+        (DateTime(
+              ctx.targetSearchDate!.year,
+              ctx.targetSearchDate!.month,
+              ctx.targetSearchDate!.day,
+            ) ==
             todayD);
     final diffDays = ctx.targetSearchDate == null
         ? 0
-        : DateTime(ctx.targetSearchDate!.year, ctx.targetSearchDate!.month,
-                ctx.targetSearchDate!.day)
-            .difference(todayD)
-            .inDays;
+        : DateTime(
+            ctx.targetSearchDate!.year,
+            ctx.targetSearchDate!.month,
+            ctx.targetSearchDate!.day,
+          ).difference(todayD).inDays;
     final isTomorrow = diffDays == 1;
     final dateLabel = isToday
         ? null
         : isTomorrow
-            ? 'Besok'
-            : '${ctx.targetSearchDate!.day}/${ctx.targetSearchDate!.month}/${ctx.targetSearchDate!.year}';
+        ? 'Besok'
+        : '${ctx.targetSearchDate!.day}/${ctx.targetSearchDate!.month}/${ctx.targetSearchDate!.year}';
     final isOvertime = !isToday;
 
-    final accentColor =
-        isOvertime ? AppColors.statusInProgress : AppColors.gold;
+    final accentColor = isOvertime
+        ? AppColors.statusInProgress
+        : AppColors.gold;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -355,44 +460,68 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: accentColor.withValues(alpha: 0.3)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(isOvertime ? Icons.nightlight_round : Icons.link_rounded,
-              size: 13, color: accentColor),
-          const SizedBox(width: 6),
-          Text(
-            isOvertime
-                ? 'Task lembur${dateLabel != null ? " ($dateLabel)" : ""}'
-                : 'Terkait pekerjaan aktif',
-            style: TextStyle(
-                fontSize: 11, fontWeight: FontWeight.w700, color: accentColor),
-          ),
-          if (dateLabel != null && !isOvertime) ...[
-            const Spacer(),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: accentColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isOvertime ? Icons.nightlight_round : Icons.link_rounded,
+                size: 13,
+                color: accentColor,
               ),
-              child: Text(dateLabel,
-                  style: TextStyle(
+              const SizedBox(width: 6),
+              Text(
+                isOvertime
+                    ? 'Task lembur${dateLabel != null ? " ($dateLabel)" : ""}'
+                    : 'Terkait pekerjaan aktif',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: accentColor,
+                ),
+              ),
+              if (dateLabel != null && !isOvertime) ...[
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    dateLabel,
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: accentColor)),
-            ),
-          ],
-        ]),
-        const SizedBox(height: 6),
-        Text(ctx.unitName,
+                      color: accentColor,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            ctx.unitName,
             style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary)),
-        Text('${ctx.panelName}  ·  ${ctx.jobName}',
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-      ]),
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          Text(
+            '${ctx.panelName}  ·  ${ctx.jobName}',
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -406,40 +535,46 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
       children: items.map((e) {
         final active = _itemCategory == e.$1;
         return Expanded(
-            child: Padding(
-          padding: EdgeInsets.only(right: e.$1 != 'TOOLS' ? 8 : 0),
-          child: GestureDetector(
-            onTap: () => setState(() {
-              _itemCategory = e.$1;
-              _syncTrxType();
-            }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              decoration: BoxDecoration(
-                color: active
-                    ? AppColors.gold.withValues(alpha: 0.15)
-                    : AppColors.background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
+          child: Padding(
+            padding: EdgeInsets.only(right: e.$1 != 'TOOLS' ? 8 : 0),
+            child: GestureDetector(
+              onTap: () => _handleCategoryChange(e.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: active
+                      ? AppColors.gold.withValues(alpha: 0.15)
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
                     color: active
                         ? AppColors.gold.withValues(alpha: 0.7)
-                        : AppColors.border),
-              ),
-              child: Column(children: [
-                Icon(e.$3,
-                    size: 18,
-                    color: active ? AppColors.gold : AppColors.textMuted),
-                const SizedBox(height: 4),
-                Text(e.$2,
-                    style: TextStyle(
+                        : AppColors.border,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Icon(
+                      e.$3,
+                      size: 18,
+                      color: active ? AppColors.gold : AppColors.textMuted,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      e.$2,
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: active ? AppColors.gold : AppColors.textMuted)),
-              ]),
+                        color: active ? AppColors.gold : AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ));
+        );
       }).toList(),
     );
   }
@@ -453,41 +588,47 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
       children: items.map((e) {
         final active = _transactionType == e.$1;
         return Expanded(
-            child: Padding(
-          padding: EdgeInsets.only(right: e.$1 == 'PEMINJAMAN' ? 8 : 0),
-          child: GestureDetector(
-            onTap: () => setState(() {
-              _transactionType = e.$1;
-              if (_transactionType != 'PENGAMBILAN') _installToUnit = false;
-            }),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              decoration: BoxDecoration(
-                color: active
-                    ? AppColors.gold.withValues(alpha: 0.15)
-                    : AppColors.background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
+          child: Padding(
+            padding: EdgeInsets.only(right: e.$1 == 'PEMINJAMAN' ? 8 : 0),
+            child: GestureDetector(
+              onTap: () => _handleTransactionChange(e.$1),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: active
+                      ? AppColors.gold.withValues(alpha: 0.15)
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
                     color: active
                         ? AppColors.gold.withValues(alpha: 0.7)
-                        : AppColors.border),
-              ),
-              child:
-                  Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(e.$3,
-                    size: 16,
-                    color: active ? AppColors.gold : AppColors.textMuted),
-                const SizedBox(width: 6),
-                Text(e.$2,
-                    style: TextStyle(
+                        : AppColors.border,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      e.$3,
+                      size: 16,
+                      color: active ? AppColors.gold : AppColors.textMuted,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      e.$2,
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: active ? AppColors.gold : AppColors.textMuted)),
-              ]),
+                        color: active ? AppColors.gold : AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
-        ));
+        );
       }).toList(),
     );
   }
@@ -495,10 +636,14 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   Widget _unitDropdown() {
     if (_isLoadingCars) {
       return const SizedBox(
-          height: 48,
-          child: Center(
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.gold)));
+        height: 48,
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.gold,
+          ),
+        ),
+      );
     }
     return DropdownButtonFormField<String>(
       initialValue: _selectedCarId,
@@ -508,10 +653,12 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
       isExpanded: true,
       decoration: const InputDecoration(hintText: 'Pilih Unit / Kendaraan'),
       items: _apiCars
-          .map((car) => DropdownMenuItem(
-                value: car['id'] as String,
-                child: Text('${car['unit_name']} - ${car['customer_name']}'),
-              ))
+          .map(
+            (car) => DropdownMenuItem(
+              value: car['id'] as String,
+              child: Text('${car['unit_name']} - ${car['customer_name']}'),
+            ),
+          )
           .toList(),
       onChanged: (v) {
         if (v == null) return;
@@ -524,91 +671,324 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     );
   }
 
+  Widget _addItemButton() => Align(
+    alignment: Alignment.centerLeft,
+    child: OutlinedButton.icon(
+      onPressed: _isSaving ? null : _addItem,
+      icon: const Icon(Icons.add_rounded, size: 18),
+      label: const Text(
+        'Tambah ke Daftar',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.gold,
+        side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5)),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      ),
+    ),
+  );
+
+  Widget _draftList() => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Daftar Item',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '${_draftItems.length} item',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.gold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ..._draftItems.map(_draftItemTile),
+      ],
+    ),
+  );
+
+  Widget _draftItemTile(_WarehouseDraftItem item) => Container(
+    margin: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceCard,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: AppColors.borderSubtle),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.inventory_2_outlined,
+            size: 16,
+            color: AppColors.gold,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.itemName,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${_formatQty(item.qty)} ${item.uom}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          onPressed: _isSaving
+              ? null
+              : () => setState(() => _draftItems.remove(item)),
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(
+            Icons.close_rounded,
+            color: AppColors.textMuted,
+            size: 18,
+          ),
+        ),
+      ],
+    ),
+  );
+
   Widget _submitButton() => FilledButton.icon(
-        onPressed: _isSaving ? null : _submit,
-        icon: _isSaving
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.send_rounded, size: 18),
-        label: Text(
-          _isSaving ? 'Mengirim...' : 'Ajukan',
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.gold,
-          foregroundColor: AppColors.background,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
-      );
+    onPressed: _isSaving ? null : _submit,
+    icon: _isSaving
+        ? const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : const Icon(Icons.send_rounded, size: 18),
+    label: Text(
+      _isSaving
+          ? 'Mengirim...'
+          : _draftItems.isEmpty
+          ? 'Ajukan'
+          : 'Ajukan ${_draftItems.length} Item',
+      style: const TextStyle(fontWeight: FontWeight.w600),
+    ),
+    style: FilledButton.styleFrom(
+      backgroundColor: AppColors.gold,
+      foregroundColor: AppColors.background,
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+  );
 
   String get _hintName => _itemCategory == 'SPARE_PART'
       ? 'cth: Kampas Rem Depan'
       : _itemCategory == 'BAHAN'
-          ? 'cth: Cat Primer 2K'
-          : 'cth: Kunci Torsi';
+      ? 'cth: Cat Primer 2K'
+      : 'cth: Kunci Torsi';
 
-  Future<void> _submit() async {
+  String _formatQty(double qty) =>
+      qty % 1 == 0 ? qty.toInt().toString() : qty.toString();
+
+  bool get _hasPendingFormInput => _nameCtrl.text.trim().isNotEmpty;
+
+  _WarehouseDraftItem? _buildDraftItem({required bool showError}) {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      AppNotification.showError(context, 'Nama barang tidak boleh kosong.');
-      return;
+      if (showError) {
+        AppNotification.showError(context, 'Nama barang tidak boleh kosong.');
+      }
+      return null;
     }
-    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 1;
+    final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0;
     if (qty <= 0) {
-      AppNotification.showError(context, 'Jumlah harus lebih dari 0.');
-      return;
+      if (showError) {
+        AppNotification.showError(context, 'Jumlah harus lebih dari 0.');
+      }
+      return null;
     }
+    return _WarehouseDraftItem(
+      itemName: name,
+      qty: qty,
+      uom: _uomCtrl.text.trim().isNotEmpty ? _uomCtrl.text.trim() : 'PCS',
+    );
+  }
+
+  void _clearItemInputs() {
+    _nameCtrl.clear();
+    _qtyCtrl.text = '1';
+    _uomCtrl.text = 'PCS';
+  }
+
+  void _addItem() {
+    final item = _buildDraftItem(showError: true);
+    if (item == null) return;
+    setState(() {
+      _draftItems.add(item);
+      _clearItemInputs();
+    });
+  }
+
+  List<_PendingWarehouseSubmitItem> _collectSubmitItems() {
+    final items = <_PendingWarehouseSubmitItem>[
+      ..._draftItems.map((item) => _PendingWarehouseSubmitItem(item: item)),
+    ];
+
+    if (_draftItems.isEmpty) {
+      final current = _buildDraftItem(showError: true);
+      if (current == null) return const [];
+      items.add(_PendingWarehouseSubmitItem(item: current, fromForm: true));
+      return items;
+    }
+
+    if (_hasPendingFormInput) {
+      final current = _buildDraftItem(showError: true);
+      if (current == null) return const [];
+      items.add(_PendingWarehouseSubmitItem(item: current, fromForm: true));
+    }
+
+    return items;
+  }
+
+  Future<void> _submit() async {
     if (!_isLinked && _itemCategory != 'TOOLS' && _selectedCarId == null) {
       AppNotification.showError(
-          context, 'Pilih unit/kendaraan terlebih dahulu.');
+        context,
+        'Pilih unit/kendaraan terlebih dahulu.',
+      );
       return;
     }
     if (_transactionType == 'PENGAMBILAN' &&
         (_itemCategory == 'BAHAN' || _itemCategory == 'SPARE_PART') &&
         !_isLinked) {
       AppNotification.showError(
-          context, 'Pengambilan bahan/sparepart harus dari task aktif.');
+        context,
+        'Pengambilan bahan/sparepart harus dari task aktif.',
+      );
       return;
     }
+
+    final submitItems = _collectSubmitItems();
+    if (submitItems.isEmpty) return;
 
     setState(() => _isSaving = true);
     try {
       final session = sl<SessionManager>();
       final repo = sl<WarehouseRepository>();
       final ctx = widget.jobContext;
+      final submittedDraftItems = <_WarehouseDraftItem>[];
+      var submittedFormItem = false;
+      var submittedCount = 0;
 
-      await repo.createTransaction(
-        transactionType: _transactionType,
-        itemCategory: _itemCategory,
-        itemName: name,
-        qty: qty,
-        uom: _uomCtrl.text.trim().isNotEmpty ? _uomCtrl.text.trim() : 'PCS',
-        requester: session.fullName ?? '-',
-        division: session.divisionName ?? '-',
-        divisionId: session.divisionId ?? 0,
-        employeeId: session.userId ?? '-',
-        carId: ctx?.carId ?? _selectedCarId,
-        coreId: ctx?.coreId,
-        unitName: ctx?.unitName ?? _selectedUnitName,
-        panelName: ctx?.panelName,
-        jobdesc: ctx?.jobName,
-        installToUnit: _installToUnit,
-        targetSearchDate: DateTime.now().add(const Duration(days: 4)),
-        deadlineDate: ctx?.deadlineDate,
-        notes:
-            _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
-      );
+      for (final entry in submitItems) {
+        try {
+          await repo.createTransaction(
+            transactionType: _transactionType,
+            itemCategory: _itemCategory,
+            itemName: entry.item.itemName,
+            qty: entry.item.qty,
+            uom: entry.item.uom,
+            requester: session.fullName ?? '-',
+            division: session.divisionName ?? '-',
+            divisionId: session.divisionId ?? 0,
+            employeeId: session.userId ?? '-',
+            carId: ctx?.carId ?? _selectedCarId,
+            coreId: ctx?.coreId,
+            unitName: ctx?.unitName ?? _selectedUnitName,
+            panelName: ctx?.panelName,
+            jobdesc: ctx?.jobName,
+            installToUnit: _installToUnit,
+            targetSearchDate: DateTime.now().add(const Duration(days: 4)),
+            deadlineDate: ctx?.deadlineDate,
+            notes: _notesCtrl.text.trim().isNotEmpty
+                ? _notesCtrl.text.trim()
+                : null,
+          );
+          submittedCount += 1;
+          if (entry.fromForm) {
+            submittedFormItem = true;
+          } else {
+            submittedDraftItems.add(entry.item);
+          }
+        } catch (e) {
+          if (submittedDraftItems.isNotEmpty || submittedFormItem) {
+            setState(() {
+              _draftItems.removeWhere(submittedDraftItems.contains);
+              if (submittedFormItem) _clearItemInputs();
+            });
+          }
+          if (mounted) {
+            final prefix = submittedCount > 0
+                ? '$submittedCount item berhasil. '
+                : '';
+            AppNotification.showError(
+              context,
+              '${prefix}Gagal di ${entry.item.itemName}: $e',
+            );
+          }
+          return;
+        }
+      }
+
+      if (submittedDraftItems.isNotEmpty || submittedFormItem) {
+        setState(() {
+          _draftItems.removeWhere(submittedDraftItems.contains);
+          if (submittedFormItem) _clearItemInputs();
+        });
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop(true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) {
-          AppNotification.showSuccess(context, '$name berhasil diajukan');
+          final successMessage = submittedCount == 1
+              ? _itemCategory == 'TOOLS'
+                    ? '1 item masuk ke gudang'
+                    : '1 item berhasil diajukan'
+              : '$submittedCount item berhasil diajukan';
+          AppNotification.showSuccess(context, successMessage);
         }
       });
     } catch (e) {
@@ -697,8 +1077,9 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.surfaceCard,
@@ -713,28 +1094,40 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
               children: [
                 // Handle
                 Center(
-                    child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
                       color: AppColors.border,
-                      borderRadius: BorderRadius.circular(2)),
-                )),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 14),
                 // Title
-                const Row(children: [
-                  Icon(Icons.archive_outlined,
-                      color: Color(0xFF5B8EFF), size: 20),
-                  SizedBox(width: 8),
-                  Text('Simpan ke Gudang',
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.archive_outlined,
+                      color: Color(0xFF5B8EFF),
+                      size: 20,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'Simpan ke Gudang',
                       style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                ]),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 4),
-                const Text('Simpan barang yang sudah dilepas ke gudang.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                const Text(
+                  'Simpan barang yang sudah dilepas ke gudang.',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
                 const SizedBox(height: 16),
 
                 // Unit
@@ -773,11 +1166,16 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                   minLines: 2,
                   maxLines: 3,
                   style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 13),
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                  ),
                   decoration: const InputDecoration(
                     hintText: 'Catatan tambahan bila diperlukan',
-                    prefixIcon: Icon(Icons.notes_outlined,
-                        color: AppColors.textMuted, size: 20),
+                    prefixIcon: Icon(
+                      Icons.notes_outlined,
+                      color: AppColors.textMuted,
+                      size: 20,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -789,16 +1187,22 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : const Icon(Icons.archive_rounded, size: 18),
-                  label: Text(_isSaving ? 'Mengirim...' : 'Ajukan Penyimpanan',
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  label: Text(
+                    _isSaving ? 'Mengirim...' : 'Ajukan Penyimpanan',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF5B8EFF),
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
                 ),
               ],
@@ -809,20 +1213,27 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
     );
   }
 
-  Widget _label(String t) => Text(t,
-      style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: AppColors.textMuted,
-          letterSpacing: 0.3));
+  Widget _label(String t) => Text(
+    t,
+    style: const TextStyle(
+      fontSize: 11,
+      fontWeight: FontWeight.w600,
+      color: AppColors.textMuted,
+      letterSpacing: 0.3,
+    ),
+  );
 
   Widget _unitDropdown() {
     if (_isLoadingCars) {
       return const SizedBox(
-          height: 48,
-          child: Center(
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Color(0xFF5B8EFF))));
+        height: 48,
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Color(0xFF5B8EFF),
+          ),
+        ),
+      );
     }
     return DropdownButtonFormField<String>(
       initialValue: _selectedCarId,
@@ -832,10 +1243,12 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
       isExpanded: true,
       decoration: const InputDecoration(hintText: 'Pilih Unit / Kendaraan'),
       items: _apiCars
-          .map((car) => DropdownMenuItem(
-                value: car['id'] as String,
-                child: Text('${car['unit_name']} - ${car['customer_name']}'),
-              ))
+          .map(
+            (car) => DropdownMenuItem(
+              value: car['id'] as String,
+              child: Text('${car['unit_name']} - ${car['customer_name']}'),
+            ),
+          )
           .toList(),
       onChanged: (v) {
         if (v == null) return;
@@ -854,36 +1267,41 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
     const colors = [
       AppColors.statusDone,
       AppColors.statusInProgress,
-      AppColors.statusLocked
+      AppColors.statusLocked,
     ];
     return Row(
       children: List.generate(3, (i) {
         final active = _condition == opts[i];
         return Expanded(
-            child: Padding(
-          padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
-          child: GestureDetector(
-            onTap: () => setState(() => _condition = opts[i]),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: active
-                    ? colors[i].withValues(alpha: 0.15)
-                    : AppColors.background,
-                borderRadius: BorderRadius.circular(8),
-                border:
-                    Border.all(color: active ? colors[i] : AppColors.border),
-              ),
-              child: Text(labels[i],
+          child: Padding(
+            padding: EdgeInsets.only(right: i < 2 ? 8 : 0),
+            child: GestureDetector(
+              onTap: () => setState(() => _condition = opts[i]),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: active
+                      ? colors[i].withValues(alpha: 0.15)
+                      : AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: active ? colors[i] : AppColors.border,
+                  ),
+                ),
+                child: Text(
+                  labels[i],
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: active ? colors[i] : AppColors.textMuted)),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: active ? colors[i] : AppColors.textMuted,
+                  ),
+                ),
+              ),
             ),
           ),
-        ));
+        );
       }),
     );
   }
@@ -949,8 +1367,11 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                           shape: BoxShape.circle,
                         ),
                         padding: const EdgeInsets.all(4),
-                        child: const Icon(Icons.close,
-                            size: 14, color: AppColors.textPrimary),
+                        child: const Icon(
+                          Icons.close,
+                          size: 14,
+                          color: AppColors.textPrimary,
+                        ),
                       ),
                     ),
                   ),
@@ -1034,8 +1455,9 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
         unitName: _selectedUnitName,
         itemCondition: _condition,
         photoUrls: _photoUrls.isEmpty ? null : _photoUrls,
-        notes:
-            _notesCtrl.text.trim().isNotEmpty ? _notesCtrl.text.trim() : null,
+        notes: _notesCtrl.text.trim().isNotEmpty
+            ? _notesCtrl.text.trim()
+            : null,
       );
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -1139,8 +1561,11 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
           onChanged: _onChanged,
           decoration: InputDecoration(
             hintText: widget.hintText,
-            prefixIcon: const Icon(Icons.inventory_2_outlined,
-                color: AppColors.textMuted, size: 20),
+            prefixIcon: const Icon(
+              Icons.inventory_2_outlined,
+              color: AppColors.textMuted,
+              size: 20,
+            ),
             suffixIcon: _isLoading
                 ? const Padding(
                     padding: EdgeInsets.all(12),
@@ -1270,8 +1695,10 @@ class _SelectedItemPreview extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   '${item.itemCode} · ${item.uom}',
-                  style:
-                      const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 if (item.lastLocation?.isNotEmpty ?? false)
                   Padding(
@@ -1309,8 +1736,11 @@ class _SuggestionPhoto extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: const Icon(Icons.image_not_supported_outlined,
-            size: 18, color: AppColors.textMuted),
+        child: const Icon(
+          Icons.image_not_supported_outlined,
+          size: 18,
+          color: AppColors.textMuted,
+        ),
       );
     }
 
@@ -1326,8 +1756,11 @@ class _SuggestionPhoto extends StatelessWidget {
           height: 48,
           color: AppColors.surfaceInput,
           alignment: Alignment.center,
-          child: const Icon(Icons.broken_image_outlined,
-              size: 18, color: AppColors.textMuted),
+          child: const Icon(
+            Icons.broken_image_outlined,
+            size: 18,
+            color: AppColors.textMuted,
+          ),
         ),
       ),
     );

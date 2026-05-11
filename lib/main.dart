@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
@@ -15,8 +16,19 @@ void main() async {
   initDependencies();
   await sl<SessionManager>().init();
   await sl<NotificationInboxService>().init();
-  await FCMService()
-      .init(); // Wajib dipanggil sebelum runApp agar getToken() tersedia saat login
+  
+  try {
+    // Wajib dipanggil sebelum runApp agar getToken() tersedia saat login
+    // Jika izin notifikasi ditolak, init() akan melempar error
+    await FCMService().init();
+  } catch (e) {
+    if (e == 'NOTIFICATION_PERMISSION_DENIED') {
+      // Jika ditolak, keluar dari aplikasi sesuai instruksi
+      await SystemNavigator.pop();
+      return;
+    }
+  }
+
   WakelockPlus.enable();
   runApp(const SmWorkshopApp());
 }

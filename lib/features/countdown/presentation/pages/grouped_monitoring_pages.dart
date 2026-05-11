@@ -351,7 +351,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$totalJobdesc jobdesc • ${totalRemainingHours.toStringAsFixed(1)} jam sisa',
+                  '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemainingHours)} sisa',
                   style:
                       const TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
@@ -440,7 +440,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                 return CountdownNavCard(
                   title: sec.sectionName,
                   subtitle:
-                      '${sec.totalJobdesc} jobdesc • ${sec.totalRemainingHours.toStringAsFixed(1)} jam sisa • ${sec.sectionProgress.toStringAsFixed(1)}% • ${sec.sectionStatus}',
+                      '${sec.totalJobdesc} jobdesc • ${sec.totalRemainingHoursAlias ?? CountdownHelper.formatWorkHours(sec.totalRemainingHours)} sisa • ${sec.sectionProgress.toStringAsFixed(1)}% • ${sec.sectionStatus}',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -528,10 +528,8 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
       );
     }
 
-    final doneCount = _items
-        .where((i) =>
-            CountdownHelper.effectiveCountdownStatus(i).toUpperCase() == 'DONE')
-        .length;
+    final doneCount =
+        _items.where(CountdownHelper.isWorkCompleted).length;
     final totalItems = _items.length;
     final progress = totalItems == 0 ? 0.0 : doneCount / totalItems;
 
@@ -624,7 +622,7 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
                   panelName: item.panelName,
                   jobdesc: item.jobdesc,
                   subtitle:
-                      '${item.progress}% • ${item.remainingHours.toStringAsFixed(1)} jam sisa • DL ${item.deadlineDate}',
+                      '${item.progress}% • ${item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(item.remainingHours)} sisa • DL ${item.deadlineDate}',
                   statusStr: status,
                   onTap: () {
                     final role = sl<SessionManager>().role;
@@ -733,7 +731,7 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
                         fontSize: 11, color: AppColors.textMuted)),
                 const SizedBox(height: 4),
                 Text(
-                    '${widget.item.progress}% • ${widget.item.remainingHours.toStringAsFixed(1)} jam sisa',
+                    '${widget.item.progress}% • ${widget.item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(widget.item.remainingHours)} sisa',
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textMuted)),
               ],
@@ -1071,7 +1069,7 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                    '$totalJobdesc jobdesc • ${totalRemaining.toStringAsFixed(1)} jam sisa',
+                    '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemaining)} sisa',
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textMuted)),
               ],
@@ -1119,7 +1117,7 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                 return CountdownNavCard(
                   title: sec.sectionName,
                   subtitle:
-                      '${sec.totalJobdesc} jobdesc • ${sec.totalRemainingHours.toStringAsFixed(1)} jam sisa • ${sec.sectionProgress.toStringAsFixed(1)}%',
+                      '${sec.totalJobdesc} jobdesc • ${sec.totalRemainingHoursAlias ?? CountdownHelper.formatWorkHours(sec.totalRemainingHours)} sisa • ${sec.sectionProgress.toStringAsFixed(1)}%',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -1209,10 +1207,8 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
       );
     }
 
-    final doneCount = _items
-        .where((i) =>
-            CountdownHelper.effectiveCountdownStatus(i).toUpperCase() == 'DONE')
-        .length;
+    final doneCount =
+        _items.where(CountdownHelper.isWorkCompleted).length;
     final totalItems = _items.length;
     final progress = totalItems == 0 ? 0.0 : doneCount / totalItems;
 
@@ -1366,7 +1362,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                   panelName: item.panelName,
                   jobdesc: item.jobdesc,
                   subtitle:
-                      '${item.progress}% • ${item.remainingHours.toStringAsFixed(1)} jam sisa • DL ${item.deadlineDate}',
+                      '${item.progress}% • ${item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(item.remainingHours)} sisa • DL ${item.deadlineDate}',
                   statusStr: status,
                   onTap: () {
                     if (widget.jobPlanRepository != null &&

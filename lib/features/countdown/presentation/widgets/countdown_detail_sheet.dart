@@ -6,6 +6,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../job_plan/domain/repositories/job_plan_repository.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
+import '../pages/grouped_monitoring_pages.dart';
 import '../utils/countdown_helper.dart';
 import 'countdown_dialogs.dart';
 import 'countdown_shared.dart';
@@ -79,7 +80,7 @@ class CountdownDetailSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final effectiveStatus =
         CountdownHelper.effectiveCountdownStatus(item).toUpperCase();
-    final isDone = effectiveStatus == 'DONE' || effectiveStatus == 'QC READY';
+    final isDone = CountdownHelper.isWorkCompleted(item);
     final revisionBanner = CountdownHelper.revisionStatusBanner(item);
     final hasActiveRevision =
         item.revisionRequestStatus?.toUpperCase() == 'REQUESTED';
@@ -159,11 +160,11 @@ class CountdownDetailSheet extends StatelessWidget {
                 children: [
                   _infoRow('Task Category', item.taskCategory),
                   _infoRow('Target Jam',
-                      '${item.targetHoursRevised.toStringAsFixed(1)} jam'),
+                      item.targetHoursRevisedAlias ?? CountdownHelper.formatWorkHours(item.targetHoursRevised)),
                   _infoRow('Terpakai',
-                      '${item.totalActualHours.toStringAsFixed(1)} jam'),
+                      CountdownHelper.formatWorkHours(item.totalActualHours)),
                   _infoRow('Tersisa',
-                      '${item.remainingHours.toStringAsFixed(1)} jam'),
+                      item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(item.remainingHours)),
                   _infoRow('Mulai', item.startDate),
                   _infoRow('Deadline', item.deadlineDate),
                   if (item.qcLastStatus != null)
@@ -267,6 +268,30 @@ class CountdownDetailSheet extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
+                    const SizedBox(height: 8),
+
+                    // View History button
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => PmJobdescActualPage(
+                              unit: unit,
+                              item: item,
+                              repository: repository,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.history_rounded),
+                      label: const Text('Lihat Riwayat Pekerjaan'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.textPrimary,
+                        side: BorderSide(
+                            color: AppColors.textPrimary.withValues(alpha: 0.3)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
                   ],
                   if (isPm) ...[
                     const Text(
