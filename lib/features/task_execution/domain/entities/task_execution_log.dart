@@ -1,18 +1,12 @@
+/*
+Tujuan: Entity payload submit sesi kerja operator untuk task execution.
+Caller: TaskExecutionSheet, TaskBloc, repository task execution.
+Dependensi: equatable.
+Main Functions: TaskExecutionLog constructor, isDone, copyWith.
+Side Effects: Tidak ada; hanya representasi data in-memory.
+*/
 import 'package:equatable/equatable.dart';
 
-/// Represents a task submission payload for POST /api/v1/tasks/submit.
-///
-/// Maps to `sm_jobdesc_actual` table in the backend.
-///
-/// The mechanic fills a simple AppSheet-style form with:
-/// - Start / finish times (manual time pickers)
-/// - Break duration in minutes
-/// - Progress percentage (manual number input)
-/// - Status dropdown: pending | done
-/// - Photos: Before (optional), Process (optional), After (required)
-/// - Daily notes (optional free text)
-///
-/// Backend calculates `duration_hours` automatically.
 class TaskExecutionLog extends Equatable {
   /// Reference to the daily assignment.
   /// From: trx_jobdesc_plandaily.id
@@ -33,7 +27,7 @@ class TaskExecutionLog extends Equatable {
   /// Self-reported by the mechanic via manual number input.
   final double progressPercent;
 
-  /// Task status aligned with backend submit flow: `pending` or `done`.
+  /// Task status aligned with backend submit flow: `pending` atau `done`.
   final String status;
 
   /// File path to the "Before" photo (optional).
@@ -92,15 +86,15 @@ class TaskExecutionLog extends Equatable {
 
   @override
   List<Object?> get props => [
-        plandailyId,
-        startTime,
-        finishTime,
-        breakDurationMinutes,
-        progressPercent,
-        status,
-        photoBefore,
-        photoProcess,
-        photoAfter,
-        dailyNotes,
-      ];
+    plandailyId,
+    startTime,
+    finishTime,
+    breakDurationMinutes,
+    progressPercent,
+    status,
+    photoBefore,
+    photoProcess,
+    photoAfter,
+    dailyNotes,
+  ];
 }

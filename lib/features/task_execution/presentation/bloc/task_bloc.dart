@@ -8,7 +8,7 @@ Side Effects: HTTP call, upload foto, simpan draft lokal, alarm/notifikasi.
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../utils/task_execution_helper.dart';
+
 import '../../../../core/services/alarm_timer_service.dart';
 import '../../../../core/services/fcm_service.dart';
 import '../../../../core/services/upload_service.dart';
@@ -636,34 +636,29 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         photoAfter: afterUrl,
       );
 
-      final logs = TaskExecutionHelper.splitOvertime(updatedLog);
       late TaskEntity lastUpdatedTask;
       final isDoneSubmission = updatedLog.isDone;
+      final result = await taskRepository.submitTaskExecution(updatedLog);
 
-      for (var i = 0; i < logs.length; i++) {
-        final result = await taskRepository.submitTaskExecution(logs[i]);
+      bool isError = false;
+      result.fold(
+        (failure) {
+          isError = true;
+          emit(
+            TaskActionError(
+              tasks: currentTasks,
+              drafts: currentDrafts,
+              message: 'Gagal mensubmit pekerjaan: ${failure.message}',
+            ),
+          );
+        },
+        (updatedTask) {
+          lastUpdatedTask = updatedTask;
+        },
+      );
+      if (isError) return;
 
-        bool isError = false;
-        result.fold(
-          (failure) {
-            isError = true;
-            emit(
-              TaskActionError(
-                tasks: currentTasks,
-                drafts: currentDrafts,
-                message:
-                    'Gagal mensubmit bagian ke-${i + 1}: ${failure.message}',
-              ),
-            );
-          },
-          (updatedTask) {
-            lastUpdatedTask = updatedTask;
-          },
-        );
-        if (isError) return;
-      }
-
-      // If we reach here, all parts submitted successfully
+      // If we reach here, submitted successfully
       FCMService().cancelTaskAlarms(log.plandailyId);
       await taskDraftStorage.deleteDraft(log.plandailyId);
       final updatedDrafts = Map<String, TaskDraft>.from(currentDrafts)
@@ -683,8 +678,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
               tasks: updatedTasks,
               drafts: updatedDrafts,
               message: isDoneSubmission
-                  ? 'Pekerjaan selesai disimpan (${logs.length} bagian)'
-                  : 'Progress pekerjaan disimpan (${logs.length} bagian)',
+                  ? 'Pekerjaan selesai disimpan'
+                  : 'Progress pekerjaan disimpan',
             ),
           );
         },
@@ -694,8 +689,8 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
               tasks: freshTasks,
               drafts: updatedDrafts,
               message: isDoneSubmission
-                  ? 'Pekerjaan selesai disimpan (${logs.length} bagian)'
-                  : 'Progress pekerjaan disimpan (${logs.length} bagian)',
+                  ? 'Pekerjaan selesai disimpan'
+                  : 'Progress pekerjaan disimpan',
             ),
           );
         },

@@ -16,6 +16,13 @@ abstract class JobPlanDataSource {
     int limit = 100,
     int offset = 0,
   });
+  Future<Map<String, dynamic>> getApprovalRaw({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  });
   Future<List<Map<String, dynamic>>> browsePlans({
     String? divisionId,
     String? unitId,

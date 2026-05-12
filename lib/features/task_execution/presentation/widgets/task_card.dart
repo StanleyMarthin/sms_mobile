@@ -90,6 +90,29 @@ String _formatTaskClock(String? isoDate) {
   return '--:--';
 }
 
+String _formatPlanClock(String value) {
+  if (value.trim().isEmpty) return '--:--';
+  final minutes = _clockMinutes(value);
+  if (minutes == null) return '--:--';
+  final hour = (minutes ~/ 60).toString().padLeft(2, '0');
+  final minute = (minutes % 60).toString().padLeft(2, '0');
+  return '$hour:$minute';
+}
+
+String _formatPlanWindow(TaskEntity task) {
+  final start = _formatPlanClock(task.startTime);
+  final finish = _formatPlanClock(task.targetFinishTime);
+  if (start == '--:--' && finish == '--:--') return '-';
+  return '$start-$finish';
+}
+
+String _formatActualWindow(TaskEntity task) {
+  final start = _formatTaskClock(task.startedAt);
+  final finish = _formatTaskClock(task.completedAt);
+  if (start == '--:--' && finish == '--:--') return '-';
+  return '$start-$finish';
+}
+
 double _taskCurrentSessionHours(TaskEntity task) {
   final startedAt = task.startedAt;
   if (startedAt == null || startedAt.isEmpty) return 0.0;
@@ -367,12 +390,9 @@ class TaskCard extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _metaPill(
-          'Estimasi',
-          _formatCompactHours(_taskDisplayTargetHours(task)),
-        ),
-        _metaPill('Mulai', _formatTaskClock(task.startedAt)),
-        _metaPill('Selesai', _formatTaskClock(task.completedAt)),
+        _metaPill('Target', _formatCompactHours(_taskDisplayTargetHours(task))),
+        _metaPill('Plan', _formatPlanWindow(task)),
+        _metaPill('Aktual', _formatActualWindow(task)),
       ],
     );
   }

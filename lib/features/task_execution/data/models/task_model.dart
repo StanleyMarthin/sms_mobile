@@ -246,9 +246,18 @@ class TaskModel {
     final division = json['division'] as Map<String, dynamic>? ?? const {};
     final unit = json['unit'] as Map<String, dynamic>? ?? const {};
     final task = json['task'] as Map<String, dynamic>? ?? const {};
+    final planDaily = json['planDaily'] as Map<String, dynamic>? ?? const {};
+    final countdownCumulative =
+        json['countdownCumulative'] as Map<String, dynamic>? ?? const {};
+    final executionLatest =
+        json['executionLatest'] as Map<String, dynamic>? ?? const {};
 
     final dailyTargetHours =
         _taskPlanHours([
+          planDaily['dailyTargetHours'],
+          planDaily['daily_target_hours'],
+          planDaily['targetHours'],
+          planDaily['target_hours'],
           json['dailyTargetHours'],
           json['daily_target_hours'],
           json['targetHours'],
@@ -260,7 +269,11 @@ class TaskModel {
         ]) ??
         0.0;
     final targetHoursRevised = _taskHours(
-      task['target_hours_revised'] ??
+      countdownCumulative['targetHoursTotal'] ??
+          countdownCumulative['target_hours_total'] ??
+          countdownCumulative['targetHoursRevised'] ??
+          countdownCumulative['target_hours_revised'] ??
+          task['target_hours_revised'] ??
           task['targetHoursRevised'] ??
           json['targetHoursRevised'] ??
           json['target_hours_revised'] ??
@@ -270,7 +283,11 @@ class TaskModel {
           dailyTargetHours,
     );
     final actualProgressPercent = _taskPercent(
-      json['actualProgress'] ??
+      countdownCumulative['progressPercent'] ??
+          countdownCumulative['progress_percent'] ??
+          countdownCumulative['actualProgressPercent'] ??
+          countdownCumulative['actual_progress_percent'] ??
+          json['actualProgress'] ??
           json['actualProgressPercent'] ??
           json['actual_progress'] ??
           json['actual_progress_percent'] ??
@@ -280,13 +297,17 @@ class TaskModel {
           json['progress'],
     );
     final actualDurationHours = _taskHours(
-      json['actualDurationHours'] ??
+      executionLatest['durationHours'] ??
+          executionLatest['duration_hours'] ??
+          json['actualDurationHours'] ??
           json['actual_duration_hours'] ??
           json['durationHours'] ??
           json['workedHours'],
     );
     final totalActualHours = _taskHours(
-      task['total_actual_hours'] ??
+      countdownCumulative['totalActualHours'] ??
+          countdownCumulative['total_actual_hours'] ??
+          task['total_actual_hours'] ??
           task['totalActualHours'] ??
           json['totalActualHours'] ??
           json['total_actual_hours'],
@@ -294,7 +315,9 @@ class TaskModel {
     );
 
     final rawRemainingHours = _taskHours(
-      task['remaining_hours'] ??
+      countdownCumulative['remainingHours'] ??
+          countdownCumulative['remaining_hours'] ??
+          task['remaining_hours'] ??
           task['remainingHours'] ??
           json['remainingHours'] ??
           json['remaining_hours'],
@@ -313,6 +336,10 @@ class TaskModel {
           );
 
     final startedAt = _taskNullableString([
+      executionLatest['startedAt'],
+      executionLatest['started_at'],
+      executionLatest['actualStartTime'],
+      executionLatest['actual_start_time'],
       json['startedAt'],
       json['started_at'],
       json['actualStartTime'],
@@ -321,6 +348,10 @@ class TaskModel {
       json['start_work_time'],
     ]);
     final completedAt = _taskNullableString([
+      executionLatest['completedAt'],
+      executionLatest['completed_at'],
+      executionLatest['actualFinishTime'],
+      executionLatest['actual_finish_time'],
       json['completedAt'],
       json['completed_at'],
       json['actualFinishTime'],
@@ -346,6 +377,13 @@ class TaskModel {
     ]);
 
     var planStartTime = TimeParser.pickClock([
+      planDaily['startTime'],
+      planDaily['start_time'],
+      planDaily['planStartTime'],
+      planDaily['plan_starttime'],
+      planDaily['plan_start_time'],
+      planDaily['targetStartHours'],
+      planDaily['target_start_hours'],
       task['startTime'],
       task['start_time'],
       task['planStartTime'],
@@ -362,6 +400,15 @@ class TaskModel {
       json['target_start_hours'],
     ]);
     var planFinishTime = TimeParser.pickClock([
+      planDaily['targetFinishTime'],
+      planDaily['target_finish_time'],
+      planDaily['planFinishTime'],
+      planDaily['plan_finishtime'],
+      planDaily['plan_finish_time'],
+      planDaily['finishTime'],
+      planDaily['finish_time'],
+      planDaily['targetFinishHours'],
+      planDaily['target_finish_hours'],
       task['targetFinishTime'],
       task['target_finish_time'],
       task['planFinishTime'],

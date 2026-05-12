@@ -25,6 +25,8 @@ class JobPlan {
     this.rejectNote,
     this.targetHoursAlias,
     this.remainingHoursAlias,
+    this.progress = 0,
+    this.totalActualHours = 0.0,
   });
 
   final String planId;
@@ -50,4 +52,6 @@ class JobPlan {
   final String? rejectNote;
   final String? targetHoursAlias;
   final String? remainingHoursAlias;
+  final int progress;
+  final double totalActualHours;
 }

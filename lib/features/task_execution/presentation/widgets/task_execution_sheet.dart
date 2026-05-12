@@ -1,8 +1,8 @@
 /*
-Tujuan: Sheet update progress task mekanik dengan detail task, waktu kerja, progress realtime, dan dokumentasi.
+Tujuan: Sheet update progress task mekanik dengan detail task, waktu kerja, progress kumulatif, dan dokumentasi.
 Caller: TaskListPage saat task mulai dikerjakan atau dilanjutkan dari draft.
-Dependensi: AppColors, TimeParser, InAppCameraPage, TaskDraft, TaskEntity, TaskExecutionLog.
-Main Functions: show, initState, _taskInfoCard, _showConfirmation, _doSubmit.
+Dependensi: AppColors, TimeParser, InAppCameraPage, TaskDraft, TaskEntity, TaskExecutionLog, TaskExecutionFlowHelper.
+Main Functions: show, initState, _taskInfoCard, _showConfirmation, _doSubmit, _workedHoursBreakdown.
 Side Effects: Membuka kamera, menyimpan draft lokal via callback, dan submit log eksekusi ke bloc.
 */
 import 'dart:io';
@@ -17,6 +17,7 @@ import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/entities/task_entity.dart';
 import '../../domain/entities/task_execution_log.dart';
+import '../utils/task_execution_flow_helper.dart';
 
 class TaskExecutionSheet extends StatefulWidget {
   final TaskEntity task;
@@ -62,7 +63,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
   late TimeOfDay _finishTime;
   late int _breakMinutes;
   double _progressPercent = 0;
-  String _status = 'on_progress';
+  String _status = 'pending';
   bool _hasManualProgressOverride = false;
 
   final _notesController = TextEditingController();
@@ -107,12 +108,12 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       } else {
         _progressPercent = _computeRealtimeProgressPercent();
       }
-      _status = _progressPercent >= 100 ? 'done' : 'on_progress';
+      _status = _progressPercent >= 100 ? 'done' : 'pending';
     } else if (widget.task.isInProgress) {
       _startTime = _parseTimeFromIso(widget.task.startedAt) ?? now;
       _finishTime = now;
       _progressPercent = _computeRealtimeProgressPercent();
-      _status = _progressPercent >= 100 ? 'done' : 'on_progress';
+      _status = _progressPercent >= 100 ? 'done' : 'pending';
     } else {
       _startTime = now;
       _finishTime = TimeOfDay(hour: (now.hour + 1) % 24, minute: now.minute);
@@ -152,54 +153,61 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     return TimeOfDay(hour: nextMinutes ~/ 60, minute: nextMinutes % 60);
   }
 
-  double get _targetHours {
-    if (widget.task.dailyTargetHours > 0) return widget.task.dailyTargetHours;
+  double get _totalTargetHours {
     if (widget.task.targetHoursRevised > 0) {
       return widget.task.targetHoursRevised;
+    }
+    if (widget.task.dailyTargetHours > 0) {
+      return widget.task.dailyTargetHours;
     }
     return 1.0;
   }
 
   double get _recordedWorkedHours {
-    return widget.task.totalActualHours.clamp(0.0, _targetHours);
+    return widget.task.totalActualHours.clamp(0.0, _totalTargetHours);
   }
 
   double _computeCurrentSessionHours() {
-    final now = DateTime.now();
-    final startDt = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _startTime.hour,
-      _startTime.minute,
+    return TaskExecutionFlowHelper.computeSessionHours(
+      startTime: _startTime,
+      finishTime: _finishTime,
+      breakDurationMinutes: _breakMinutes,
     );
-    final finishDt = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _finishTime.hour,
-      _finishTime.minute,
-    );
-    final rawHours = finishDt.difference(startDt).inSeconds / 3600.0;
-    final breakHours = _breakMinutes / 60.0;
-    return (rawHours - breakHours).clamp(0.0, 24.0);
   }
 
   double _computeRealtimeProgressPercent() {
-    final totalWorkedHours =
-        (_recordedWorkedHours + _computeCurrentSessionHours()).clamp(
-          0.0,
-          _targetHours,
-        );
-    return ((totalWorkedHours / _targetHours) * 100).clamp(0.0, 100.0);
+    return TaskExecutionFlowHelper.computeRealtimeProgressPercent(
+      recordedWorkedHours: _recordedWorkedHours,
+      currentSessionHours: _computeCurrentSessionHours(),
+      totalTargetHours: _totalTargetHours,
+    );
   }
 
   void _refreshProgressFromRealtime() {
     if (_hasManualProgressOverride) return;
     final realtimeProgress = _computeRealtimeProgressPercent();
     _progressPercent = realtimeProgress;
-    _status = realtimeProgress >= 100 ? 'done' : 'on_progress';
+    _status = realtimeProgress >= 100 ? 'done' : 'pending';
     _progressController.text = realtimeProgress.toInt().toString();
+  }
+
+  TaskExecutionWorkedHoursBreakdown _workedHoursBreakdown() {
+    return TaskExecutionFlowHelper.splitWorkedHours(
+      taskDate: widget.task.taskDate,
+      startTime: _startTime,
+      finishTime: _finishTime,
+      breakDurationMinutes: _breakMinutes,
+    );
+  }
+
+  String _statusLabel(String value) {
+    switch (value) {
+      case 'done':
+        return 'Selesai';
+      case 'pending':
+      default:
+        return 'Lanjut Besok';
+    }
   }
 
   Future<void> _handleBreakSelection(String value) async {
@@ -687,9 +695,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _statusChip('pending', 'Pending'),
-              const SizedBox(width: 8),
-              _statusChip('on_progress', 'On Progress'),
+              _statusChip('pending', 'Lanjut Besok'),
               const SizedBox(width: 8),
               _statusChip('done', 'Selesai'),
             ],
@@ -748,7 +754,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                 if (_progressPercent >= 100) {
                   _status = 'done';
                 } else if (_status == 'done') {
-                  _status = 'on_progress';
+                  _status = 'pending';
                 }
               });
             },
@@ -776,11 +782,6 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           borderColor = const Color(0xFF7A5C00);
           textColor = AppColors.gold;
           break;
-        case 'on_progress':
-          bgColor = const Color(0xFF00213A);
-          borderColor = const Color(0xFF004D7A);
-          textColor = const Color(0xFF4DA6E0);
-          break;
         case 'done':
           bgColor = const Color(0xFF0F2A0F);
           borderColor = const Color(0xFF1F5C1F);
@@ -798,6 +799,9 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
             if (value == 'done' && _progressPercent < 100) {
               _progressPercent = 100;
               _progressController.text = '100';
+            } else if (value == 'pending' && _progressPercent >= 100) {
+              _progressPercent = 99;
+              _progressController.text = '99';
             }
           });
         },
@@ -964,7 +968,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         label: Text(
           _isSubmitting
               ? 'Mengirim...'
-              : (isDone ? 'Submit Selesai' : 'Submit On Progress'),
+              : (isDone ? 'Submit Selesai' : 'Simpan & Lanjut Besok'),
           style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         style: FilledButton.styleFrom(
@@ -997,6 +1001,11 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         '${_startTime.hour.toString().padLeft(2, '0')}:${_startTime.minute.toString().padLeft(2, '0')}';
     final finishStr =
         '${_finishTime.hour.toString().padLeft(2, '0')}:${_finishTime.minute.toString().padLeft(2, '0')}';
+    final breakdown = _workedHoursBreakdown();
+    final effectiveStatus = TaskExecutionFlowHelper.resolveSubmitStatus(
+      selectedStatus: _status,
+      progressPercent: _progressPercent,
+    );
 
     showDialog(
       context: context,
@@ -1034,7 +1043,14 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                 ),
               ),
             Text(
-              'Progress: ${_progressPercent.toInt()}%  •  Status: $_status',
+              'Progress: ${_progressPercent.toInt()}%  •  Status: ${_statusLabel(effectiveStatus)}',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+            Text(
+              'Jam kerja: ${breakdown.totalWorkedHours.toStringAsFixed(2)}j  •  Normal ${breakdown.normalHours.toStringAsFixed(2)}j  •  OT ${breakdown.overtimeHours.toStringAsFixed(2)}j',
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
@@ -1074,22 +1090,17 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
   void _doSubmit() {
     setState(() => _isSubmitting = true);
 
-    final effectiveStatus = _progressPercent >= 100 ? 'done' : 'pending';
-
-    final now = DateTime.now();
-    final startDt = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _startTime.hour,
-      _startTime.minute,
+    final effectiveStatus = TaskExecutionFlowHelper.resolveSubmitStatus(
+      selectedStatus: _status,
+      progressPercent: _progressPercent,
     );
-    final finishDt = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      _finishTime.hour,
-      _finishTime.minute,
+    final startDt = TaskExecutionFlowHelper.buildTaskDateTime(
+      taskDate: widget.task.taskDate,
+      time: _startTime,
+    );
+    final finishDt = TaskExecutionFlowHelper.buildTaskDateTime(
+      taskDate: widget.task.taskDate,
+      time: _finishTime,
     );
 
     final log = TaskExecutionLog(

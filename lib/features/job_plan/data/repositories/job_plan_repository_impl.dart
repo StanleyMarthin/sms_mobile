@@ -40,6 +40,28 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
+  Future<fp.Either<Failure, Map<String, dynamic>>> getApprovalRaw({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    try {
+      final raw = await dataSource.getApprovalRaw(
+        divisionId: divisionId,
+        unitId: unitId,
+        taskDate: taskDate,
+        limit: limit,
+        offset: offset,
+      );
+      return fp.Right(raw);
+    } catch (e) {
+      return fp.Left(ServerFailure(message: e.toString()));
+    }
+  }
+
+  @override
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
     String? carId,
@@ -333,6 +355,12 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       remainingHoursAlias:
           item['remainingHours_alias']?.toString() ??
           item['remaining_hours_alias']?.toString(),
+      progress: (item['progress'] ?? item['actual_progress_percent'] ?? 0) is num
+          ? ((item['progress'] ?? item['actual_progress_percent'] ?? 0) as num).toInt()
+          : int.tryParse((item['progress'] ?? item['actual_progress_percent'])?.toString() ?? '0') ?? 0,
+      totalActualHours: (item['totalActualHours'] ?? item['total_actual_hours'] ?? 0.0) is num
+          ? ((item['totalActualHours'] ?? item['total_actual_hours'] ?? 0.0) as num).toDouble()
+          : double.tryParse((item['totalActualHours'] ?? item['total_actual_hours'])?.toString() ?? '0') ?? 0.0,
     );
   }
 

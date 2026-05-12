@@ -1,17 +1,19 @@
+/*
+Tujuan: Repository countdown untuk memetakan datasource ke entity domain countdown dan QC.
+Caller: Countdown UI, monitoring grouped pages, dialog pembuatan plan.
+Dependensi: CountdownDataSource, QcDataSource, entity countdown, failures.
+Main Functions: getUnits, getJobdescs, getDetails.
+Side Effects: Tidak ada langsung; datasource turunannya melakukan HTTP call.
+*/
 library;
 
 import '../../../qc/data/datasources/qc_datasource.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
-import 'package:fpdart/fpdart.dart';
-import '../../../../core/errors/failures.dart';
 import '../datasources/countdown_datasource.dart';
 
 class CountdownRepositoryImpl implements CountdownRepository {
-  const CountdownRepositoryImpl({
-    required this.dataSource,
-    this.qcDataSource,
-  });
+  const CountdownRepositoryImpl({required this.dataSource, this.qcDataSource});
 
   final CountdownDataSource dataSource;
   final QcDataSource? qcDataSource;
@@ -28,8 +30,9 @@ class CountdownRepositoryImpl implements CountdownRepository {
     final filtered = canSeeAll
         ? units
         : units.where((item) {
-            final unitDivision =
-                (item['division'] as String?)?.trim().toUpperCase();
+            final unitDivision = (item['division'] as String?)
+                ?.trim()
+                .toUpperCase();
             return unitDivision == normalizedDivision;
           }).toList();
     final visibleUnits = filtered.isEmpty ? units : filtered;
@@ -39,12 +42,17 @@ class CountdownRepositoryImpl implements CountdownRepository {
   @override
   Future<List<CountdownDivision>> getDivisions(String carId) async {
     final rows = await dataSource.getDivisions(carId);
-    return rows.map((item) => CountdownDivision(
-      divisionId: (item['divisionId'] as num?)?.toInt() ?? 0,
-      divisionName: (item['divisionName'] as String?) ?? '-',
-      code: (item['code'] as String?) ?? '',
-      divisionProgress: ((item['divisionProgress'] as num?) ?? 0).toDouble(),
-    )).toList();
+    return rows
+        .map(
+          (item) => CountdownDivision(
+            divisionId: (item['divisionId'] as num?)?.toInt() ?? 0,
+            divisionName: (item['divisionName'] as String?) ?? '-',
+            code: (item['code'] as String?) ?? '',
+            divisionProgress: ((item['divisionProgress'] as num?) ?? 0)
+                .toDouble(),
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -54,19 +62,32 @@ class CountdownRepositoryImpl implements CountdownRepository {
     String? search,
     String? status,
   }) async {
-    final rows = await dataSource.getSections(carId: carId, divisionId: divisionId, search: search, status: status);
-    return rows.map((item) => CountdownSection(
-      panelId: (item['panelId'] as num?)?.toInt() ?? 0,
-      sectionName: (item['sectionName'] as String?) ?? '-',
-      section: (item['section'] as String?) ?? '-',
-      totalJobdesc: (item['totalJobdesc'] as int?) ?? 0,
-      totalRemainingHours: ((item['totalRemainingHours'] as num?) ?? 0).toDouble(),
-      totalTargetHours: ((item['totalTargetHours'] as num?) ?? 0).toDouble(),
-      sectionProgress: ((item['sectionProgress'] as num?) ?? 0).toDouble(),
-      sectionStatus: (item['sectionStatus'] as String?) ?? 'PLAN',
-      totalTargetHoursAlias: item['totalTargetHoursAlias'] as String?,
-      totalRemainingHoursAlias: item['totalRemainingHoursAlias'] as String?,
-    )).toList();
+    final rows = await dataSource.getSections(
+      carId: carId,
+      divisionId: divisionId,
+      search: search,
+      status: status,
+    );
+    return rows
+        .map(
+          (item) => CountdownSection(
+            panelId: (item['panelId'] as num?)?.toInt() ?? 0,
+            sectionName: (item['sectionName'] as String?) ?? '-',
+            section: (item['section'] as String?) ?? '-',
+            totalJobdesc: (item['totalJobdesc'] as int?) ?? 0,
+            totalRemainingHours: ((item['totalRemainingHours'] as num?) ?? 0)
+                .toDouble(),
+            totalTargetHours: ((item['totalTargetHours'] as num?) ?? 0)
+                .toDouble(),
+            sectionProgress: ((item['sectionProgress'] as num?) ?? 0)
+                .toDouble(),
+            sectionStatus: (item['sectionStatus'] as String?) ?? 'PLAN',
+            totalTargetHoursAlias: item['totalTargetHoursAlias'] as String?,
+            totalRemainingHoursAlias:
+                item['totalRemainingHoursAlias'] as String?,
+          ),
+        )
+        .toList();
   }
 
   @override
@@ -84,12 +105,16 @@ class CountdownRepositoryImpl implements CountdownRepository {
       search: search,
       status: status,
     );
-    return Future.wait(rows.map((item) async {
-      final qcItem = qcDataSource != null
-          ? await qcDataSource!.findQcItemByCoreId(item['id'] as String? ?? '')
-          : null;
-      return _mapCountdown(item, qcItem);
-    }));
+    return Future.wait(
+      rows.map((item) async {
+        final qcItem = qcDataSource != null
+            ? await qcDataSource!.findQcItemByCoreId(
+                item['id'] as String? ?? '',
+              )
+            : null;
+        return _mapCountdown(item, qcItem);
+      }),
+    );
   }
 
   @override
@@ -114,9 +139,12 @@ class CountdownRepositoryImpl implements CountdownRepository {
     Map<String, dynamic> item,
     Map<String, dynamic>? qcItem,
   ) {
-    final qcLastStatusFromItem = (qcItem?['qcLastStatus'] as String?)?.toUpperCase();
+    final qcLastStatusFromItem = (qcItem?['qcLastStatus'] as String?)
+        ?.toUpperCase();
     final qcLevel = qcItem?['qcLevel'] as String?;
-    final kdCheckpointDone = qcLastStatusFromItem == 'LOLOS' || qcLastStatusFromItem == 'TIDAK_LOLOS';
+    final kdCheckpointDone =
+        qcLastStatusFromItem == 'LOLOS' ||
+        qcLastStatusFromItem == 'TIDAK_LOLOS';
     final qcLastStatus = kdCheckpointDone && qcLastStatusFromItem == 'LOLOS'
         ? 'LOLOS'
         : (qcLastStatusFromItem ?? item['qcLastStatus'] as String?);
@@ -131,12 +159,17 @@ class CountdownRepositoryImpl implements CountdownRepository {
       taskCategory: (item['taskCategory'] as String?) ?? 'MAIN',
       progress: (item['actualProgressPercent'] as int?) ?? 0,
       status: (item['status'] as String?) ?? 'PLAN',
-      targetHoursInitial: ((item['targetHoursInitial'] as num?) ?? 0).toDouble(),
-      timeExtensionHours: ((item['timeExtensionHours'] as num?) ?? 0).toDouble(),
-      targetHoursRevised: ((item['targetHoursRevised'] as num?) ?? 0).toDouble(),
+      targetHoursInitial: ((item['targetHoursInitial'] as num?) ?? 0)
+          .toDouble(),
+      timeExtensionHours: ((item['timeExtensionHours'] as num?) ?? 0)
+          .toDouble(),
+      targetHoursRevised: ((item['targetHoursRevised'] as num?) ?? 0)
+          .toDouble(),
       totalActualHours: ((item['totalActualHours'] as num?) ?? 0).toDouble(),
       remainingHours: ((item['remainingHours'] as num?) ?? 0).toDouble(),
-      startDate: (item['startDate'] as String?) ?? DateTime.now().toIso8601String().split('T').first,
+      startDate:
+          (item['startDate'] as String?) ??
+          DateTime.now().toIso8601String().split('T').first,
       deadlineDate: (item['deadlineDate'] as String?) ?? '-',
       qcLastStatus: qcLastStatus,
       qcValidationStatus: qcLevel,
@@ -145,18 +178,25 @@ class CountdownRepositoryImpl implements CountdownRepository {
       qcReworkDeadlineDate: qcItem?['reworkDate'] as String?,
       qcAdvisorNotes: qcItem?['qcNotes'] as String?,
       revisionRequestStatus: item['extensionRequestStatus'] as String?,
-      requestedRevisionHours:
-          (item['extensionRequestedHours'] as num?)?.toDouble(),
+      requestedRevisionHours: (item['extensionRequestedHours'] as num?)
+          ?.toDouble(),
       requestedRevisionDeadline: item['extensionRequestedDeadline'] as String?,
       requestedRevisionReason: item['extensionRequestReason'] as String?,
-      approvedRevisionHours:
-          (item['extensionApprovedHours'] as num?)?.toDouble(),
+      approvedRevisionHours: (item['extensionApprovedHours'] as num?)
+          ?.toDouble(),
       approvedRevisionDeadline: item['extensionApprovedDeadline'] as String?,
       approvedRevisionByName: item['extensionApprovedByName'] as String?,
       rejectedRevisionByName: item['extensionRejectedByName'] as String?,
-      isLockedByOtherDivision: item['isLockedByOtherDivision'] as bool? ?? false,
+      isLockedByOtherDivision:
+          item['isLockedByOtherDivision'] as bool? ?? false,
       targetHoursRevisedAlias: item['targetHoursRevisedAlias'] as String?,
       remainingHoursAlias: item['remainingHoursAlias'] as String?,
+      availablePlanHours:
+          ((item['availablePlanHours'] as num?) ?? item['remainingHours'] ?? 0)
+              .toDouble(),
+      reservedPlanHours: ((item['reservedPlanHours'] as num?) ?? 0).toDouble(),
+      availablePlanHoursAlias: item['availablePlanHoursAlias'] as String?,
+      reservedPlanHoursAlias: item['reservedPlanHoursAlias'] as String?,
     );
   }
 
@@ -211,7 +251,9 @@ class CountdownRepositoryImpl implements CountdownRepository {
         requestedRevisionDeadline: item['requestedDeadline'] as String?,
         requestedRevisionReason: item['reason'] as String?,
         requestedRevisionByName: item['requestedByName'] as String?,
-        requestedRevisionAt: DateTime.tryParse(item['requestedAt']?.toString() ?? ''),
+        requestedRevisionAt: DateTime.tryParse(
+          item['requestedAt']?.toString() ?? '',
+        ),
       );
     }).toList();
   }

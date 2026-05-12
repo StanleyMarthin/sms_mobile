@@ -495,11 +495,13 @@ TaskExecutionSheet / SubmitExecutionEvent
 
 - FE operator sekarang menginfer sesi tertutup dari `completedAt` / progress / remaining hours saat hasil refresh GET `/sm/tasks` belum konsisten mengirim status terminal.
 - Dampaknya: task yang sudah disubmit tidak lagi kembali ke CTA `Mulai`; partial submit tampil `Tercatat`, final submit tampil `Selesai`.
-- Kontrak `/sm/tasks` untuk mobile task execution sekarang diperlakukan sebagai gabungan:
-  - `sm_jobdesc_plan.target_start_hours` + `target_finish_hours` = jam kerja plan harian
-  - `sm_jobdesc_plan.dailyTargetHours` = target jam harian
-  - `sm_jobdesc_countdown.target_hours_revised` + `remaining_hours` + `total_actual_hours` = target total, sisa jam, dan progress kumulatif lintas hari
+- Kontrak `/sm/tasks` untuk mobile task execution sekarang mengekspos blok semantik tambahan:
+  - `planDaily` = jam kerja plan harian (`startTime`, `targetFinishTime`, `dailyTargetHours`)
+  - `countdownCumulative` = target total, sisa aktual, akumulasi jam kerja, dan progress lintas hari
+  - `executionLatest` = sesi aktual terakhir (`startedAt`, `completedAt`, `durationHours`, `status`)
+- Field root lama masih dipertahankan untuk backward compatibility, tetapi parser mobile sekarang memprioritaskan blok semantik di atas.
 - Detail operator menampilkan target harian, target total, sisa target, dan akumulasi dikerjakan; list tetap ringkas.
+- `TaskExecutionSheet` menghitung progress submit terhadap target total (`targetHoursRevised`) dan meng-anchorkan waktu submit ke `taskDate`, bukan `DateTime.now()`.
 
 **Alarm side effects:**
 - `TaskBloc` timer tiap 15 detik untuk task in-progress
@@ -557,6 +559,13 @@ Kemampuan runtime:
 - Submit draft
 - Create plan dari: countdown source, WO/WOV source, additional task source
 - Approve, reject, resubmit, delete rejected, review, update
+- Additional source picker sekarang mengambil master jobdesc dari dropdown yang sudah terfilter divisi dan menormalkan alias backend `job_name/name` sebelum ditampilkan ke user.
+- Edit draft additional sekarang meng-hydrate ulang state form dari kombinasi `divisionId`, `carId`, `unitName`, dan `panelName`, jadi form tidak kosong walau draft hanya menyimpan id teknis.
+- Source-of-truth baru untuk planning:
+  - `sm_jobdesc_countdown.remaining_hours` = sisa aktual pekerjaan yang belum benar-benar dikerjakan
+  - `sm_jobdesc_plan.dailyTargetHours` aktif + draft lokal = reservasi planning sementara
+  - Validasi kapasitas planning sekarang memakai `available plan hours`, jadi membuat plan tidak lagi mengurangi `remaining_hours` aktual.
+- Multi-job countdown di mobile tidak lagi dibagi rata buta; alokasi jam harian dibagi berurutan berdasarkan `availablePlanHours` tiap jobdesc.
 
 Approver ADV/KP/MP: multi-select `setujui terpilih`, checkbox `pilih semua`, bottom sheet detail — kontrak notif dan endpoint approve single-item tidak berubah.
 
@@ -616,6 +625,9 @@ Detail  → getDetails(cntdwnId) → GET /sm/countdown?...&countdown_id=...
 Sinkronisasi runtime:
 - Saat WO final approved, backend diharapkan membuat row countdown lalu mengembalikan `coreId` atau `countdownId`; mobile memakai fallback keduanya.
 - Aktual task execution yang sudah mulai/selesai dibaca kembali lewat countdown detail (`getDetails`) sehingga countdown, aktual, dan progress WO tetap saling terhubung.
+- Level jobdesc countdown sekarang membawa dua angka terpisah:
+  - `remaining_hours` = sisa aktual countdown
+  - `available_plan_hours` / `reserved_plan_hours` = kapasitas yang masih boleh diplan vs yang sudah dibooking plan aktif
 
 **Revision flow:**
 ```text
@@ -848,6 +860,24 @@ Sparepart   → WO_ID / Task_ID (constraint sm_warehouse)
 - Global wakelock aktif sepanjang sesi
 - FCM permission wajib di startup — deny = app exit
 - Local alarms dan modal reminder untuk task time threshold (T-10, T-5, T-0)
+
+### Backend Redis usage & Time-Tracking (sm_job_plan & sm_tasks)
+
+| Key Pattern | Fungsi | TTL |
+|------|-----------|-----|
+| `job_pool:{date}:{userId}:{carId}:{panelId}` | Menyimpan alokasi *Shared Target Hours* untuk pekerjaan Multijob pada panel yang sama. Didebit secara otomatis saat task disubmit. | 48 Jam |
+| `draft_plan:{userId}` | Draft *Job Plan* sementara sebelum KD melakukan konfirmasi final submission. | - |
+
+#### Auto-Overtime & Time-Tracking Fallback Rules (Backend)
+Perhitungan lembur (OT) dan efisiensi waktu dilakukan sepenuhnya di backend melalui *multi-layer fallback*:
+1. **Time-Based OT:** Melampaui jam 17:00 (14:00 Sabtu) -> Langsung Overtime.
+2. **Budget-Based Fallback (Jaring 1 - Panel Pool):** Mengambil alokasi target dari `job_pool` (berbasis target KD). Jika minus, bocor ke Jaring 2.
+3. **Budget-Based Fallback (Jaring 2 - Unit Budget):** Mengecek saldo total estimasi WO keseluruhan (`wo_estimated_hours - c_actual_hours`). Jika Unit Budget masih ada sisa, maka waktu bocor diselamatkan/disubstitusi oleh sisa tersebut (Bukan Overtime, tapi dikategorikan sebagai *Leakage*).
+4. **Final OT:** Jika Panel Pool dan Unit Budget habis, sisa waktu sah dihitung sebagai Overtime resmi (`ot_hrs > 0`).
+
+**Notifikasi Waktu (Push Notifications):**
+- **Tugas Overtime:** Dikirim ketika `ot_hrs > 0` (gagal diselamatkan). Target: KD, ADV, KP, MP/PM.
+- **Tugas Melebihi Target (Leakage):** Dikirim ketika aktual melampaui target KD harian, namun waktu bocornya berhasil diselamatkan oleh Unit Budget (tidak overbudget secara global, tapi efisiensi buruk). Target: KD, ADV, KP, MP/PM.
 
 ---
 

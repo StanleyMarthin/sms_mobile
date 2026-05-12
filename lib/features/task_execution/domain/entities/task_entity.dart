@@ -127,7 +127,7 @@ class TaskEntity extends Equatable {
   final String jobDescription;
 
   /// Optional instruction / note for the mechanic.
-  /// From: trx_jobdesc_plandaily.note or trx_jobdesc_core.catatan
+  /// From: trx_jobdesc_plandaily.note
   final String? instruction;
 
   /// Name of the mechanic who currently holds the panel lock.
@@ -155,6 +155,7 @@ class TaskEntity extends Equatable {
 
   /// Indicates if this task is marked as priority
   final bool isPriority;
+
 
   const TaskEntity({
     required this.plandailyId,

@@ -377,7 +377,9 @@ class TaskDetailModel {
     double? topLevelTargetHours,
     String? topLevelStart,
     String? topLevelFinish,
+    Map<String, dynamic>? cumulativeJson,
   }) {
+    final cumulative = cumulativeJson ?? const <String, dynamic>{};
     final targetHours =
         _pickHours([
           json['targetHours'],
@@ -389,14 +391,29 @@ class TaskDetailModel {
         0.0;
     final targetHoursRevised =
         _pickHours([
+          cumulative['targetHoursTotal'],
+          cumulative['target_hours_total'],
+          cumulative['targetHoursRevised'],
+          cumulative['target_hours_revised'],
           json['targetHoursRevised'],
           json['target_hours_revised'],
         ]) ??
         targetHours;
     final remainingHours =
-        _pickHours([json['remainingHours'], json['remaining_hours']]) ?? 0.0;
+        _pickHours([
+          cumulative['remainingHours'],
+          cumulative['remaining_hours'],
+          json['remainingHours'],
+          json['remaining_hours'],
+        ]) ??
+        0.0;
     final totalActualHours =
-        _pickHours([json['totalActualHours'], json['total_actual_hours']]) ??
+        _pickHours([
+          cumulative['totalActualHours'],
+          cumulative['total_actual_hours'],
+          json['totalActualHours'],
+          json['total_actual_hours'],
+        ]) ??
         (targetHoursRevised > 0
             ? (targetHoursRevised - remainingHours).clamp(
                 0.0,
@@ -520,6 +537,10 @@ class ViewTaskModel {
 
   factory ViewTaskModel.fromJson(Map<String, dynamic> json) {
     final taskJson = json['task'] as Map<String, dynamic>? ?? {};
+    final planDailyJson =
+        json['planDaily'] as Map<String, dynamic>? ?? const {};
+    final cumulativeJson =
+        json['countdownCumulative'] as Map<String, dynamic>? ?? const {};
     final checkpointItems =
         (json['checkpointHistory'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
@@ -550,12 +571,23 @@ class ViewTaskModel {
         .toList();
 
     final topLevelTargetHours = _pickHours([
+      planDailyJson['dailyTargetHours'],
+      planDailyJson['daily_target_hours'],
+      planDailyJson['targetHours'],
+      planDailyJson['target_hours'],
       json['dailyTargetHours'],
       json['daily_target_hours'],
       json['targetHours'],
       json['target_hours'],
     ]);
     final topLevelStart = TimeParser.pickClock([
+      planDailyJson['startTime'],
+      planDailyJson['start_time'],
+      planDailyJson['planStartTime'],
+      planDailyJson['plan_starttime'],
+      planDailyJson['plan_start_time'],
+      planDailyJson['targetStartHours'],
+      planDailyJson['target_start_hours'],
       json['startTime'],
       json['start_time'],
       json['planStartTime'],
@@ -565,6 +597,15 @@ class ViewTaskModel {
       json['target_start_hours'],
     ]);
     final topLevelFinish = TimeParser.pickClock([
+      planDailyJson['targetFinishTime'],
+      planDailyJson['target_finish_time'],
+      planDailyJson['planFinishTime'],
+      planDailyJson['plan_finishtime'],
+      planDailyJson['plan_finish_time'],
+      planDailyJson['finishTime'],
+      planDailyJson['finish_time'],
+      planDailyJson['targetFinishHours'],
+      planDailyJson['target_finish_hours'],
       json['targetFinishTime'],
       json['target_finish_time'],
       json['planFinishTime'],
@@ -590,6 +631,7 @@ class ViewTaskModel {
         topLevelTargetHours: topLevelTargetHours,
         topLevelStart: topLevelStart,
         topLevelFinish: topLevelFinish,
+        cumulativeJson: cumulativeJson,
       ),
       status: _asString(json['status'], fallback: 'PLAN'),
       checkpointHistory: checkpointItems,

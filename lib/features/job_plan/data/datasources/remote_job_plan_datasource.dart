@@ -87,6 +87,29 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   String _itemJobDescription(Map<String, dynamic> item) =>
       (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
 
+  Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
+    final normalized = Map<String, dynamic>.from(item);
+    final name =
+        (normalized['name'] ??
+                normalized['job_name'] ??
+                normalized['jobName'] ??
+                '')
+            .toString()
+            .trim();
+    if (name.isNotEmpty && name.toLowerCase() != 'null') {
+      normalized['name'] = name;
+      normalized['job_name'] ??= name;
+      normalized['jobName'] ??= name;
+    }
+
+    final divisionId = normalized['divisionId'] ?? normalized['division_id'];
+    if (divisionId != null) {
+      normalized['divisionId'] = divisionId;
+      normalized['division_id'] = divisionId;
+    }
+    return normalized;
+  }
+
   Map<String, dynamic> _normalizeDraftItem(
     Map<String, dynamic> item, {
     String? draftNote,
@@ -207,6 +230,33 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return items;
   }
 
+  @override
+  Future<Map<String, dynamic>> getApprovalRaw({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final response = await apiClient.get(
+      ApiEndpoints.jobPlans,
+      queryParameters: {
+        'action': 'approval_queue',
+        'userId': sessionManager.employeeId ?? '',
+        if (divisionId != null) 'divisionId': divisionId,
+        if (unitId != null) 'unitId': unitId,
+        if (taskDate != null) 'taskDate': taskDate,
+        'limit': limit,
+        'offset': offset,
+      },
+    );
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) {
+      return payload; // contains 'type' ('divisions'/'units'/'plans') and 'items'
+    }
+    return {'type': 'plans', 'items': []};
+  }
+
   // ─── GET /sm/job-plans?action=browse ────────────────────────────
   // Returns List (for KD) or List (division/unit steps)
   @override
@@ -270,7 +320,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return {
       'cars': _asMapList(payload['cars']), // BE key: "cars"
       'panels': _asMapList(payload['panels']),
-      'jobTypes': _asMapList(payload['jobTypes']),
+      'jobTypes': _asMapList(
+        payload['jobTypes'],
+      ).map(_normalizeDropdownJobType).toList(),
       'divisions': _asMapList(payload['divisions']),
       'users': _asMapList(
         payload['users'],
@@ -290,6 +342,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final payload = response.data as Map<String, dynamic>? ?? {};
     return {
       ...payload,
+      'jobTypes': _asMapList(
+        payload['jobTypes'],
+      ).map(_normalizeDropdownJobType).toList(),
       'users': _asMapList(
         payload['users'],
       ).map(_normalizeDropdownUser).toList(),

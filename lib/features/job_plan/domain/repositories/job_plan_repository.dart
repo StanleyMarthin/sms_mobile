@@ -15,6 +15,16 @@ abstract class JobPlanRepository {
     int offset = 0,
   });
 
+  /// Returns raw items from the hierarchy endpoint.
+  /// No params → divisions, divisionId only → units, both → plans.
+  Future<fp.Either<Failure, Map<String, dynamic>>> getApprovalRaw({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  });
+
   Future<fp.Either<Failure, List<JobPlan>>> browsePlans({
     String? divisionId,
     String? unitId,

@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/utils/time_parser.dart';
+import '../../../../core/widgets/duration_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../domain/entities/work_order.dart';
@@ -583,7 +584,7 @@ class _ActionArea extends StatefulWidget {
 }
 
 class _ActionAreaState extends State<_ActionArea> {
-  final _estCtrl = TextEditingController();
+  double? _estHours;
   final _notesCtrl = TextEditingController();
 
   bool _isLoadingUsers = false;
@@ -620,7 +621,7 @@ class _ActionAreaState extends State<_ActionArea> {
 
   @override
   void dispose() {
-    _estCtrl.dispose();
+    // _estCtrl removed
     _notesCtrl.dispose();
     super.dispose();
   }
@@ -628,8 +629,8 @@ class _ActionAreaState extends State<_ActionArea> {
   @override
   Widget build(BuildContext context) {
     final prevEst = widget.wo.estimatedHours;
-    if (prevEst != null && prevEst > 0 && _estCtrl.text.isEmpty) {
-      _estCtrl.text = prevEst.toStringAsFixed(1);
+    if (prevEst != null && prevEst > 0 && _estHours == null) {
+      _estHours = prevEst;
     }
 
     return Container(
@@ -664,42 +665,15 @@ class _ActionAreaState extends State<_ActionArea> {
           ),
           const SizedBox(height: 14),
           // Estimasi jam
-          TextField(
-            controller: _estCtrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [HHHMMFormatter()],
-            style: const TextStyle(color: AppColors.textPrimary),
-            decoration: InputDecoration(
-              hintText: widget.needsEstimate
-                  ? 'Estimasi jam kerja (000:00) *'
-                  : 'Override estimasi jam (000:00, opsional)',
-              hintStyle: const TextStyle(color: AppColors.textDisabled),
-              prefixIcon: const Icon(
-                Icons.schedule_rounded,
-                color: AppColors.gold,
-                size: 18,
-              ),
-              suffixText: 'jam',
-              suffixStyle: const TextStyle(color: AppColors.textMuted),
-              filled: true,
-              fillColor: AppColors.surfaceInput,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.gold),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
-            ),
+          DurationInput(
+            initialHours: _estHours,
+            isTripleHours: true,
+            labelText: widget.needsEstimate
+                ? 'Estimasi jam kerja (HHH:MM) *'
+                : 'Override estimasi jam (HHH:MM, opsional)',
+            onChanged: (val) {
+              setState(() => _estHours = val);
+            },
           ),
           if (widget.needsEstimate) ...[
             const SizedBox(height: 10),
@@ -841,9 +815,9 @@ class _ActionAreaState extends State<_ActionArea> {
   }
 
   void _confirmApprove(BuildContext context) {
-    final est = TimeParser.parseHHmmToDecimal(_estCtrl.text.trim());
+    final est = _estHours ?? 0.0;
     if (widget.needsEstimate) {
-      if (est == null || est <= 0) {
+      if (est <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Estimasi jam wajib diisi'),

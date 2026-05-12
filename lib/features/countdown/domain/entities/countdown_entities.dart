@@ -1,5 +1,12 @@
 library;
 
+/*
+Tujuan: Entity domain countdown untuk unit, jobdesc, dan detail eksekusi planning/monitoring.
+Caller: CountdownRepositoryImpl, grouped monitoring pages, countdown detail sheet, dialog plan.
+Dependensi: Tidak ada; file ini hanya mendefinisikan struktur data domain.
+Main Functions: CountdownUnit, CountdownJobdesc, CountdownDetailItem constructors.
+Side Effects: Tidak ada; hanya representasi data in-memory.
+*/
 class CountdownUnit {
   const CountdownUnit({
     required this.carId,
@@ -19,6 +26,7 @@ class CountdownUnit {
   final String status;
   final String division;
   final String? deliveryDate;
+
   /// Alias for [deliveryDate] — used in grouped monitoring pages.
   final String? contractDeliveryDate;
 }
@@ -102,6 +110,10 @@ class CountdownJobdesc {
     this.isLockedByOtherDivision = false,
     this.targetHoursRevisedAlias,
     this.remainingHoursAlias,
+    this.availablePlanHours = 0.0,
+    this.reservedPlanHours = 0.0,
+    this.availablePlanHoursAlias,
+    this.reservedPlanHoursAlias,
   });
 
   final String id;
@@ -141,6 +153,10 @@ class CountdownJobdesc {
   final bool isLockedByOtherDivision;
   final String? targetHoursRevisedAlias;
   final String? remainingHoursAlias;
+  final double availablePlanHours;
+  final double reservedPlanHours;
+  final String? availablePlanHoursAlias;
+  final String? reservedPlanHoursAlias;
 }
 
 class CountdownDetailItem {

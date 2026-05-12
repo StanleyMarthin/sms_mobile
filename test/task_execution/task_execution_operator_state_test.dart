@@ -201,6 +201,50 @@ void main() {
       expect(model.toEntity().hoursUsed, 8);
       expect(model.toEntity().progressPercent, 80);
     });
+
+    test('prefers explicit semantic blocks from backend task payload', () {
+      final model = TaskModel.fromTaskApiJson({
+        'planDailyId': 'pd-4',
+        'coreId': 'core-4',
+        'status': 'PROSES',
+        'planDaily': {
+          'startTime': '09:00',
+          'targetFinishTime': '11:00',
+          'dailyTargetHours': 2,
+        },
+        'countdownCumulative': {
+          'targetHoursTotal': 10,
+          'remainingHours': 2,
+          'totalActualHours': 8,
+          'progressPercent': 80,
+        },
+        'executionLatest': {
+          'startedAt': '2026-05-11T09:00:00+07:00',
+          'completedAt': '2026-05-11T11:00:00+07:00',
+          'status': 'pending',
+        },
+        'division': {'divisionName': 'INTERIOR'},
+        'unit': {
+          'unitId': 'car-4',
+          'unitName': 'PORSCHE 964',
+          'owner': 'Mr. Test',
+        },
+        'task': {
+          'namaPanel': 'CENTER CONSOLE',
+          'jobName': 'ASSEMBLY',
+          'jobDescription': 'Pasang console',
+        },
+      });
+
+      expect(model.dailyTargetHours, 2);
+      expect(model.targetHoursRevised, 10);
+      expect(model.remainingHours, 2);
+      expect(model.totalActualHours, 8);
+      expect(model.startTime, '09:00');
+      expect(model.targetFinishTime, '11:00');
+      expect(model.startedAt, '2026-05-11T09:00:00+07:00');
+      expect(model.completedAt, '2026-05-11T11:00:00+07:00');
+    });
   });
 
   group('ViewTaskModel.fromJson', () {
@@ -261,5 +305,45 @@ void main() {
         expect(entity.task.targetFinishTime, '10:00');
       },
     );
+
+    test('prefers explicit semantic blocks for monitoring payload', () {
+      final model = ViewTaskModel.fromJson({
+        'planDailyId': 'pd-view-3',
+        'status': 'PROSES',
+        'division': {'divisionId': 'div-1', 'divisionName': 'INTERIOR'},
+        'unit': {'unitId': 'car-1', 'unitName': 'FERRARI F355'},
+        'employee': {'employeeId': 'emp-1', 'employeeName': 'HARIS'},
+        'planDaily': {
+          'startTime': '08:00',
+          'targetFinishTime': '10:00',
+          'dailyTargetHours': 2,
+        },
+        'countdownCumulative': {
+          'targetHoursTotal': 10,
+          'remainingHours': 2,
+          'totalActualHours': 8,
+          'progressPercent': 80,
+        },
+        'executionLatest': {
+          'startedAt': '2026-05-11T08:00:00+07:00',
+          'completedAt': '2026-05-11T10:00:00+07:00',
+        },
+        'task': {
+          'namaPanel': 'DASHBOARD',
+          'jobName': 'ASSEMBLY',
+          'description': 'Pasang dashboard',
+        },
+        'checkpointHistory': const [],
+      });
+
+      final entity = model.toEntity();
+      expect(entity.task.targetHours, 2);
+      expect(entity.task.targetHoursRevised, 10);
+      expect(entity.task.remainingHours, 2);
+      expect(entity.task.totalActualHours, 8);
+      expect(entity.task.startTime, '08:00');
+      expect(entity.task.targetFinishTime, '10:00');
+      expect(entity.progressPercent, 80);
+    });
   });
 }

@@ -1,11 +1,16 @@
+/*
+Tujuan: Datasource HTTP countdown untuk unit, jobdesc, dan detail countdown dari backend.
+Caller: CountdownRepositoryImpl.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, countdown_datasource.
+Main Functions: getUnits, getJobdescs, getDetails.
+Side Effects: HTTP GET ke service countdown.
+*/
 library;
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
 import 'countdown_datasource.dart';
-import 'package:fpdart/fpdart.dart';
-import '../../../../core/errors/failures.dart';
 
 class RemoteCountdownDataSource implements CountdownDataSource {
   const RemoteCountdownDataSource({
@@ -23,9 +28,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   Future<List<Map<String, dynamic>>> getUnits() async {
     final response = await apiClient.get(
       ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-      },
+      queryParameters: {'user_id': _userId},
     );
 
     final rows = response.data as List<dynamic>? ?? [];
@@ -46,10 +49,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   Future<List<Map<String, dynamic>>> getDivisions(String carId) async {
     final response = await apiClient.get(
       ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-        'car_id': carId,
-      },
+      queryParameters: {'user_id': _userId, 'car_id': carId},
     );
     final rows = response.data as List<dynamic>? ?? [];
     return rows.whereType<Map<String, dynamic>>().map((item) {
@@ -57,8 +57,8 @@ class RemoteCountdownDataSource implements CountdownDataSource {
         'divisionId': item['division_id'],
         'divisionName': '${item['division_name'] ?? '-'}',
         'code': '${item['code'] ?? ''}',
-        'divisionProgress':
-            ((item['division_progress'] as num?) ?? 0).toDouble(),
+        'divisionProgress': ((item['division_progress'] as num?) ?? 0)
+            .toDouble(),
       };
     }).toList();
   }
@@ -92,10 +92,10 @@ class RemoteCountdownDataSource implements CountdownDataSource {
         'sectionName': '${item['section_name'] ?? '-'}',
         'section': '${item['section'] ?? '-'}',
         'totalJobdesc': (item['total_jobdesc'] as num?)?.toInt() ?? 0,
-        'totalRemainingHours':
-            ((item['total_remaining_hours'] as num?) ?? 0).toDouble(),
-        'totalTargetHours':
-            ((item['total_target_hours'] as num?) ?? 0).toDouble(),
+        'totalRemainingHours': ((item['total_remaining_hours'] as num?) ?? 0)
+            .toDouble(),
+        'totalTargetHours': ((item['total_target_hours'] as num?) ?? 0)
+            .toDouble(),
         'sectionProgress': ((item['section_progress'] as num?) ?? 0).toDouble(),
         'sectionStatus': '${item['section_status'] ?? 'PLAN'}',
         'totalTargetHoursAlias': item['total_target_hours_alias'],
@@ -119,8 +119,10 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       'panel_id': panelId,
     };
 
-    final response =
-        await apiClient.get(ApiEndpoints.countdown, queryParameters: params);
+    final response = await apiClient.get(
+      ApiEndpoints.countdown,
+      queryParameters: params,
+    );
     final rows = response.data as List<dynamic>? ?? [];
     return rows
         .whereType<Map<String, dynamic>>()
@@ -138,11 +140,11 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       'taskCategory': '${job['task_category'] ?? 'MAIN'}',
       'actualProgressPercent': (job['progress'] as num?)?.toInt() ?? 0,
       'status': '${job['status'] ?? 'PLAN'}',
-      'targetHoursInitial':
-          ((job['target_hours_revised'] as num?) ?? 0).toDouble(),
+      'targetHoursInitial': ((job['target_hours_revised'] as num?) ?? 0)
+          .toDouble(),
       'timeExtensionHours': 0.0,
-      'targetHoursRevised':
-          ((job['target_hours_revised'] as num?) ?? 0).toDouble(),
+      'targetHoursRevised': ((job['target_hours_revised'] as num?) ?? 0)
+          .toDouble(),
       'totalActualHours': 0.0,
       'remainingHours': ((job['remaining_hours'] as num?) ?? 0).toDouble(),
       'startDate': DateTime.now().toIso8601String().split('T').first,
@@ -161,11 +163,21 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       'extensionRequestedAt': null,
       'extensionRequestedByName': null,
       'divisionId': job['division_id'],
-      'isLockedByOtherDivision': job['is_locked']?.toString() == '1' &&
+      'isLockedByOtherDivision':
+          job['is_locked']?.toString() == '1' &&
           job['current_division_id']?.toString() !=
               job['division_id']?.toString(),
       'targetHoursRevisedAlias': job['target_hours_revised_alias'],
       'remainingHoursAlias': job['remaining_hours_alias'],
+      'availablePlanHours':
+          ((job['available_plan_hours'] as num?) ??
+                  (job['remaining_hours'] as num?) ??
+                  0)
+              .toDouble(),
+      'reservedPlanHours': ((job['reserved_plan_hours'] as num?) ?? 0)
+          .toDouble(),
+      'availablePlanHoursAlias': job['available_plan_hours_alias'],
+      'reservedPlanHoursAlias': job['reserved_plan_hours_alias'],
     };
   }
 
@@ -173,10 +185,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   Future<List<Map<String, dynamic>>> getDetails(String countdownId) async {
     final response = await apiClient.get(
       ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-        'countdown_id': countdownId,
-      },
+      queryParameters: {'user_id': _userId, 'countdown_id': countdownId},
     );
 
     final rows = response.data as List<dynamic>? ?? [];
@@ -217,48 +226,49 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getRevisionRequests(
-      {String? carId}) async {
+  Future<List<Map<String, dynamic>>> getRevisionRequests({
+    String? carId,
+  }) async {
     final response = await apiClient.get(
       ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-        'approvals': true,
-      },
+      queryParameters: {'user_id': _userId, 'approvals': true},
     );
 
     final rows = response.data as List<dynamic>? ?? [];
-    return rows.whereType<Map<String, dynamic>>().map((item) {
-      return {
-        'requestId':
-            '${item['countdown_id'] ?? ''}',
-        'countdownId': '${item['countdown_id'] ?? ''}',
-        'carId': '${item['car_id'] ?? ''}',
-        'unitName': '${item['unit_name'] ?? '-'}',
-        'panelName': '${item['panel_name'] ?? '-'}',
-        'jobdesc': '${item['job_name'] ?? '-'}',
-        'status': 'REQUESTED',
-        'requestedHours':
-            (item['requested_extension_hours'] as num?)?.toDouble(),
-        'requestedDeadline': _toDate(item['requested_deadline']),
-        'reason': item['revision_reason'] as String?,
-        'requestedByName': item['requested_by_name'] as String?,
-        'requestedAt': '${item['created_at'] ?? ''}',
-        'currentHours': (item['current_hours'] as num?)?.toDouble(),
-        'currentDeadline': _toDate(item['current_deadline']),
-        'approvedHours': null,
-        'approvedDeadline': null,
-        'approvedByName': null,
-        'approvedAt': null,
-        'rejectedByName': null,
-        'rejectedAt': null,
-      };
-    }).where((item) {
-      if (carId == null || carId.isEmpty) {
-        return true;
-      }
-      return item['carId'] == carId;
-    }).toList();
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map((item) {
+          return {
+            'requestId': '${item['countdown_id'] ?? ''}',
+            'countdownId': '${item['countdown_id'] ?? ''}',
+            'carId': '${item['car_id'] ?? ''}',
+            'unitName': '${item['unit_name'] ?? '-'}',
+            'panelName': '${item['panel_name'] ?? '-'}',
+            'jobdesc': '${item['job_name'] ?? '-'}',
+            'status': 'REQUESTED',
+            'requestedHours': (item['requested_extension_hours'] as num?)
+                ?.toDouble(),
+            'requestedDeadline': _toDate(item['requested_deadline']),
+            'reason': item['revision_reason'] as String?,
+            'requestedByName': item['requested_by_name'] as String?,
+            'requestedAt': '${item['created_at'] ?? ''}',
+            'currentHours': (item['current_hours'] as num?)?.toDouble(),
+            'currentDeadline': _toDate(item['current_deadline']),
+            'approvedHours': null,
+            'approvedDeadline': null,
+            'approvedByName': null,
+            'approvedAt': null,
+            'rejectedByName': null,
+            'rejectedAt': null,
+          };
+        })
+        .where((item) {
+          if (carId == null || carId.isEmpty) {
+            return true;
+          }
+          return item['carId'] == carId;
+        })
+        .toList();
   }
 
   @override

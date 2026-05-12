@@ -1,14 +1,11 @@
 /*
-Tujuan: Halaman job plan untuk approval queue dan rencana/draft creator.
+Tujuan: Halaman job plan untuk approval queue, creator draft/plan, dan alokasi jam kerja harian.
 Caller: Route /plans, dashboard management, dan task section plan.
-Dependensi: RBAC, SessionManager, JobPlanRepository, WorkOrderRepository, DateFilterBar.
-Main Functions: _loadPlans, _showCreateSourceSheet, _showAdditionalTaskDialog, BrowseTab.
+Dependensi: RBAC, SessionManager, JobPlanRepository, WorkOrderRepository, CountdownRepository, JobPlanAllocationHelper, DateFilterBar.
+Main Functions: _loadPlans, _save, _showCreateSourceSheet, _showAdditionalTaskDialog, BrowseTab.
 Side Effects: HTTP GET/POST/PUT job plan, navigasi ke source route, refresh approval dan browse state.
 */
 import 'package:flutter/material.dart';
-import 'package:fpdart/fpdart.dart' as fp;
-import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:sm_system/core/auth/rbac.dart';
 import 'package:sm_system/core/constants/app_colors.dart';
@@ -27,9 +24,11 @@ import 'package:sm_system/core/utils/time_parser.dart';
 import 'package:sm_system/features/countdown/domain/entities/countdown_entities.dart';
 import 'package:sm_system/features/countdown/domain/repositories/countdown_repository.dart';
 import 'package:sm_system/features/countdown/presentation/utils/countdown_helper.dart';
+import 'package:sm_system/features/job_plan/presentation/utils/job_plan_allocation_helper.dart';
+import 'package:sm_system/features/job_plan/presentation/utils/job_plan_additional_draft_helper.dart';
+import 'package:sm_system/features/job_plan/presentation/utils/job_plan_job_type_helper.dart';
 import 'package:sm_system/features/task_execution/presentation/utils/task_execution_helper.dart';
 import 'package:sm_system/core/utils/snackbar_helper.dart';
-import 'package:sm_system/core/errors/failures.dart';
 
 bool _hasMeaningfulJobPlanText(Object? value) {
   final text = value?.toString().trim() ?? '';
@@ -51,18 +50,18 @@ String? _pickNullableJobPlanText(Iterable<Object?> values) {
 }
 
 bool _canReviewApprovalStatus(String? role, String status) {
-  final r = role?.toLowerCase();
+  final r = UserRole.fromString(role);
   return switch (r) {
-    'pm' => true,
-    'adv' => status == 'PENDING_ADV',
+    UserRole.pm => true, // MP/PM: semua status
+    UserRole.adv => status == 'PENDING_ADV', // ADV: hanya PENDING_ADV
     _ => false,
   };
 }
 
 bool _canEditPlan(String? role, String status) {
-  final r = role?.toLowerCase();
+  final r = UserRole.fromString(role);
   return switch (r) {
-    'kd' => status == 'REJECTED' || status.startsWith('PENDING'),
+    UserRole.kd => status == 'REJECTED' || status.startsWith('PENDING'),
     _ => false,
   };
 }
@@ -304,13 +303,12 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        subtitle:
-                            subtitleBuilder != null
-                                ? Text(
-                                  subtitleBuilder(item),
-                                  style: const TextStyle(fontSize: 12),
-                                )
-                                : null,
+                        subtitle: subtitleBuilder != null
+                            ? Text(
+                                subtitleBuilder(item),
+                                style: const TextStyle(fontSize: 12),
+                              )
+                            : null,
                         onChanged: (val) {
                           ss(() {
                             if (val == true) {
@@ -318,8 +316,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                             } else {
                               selected.removeWhere(
                                 (s) =>
-                                    s['id'].toString() ==
-                                    item['id'].toString(),
+                                    s['id'].toString() == item['id'].toString(),
                               );
                             }
                           });
@@ -366,11 +363,10 @@ Future<Map<String, dynamic>?> jobPlanEmployeePicker(
     title: 'Pilih Pelaksana / Anggota',
     items: employees,
     labelBuilder: (m) => (m['full_name'] ?? m['name'] ?? '-').toString(),
-    subtitleBuilder: (m) =>
-        [
-          if (m['employee_id'] != null) m['employee_id'],
-          if (m['grade'] != null) 'Grade ${m['grade']}',
-        ].join(' • '),
+    subtitleBuilder: (m) => [
+      if (m['employee_id'] != null) m['employee_id'],
+      if (m['grade'] != null) 'Grade ${m['grade']}',
+    ].join(' • '),
   );
 }
 
@@ -471,7 +467,9 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
                             item,
-                            style: const TextStyle(color: AppColors.textPrimary),
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                           value: isSelected,
                           activeColor: AppColors.gold,
@@ -544,24 +542,20 @@ class _JobPlanPageState extends State<JobPlanPage>
   late final JobPlanRepository _repository;
   late final SessionManager _session;
 
-  bool _isLoading = true;
-  List<JobPlan> _plans = [];
-  final Set<String> _selectedApprovalPlanIds = {};
-  bool _isBulkApproving = false;
-
   // Browse state
   DateTime _browseDate = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _repository = sl<JobPlanRepository>();
     _session = sl<SessionManager>();
+    // Rencana tab hanya untuk KD; ADV/KP/MP hanya Approval
+    final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+    _tabController = TabController(length: isKd ? 2 : 1, vsync: this);
     if (widget.initialDate != null) {
       _browseDate = widget.initialDate!;
     }
-    _loadPlans();
 
     if (widget.autoOpenCreate) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -574,69 +568,6 @@ class _JobPlanPageState extends State<JobPlanPage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadPlans() async {
-    setState(() => _isLoading = true);
-    final result = await _repository.getApprovalQueue();
-    result.fold<void>(
-      (failure) {
-        if (mounted) setState(() => _isLoading = false);
-      },
-      (data) {
-        if (mounted) {
-          setState(() {
-            _plans = data;
-            _isLoading = false;
-          });
-        }
-      },
-    );
-  }
-
-  bool _isReviewablePlan(JobPlan plan) {
-    return _canReviewApprovalStatus(_session.role, plan.status);
-  }
-
-  Future<void> _processBulkApproval() async {
-    if (_selectedApprovalPlanIds.isEmpty) return;
-    setState(() => _isBulkApproving = true);
-
-    int approvedCount = 0;
-    final failedPlanIds = <String>[];
-
-    for (final id in _selectedApprovalPlanIds) {
-      final res = await _repository.approvePlan(
-        planId: id,
-        userId: _session.employeeId ?? '',
-      );
-      if (res.isRight()) {
-        approvedCount++;
-      } else {
-        failedPlanIds.add(id);
-      }
-    }
-    if (!mounted) return;
-    setState(() {
-      _isBulkApproving = false;
-      _isLoading = true;
-      _selectedApprovalPlanIds
-        ..clear()
-        ..addAll(failedPlanIds);
-    });
-    await _loadPlans();
-    if (!mounted) return;
-    final message = failedPlanIds.isEmpty
-        ? '$approvedCount plan berhasil disetujui.'
-        : '$approvedCount plan disetujui, ${failedPlanIds.length} gagal diproses.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: failedPlanIds.isEmpty
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFFFFA000),
-      ),
-    );
   }
 
   Future<void> _showApprovalPlanDetail(JobPlan plan) async {
@@ -681,6 +612,8 @@ class _JobPlanPageState extends State<JobPlanPage>
       plan.panelCustomNote,
     ]);
 
+    final canReview = _canReviewApprovalStatus(_session.role, plan.status);
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -688,173 +621,284 @@ class _JobPlanPageState extends State<JobPlanPage>
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      builder: (ctx) {
+        bool _isActing = false;
+
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(
-                      child: Text(
-                        'Detail Approval Plan',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                    // Header
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Detail Approval Plan',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                         ),
-                      ),
+                        IconButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: AppColors.textMuted,
-                      ),
+                    const SizedBox(height: 8),
+                    // Status + meta chips
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _ApprovalMetaChip(
+                          icon: Icons.flag_rounded,
+                          label: _statusLabel(plan.status),
+                        ),
+                        _ApprovalMetaChip(
+                          icon: Icons.category_rounded,
+                          label: _sourceTypeLabel(plan.sourceType),
+                        ),
+                        _ApprovalMetaChip(
+                          icon: plan.isOvertime
+                              ? Icons.nights_stay_rounded
+                              : Icons.sunny,
+                          label: plan.isOvertime ? 'LEMBUR' : 'NORMAL',
+                        ),
+                      ],
                     ),
+                    const SizedBox(height: 16),
+                    // Fields
+                    _ApprovalDetailField(
+                      label: 'Pelaksana',
+                      value: _pickJobPlanText([plan.assignedTo], '-'),
+                    ),
+                    _ApprovalDetailField(label: 'Unit', value: detailUnit),
+                    _ApprovalDetailField(label: 'Panel', value: detailPanel),
+                    if (panelSection != null)
+                      _ApprovalDetailField(
+                        label: 'Section',
+                        value: panelSection,
+                      ),
+                    _ApprovalDetailField(
+                      label: 'Divisi',
+                      value: detailDivision,
+                    ),
+                    _ApprovalDetailField(
+                      label: 'Tanggal Kerja',
+                      value: _pickJobPlanText([plan.workDate], '-'),
+                    ),
+                    _ApprovalDetailField(
+                      label: 'Jam Kerja',
+                      value:
+                          '${_pickJobPlanText([plan.startTime], '-')} - ${_pickJobPlanText([plan.finishTime], '-')}',
+                    ),
+                    _ApprovalDetailField(
+                      label: 'Target Jam',
+                      value: targetHoursLabel,
+                    ),
+                    if (remainingHoursLabel != null)
+                      _ApprovalDetailField(
+                        label: 'Sisa Countdown',
+                        value: remainingHoursLabel,
+                      ),
+                    _ApprovalDetailField(
+                      label: 'Jobdesc',
+                      value: detailDescription,
+                    ),
+                    if (detailNote.isNotEmpty)
+                      _ApprovalDetailField(
+                        label: 'Instruksi / SPOK',
+                        value: detailNote,
+                      ),
+                    if (sourceRefId != null)
+                      _ApprovalDetailField(
+                        label: 'Source Ref',
+                        value: sourceRefId,
+                      ),
+
+                    // ── Action buttons (hanya jika role bisa review) ──
+                    if (canReview) ...[
+                      const SizedBox(height: 24),
+                      const Divider(color: AppColors.border),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          // Tolak
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: _isActing
+                                  ? null
+                                  : () async {
+                                      final note = await showDialog<String>(
+                                        context: ctx,
+                                        builder: (dCtx) {
+                                          final ctrl = TextEditingController();
+                                          return AlertDialog(
+                                            backgroundColor:
+                                                AppColors.surfaceCard,
+                                            title: const Text(
+                                              'Alasan Penolakan',
+                                              style: TextStyle(
+                                                color: AppColors.textPrimary,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            content: TextField(
+                                              controller: ctrl,
+                                              maxLines: 3,
+                                              style: const TextStyle(
+                                                color: AppColors.textPrimary,
+                                              ),
+                                              decoration: const InputDecoration(
+                                                hintText: 'Tulis alasan...',
+                                                hintStyle: TextStyle(
+                                                  color: AppColors.textMuted,
+                                                ),
+                                                enabledBorder:
+                                                    UnderlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                        color: AppColors.border,
+                                                      ),
+                                                    ),
+                                                focusedBorder:
+                                                    UnderlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                        color: AppColors.gold,
+                                                      ),
+                                                    ),
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(dCtx),
+                                                child: const Text('Batal'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(
+                                                  dCtx,
+                                                  ctrl.text.trim(),
+                                                ),
+                                                child: const Text(
+                                                  'Tolak',
+                                                  style: TextStyle(
+                                                    color: Colors.redAccent,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                      );
+                                      if (note == null || note.isEmpty) return;
+                                      setLocalState(() => _isActing = true);
+                                      try {
+                                        await _repository.rejectPlan(
+                                          planId: plan.planId,
+                                          userId: _session.employeeId ?? '',
+                                          rejectNote: note,
+                                        );
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                        if (mounted)
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Plan ditolak.'),
+                                              backgroundColor: Colors.redAccent,
+                                            ),
+                                          );
+                                      } catch (_) {
+                                        if (ctx.mounted)
+                                          setLocalState(
+                                            () => _isActing = false,
+                                          );
+                                      }
+                                    },
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: Colors.redAccent,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'Tolak',
+                                style: TextStyle(color: Colors.redAccent),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Setujui
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _isActing
+                                  ? null
+                                  : () async {
+                                      setLocalState(() => _isActing = true);
+                                      try {
+                                        await _repository.approvePlan(
+                                          planId: plan.planId,
+                                          userId: _session.employeeId ?? '',
+                                        );
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                        if (mounted)
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Plan disetujui ✓'),
+                                              backgroundColor: Color(
+                                                0xFF2E7D32,
+                                              ),
+                                            ),
+                                          );
+                                      } catch (_) {
+                                        if (ctx.mounted)
+                                          setLocalState(
+                                            () => _isActing = false,
+                                          );
+                                      }
+                                    },
+                              icon: _isActing
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.black,
+                                      ),
+                                    )
+                                  : const Icon(Icons.check_rounded, size: 18),
+                              label: const Text('Setujui'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.gold,
+                                foregroundColor: Colors.black,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _ApprovalMetaChip(
-                      icon: Icons.flag_rounded,
-                      label: _statusLabel(plan.status),
-                    ),
-                    _ApprovalMetaChip(
-                      icon: Icons.category_rounded,
-                      label: plan.sourceType,
-                    ),
-                    _ApprovalMetaChip(
-                      icon: plan.isOvertime
-                          ? Icons.nights_stay_rounded
-                          : Icons.sunny,
-                      label: plan.isOvertime ? 'LEMBUR' : 'NORMAL',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _ApprovalDetailField(
-                  label: 'Pelaksana',
-                  value: _pickJobPlanText([plan.assignedTo], '-'),
-                ),
-                _ApprovalDetailField(label: 'Unit', value: detailUnit),
-                _ApprovalDetailField(label: 'Panel', value: detailPanel),
-                if (panelSection != null)
-                  _ApprovalDetailField(label: 'Section', value: panelSection),
-                _ApprovalDetailField(label: 'Divisi', value: detailDivision),
-                _ApprovalDetailField(
-                  label: 'Tanggal Kerja',
-                  value: _pickJobPlanText([plan.workDate], '-'),
-                ),
-                _ApprovalDetailField(
-                  label: 'Jam Kerja',
-                  value:
-                      '${_pickJobPlanText([plan.startTime], '-')} - ${_pickJobPlanText([plan.finishTime], '-')}',
-                ),
-                _ApprovalDetailField(
-                  label: 'Target Jam',
-                  value: targetHoursLabel,
-                ),
-                if (remainingHoursLabel != null)
-                  _ApprovalDetailField(
-                    label: 'Sisa Countdown',
-                    value: remainingHoursLabel,
-                  ),
-                _ApprovalDetailField(
-                  label: 'Jobdesc',
-                  value: detailDescription,
-                ),
-                if (detailNote.isNotEmpty)
-                  _ApprovalDetailField(
-                    label: 'Instruksi / SPOK',
-                    value: detailNote,
-                  ),
-
-                if (sourceRefId != null)
-                  _ApprovalDetailField(label: 'Source Ref', value: sourceRefId),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildApprovalBulkActionBar() {
-    final reviewablePlanIds = _plans
-        .where(_isReviewablePlan)
-        .map((plan) => plan.planId)
-        .toList();
-    if (reviewablePlanIds.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final selectedCount = reviewablePlanIds
-        .where(_selectedApprovalPlanIds.contains)
-        .length;
-    final areAllSelected =
-        selectedCount == reviewablePlanIds.length &&
-        reviewablePlanIds.isNotEmpty;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: selectedCount > 0
-            ? AppColors.gold.withValues(alpha: 0.1)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: selectedCount > 0
-              ? AppColors.gold.withValues(alpha: 0.3)
-              : AppColors.border.withValues(alpha: 0.5),
-        ),
-      ),
-      child: Row(
-        children: [
-          Checkbox(
-            value: areAllSelected,
-            activeColor: AppColors.gold,
-            onChanged: (val) {
-              setState(() {
-                if (val == true) {
-                  _selectedApprovalPlanIds.addAll(reviewablePlanIds);
-                } else {
-                  _selectedApprovalPlanIds.clear();
-                }
-              });
-            },
-          ),
-          const Text(
-            'Pilih Semua',
-            style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-          ),
-          const Spacer(),
-          if (selectedCount > 0)
-            FilledButton(
-              onPressed: _isBulkApproving ? null : _processBulkApproval,
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.gold,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                minimumSize: const Size(0, 32),
-              ),
-              child: Text(
-                _isBulkApproving ? '...' : 'Setujui $selectedCount',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.background,
-                ),
               ),
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -866,11 +910,22 @@ class _JobPlanPageState extends State<JobPlanPage>
   String _statusLabel(String status) {
     return switch (status.toUpperCase()) {
       'PENDING_ADV' => 'Menunggu Advisor',
-      'PENDING_PM' => 'Menunggu MP',
+      'PENDING_KP' => 'Menunggu KP',
+      'PENDING_MP' => 'Menunggu MP',
+      'PLAN' => 'Disetujui',
       'APPROVED' => 'Disetujui',
       'REJECTED' => 'Ditolak',
       _ => status,
     };
+  }
+
+  String _sourceTypeLabel(String sourceType) {
+    final s = sourceType.toUpperCase();
+    if (s.contains('URGENT')) return 'Urgent';
+    if (s.contains('ADDITIONAL')) return 'Tambahan';
+    if (s == 'WO') return 'Work Order';
+    if (s == 'COUNTDOWN') return 'Countdown';
+    return sourceType;
   }
 
   void _showCreateSourceSheet() {
@@ -903,9 +958,8 @@ class _JobPlanPageState extends State<JobPlanPage>
                 Navigator.pop(ctx);
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => _CountdownPlanFormPage(
-                      initialDate: _browseDate,
-                    ),
+                    builder: (_) =>
+                        _CountdownPlanFormPage(initialDate: _browseDate),
                   ),
                 );
               },
@@ -923,7 +977,10 @@ class _JobPlanPageState extends State<JobPlanPage>
               },
             ),
             ListTile(
-              leading: const Icon(Icons.add_task_rounded, color: AppColors.gold),
+              leading: const Icon(
+                Icons.add_task_rounded,
+                color: AppColors.gold,
+              ),
               title: const Text('Additional Task'),
               subtitle: const Text('Input pekerjaan manual atau urgent'),
               onTap: () {
@@ -943,7 +1000,10 @@ class _JobPlanPageState extends State<JobPlanPage>
     final result = await woRepo.getWorkOrders(view: 'ACTIVE');
 
     result.fold<void>(
-      (failure) => AppNotification.showError(context, failure.message ?? 'Error unknown'),
+      (failure) => AppNotification.showError(
+        context,
+        failure.message ?? 'Error unknown',
+      ),
       (orders) {
         // Filter those already hasCountdownLink?
         // Actually, JobPlan BE will handle duplication.
@@ -994,6 +1054,7 @@ class _JobPlanPageState extends State<JobPlanPage>
 
   @override
   Widget build(BuildContext context) {
+    final isKd = UserRole.fromString(_session.role) == UserRole.kd;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -1008,45 +1069,36 @@ class _JobPlanPageState extends State<JobPlanPage>
           labelColor: AppColors.gold,
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.gold,
-          tabs: const [Tab(text: 'Approval Plan'), Tab(text: 'Rencana')],
+          tabs: [
+            const Tab(text: 'Approval Plan'),
+            if (isKd) const Tab(text: 'Rencana'),
+          ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline_rounded),
-            onPressed: _showCreateSourceSheet,
-          ),
-        ],
+        actions: const [],
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _ApprovalTab(
-            isLoading: _isLoading,
-            plans: _plans,
-            onRefresh: _loadPlans,
-            onShowDetail: _showApprovalPlanDetail,
-            selectedIds: _selectedApprovalPlanIds,
-            onSelectionChanged: (id, selected) {
-              setState(() {
-                if (selected) {
-                  _selectedApprovalPlanIds.add(id);
-                } else {
-                  _selectedApprovalPlanIds.remove(id);
-                }
-              });
-            },
-            bulkActionBar: _buildApprovalBulkActionBar(),
-          ),
-          _BrowseTab(
-            initialDate: _browseDate,
-            onParamsChanged: (date, divId, carId) {
-              setState(() {
-                _browseDate = date;
-              });
-            },
-          ),
+          _ApprovalTab(onPlanTap: _showApprovalPlanDetail),
+          if (isKd)
+            _BrowseTab(
+              initialDate: _browseDate,
+              onParamsChanged: (date, divId, carId) {
+                setState(() {
+                  _browseDate = date;
+                });
+              },
+            ),
         ],
       ),
+      // FAB untuk KD membuat plan (bila tidak di tab Rencana, tetap bisa akses)
+      floatingActionButton: !isKd
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.gold,
+              onPressed: _showCreateSourceSheet,
+              child: const Icon(Icons.add_rounded, color: Colors.black),
+            ),
     );
   }
 }
@@ -1173,9 +1225,79 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         divisionId: matchingDiv.divisionId,
         panelId: panel.panelId,
       );
+      final activeJobs = jobdescs.where((j) {
+        final st = j.status.toUpperCase();
+        return st == 'PLAN' || st == 'PROSES';
+      }).toList();
+
+      // Draft lokal hanya mengurangi kapasitas planning, bukan sisa aktual pekerjaan.
+      final draftData = await sl<JobPlanRepository>().getDraft(
+        userId: _session.employeeId ?? '',
+      );
+      if (draftData != null && draftData.containsKey('items')) {
+        final items = draftData['items'] as List<dynamic>;
+        for (final item in items) {
+          if (item is Map<String, dynamic>) {
+            final coreId = item['coreId']?.toString();
+            final hrs = (item['targetHours'] as num?)?.toDouble() ?? 0.0;
+            if (coreId != null && hrs > 0) {
+              final idx = activeJobs.indexWhere((j) => j.id == coreId);
+              if (idx != -1) {
+                final original = activeJobs[idx];
+                final newAvailable = (_availablePlanHours(original) - hrs)
+                    .clamp(0.0, double.infinity);
+                activeJobs[idx] = CountdownJobdesc(
+                  id: original.id,
+                  carId: original.carId,
+                  divisionId: original.divisionId,
+                  panelName: original.panelName,
+                  sectionName: original.sectionName,
+                  jobdesc: original.jobdesc,
+                  taskCategory: original.taskCategory,
+                  progress: original.progress,
+                  status: original.status,
+                  targetHoursInitial: original.targetHoursInitial,
+                  timeExtensionHours: original.timeExtensionHours,
+                  targetHoursRevised: original.targetHoursRevised,
+                  totalActualHours: original.totalActualHours,
+                  remainingHours: original.remainingHours,
+                  startDate: original.startDate,
+                  deadlineDate: original.deadlineDate,
+                  qcLastStatus: original.qcLastStatus,
+                  qcValidationStatus: original.qcValidationStatus,
+                  qcResultStatus: original.qcResultStatus,
+                  qcEstimatedReworkHours: original.qcEstimatedReworkHours,
+                  qcReworkDeadlineDate: original.qcReworkDeadlineDate,
+                  qcAdvisorNotes: original.qcAdvisorNotes,
+                  revisionRequestStatus: original.revisionRequestStatus,
+                  requestedRevisionHours: original.requestedRevisionHours,
+                  requestedRevisionDeadline: original.requestedRevisionDeadline,
+                  requestedRevisionReason: original.requestedRevisionReason,
+                  requestedRevisionByName: original.requestedRevisionByName,
+                  requestedRevisionAt: original.requestedRevisionAt,
+                  approvedRevisionHours: original.approvedRevisionHours,
+                  approvedRevisionDeadline: original.approvedRevisionDeadline,
+                  approvedRevisionByName: original.approvedRevisionByName,
+                  approvedRevisionAt: original.approvedRevisionAt,
+                  rejectedRevisionByName: original.rejectedRevisionByName,
+                  rejectedRevisionAt: original.rejectedRevisionAt,
+                  isLockedByOtherDivision: original.isLockedByOtherDivision,
+                  targetHoursRevisedAlias: original.targetHoursRevisedAlias,
+                  remainingHoursAlias: original.remainingHoursAlias,
+                  availablePlanHours: newAvailable,
+                  reservedPlanHours: original.reservedPlanHours + hrs,
+                  availablePlanHoursAlias: null,
+                  reservedPlanHoursAlias: null,
+                );
+              }
+            }
+          }
+        }
+      }
+
       if (!mounted) return;
       setState(() {
-        _jobdescs = jobdescs;
+        _jobdescs = activeJobs;
         _isLoading = false;
       });
     } catch (e) {
@@ -1201,6 +1323,21 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     }
   }
 
+  double _availablePlanHours(CountdownJobdesc job) {
+    final hasExplicitPlanCapacity =
+        job.availablePlanHoursAlias != null || job.reservedPlanHours > 0;
+    final raw = hasExplicitPlanCapacity
+        ? job.availablePlanHours
+        : job.remainingHours;
+    return raw.clamp(0.0, double.infinity);
+  }
+
+  String _availablePlanHoursLabel(CountdownJobdesc job) {
+    final available = _availablePlanHours(job);
+    final actual = job.remainingHours.clamp(0.0, double.infinity);
+    return '${available.toStringAsFixed(1)} jam tersedia plan • ${actual.toStringAsFixed(1)} jam aktual';
+  }
+
   Future<void> _save() async {
     if (_selectedEmployee == null || _selectedJobs.isEmpty) {
       AppNotification.showWarning(context, 'Lengkapi data terlebih dahulu.');
@@ -1213,27 +1350,47 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
       return;
     }
 
+    final totalRemaining = _selectedJobs.fold<double>(
+      0.0,
+      (sum, j) => sum + _availablePlanHours(j),
+    );
+    if (hrs > totalRemaining) {
+      AppNotification.showWarning(
+        context,
+        'Target jam melebihi sisa jam countdown (maks $totalRemaining jam).',
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
       final List<Map<String, dynamic>> draftItems = [];
-      
-      // Calculate individual job duration by splitting the total session time
-      final totalSessionHours = TimeParser.parseHHmmToDecimal(_hoursCtrl.text) ?? 0.0;
-      final durationPerJob = totalSessionHours / _selectedJobs.length;
-      
-      TimeOfDay currentStartTime = _startTime;
 
-      for (final job in _selectedJobs) {
-        // Each job gets a proportional slice of the total session duration
-        final currentFinishTime = CountdownHelper.calculateFinishTime(
-          startTime: currentStartTime,
-          durationHours: durationPerJob,
-          date: _selectedDate,
+      final totalSessionHours =
+          TimeParser.parseHHmmToDecimal(_hoursCtrl.text) ?? 0.0;
+      final allocations = JobPlanAllocationHelper.allocateSequential(
+        taskDate: _selectedDate,
+        sessionStartTime: _startTime,
+        totalSessionHours: totalSessionHours,
+        jobs: _selectedJobs
+            .map(
+              (job) => JobPlanAllocationTarget(
+                jobId: job.id,
+                availablePlanHours: _availablePlanHours(job),
+              ),
+            )
+            .toList(),
+      );
+
+      for (final allocation in allocations) {
+        final job = _selectedJobs.firstWhere(
+          (item) => item.id == allocation.jobId,
         );
 
         final draftItem = {
-          'draftItemId': 'draft_${DateTime.now().microsecondsSinceEpoch}_${draftItems.length}',
+          'draftItemId':
+              'draft_${DateTime.now().microsecondsSinceEpoch}_${draftItems.length}',
           'sourceType': 'COUNTDOWN',
           'coreId': job.id,
           'carId': _selectedUnit!.carId,
@@ -1247,42 +1404,59 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                       '-')
                   .toString(),
           'jobDescription': job.jobdesc,
-          'targetHours': durationPerJob,
+          'targetHours': allocation.allocatedHours,
           'taskDate': _selectedDate.toIso8601String().split('T').first,
-          'startTime': CountdownHelper.formatTime(currentStartTime),
-          'finishTime': CountdownHelper.formatTime(currentFinishTime),
-          'isOvertime': CountdownHelper.isOvertimeByTime(currentFinishTime, date: _selectedDate),
-          'note': [
-            'Sumber: Countdown ${job.id}',
-            if (_instructionCtrl.text.trim().isNotEmpty)
-              'SPOK: ${_instructionCtrl.text.trim()}',
-          ].join(' | '),
+          'startTime': CountdownHelper.formatTime(allocation.startTime),
+          'finishTime': CountdownHelper.formatTime(allocation.finishTime),
+          'isOvertime': allocation.isOvertime,
+          'note': _instructionCtrl.text.trim(),
         };
 
-        // Important: Still check for 8h auto-split per individual job if needed
         draftItems.addAll(TaskExecutionHelper.splitJobPlanItem(draftItem));
-        
-        // Next job starts exactly when this one finishes
-        currentStartTime = currentFinishTime;
       }
 
-      await _repository.saveDraft(
-        userId: _session.employeeId ?? '',
-        items: draftItems,
-        sourceType: 'COUNTDOWN',
-        replaceItems: false,
-      );
+      final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+
+      if (isKd) {
+        await _repository.saveDraft(
+          userId: _session.employeeId ?? '',
+          items: draftItems,
+          sourceType: 'COUNTDOWN',
+          replaceItems: false,
+        );
+      } else {
+        for (final item in draftItems) {
+          await _repository.createPlan(
+            coreId: item['coreId']?.toString() ?? '',
+            carId: item['carId']?.toString() ?? '',
+            sourceType: 'COUNTDOWN',
+            sourceRefId: '',
+            unitName: item['unitName']?.toString() ?? '',
+            panelName: item['panelName']?.toString() ?? '',
+            assignedDivision: item['divisionId']?.toString() ?? '',
+            assignedUserId: item['assignedUserId']?.toString() ?? '',
+            assignedTo: item['assignedTo']?.toString() ?? '',
+            description: item['jobDescription']?.toString() ?? '',
+            targetHours: (item['targetHours'] as num?)?.toDouble() ?? 0.0,
+            workDate: item['taskDate']?.toString() ?? '',
+            startTime: item['startTime']?.toString() ?? '',
+            finishTime: item['finishTime']?.toString() ?? '',
+            isOvertime: item['isOvertime'] == true,
+            note: item['note']?.toString() ?? '',
+          );
+        }
+      }
 
       if (!mounted) return;
       Navigator.pop(context, true);
       AppNotification.showSuccess(
         context,
-        '${_selectedJobs.length} rencana berhasil disusun berurutan ke Draft.',
+        '${_selectedJobs.length} rencana kerja berhasil dikirim.',
       );
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        AppNotification.showError(context, 'Gagal menyimpan: $e');
+        AppNotification.showError(context, 'Gagal mengirim: $e');
       }
     }
   }
@@ -1378,12 +1552,11 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                       if (_selectedPanel != null) ...[
                         _SearchFieldTile(
                           label: 'Pekerjaan (Jobdesc)',
-                          value:
-                              _selectedJobs.isEmpty
-                                  ? null
-                                  : _selectedJobs.length == 1
-                                  ? _selectedJobs.first.jobdesc
-                                  : '${_selectedJobs.length} job dipilih',
+                          value: _selectedJobs.isEmpty
+                              ? null
+                              : _selectedJobs.length == 1
+                              ? _selectedJobs.first.jobdesc
+                              : '${_selectedJobs.length} job dipilih',
                           hint: 'Pilih Tugas di Panel ini',
                           onTap: () async {
                             final res = await jobPlanMultiMasterSearchPicker(
@@ -1394,24 +1567,38 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                     (j) => {
                                       'id': j.id,
                                       'name': j.jobdesc,
-                                      'hours':
-                                          '${j.remainingHours.toStringAsFixed(1)} jam sisa',
+                                      'hours': _availablePlanHoursLabel(j),
                                       'raw': j,
                                     },
                                   )
                                   .toList(),
-                              initialSelectionIds:
-                                  _selectedJobs.map((j) => j.id).toSet(),
+                              initialSelectionIds: _selectedJobs
+                                  .map((j) => j.id)
+                                  .toSet(),
                               labelBuilder: (m) => m['name'].toString(),
                               subtitleBuilder: (m) => m['hours'].toString(),
                             );
                             if (res != null) {
                               setState(() {
                                 _selectedJobs.clear();
+                                double totalRemaining = 0.0;
                                 for (final item in res) {
-                                  _selectedJobs.add(
-                                    item['raw'] as CountdownJobdesc,
-                                  );
+                                  final job = item['raw'] as CountdownJobdesc;
+                                  _selectedJobs.add(job);
+                                  totalRemaining += _availablePlanHours(job);
+                                }
+
+                                if (totalRemaining > 0) {
+                                  double target = totalRemaining;
+                                  if (target > 8.0) target = 8.0;
+
+                                  _hoursCtrl.text =
+                                      TimeParser.formatDecimalToHHmm(
+                                        target,
+                                        isTriple: false,
+                                      );
+                                  _finishTimeEdited = false;
+                                  _syncFinishTime();
                                 }
                               });
                             }
@@ -1495,14 +1682,18 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                           children: [
                             DurationInput(
                               labelText: 'Target Jam Hari Ini',
-                              initialHours: TimeParser.parseHHmmToDecimal(_hoursCtrl.text),
-                              isTripleHours: false, // Always HH:mm for daily countdown target
+                              initialHours: TimeParser.parseHHmmToDecimal(
+                                _hoursCtrl.text,
+                              ),
+                              isTripleHours:
+                                  false, // Always HH:mm for daily countdown target
                               onChanged: (val) {
                                 setState(() {
-                                  _hoursCtrl.text = TimeParser.formatDecimalToHHmm(
-                                    val,
-                                    isTriple: false,
-                                  );
+                                  _hoursCtrl.text =
+                                      TimeParser.formatDecimalToHHmm(
+                                        val,
+                                        isTriple: false,
+                                      );
                                 });
                                 _finishTimeEdited = false;
                                 _syncFinishTime();
@@ -1544,12 +1735,21 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
                         ),
-                        child: Text(
-                          _isSaving ? 'MENYIMPAN...' : 'SIMPAN KE DRAFT',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.background,
-                          ),
+                        child: Builder(
+                          builder: (context) {
+                            final isKd =
+                                UserRole.fromString(_session.role) ==
+                                UserRole.kd;
+                            return Text(
+                              _isSaving
+                                  ? (isKd ? 'MENYIMPAN...' : 'MENGIRIM...')
+                                  : (isKd ? 'SIMPAN KE DRAFT' : 'KIRIM'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.background,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
@@ -1802,13 +2002,25 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
   }
 
   void _hydrateDraft(Map<String, dynamic> draft) {
-    _manualUnitCtrl.text = draft['unitName']?.toString() ?? '';
-    _manualPanelCtrl.text = draft['panelName']?.toString() ?? '';
-    final jobDesc = draft['jobDescription']?.toString() ?? '';
-    if (jobDesc.isNotEmpty) _selectedJobs.add(jobDesc);
+    final hydrated = JobPlanAdditionalDraftHelper.hydrate(
+      draft: draft,
+      units: _units,
+      divisions: _divisions,
+    );
 
-    _selectedDivision = draft['divisionName']?.toString() ?? '';
-    _selectedEmployeeId = draft['assignedUserId']?.toString();
+    _selectedJobs.clear();
+    _manualUnitCtrl.text = hydrated.manualUnitName;
+    _manualPanelCtrl.text = hydrated.manualPanelName;
+    _manualJobCtrl.text = hydrated.manualJobDescription;
+    _selectedUnit = hydrated.selectedUnit;
+    _selectedPanel = hydrated.selectedPanel;
+    _useManualInput = hydrated.useManualInput;
+    _useFreeTextPanel = hydrated.useFreeTextPanel;
+    _sectionNameCtrl.text = hydrated.freeTextPanelName;
+    _selectedJobs.addAll(hydrated.selectedJobs);
+
+    _selectedDivision = hydrated.divisionLabel;
+    _selectedEmployeeId = hydrated.selectedEmployeeId;
     _selectedDate = DateTime.tryParse(draft['taskDate'] ?? '') ?? _selectedDate;
     _hoursCtrl.text = TimeParser.formatDecimalToHHmm(
       (draft['targetHours'] as num?)?.toDouble() ?? 0.0,
@@ -1876,11 +2088,6 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     final manualUnit = _manualUnitCtrl.text.trim();
     final manualPanel = _manualPanelCtrl.text.trim();
     final manualJob = _manualJobCtrl.text.trim();
-    final selectedEmployeeName =
-        selectedEmployee?['name']?.toString() ??
-        selectedEmployee?['full_name']?.toString() ??
-        '-';
-
     if (_useManualInput) {
       if (manualUnit.isEmpty || manualPanel.isEmpty || manualJob.isEmpty) {
         AppNotification.showWarning(context, 'Lengkapi input manual.');
@@ -1909,13 +2116,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
         : widget.isUrgent
         ? 'URGENT_ADDITIONAL'
         : 'ADDITIONAL';
-    final sourceNote = <String>[
-      'Sumber: $_effectiveSourceType',
-      if (widget.isUrgent) 'Urgent: Ya',
-      if (widget.isCountdown) 'Dari Countdown: Ya',
-      _isOvertime ? 'Lembur: Ya' : 'Lembur: Tidak',
-      if (_noteCtrl.text.trim().isNotEmpty) 'SPOK: ${_noteCtrl.text.trim()}',
-    ].join(' | ');
+    final sourceNote = _noteCtrl.text.trim();
 
     try {
       final jobsToCreate = _useManualInput
@@ -1968,12 +2169,19 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
           }
         }
         final newItems = <Map<String, dynamic>>[];
-        
+
         // Calculate individual job duration by splitting the total session time
-        final totalSessionHours = TimeParser.parseHHmmToDecimal(_hoursCtrl.text) ?? 0.0;
+        final totalSessionHours =
+            TimeParser.parseHHmmToDecimal(_hoursCtrl.text) ?? 0.0;
         final durationPerJob = totalSessionHours / jobsToCreate.length;
-        
+
         TimeOfDay currentStartTime = _startTime;
+
+        final uid = session.employeeId ?? '';
+        final rejectedPlanId = (widget.initialDraft?['rejectedPlanId'] ?? '')
+            .toString();
+        final isReplacingDraft =
+            rejectedPlanId.isNotEmpty || widget.editIndex != null;
 
         for (final job in jobsToCreate) {
           final existingDraftItemId =
@@ -1982,7 +2190,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
               existingDraftItemId.isNotEmpty && draftOffset == 0
               ? existingDraftItemId
               : 'draft_${draftSeed}_$draftOffset';
-          
+
           final currentFinishTime = CountdownHelper.calculateFinishTime(
             startTime: currentStartTime,
             durationHours: durationPerJob,
@@ -2040,7 +2248,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                 : null,
             'startTime': CountdownHelper.formatTime(currentStartTime),
             'finishTime': CountdownHelper.formatTime(currentFinishTime),
-            'isOvertime': CountdownHelper.isOvertimeByTime(currentFinishTime, date: _selectedDate),
+            'isOvertime': CountdownHelper.isOvertimeByTime(
+              currentFinishTime,
+              date: _selectedDate,
+            ),
             'isRework': _isRework,
             'unitName': _useManualInput
                 ? manualUnit
@@ -2056,13 +2267,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
           currentStartTime = currentFinishTime;
           draftOffset++;
         }
-        final uid = session.employeeId ?? '';
-        final rejectedPlanId = (widget.initialDraft?['rejectedPlanId'] ?? '')
-            .toString();
-        final isReplacingDraft =
-            rejectedPlanId.isNotEmpty || widget.editIndex != null;
 
-        if (isReplacingDraft) {
+        final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+
+        if (isKd) {
           final existingDraft = await _repository.getDraft(userId: uid);
           final existingItems =
               (existingDraft?['items'] as List<dynamic>? ?? [])
@@ -2072,45 +2280,83 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
           existingItems.removeWhere(
             (t) => t['carId'] == null && t['panelId'] == null,
           );
-          final rejectedDraftIndex = rejectedPlanId.isEmpty
-              ? -1
-              : existingItems.indexWhere(
-                  (item) =>
-                      item['rejectedPlanId']?.toString() == rejectedPlanId,
-                );
 
-          if (rejectedDraftIndex >= 0) {
-            existingItems.removeAt(rejectedDraftIndex);
-            existingItems.insertAll(rejectedDraftIndex, newItems);
-          } else if (rejectedPlanId.isNotEmpty) {
-            existingItems.addAll(newItems);
-          } else if (widget.editIndex != null &&
-              widget.editIndex! >= 0 &&
-              widget.editIndex! < existingItems.length) {
-            existingItems.removeAt(widget.editIndex!);
-            existingItems.insertAll(widget.editIndex!, newItems);
+          if (isReplacingDraft) {
+            final rejectedDraftIndex = rejectedPlanId.isEmpty
+                ? -1
+                : existingItems.indexWhere(
+                    (item) =>
+                        item['rejectedPlanId']?.toString() == rejectedPlanId,
+                  );
+
+            if (rejectedDraftIndex >= 0) {
+              existingItems.removeAt(rejectedDraftIndex);
+              existingItems.insertAll(rejectedDraftIndex, newItems);
+            } else if (rejectedPlanId.isNotEmpty) {
+              existingItems.addAll(newItems);
+            } else if (widget.editIndex != null &&
+                widget.editIndex! >= 0 &&
+                widget.editIndex! < existingItems.length) {
+              existingItems.removeAt(widget.editIndex!);
+              existingItems.insertAll(widget.editIndex!, newItems);
+            } else {
+              existingItems.addAll(newItems);
+            }
+            await _repository.saveDraft(
+              userId: uid,
+              items: existingItems,
+              sourceType: 'ADDITIONAL',
+              replaceItems: true,
+              note: sourceNote,
+            );
           } else {
-            existingItems.addAll(newItems);
+            await _repository.saveDraft(
+              userId: uid,
+              items: newItems,
+              sourceType: 'ADDITIONAL',
+              replaceItems: false,
+              note: sourceNote,
+            );
           }
-          await _repository.saveDraft(
-            userId: uid,
-            items: existingItems,
-            sourceType: 'ADDITIONAL',
-            replaceItems: true,
-            note: sourceNote,
-          );
         } else {
-          await _repository.saveDraft(
-            userId: uid,
-            items: newItems,
-            sourceType: 'ADDITIONAL',
-            replaceItems: false,
-            note: sourceNote,
-          );
+          for (final item in newItems) {
+            await _repository.createPlan(
+              coreId: item['coreId']?.toString() ?? '',
+              carId: item['carId']?.toString() ?? '',
+              sourceType: item['sourceType']?.toString() ?? 'ADDITIONAL',
+              sourceRefId: '',
+              unitName: item['unitName']?.toString() ?? '',
+              panelName: item['panelName']?.toString() ?? '',
+              assignedDivision: item['divisionId']?.toString() ?? '',
+              assignedUserId: item['assignedUserId']?.toString() ?? '',
+              assignedTo: item['assignedUserName']?.toString() ?? '',
+              description: item['jobDescription']?.toString() ?? '',
+              targetHours: (item['targetHours'] as num?)?.toDouble() ?? 0.0,
+              workDate: item['taskDate']?.toString() ?? '',
+              startTime: item['startTime']?.toString() ?? '',
+              finishTime: item['finishTime']?.toString() ?? '',
+              isOvertime: item['isOvertime'] == true,
+              note: sourceNote,
+            );
+          }
+
+          if (isReplacingDraft && rejectedPlanId.isNotEmpty) {
+            try {
+              await _repository.deleteRejectedPlan(
+                planId: rejectedPlanId,
+                userId: uid,
+              );
+            } catch (_) {}
+          }
         }
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${newItems.length} pengerjaan disusun berurutan di Draft.')),
+            SnackBar(
+              content: Text(
+                '${newItems.length} rencana kerja berhasil dikirim.',
+              ),
+            ),
           );
         }
       }
@@ -2253,6 +2499,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                       _selectedDivision =
                                           res['name']?.toString() ?? '';
                                       _selectedEmployeeId = null;
+                                      _selectedJobs.clear();
                                     });
                                     _loadDivisionStaff();
                                   }
@@ -2272,26 +2519,23 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                   value: _selectedPanel,
                                   hint: 'Pilih Panel (Opsional)',
                                   onTap: () async {
-                                    final drop =
-                                        await _repository.getDropdowns(
-                                          carId:
-                                              _selectedUnit?['id']?.toString(),
-                                        );
+                                    final drop = await _repository.getDropdowns(
+                                      carId: _selectedUnit?['id']?.toString(),
+                                    );
                                     if (!mounted) return;
-                                    final res =
-                                        await jobPlanMasterSearchPicker(
-                                          context,
-                                          title: 'Pilih Panel',
-                                          items: drop['panels'] ?? [],
-                                          labelBuilder: (m) =>
-                                              m['name']?.toString() ?? '',
-                                          subtitleBuilder: (m) =>
-                                              m['section']?.toString() ?? '',
-                                        );
+                                    final res = await jobPlanMasterSearchPicker(
+                                      context,
+                                      title: 'Pilih Panel',
+                                      items: drop['panels'] ?? [],
+                                      labelBuilder: (m) =>
+                                          m['name']?.toString() ?? '',
+                                      subtitleBuilder: (m) =>
+                                          m['section']?.toString() ?? '',
+                                    );
                                     if (res != null) {
                                       setState(
-                                        () => _selectedPanel =
-                                            res['name']?.toString(),
+                                        () => _selectedPanel = res['name']
+                                            ?.toString(),
                                       );
                                     }
                                   },
@@ -2350,20 +2594,42 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                             else
                               _SearchFieldTile(
                                 label: 'Pekerjaan',
-                                value:
-                                    _selectedJobs.isEmpty
-                                        ? null
-                                        : _selectedJobs.length == 1
-                                        ? _selectedJobs.first
-                                        : '${_selectedJobs.length} job dipilih',
+                                value: _selectedJobs.isEmpty
+                                    ? null
+                                    : _selectedJobs.length == 1
+                                    ? _selectedJobs.first
+                                    : '${_selectedJobs.length} job dipilih',
                                 hint: 'Pilih Pekerjaan',
                                 onTap: () async {
-                                  final drop =
-                                      await _repository.getDropdowns();
-                                  final names = (drop['jobTypes'] as List)
-                                      .map((e) => e['name'].toString())
-                                      .toList();
-                                  if (!mounted) return;
+                                  if (_selectedDivision.trim().isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Pilih divisi dulu sebelum memilih jobdesc.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+
+                                  final names = await JobPlanJobTypeHelper
+                                      .loadAdditionalJobTypeNames(
+                                        divisionId: _selectedDivision,
+                                        loadDropdowns:
+                                            _repository.getAdditionalDropdowns,
+                                      );
+                                  if (!context.mounted) return;
+                                  if (names.isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Master jobdesc untuk divisi $_selectedDivision belum tersedia.',
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  if (!context.mounted) return;
                                   final selectedJobs =
                                       await jobPlanMultiJobPicker(
                                         context,
@@ -2433,10 +2699,16 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                             const SizedBox(height: 12),
                             DurationInput(
                               labelText: 'Target Jam Pengerjaan',
-                              initialHours: TimeParser.parseHHmmToDecimal(_hoursCtrl.text),
+                              initialHours: TimeParser.parseHHmmToDecimal(
+                                _hoursCtrl.text,
+                              ),
                               onChanged: (val) {
                                 setState(() {
-                                  _hoursCtrl.text = TimeParser.formatDecimalToHHmm(val, isTriple: false);
+                                  _hoursCtrl.text =
+                                      TimeParser.formatDecimalToHHmm(
+                                        val,
+                                        isTriple: false,
+                                      );
                                   _finishTimeEdited = false;
                                   _syncFinishTimeFromHours();
                                 });
@@ -2447,9 +2719,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton(
                                 onPressed: _applyStandardWorkday,
-                                child: const Text(
-                                  'Set jam kerja normal 8 jam',
-                                ),
+                                child: const Text('Set jam kerja normal 8 jam'),
                               ),
                             ),
                           ],
@@ -2461,18 +2731,21 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                         title: 'Target Proyek',
                         child: Column(
                           children: [
-                            TextField(
-                              controller: _totalProjectHoursCtrl,
-                              keyboardType: TextInputType.number,
-                              inputFormatters: [HHHMMFormatter()],
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
+                            DurationInput(
+                              labelText: 'Total Target Proyek (000:00)',
+                              initialHours: TimeParser.parseHHmmToDecimal(
+                                _totalProjectHoursCtrl.text,
                               ),
-                              decoration: const InputDecoration(
-                                labelText: 'Total Target Proyek (000:00)',
-                                hintText:
-                                    'Contoh: 180:00 (kosongkan = sama dgn target harian)',
-                              ),
+                              isTripleHours: true,
+                              onChanged: (val) {
+                                setState(() {
+                                  _totalProjectHoursCtrl.text =
+                                      TimeParser.formatDecimalToHHmm(
+                                        val,
+                                        isTriple: true,
+                                      );
+                                });
+                              },
                             ),
                             const SizedBox(height: 12),
                             Row(
@@ -2552,9 +2825,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                         lastDate: DateTime(2030),
                                       );
                                       if (picked != null) {
-                                        setState(
-                                          () => _deadlineDate = picked,
-                                        );
+                                        setState(() => _deadlineDate = picked);
                                       }
                                     },
                                   ),
@@ -2573,9 +2844,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               contentPadding: EdgeInsets.zero,
                               title: const Text(
                                 'Tanggal Pengerjaan',
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                               ),
                               subtitle: Text(
                                 _formatDate(_selectedDate),
@@ -2584,195 +2853,232 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                 ),
                               ),
                               trailing: const Icon(
-                                  Icons.calendar_today_rounded,
-                                  color: AppColors.gold,
-                                  size: 18,
-                                ),
-                              onTap: () async {
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: _selectedDate,
-                                    firstDate: DateTime(2025),
-                                    lastDate: DateTime(2027),
-                                  );
-                                  if (picked != null) {
-                                    setState(() {
-                                      _selectedDate = picked;
-                                      if (!_finishTimeEdited) {
-                                        final targetHours =
-                                            TimeParser.parseHHmmToDecimal(
-                                              _hoursCtrl.text,
-                                            );
-                                        if (targetHours != null &&
-                                            targetHours > 0) {
-                                          _finishTime = _calculateFinishTime(
-                                            startTime: _startTime,
-                                            durationHours: targetHours,
-                                            date: _selectedDate,
-                                          );
-                                        }
-                                      }
-                                      _isOvertime =
-                                          CountdownHelper.isOvertimeByTime(
-                                            _finishTime,
-                                            date: _selectedDate,
-                                          );
-                                    });
-                                  }
-                                },
+                                Icons.calendar_today_rounded,
+                                color: AppColors.gold,
+                                size: 18,
                               ),
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ClockTimeInput(
-                                      labelText: 'Jam Mulai',
-                                      initialTime: _startTime,
-                                      onChanged: (t) {
-                                        setState(() {
-                                          _startTime = t;
-                                          if (!_finishTimeEdited) {
-                                            final targetHours = TimeParser.parseHHmmToDecimal(_hoursCtrl.text);
-                                            if (targetHours != null && targetHours > 0) {
-                                              _finishTime = _calculateFinishTime(
-                                                startTime: _startTime,
-                                                durationHours: targetHours,
-                                                date: _selectedDate,
+                              onTap: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: _selectedDate,
+                                  firstDate: DateTime(2025),
+                                  lastDate: DateTime(2027),
+                                );
+                                if (picked != null) {
+                                  setState(() {
+                                    _selectedDate = picked;
+                                    if (!_finishTimeEdited) {
+                                      final targetHours =
+                                          TimeParser.parseHHmmToDecimal(
+                                            _hoursCtrl.text,
+                                          );
+                                      if (targetHours != null &&
+                                          targetHours > 0) {
+                                        _finishTime = _calculateFinishTime(
+                                          startTime: _startTime,
+                                          durationHours: targetHours,
+                                          date: _selectedDate,
+                                        );
+                                      }
+                                    }
+                                    _isOvertime =
+                                        CountdownHelper.isOvertimeByTime(
+                                          _finishTime,
+                                          date: _selectedDate,
+                                        );
+                                  });
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ClockTimeInput(
+                                    labelText: 'Jam Mulai',
+                                    initialTime: _startTime,
+                                    onChanged: (t) {
+                                      setState(() {
+                                        _startTime = t;
+                                        if (!_finishTimeEdited) {
+                                          final targetHours =
+                                              TimeParser.parseHHmmToDecimal(
+                                                _hoursCtrl.text,
                                               );
+                                          if (targetHours != null &&
+                                              targetHours > 0) {
+                                            _finishTime = _calculateFinishTime(
+                                              startTime: _startTime,
+                                              durationHours: targetHours,
+                                              date: _selectedDate,
+                                            );
+                                          }
+                                        }
+                                        _isOvertime =
+                                            CountdownHelper.isOvertimeByTime(
+                                              _finishTime,
+                                              date: _selectedDate,
+                                            );
+                                      });
+                                    },
+                                    onTapIcon: () async {
+                                      final picked = await showTimePicker(
+                                        context: context,
+                                        initialTime: _startTime,
+                                      );
+                                      if (picked != null) {
+                                        setState(() {
+                                          _startTime = picked;
+                                          if (!_finishTimeEdited) {
+                                            final targetHours =
+                                                TimeParser.parseHHmmToDecimal(
+                                                  _hoursCtrl.text,
+                                                );
+                                            if (targetHours != null &&
+                                                targetHours > 0) {
+                                              _finishTime =
+                                                  _calculateFinishTime(
+                                                    startTime: _startTime,
+                                                    durationHours: targetHours,
+                                                    date: _selectedDate,
+                                                  );
                                             }
                                           }
-                                          _isOvertime = CountdownHelper.isOvertimeByTime(_finishTime, date: _selectedDate);
+                                          _isOvertime =
+                                              CountdownHelper.isOvertimeByTime(
+                                                _finishTime,
+                                                date: _selectedDate,
+                                              );
                                         });
-                                      },
-                                      onTapIcon: () async {
-                                        final picked = await showTimePicker(context: context, initialTime: _startTime);
-                                        if (picked != null) {
-                                          setState(() {
-                                            _startTime = picked;
-                                            if (!_finishTimeEdited) {
-                                              final targetHours = TimeParser.parseHHmmToDecimal(_hoursCtrl.text);
-                                              if (targetHours != null && targetHours > 0) {
-                                                _finishTime = _calculateFinishTime(
-                                                  startTime: _startTime,
-                                                  durationHours: targetHours,
-                                                  date: _selectedDate,
-                                                );
-                                              }
-                                            }
-                                            _isOvertime = CountdownHelper.isOvertimeByTime(_finishTime, date: _selectedDate);
-                                          });
-                                        }
-                                      },
-                                    ),
+                                      }
+                                    },
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: ClockTimeInput(
-                                      labelText: 'Jam Selesai',
-                                      initialTime: _finishTime,
-                                      onChanged: (t) {
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ClockTimeInput(
+                                    labelText: 'Jam Selesai',
+                                    initialTime: _finishTime,
+                                    onChanged: (t) {
+                                      setState(() {
+                                        _finishTime = t;
+                                        _finishTimeEdited = true;
+                                        _isOvertime =
+                                            CountdownHelper.isOvertimeByTime(
+                                              _finishTime,
+                                              date: _selectedDate,
+                                            );
+                                      });
+                                    },
+                                    onTapIcon: () async {
+                                      final picked = await showTimePicker(
+                                        context: context,
+                                        initialTime: _finishTime,
+                                      );
+                                      if (picked != null) {
                                         setState(() {
-                                          _finishTime = t;
+                                          _finishTime = picked;
                                           _finishTimeEdited = true;
-                                          _isOvertime = CountdownHelper.isOvertimeByTime(_finishTime, date: _selectedDate);
+                                          _isOvertime =
+                                              CountdownHelper.isOvertimeByTime(
+                                                _finishTime,
+                                                date: _selectedDate,
+                                              );
                                         });
-                                      },
-                                      onTapIcon: () async {
-                                        final picked = await showTimePicker(context: context, initialTime: _finishTime);
-                                        if (picked != null) {
-                                          setState(() {
-                                            _finishTime = picked;
-                                            _finishTimeEdited = true;
-                                            _isOvertime = CountdownHelper.isOvertimeByTime(_finishTime, date: _selectedDate);
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SwitchListTile.adaptive(
-                                value: _isOvertime,
-                                onChanged: (value) =>
-                                    setState(() => _isOvertime = value),
-                                contentPadding: EdgeInsets.zero,
-                                activeColor: AppColors.gold,
-                                title: const Text(
-                                  'Jam lembur',
-                                  style: TextStyle(
-                                    color: AppColors.textPrimary,
+                                      }
+                                    },
                                   ),
                                 ),
-                              ),
-                              CheckboxListTile.adaptive(
-                                value: _isRework,
-                                onChanged: (v) =>
-                                    setState(() => _isRework = v ?? false),
-                                contentPadding: EdgeInsets.zero,
-                                title: const Text(
-                                  'Pekerjaan Rework',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                                activeColor: AppColors.gold,
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        _FormSection(
-                          title: 'Catatan Rencana',
-                          child: TextField(
-                            controller: _noteCtrl,
-                            maxLines: 2,
-                            style:
-                                const TextStyle(color: AppColors.textPrimary),
-                            decoration: const InputDecoration(
-                              hintText: 'Tulis catatan khusus (opsional)',
+                              ],
                             ),
+                            SwitchListTile.adaptive(
+                              value: _isOvertime,
+                              onChanged: (value) =>
+                                  setState(() => _isOvertime = value),
+                              contentPadding: EdgeInsets.zero,
+                              activeColor: AppColors.gold,
+                              title: const Text(
+                                'Jam lembur',
+                                style: TextStyle(color: AppColors.textPrimary),
+                              ),
+                            ),
+                            CheckboxListTile.adaptive(
+                              value: _isRework,
+                              onChanged: (v) =>
+                                  setState(() => _isRework = v ?? false),
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text(
+                                'Pekerjaan Rework',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              activeColor: AppColors.gold,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      _FormSection(
+                        title: 'Catatan Rencana',
+                        child: TextField(
+                          controller: _noteCtrl,
+                          maxLines: 2,
+                          style: const TextStyle(color: AppColors.textPrimary),
+                          decoration: const InputDecoration(
+                            hintText: 'Tulis catatan khusus (opsional)',
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
 
-                  // ── Submit bar ─────────────────────────────────────
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: AppColors.surfaceCard,
-                      border: Border(top: BorderSide(color: AppColors.border)),
-                    ),
-                    child: SafeArea(
-                      top: false,
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: FilledButton(
-                          onPressed:
+                // ── Submit bar ─────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: const BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    border: Border(top: BorderSide(color: AppColors.border)),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: FilledButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () => _save(_selectedUnit, selectedEmployee),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                        ),
+                        child: Builder(
+                          builder: (context) {
+                            final session = sl<SessionManager>();
+                            final isKd =
+                                UserRole.fromString(session.role) ==
+                                UserRole.kd;
+                            return Text(
                               _isSaving
-                                  ? null
-                                  : () => _save(_selectedUnit, selectedEmployee),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.gold,
-                          ),
-                          child: Text(
-                            _isSaving ? 'MENYIMPAN...' : 'SIMPAN KE DRAFT',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.background,
-                            ),
-                          ),
+                                  ? (isKd ? 'MENYIMPAN...' : 'MENGIRIM...')
+                                  : (isKd ? 'SIMPAN KE DRAFT' : 'KIRIM'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.background,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -2980,9 +3286,9 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
   Future<void> _save(String selectedEmployeeName) async {
     final targetHours = TimeParser.parseHHmmToDecimal(_hoursCtrl.text);
     if (_selectedEmployeeId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Harap pilih pelaksana.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Harap pilih pelaksana.')));
       return;
     }
     if (_jobdescCtrl.text.trim().isEmpty) {
@@ -3001,11 +3307,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
     }
 
     setState(() => _isSaving = true);
-    final sourceNote = <String>[
-      'Sumber: ${widget.seed.sourceLabel}',
-      _isOvertime ? 'Lembur: Ya' : 'Lembur: Tidak',
-      if (_noteCtrl.text.trim().isNotEmpty) 'SPOK: ${_noteCtrl.text.trim()}',
-    ].join(' | ');
+    final sourceNote = _noteCtrl.text.trim();
 
     try {
       final session = sl<SessionManager>();
@@ -3023,8 +3325,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
       }
 
       final newItem = <String, dynamic>{
-        'draftItemId':
-            'draft_${DateTime.now().microsecondsSinceEpoch}',
+        'draftItemId': 'draft_${DateTime.now().microsecondsSinceEpoch}',
         'carId': widget.seed.carId,
         'sourceRefId': widget.seed.sourceRefId,
         'divisionId': divId,
@@ -3052,29 +3353,55 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
 
       final splitItems = TaskExecutionHelper.splitJobPlanItem(newItem);
       final uid = session.employeeId ?? '';
-      
-      final existingDraft = await _repository.getDraft(userId: uid);
-      final existingItems = (existingDraft?['items'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
-          .map(Map<String, dynamic>.from)
-          .toList();
-      existingItems.removeWhere(
-        (t) => t['carId'] == null && t['panelId'] == null,
-      );
-      
-      existingItems.addAll(splitItems);
-      
-      await _repository.saveDraft(
-        userId: uid,
-        items: existingItems,
-        sourceType: widget.seed.sourceType,
-        replaceItems: true,
-        note: sourceNote,
-      );
+
+      final isKd = UserRole.fromString(session.role) == UserRole.kd;
+
+      if (isKd) {
+        final existingDraft = await _repository.getDraft(userId: uid);
+        final existingItems = (existingDraft?['items'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .map(Map<String, dynamic>.from)
+            .toList();
+        existingItems.removeWhere(
+          (t) => t['carId'] == null && t['panelId'] == null,
+        );
+
+        existingItems.addAll(splitItems);
+
+        await _repository.saveDraft(
+          userId: uid,
+          items: existingItems,
+          sourceType: widget.seed.sourceType,
+          replaceItems: true,
+          note: sourceNote,
+        );
+      } else {
+        for (final item in splitItems) {
+          await _repository.createPlan(
+            coreId: item['coreId']?.toString() ?? '',
+            carId: item['carId']?.toString() ?? '',
+            sourceType:
+                item['sourceType']?.toString() ?? widget.seed.sourceType,
+            sourceRefId: item['sourceRefId']?.toString() ?? '',
+            unitName: item['unitName']?.toString() ?? '',
+            panelName: item['panelName']?.toString() ?? '',
+            assignedDivision: item['divisionId']?.toString() ?? '',
+            assignedUserId: item['assignedUserId']?.toString() ?? '',
+            assignedTo: item['assignedUserName']?.toString() ?? '',
+            description: item['jobDescription']?.toString() ?? '',
+            targetHours: (item['targetHours'] as num?)?.toDouble() ?? 0.0,
+            workDate: item['taskDate']?.toString() ?? '',
+            startTime: item['startTime']?.toString() ?? '',
+            finishTime: item['finishTime']?.toString() ?? '',
+            isOvertime: item['isOvertime'] == true,
+            note: sourceNote,
+          );
+        }
+      }
 
       if (!mounted) return;
       Navigator.pop(context, true);
-      AppNotification.showSuccess(context, 'Tersimpan di Draft.');
+      AppNotification.showSuccess(context, 'Rencana kerja berhasil dikirim.');
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -3229,10 +3556,16 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                             const SizedBox(height: 12),
                             DurationInput(
                               labelText: 'Target Jam Pengerjaan',
-                              initialHours: TimeParser.parseHHmmToDecimal(_hoursCtrl.text),
+                              initialHours: TimeParser.parseHHmmToDecimal(
+                                _hoursCtrl.text,
+                              ),
                               onChanged: (val) {
                                 setState(() {
-                                  _hoursCtrl.text = TimeParser.formatDecimalToHHmm(val, isTriple: false);
+                                  _hoursCtrl.text =
+                                      TimeParser.formatDecimalToHHmm(
+                                        val,
+                                        isTriple: false,
+                                      );
                                   _finishTimeEdited = false;
                                   _syncFinishTimeFromHours();
                                 });
@@ -3243,9 +3576,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton(
                                 onPressed: _applyStandardWorkday,
-                                child: const Text(
-                                  'Set jam kerja normal 8 jam',
-                                ),
+                                child: const Text('Set jam kerja normal 8 jam'),
                               ),
                             ),
                           ],
@@ -3260,9 +3591,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                               contentPadding: EdgeInsets.zero,
                               title: const Text(
                                 'Tanggal Pengerjaan',
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                               ),
                               subtitle: Text(
                                 _formatDate(_selectedDate),
@@ -3304,7 +3633,10 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                       });
                                     },
                                     onTapIcon: () async {
-                                      final picked = await showTimePicker(context: context, initialTime: _startTime);
+                                      final picked = await showTimePicker(
+                                        context: context,
+                                        initialTime: _startTime,
+                                      );
                                       if (picked != null) {
                                         setState(() {
                                           _startTime = picked;
@@ -3323,16 +3655,27 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                       setState(() {
                                         _finishTime = t;
                                         _finishTimeEdited = true;
-                                        _isOvertime = CountdownHelper.isOvertimeByTime(_finishTime, date: _selectedDate);
+                                        _isOvertime =
+                                            CountdownHelper.isOvertimeByTime(
+                                              _finishTime,
+                                              date: _selectedDate,
+                                            );
                                       });
                                     },
                                     onTapIcon: () async {
-                                      final picked = await showTimePicker(context: context, initialTime: _finishTime);
+                                      final picked = await showTimePicker(
+                                        context: context,
+                                        initialTime: _finishTime,
+                                      );
                                       if (picked != null) {
                                         setState(() {
                                           _finishTime = picked;
                                           _finishTimeEdited = true;
-                                          _isOvertime = CountdownHelper.isOvertimeByTime(_finishTime, date: _selectedDate);
+                                          _isOvertime =
+                                              CountdownHelper.isOvertimeByTime(
+                                                _finishTime,
+                                                date: _selectedDate,
+                                              );
                                         });
                                       }
                                     },
@@ -3348,9 +3691,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                               activeColor: AppColors.gold,
                               title: const Text(
                                 'Jam lembur',
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                               ),
                             ),
                           ],
@@ -3383,8 +3724,9 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                       width: double.infinity,
                       height: 54,
                       child: FilledButton(
-                        onPressed:
-                            _isSaving ? null : () => _save(selectedEmployeeName),
+                        onPressed: _isSaving
+                            ? null
+                            : () => _save(selectedEmployeeName),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
                         ),
@@ -3498,35 +3840,252 @@ class _SearchFieldTile extends StatelessWidget {
   }
 }
 
-class _ApprovalTab extends StatelessWidget {
-  const _ApprovalTab({
-    required this.isLoading,
-    required this.plans,
-    required this.onRefresh,
-    required this.onShowDetail,
-    required this.selectedIds,
-    required this.onSelectionChanged,
-    required this.bulkActionBar,
-  });
+/// Tab Approval: Date → Divisi → Unit → Plans (dengan bulk approve)
+class _ApprovalTab extends StatefulWidget {
+  const _ApprovalTab({required this.onPlanTap});
+  final void Function(JobPlan) onPlanTap;
 
-  final bool isLoading;
-  final List<JobPlan> plans;
-  final Future<void> Function() onRefresh;
-  final void Function(JobPlan) onShowDetail;
-  final Set<String> selectedIds;
-  final void Function(String, bool) onSelectionChanged;
-  final Widget bulkActionBar;
+  @override
+  State<_ApprovalTab> createState() => _ApprovalTabState();
+}
+
+class _ApprovalTabState extends State<_ApprovalTab> {
+  late final JobPlanRepository _repo;
+  late final SessionManager _session;
+
+  bool _isLoading = false;
+  DateTime _date = DateTime.now();
+
+  // Navigasi drill-down
+  Map<String, dynamic>? _selDivision;
+  Map<String, dynamic>? _selUnit;
+
+  // Data per level
+  List<Map<String, dynamic>> _divisionItems = [];
+  List<Map<String, dynamic>> _unitItems = [];
+  List<JobPlan> _planItems = [];
+
+  // Bulk select
+  final Set<String> _selectedIds = {};
+  bool _isBulkApproving = false;
+
+  int get _level {
+    if (_selUnit == null) return 0; // no unit selected → show units
+    if (_selDivision == null)
+      return 1; // unit selected, no division → show divisions
+    return 2; // both selected → show plans
+  }
+
+  String get _dateStr {
+    final d = _date;
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _repo = sl<JobPlanRepository>();
+    _session = sl<SessionManager>();
+    _fetchCurrentLevel();
+  }
+
+  Future<void> _fetchCurrentLevel() async {
+    setState(() => _isLoading = true);
+    if (_level < 2) {
+      // Level 0: no unitId → units; Level 1: unitId set, no divisionId → divisions
+      final res = await _repo.getApprovalRaw(
+        unitId: _selUnit?['id']?.toString() ?? _selUnit?['unitId']?.toString(),
+        taskDate: _dateStr,
+      );
+      res.fold((_) => setState(() => _isLoading = false), (raw) {
+        final items = (raw['items'] as List<dynamic>? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+        setState(() {
+          _isLoading = false;
+          if (_level == 0) _unitItems = items;
+          if (_level == 1) _divisionItems = items;
+        });
+      });
+    } else {
+      // Level 2: both unitId + divisionId → plans
+      _repo
+          .getApprovalQueue(
+            unitId:
+                _selUnit?['id']?.toString() ?? _selUnit?['unitId']?.toString(),
+            divisionId:
+                _selDivision?['id']?.toString() ??
+                _selDivision?['divisionId']?.toString(),
+            taskDate: _dateStr,
+          )
+          .then((result) {
+            result.fold((_) => setState(() => _isLoading = false), (plans) {
+              if (mounted)
+                setState(() {
+                  _planItems = plans;
+                  _isLoading = false;
+                });
+            });
+          });
+    }
+  }
+
+  void _goBack() {
+    setState(() {
+      _selectedIds.clear();
+      if (_level == 2) {
+        _selDivision = null;
+        _divisionItems = [];
+        _planItems = [];
+      } else if (_level == 1) {
+        _selUnit = null;
+        _unitItems = [];
+      }
+    });
+    _fetchCurrentLevel();
+  }
+
+  void _selectUnit(Map<String, dynamic> unit) {
+    setState(() {
+      _selUnit = unit;
+      _unitItems = [];
+      _selectedIds.clear();
+    });
+    _fetchCurrentLevel();
+  }
+
+  void _selectDivision(Map<String, dynamic> div) {
+    setState(() {
+      _selDivision = div;
+      _divisionItems = [];
+      _selectedIds.clear();
+    });
+    _fetchCurrentLevel();
+  }
+
+  bool _canReview(String status) =>
+      _canReviewApprovalStatus(_session.role, status);
+
+  Future<void> _processBulkApproval() async {
+    if (_selectedIds.isEmpty) return;
+    setState(() => _isBulkApproving = true);
+    int ok = 0;
+    final failed = <String>[];
+    for (final id in _selectedIds) {
+      final res = await _repo.approvePlan(
+        planId: id,
+        userId: _session.employeeId ?? '',
+      );
+      res.isRight() ? ok++ : failed.add(id);
+    }
+    if (!mounted) return;
+    final msg = failed.isEmpty
+        ? '$ok plan berhasil disetujui.'
+        : '$ok plan disetujui, ${failed.length} gagal.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: failed.isEmpty
+            ? const Color(0xFF2E7D32)
+            : const Color(0xFFFFA000),
+      ),
+    );
+    setState(() {
+      _isBulkApproving = false;
+      _selectedIds.clear();
+    });
+    _fetchCurrentLevel();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.gold),
-      );
-    }
-    if (plans.isEmpty) {
+    return Column(
+      children: [
+        // Header: Date + Breadcrumb
+        Container(
+          color: AppColors.surfaceCard,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: DateFilterBar(
+                  selectedDate: _date,
+                  onDateChanged: (d) {
+                    setState(() {
+                      _date = d;
+                      _selUnit = null;
+                      _selDivision = null;
+                      _unitItems = [];
+                      _divisionItems = [];
+                      _planItems = [];
+                      _selectedIds.clear();
+                    });
+                    _fetchCurrentLevel();
+                  },
+                ),
+              ),
+              if (_level > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 16, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_ios_rounded,
+                          size: 16,
+                          color: AppColors.gold,
+                        ),
+                        onPressed: _goBack,
+                      ),
+                      Expanded(
+                        child: Text(
+                          _level == 1
+                              ? (_selUnit?['name'] ??
+                                    _selUnit?['unitName'] ??
+                                    '')
+                              : '${_selUnit?['name'] ?? _selUnit?['unitName'] ?? ''} › ${_selDivision?['name'] ?? _selDivision?['divisionName'] ?? ''}',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const Divider(height: 1, color: AppColors.border),
+            ],
+          ),
+        ),
+        // Content
+        Expanded(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.gold),
+                )
+              : _level == 0
+              ? _buildUnitList()
+              : _level == 1
+              ? _buildDivisionList()
+              : _buildPlanList(),
+        ),
+        // Bulk action bar
+        if (_level == 2 && _selectedIds.isNotEmpty)
+          _BulkApproveBar(
+            selectedCount: _selectedIds.length,
+            isLoading: _isBulkApproving,
+            onApprove: _processBulkApproval,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildDivisionList() {
+    if (_divisionItems.isEmpty) {
       return RefreshIndicator(
-        onRefresh: onRefresh,
+        onRefresh: _fetchCurrentLevel,
         child: ListView(
           children: const [
             SizedBox(height: 100),
@@ -3535,29 +4094,242 @@ class _ApprovalTab extends StatelessWidget {
         ),
       );
     }
-
     return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: Column(
-        children: [
-          Expanded(
+      onRefresh: _fetchCurrentLevel,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _divisionItems.length,
+        itemBuilder: (ctx, i) {
+          final div = _divisionItems[i];
+          final name = (div['name'] ?? div['divisionName'] ?? '-').toString();
+          return _NavDrillCard(
+            title: name,
+            subtitle: 'Ketuk untuk lihat unit',
+            icon: Icons.business_rounded,
+            onTap: () => _selectDivision(div),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildUnitList() {
+    if (_unitItems.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _fetchCurrentLevel,
+        child: ListView(
+          children: const [
+            SizedBox(height: 100),
+            Center(child: Text('Tidak ada unit dengan antrian.')),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _fetchCurrentLevel,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: _unitItems.length,
+        itemBuilder: (ctx, i) {
+          final unit = _unitItems[i];
+          final name =
+              (unit['name'] ?? unit['unitName'] ?? unit['unit_name'] ?? '-')
+                  .toString();
+          return _NavDrillCard(
+            title: name,
+            subtitle: 'Ketuk untuk lihat rencana',
+            icon: Icons.directions_car_rounded,
+            onTap: () => _selectUnit(unit),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPlanList() {
+    if (_planItems.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _fetchCurrentLevel,
+        child: ListView(
+          children: const [
+            SizedBox(height: 100),
+            Center(child: Text('Tidak ada rencana.')),
+          ],
+        ),
+      );
+    }
+    final reviewablePlans = _planItems
+        .where((p) => _canReview(p.status))
+        .toList();
+    final allSelected =
+        reviewablePlans.isNotEmpty &&
+        reviewablePlans.every((p) => _selectedIds.contains(p.planId));
+    return Column(
+      children: [
+        if (reviewablePlans.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${_planItems.length} rencana',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    if (allSelected)
+                      _selectedIds.clear();
+                    else
+                      _selectedIds.addAll(reviewablePlans.map((p) => p.planId));
+                  }),
+                  child: Text(
+                    allSelected ? 'Batal Semua' : 'Pilih Semua',
+                    style: const TextStyle(color: AppColors.gold, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _fetchCurrentLevel,
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
-              itemCount: plans.length,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+              itemCount: _planItems.length,
               itemBuilder: (ctx, i) {
-                final plan = plans[i];
-                final isSelected = selectedIds.contains(plan.planId);
+                final plan = _planItems[i];
+                final isSelected = _selectedIds.contains(plan.planId);
                 return _ApprovalPlanCard(
                   plan: plan,
-                  onTap: () => onShowDetail(plan),
+                  onTap: () => widget.onPlanTap(plan),
                   isSelected: isSelected,
-                  onSelectionChanged: (val) =>
-                      onSelectionChanged(plan.planId, val ?? false),
+                  onSelectionChanged: _canReview(plan.status)
+                      ? (val) => setState(
+                          () => val == true
+                              ? _selectedIds.add(plan.planId)
+                              : _selectedIds.remove(plan.planId),
+                        )
+                      : null,
                 );
               },
             ),
           ),
-        ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Card navigasi untuk drill-down Divisi/Unit
+class _NavDrillCard extends StatelessWidget {
+  const _NavDrillCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+  });
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.gold, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom bar untuk bulk approve
+class _BulkApproveBar extends StatelessWidget {
+  const _BulkApproveBar({
+    required this.selectedCount,
+    required this.isLoading,
+    required this.onApprove,
+  });
+  final int selectedCount;
+  final bool isLoading;
+  final VoidCallback onApprove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceCard,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          width: double.infinity,
+          height: 48,
+          child: FilledButton.icon(
+            onPressed: isLoading ? null : onApprove,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.background,
+            ),
+            icon: isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      color: AppColors.background,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.check_circle_rounded),
+            label: Text(
+              isLoading ? 'Menyetujui...' : 'Setujui $selectedCount Rencana',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -3574,12 +4346,11 @@ class _ApprovalPlanCard extends StatelessWidget {
   final JobPlan plan;
   final VoidCallback onTap;
   final bool isSelected;
-  final ValueChanged<bool?> onSelectionChanged;
+  final ValueChanged<bool?>? onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
-    final role = sl<SessionManager>().role;
-    final canSelect = _canReviewApprovalStatus(role, plan.status);
+    final canSelect = onSelectionChanged != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -3662,6 +4433,27 @@ class _ApprovalPlanCard extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                   ),
+                  if (plan.remainingHoursAlias != null &&
+                      plan.remainingHoursAlias!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Sisa: ${plan.remainingHoursAlias}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                  if (plan.status != 'DRAFT') ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Riwayat: ${plan.totalActualHours.toStringAsFixed(1)}j (${plan.progress}%)',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   _StatusChip(status: plan.status),
                 ],
@@ -3800,8 +4592,10 @@ class _BrowseTabState extends State<_BrowseTab> {
   late final SessionManager _session;
 
   bool _isLoading = true;
+  bool _isSubmittingDrafts = false;
   List<JobPlan> _plans = [];
   DateTime _selectedDate = DateTime.now();
+  final Set<String> _selectedDraftIds = {};
 
   @override
   void initState() {
@@ -3816,24 +4610,386 @@ class _BrowseTabState extends State<_BrowseTab> {
     setState(() => _isLoading = true);
     final dateStr =
         '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+
+    List<JobPlan> fetchedPlans = [];
+
+    // 1. Fetch DB plans (for REJECTED)
     final res = await _repository.browsePlans(taskDate: dateStr);
-    res.fold<void>(
-      (failure) {
-        if (mounted) setState(() => _isLoading = false);
-      },
-      (data) {
-        if (mounted) {
-          setState(() {
-            _plans = data;
-            _isLoading = false;
-          });
+    res.fold<void>((failure) {}, (data) {
+      fetchedPlans.addAll(
+        data.where((p) => p.status.toUpperCase() == 'REJECTED'),
+      );
+    });
+
+    // 2. Fetch Drafts from Redis
+    try {
+      final uid = _session.employeeId ?? '';
+      final existingDraft = await _repository.getDraft(userId: uid);
+      if (existingDraft != null && existingDraft.containsKey('items')) {
+        final items = existingDraft['items'] as List<dynamic>;
+        for (int i = 0; i < items.length; i++) {
+          final map = items[i] as Map<String, dynamic>;
+          // Filter draft by taskDate
+          if (map['taskDate'] == dateStr) {
+            fetchedPlans.add(
+              JobPlan(
+                planId: map['draftItemId']?.toString() ?? 'idx_$i',
+                coreId: map['coreId']?.toString() ?? '',
+                carId: map['carId']?.toString() ?? '',
+                sourceType: map['sourceType']?.toString() ?? '',
+                sourceRefId: '',
+                unitName: map['unitName']?.toString() ?? '',
+                panelName: map['panelName']?.toString() ?? '',
+                assignedDivision:
+                    map['divisionName']?.toString() ??
+                    map['assignedDivision']?.toString() ??
+                    map['divisionId']?.toString() ??
+                    '',
+                assignedUserId: map['assignedUserId']?.toString() ?? '',
+                assignedTo:
+                    map['assignedUserName']?.toString() ??
+                    map['assignedTo']?.toString() ??
+                    '',
+                description: map['jobDescription']?.toString() ?? '',
+                targetHours: (map['targetHours'] as num?)?.toDouble() ?? 0.0,
+                workDate: map['taskDate']?.toString() ?? '',
+                startTime: map['startTime']?.toString() ?? '',
+                finishTime: map['finishTime']?.toString() ?? '',
+                isOvertime: map['isOvertime'] == true,
+                deadline: '',
+                status: 'DRAFT',
+                note: map['note']?.toString() ?? '',
+                remainingHoursAlias: map['remainingHours'] != null
+                    ? '${map['remainingHours']} jam'
+                    : null,
+                progress: 0,
+                totalActualHours: 0.0,
+              ),
+            );
+          }
         }
-      },
+      }
+    } catch (e) {
+      // Ignore draft fetch errors
+    }
+
+    if (mounted) {
+      setState(() {
+        _plans = fetchedPlans;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _deleteDraftItem(JobPlan plan) async {
+    setState(() => _isLoading = true);
+    try {
+      final uid = _session.employeeId ?? '';
+      final existingDraft = await _repository.getDraft(userId: uid);
+      if (existingDraft != null && existingDraft.containsKey('items')) {
+        final items = (existingDraft['items'] as List<dynamic>)
+            .asMap()
+            .entries
+            .where((entry) {
+              final item = entry.value as Map<String, dynamic>;
+              final draftId =
+                  item['draftItemId']?.toString() ?? 'idx_${entry.key}';
+              return draftId != plan.planId;
+            })
+            .map((e) => e.value as Map<String, dynamic>)
+            .toList();
+
+        if (items.isEmpty) {
+          await _repository.deleteDraft(userId: uid);
+        } else {
+          await _repository.saveDraft(
+            userId: uid,
+            items: items,
+            sourceType: existingDraft['sourceType']?.toString() ?? 'ADDITIONAL',
+            replaceItems: true,
+          );
+        }
+        if (mounted) {
+          AppNotification.showSuccess(context, 'Draf berhasil dihapus.');
+          _fetch();
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        AppNotification.showError(context, 'Gagal menghapus draf: $e');
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _submitDrafts() async {
+    if (_selectedDraftIds.isEmpty) {
+      if (mounted)
+        AppNotification.showWarning(
+          context,
+          'Pilih minimal satu draf untuk dikirim.',
+        );
+      return;
+    }
+    setState(() => _isSubmittingDrafts = true);
+    try {
+      final uid = _session.employeeId ?? '';
+      final existingDraft = await _repository.getDraft(userId: uid);
+      if (existingDraft != null && existingDraft.containsKey('items')) {
+        final itemsList = existingDraft['items'] as List<dynamic>;
+        final allItems = itemsList
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
+
+        final itemsToSubmit = allItems
+            .asMap()
+            .entries
+            .where((entry) {
+              final id =
+                  entry.value['draftItemId']?.toString() ?? 'idx_${entry.key}';
+              return _selectedDraftIds.contains(id);
+            })
+            .map((e) => e.value)
+            .toList();
+
+        final remainingItems = allItems
+            .asMap()
+            .entries
+            .where((entry) {
+              final id =
+                  entry.value['draftItemId']?.toString() ?? 'idx_${entry.key}';
+              return !_selectedDraftIds.contains(id);
+            })
+            .map((e) => e.value)
+            .toList();
+
+        await _repository.submitDraft(
+          userId: uid,
+          items: itemsToSubmit,
+          sourceType: existingDraft['sourceType']?.toString() ?? 'ADDITIONAL',
+        );
+
+        // Remove submitted drafts from Redis
+        if (remainingItems.isEmpty) {
+          await _repository.deleteDraft(userId: uid);
+        } else {
+          await _repository.saveDraft(
+            userId: uid,
+            items: remainingItems,
+            sourceType: existingDraft['sourceType']?.toString() ?? 'ADDITIONAL',
+            replaceItems: true,
+          );
+        }
+
+        _selectedDraftIds.clear();
+
+        if (mounted) {
+          AppNotification.showSuccess(
+            context,
+            'Draft berhasil dikirim ke antrean.',
+          );
+          _fetch();
+        }
+      } else {
+        if (mounted)
+          AppNotification.showWarning(
+            context,
+            'Tidak ada draft untuk dikirim.',
+          );
+      }
+    } catch (e) {
+      if (mounted)
+        AppNotification.showError(context, 'Gagal mengirim draft: $e');
+    } finally {
+      if (mounted) setState(() => _isSubmittingDrafts = false);
+    }
+  }
+
+  /// Shows a detail bottom-sheet for a DRAFT plan item.
+  Future<void> _showDraftDetail(JobPlan plan) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Detail Draft Rencana',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close,
+                        color: AppColors.textSecondary,
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const Divider(color: AppColors.borderSubtle),
+                const SizedBox(height: 8),
+                _DetailRow(
+                  label: 'Unit',
+                  value: plan.unitName.isNotEmpty ? plan.unitName : '-',
+                ),
+                _DetailRow(
+                  label: 'Panel',
+                  value: plan.panelName.isNotEmpty ? plan.panelName : '-',
+                ),
+                _DetailRow(
+                  label: 'Divisi',
+                  value: plan.assignedDivision.isNotEmpty
+                      ? plan.assignedDivision
+                      : '-',
+                ),
+                _DetailRow(
+                  label: 'Pelaksana',
+                  value: plan.assignedTo.isNotEmpty ? plan.assignedTo : '-',
+                ),
+                _DetailRow(label: 'Tanggal Kerja', value: plan.workDate),
+                _DetailRow(
+                  label: 'Jam Kerja',
+                  value: '${plan.startTime} - ${plan.finishTime}',
+                ),
+                _DetailRow(
+                  label: 'Target Harian',
+                  value:
+                      plan.targetHoursAlias ?? _formatHours(plan.targetHours),
+                ),
+                _DetailRow(
+                  label: 'Lembur',
+                  value: plan.isOvertime ? 'Ya' : 'Tidak',
+                ),
+                const Divider(color: AppColors.borderSubtle),
+                const SizedBox(height: 4),
+                _DetailRow(
+                  label: 'Jobdesc',
+                  value: plan.description.isNotEmpty ? plan.description : '-',
+                ),
+                if (plan.note.isNotEmpty)
+                  _DetailRow(label: 'Catatan', value: plan.note),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.edit_outlined, size: 16),
+                        label: const Text('Edit'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _editDraft(plan);
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.gold,
+                          side: const BorderSide(color: AppColors.gold),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        label: const Text('Hapus'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _deleteDraftItem(plan);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.statusLocked,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
+  }
+
+  /// Opens _AdditionalPlanFormPage pre-filled with draft data for editing.
+  Future<void> _editDraft(JobPlan plan) async {
+    Map<String, dynamic>? rawDraft;
+    int? idxToEdit;
+    try {
+      final uid = _session.employeeId ?? '';
+      final existing = await _repository.getDraft(userId: uid);
+      if (existing != null && existing.containsKey('items')) {
+        final items = (existing['items'] as List<dynamic>)
+            .map((e) => e as Map<String, dynamic>)
+            .toList();
+        int foundIdx = -1;
+        for (int i = 0; i < items.length; i++) {
+          final m = items[i];
+          final id = m['draftItemId']?.toString() ?? 'idx_$i';
+          if (id == plan.planId) {
+            foundIdx = i;
+            break;
+          }
+        }
+        if (foundIdx >= 0) {
+          rawDraft = Map<String, dynamic>.from(items[foundIdx]);
+          idxToEdit = foundIdx;
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => _AdditionalPlanFormPage(
+          initialDate: _selectedDate,
+          initialDraft:
+              rawDraft ??
+              {
+                'draftItemId': plan.planId,
+                'carId': plan.carId,
+                'unitName': plan.unitName,
+                'panelName': plan.panelName,
+                'divisionName': plan.assignedDivision,
+                'assignedUserId': plan.assignedUserId,
+                'assignedUserName': plan.assignedTo,
+                'jobDescription': plan.description,
+                'targetHours': plan.targetHours,
+                'taskDate': plan.workDate,
+                'startTime': plan.startTime,
+                'finishTime': plan.finishTime,
+                'isOvertime': plan.isOvertime,
+                'note': plan.note,
+              },
+          editIndex: idxToEdit,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+    if (result == true && mounted) _fetch();
   }
 
   @override
   Widget build(BuildContext context) {
+    final draftPlans = _plans.where((p) => p.status == 'DRAFT').toList();
+    final hasDrafts = draftPlans.isNotEmpty;
+    final allDraftsSelected = draftPlans.isNotEmpty && draftPlans.every((p) => _selectedDraftIds.contains(p.planId));
     return Column(
       children: [
         Padding(
@@ -3847,106 +5003,365 @@ class _BrowseTabState extends State<_BrowseTab> {
             },
           ),
         ),
-        Expanded(
-          child:
-              _isLoading
-                  ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.gold),
-                  )
-                  : _plans.isEmpty
-                  ? const Center(child: Text('Tidak ada rencana kerja.'))
-                  : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _plans.length,
-                    itemBuilder: (ctx, i) => _SubmittedPlanCard(plan: _plans[i]),
+        if (draftPlans.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${draftPlans.length} draft',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
                   ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    if (allDraftsSelected) {
+                      _selectedDraftIds.clear();
+                    } else {
+                      _selectedDraftIds.addAll(draftPlans.map((p) => p.planId));
+                    }
+                  }),
+                  child: Text(
+                    allDraftsSelected ? 'Batal Semua' : 'Pilih Semua',
+                    style: const TextStyle(color: AppColors.gold, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: AppColors.gold),
+                )
+              : _plans.isEmpty
+              ? const Center(child: Text('Tidak ada rencana kerja.'))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _plans.length,
+                  itemBuilder: (ctx, i) {
+                    final plan = _plans[i];
+                    final isDraft = plan.status == 'DRAFT';
+                    return _SubmittedPlanCard(
+                      plan: plan,
+                      onDelete: isDraft ? () => _deleteDraftItem(plan) : null,
+                      onTap: isDraft ? () => _showDraftDetail(plan) : null,
+                      onEdit: isDraft ? () => _editDraft(plan) : null,
+                      isSelected:
+                          isDraft && _selectedDraftIds.contains(plan.planId),
+                      onSelectionChanged: isDraft
+                          ? (val) => setState(
+                              () => val == true
+                                  ? _selectedDraftIds.add(plan.planId)
+                                  : _selectedDraftIds.remove(plan.planId),
+                            )
+                          : null,
+                    );
+                  },
+                ),
         ),
+        if (hasDrafts)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: AppColors.surfaceCard,
+              border: Border(top: BorderSide(color: AppColors.border)),
+            ),
+            child: SafeArea(
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _isSubmittingDrafts ? null : _submitDrafts,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.gold,
+                  ),
+                  child: Text(
+                    _isSubmittingDrafts
+                        ? 'MENGIRIM...'
+                        : 'KIRIM ${_selectedDraftIds.length} DRAFT',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.background,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
 class _SubmittedPlanCard extends StatelessWidget {
-  const _SubmittedPlanCard({required this.plan});
+  const _SubmittedPlanCard({
+    required this.plan,
+    this.onDelete,
+    this.onTap,
+    this.onEdit,
+    this.isSelected = false,
+    this.onSelectionChanged,
+  });
+
   final JobPlan plan;
+  final VoidCallback? onDelete;
+  final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+  final bool isSelected;
+  final ValueChanged<bool?>? onSelectionChanged;
 
   @override
   Widget build(BuildContext context) {
+    final isDraft = plan.status == 'DRAFT';
     final isOt = plan.isOvertime;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
+        color: isSelected
+            ? AppColors.gold.withOpacity(0.08)
+            : AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderSubtle),
+        border: Border.all(
+          color: isSelected ? AppColors.gold : AppColors.borderSubtle,
+          width: isSelected ? 1.5 : 1.0,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    plan.unitName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Top row: checkbox / status / actions ──────────────
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  if (onSelectionChanged != null)
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: onSelectionChanged,
+                        activeColor: AppColors.gold,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  if (onSelectionChanged != null) const SizedBox(width: 8),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            plan.unitName,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isOt) ...[
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.nights_stay_rounded,
+                            size: 14,
+                            color: AppColors.gold,
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        _StatusChip(status: plan.status),
+                      ],
                     ),
                   ),
-                ),
-                if (isOt)
-                  const Icon(
-                    Icons.nights_stay_rounded,
-                    size: 14,
-                    color: AppColors.gold,
-                  ),
-                const SizedBox(width: 8),
-                _StatusChip(status: plan.status),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              plan.description,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
+                  // Edit & Delete — only for drafts
+                  if (isDraft && onEdit != null) ...[
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: onEdit,
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.edit_outlined,
+                          size: 16,
+                          color: AppColors.gold,
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (isDraft && onDelete != null) ...[
+                    const SizedBox(width: 4),
+                    GestureDetector(
+                      onTap: onDelete,
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: AppColors.statusLocked,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(
-                  Icons.person_outline,
-                  size: 14,
-                  color: AppColors.textMuted,
+              const SizedBox(height: 6),
+              // ── Job description ──────────────────────────────────
+              Text(
+                plan.description,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
                 ),
-                const SizedBox(width: 6),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              // ── Panel name ───────────────────────────────────────
+              if (plan.panelName.isNotEmpty)
                 Text(
-                  plan.assignedTo,
+                  plan.panelName,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const Spacer(),
-                const Icon(Icons.timer_outlined, size: 14, color: AppColors.gold),
-                const SizedBox(width: 4),
-                Text(
-                  plan.targetHoursAlias ?? _formatHours(plan.targetHours),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.gold,
+              const SizedBox(height: 10),
+              // ── Bottom row: assignee + hours + history ───────────
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.person_outline,
+                        size: 13,
+                        color: AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        plan.assignedTo,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
-          ],
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        size: 13,
+                        color: AppColors.gold,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${plan.startTime} - ${plan.finishTime}  |  ${plan.targetHoursAlias ?? _formatHours(plan.targetHours)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.gold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (plan.remainingHoursAlias != null &&
+                      plan.remainingHoursAlias!.isNotEmpty)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.hourglass_bottom,
+                          size: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Sisa: ${plan.remainingHoursAlias}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (!isDraft && plan.totalActualHours > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.history,
+                          size: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${plan.totalActualHours.toStringAsFixed(1)}j (${plan.progress}%)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Simple two-column label/value row used in detail sheets.
+class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

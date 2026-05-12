@@ -264,7 +264,7 @@ class CountdownHelper {
     if (hours >= 4.0) {
       final workDays = hours / 8.0;
       final daysStr = workDays.toStringAsFixed(workDays.truncateToDouble() == workDays ? 0 : 2);
-      return '${hrsStr}j (${daysStr} hari)';
+      return '${hrsStr}j ($daysStr hari)';
     }
     
     return '${hrsStr}j';

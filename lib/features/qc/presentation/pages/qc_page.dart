@@ -15,6 +15,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/time_parser.dart';
+import '../../../../core/widgets/duration_input.dart';
 import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../data/datasources/remote_qc_datasource.dart';
 import '../../domain/entities/qc_item.dart';
@@ -753,7 +754,7 @@ class QcSubmitPage extends StatefulWidget {
 class _QcSubmitPageState extends State<QcSubmitPage> {
   final _notesCtrl = TextEditingController();
   final _durationCtrl = TextEditingController();
-  final _reworkHoursCtrl = TextEditingController(text: '07:00');
+  double? _reworkHours = 7.0;
 
   String? _selectedUserId;
   List<Map<String, dynamic>> _availableUsers = [];
@@ -799,7 +800,9 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
           _durationCtrl.text = map['duration'];
         }
         if (map['reworkHours'] != null) {
-          _reworkHoursCtrl.text = map['reworkHours'];
+          _reworkHours = map['reworkHours'] is num
+              ? (map['reworkHours'] as num).toDouble()
+              : TimeParser.parseHHmmToDecimal(map['reworkHours'].toString());
         }
         if (map['selectedUserId'] != null) {
           _selectedUserId = map['selectedUserId'];
@@ -837,7 +840,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
         'notes': _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
         'duration': _durationCtrl.text.isNotEmpty ? _durationCtrl.text : null,
         'reworkHours':
-            _reworkHoursCtrl.text.isNotEmpty ? _reworkHoursCtrl.text : null,
+            _reworkHours != null ? TimeParser.formatDecimalToHHmm(_reworkHours!) : null,
         'selectedUserId': _selectedUserId,
         'reworkDate': _reworkDate?.toIso8601String(),
         'photoBeforeUrl': _photoBeforeUrl,
@@ -1032,7 +1035,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     if (!widget.passed) {
       if (_reworkDate == null ||
           _selectedUserId == null ||
-          _reworkHoursCtrl.text.trim().isEmpty) {
+          (_reworkHours == null || _reworkHours == 0)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Tanggal, pekerja, dan jam rework wajib diisi.'),
         ));
@@ -1055,7 +1058,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
         evidencePhotoUrl: _evidencePhotoUrl,
         reworkDate: widget.passed ? null : _formatDate(_reworkDate!),
         reworkAssignedUser: widget.passed ? null : _selectedUserId,
-        reworkDailyHours: widget.passed ? null : _reworkHoursCtrl.text.trim(),
+        reworkDailyHours: widget.passed ? null : TimeParser.formatDecimalToHHmm(_reworkHours ?? 7.0),
       );
 
       if (!mounted) return;
@@ -1251,19 +1254,13 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                     style: TextStyle(color: AppColors.textMuted)),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: _reworkHoursCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [HHHMMFormatter()],
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  labelText: 'Jam Kerja',
-                  filled: true,
-                  fillColor: AppColors.surfaceInput,
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none),
-                ),
+              DurationInput(
+                initialHours: _reworkHours,
+                isTripleHours: false,
+                labelText: '007:00',
+                onChanged: (val) {
+                  setState(() => _reworkHours = val);
+                },
               ),
             ],
 

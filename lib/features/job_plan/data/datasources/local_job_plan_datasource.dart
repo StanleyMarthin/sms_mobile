@@ -159,8 +159,22 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
               '')
           .toString();
 
-  String _itemJobDescription(Map<String, dynamic> item) =>
-      (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
+String _itemJobDescription(Map<String, dynamic> item) =>
+    (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
+
+Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
+  final normalized = Map<String, dynamic>.from(item);
+  final name =
+      (normalized['name'] ?? normalized['job_name'] ?? normalized['jobName'] ?? '')
+          .toString()
+          .trim();
+  if (name.isNotEmpty && name.toLowerCase() != 'null') {
+    normalized['name'] = name;
+    normalized['job_name'] ??= name;
+    normalized['jobName'] ??= name;
+  }
+  return normalized;
+}
 
   Map<String, dynamic> _normalizeDraftItem(
     Map<String, dynamic> item, {
@@ -250,6 +264,29 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
         .take(limit)
         .map(Map<String, dynamic>.from)
         .toList();
+  }
+
+  @override
+  Future<Map<String, dynamic>> getApprovalRaw({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    final items = await getApprovalQueue(
+      divisionId: divisionId,
+      unitId: unitId,
+      taskDate: taskDate,
+      limit: limit,
+      offset: offset,
+    );
+    final type = divisionId == null
+        ? 'divisions'
+        : unitId == null
+        ? 'units'
+        : 'plans';
+    return {'type': type, 'items': items};
   }
 
   @override
@@ -427,7 +464,10 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     return {
       'cars': DummyCars.all.map(Map<String, dynamic>.from).toList(),
       'panels': panels,
-      'jobTypes': DummyJobTypes.all.map(Map<String, dynamic>.from).toList(),
+      'jobTypes': DummyJobTypes.all
+          .map(Map<String, dynamic>.from)
+          .map(_normalizeDropdownJobType)
+          .toList(),
       'divisions': DummyDivisions.all.map(Map<String, dynamic>.from).toList(),
       'users': users,
     };

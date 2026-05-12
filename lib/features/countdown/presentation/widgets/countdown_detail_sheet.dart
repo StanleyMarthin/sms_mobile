@@ -1,3 +1,10 @@
+/*
+Tujuan: Bottom sheet detail countdown dengan ringkasan progres, detail jobdesc, dan shortcut pembuatan plan.
+Caller: Countdown pages dan grouped monitoring pages.
+Dependensi: AppColors, CountdownRepository, JobPlanRepository, CountdownDialogs.
+Main Functions: build, _buildHeader, _buildInfoGrid.
+Side Effects: Membuka dialog create plan dan memicu refresh parent saat plan dibuat.
+*/
 library;
 
 import 'package:flutter/material.dart';
@@ -78,8 +85,9 @@ class CountdownDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveStatus =
-        CountdownHelper.effectiveCountdownStatus(item).toUpperCase();
+    final effectiveStatus = CountdownHelper.effectiveCountdownStatus(
+      item,
+    ).toUpperCase();
     final isDone = CountdownHelper.isWorkCompleted(item);
     final revisionBanner = CountdownHelper.revisionStatusBanner(item);
     final hasActiveRevision =
@@ -116,8 +124,10 @@ class CountdownDetailSheet extends StatelessWidget {
               children: [
                 Text(
                   '${item.panelName} • ${item.sectionName}',
-                  style:
-                      const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -136,7 +146,9 @@ class CountdownDetailSheet extends StatelessWidget {
                     Text(
                       '${item.progress}% • DL ${item.deadlineDate}',
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textMuted),
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -159,12 +171,22 @@ class CountdownDetailSheet extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _infoRow('Task Category', item.taskCategory),
-                  _infoRow('Target Jam',
-                      item.targetHoursRevisedAlias ?? CountdownHelper.formatWorkHours(item.targetHoursRevised)),
-                  _infoRow('Terpakai',
-                      CountdownHelper.formatWorkHours(item.totalActualHours)),
-                  _infoRow('Tersisa',
-                      item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(item.remainingHours)),
+                  _infoRow(
+                    'Target Jam',
+                    item.targetHoursRevisedAlias ??
+                        CountdownHelper.formatWorkHours(
+                          item.targetHoursRevised,
+                        ),
+                  ),
+                  _infoRow(
+                    'Terpakai',
+                    CountdownHelper.formatWorkHours(item.totalActualHours),
+                  ),
+                  _infoRow(
+                    'Tersisa',
+                    item.remainingHoursAlias ??
+                        CountdownHelper.formatWorkHours(item.remainingHours),
+                  ),
                   _infoRow('Mulai', item.startDate),
                   _infoRow('Deadline', item.deadlineDate),
                   if (item.qcLastStatus != null)
@@ -182,14 +204,18 @@ class CountdownDetailSheet extends StatelessWidget {
                         onPressed: () async {
                           final created =
                               await CountdownDialogs.showCreatePlanDialog(
-                            context: context,
-                            item: item,
-                            unit: unit,
-                            allUnitItems: allUnitItems,
-                            jobPlanRepository: jobPlanRepository,
-                            availablePlanHours: item.remainingHours,
-                            initialDate: initialDate,
-                          );
+                                context: context,
+                                item: item,
+                                unit: unit,
+                                allUnitItems: allUnitItems,
+                                jobPlanRepository: jobPlanRepository,
+                                availablePlanHours:
+                                    item.availablePlanHoursAlias != null ||
+                                        item.reservedPlanHours > 0
+                                    ? item.availablePlanHours
+                                    : item.remainingHours,
+                                initialDate: initialDate,
+                              );
                           if (created) {
                             if (context.mounted) Navigator.pop(context);
                             onPlanCreated();
@@ -212,23 +238,29 @@ class CountdownDetailSheet extends StatelessWidget {
                         onPressed: () async {
                           final confirmed =
                               await CountdownDialogs.showDeclareCompleteDialog(
-                            context: context,
-                            item: item,
-                          );
+                                context: context,
+                                item: item,
+                              );
                           if (confirmed) {
                             try {
                               await repository.markAsQcReady(item.id);
                               if (context.mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Status berhasil diubah ke Menunggu QC.')),
+                                  const SnackBar(
+                                    content: Text(
+                                      'Status berhasil diubah ke Menunggu QC.',
+                                    ),
+                                  ),
                                 );
                               }
                               onDeclared?.call();
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Gagal menyelesaikan: $e')),
+                                  SnackBar(
+                                    content: Text('Gagal menyelesaikan: $e'),
+                                  ),
                                 );
                               }
                             }
@@ -249,11 +281,11 @@ class CountdownDetailSheet extends StatelessWidget {
                     if (!isDone && !hasActiveRevision)
                       OutlinedButton.icon(
                         onPressed: () async {
-                          final submitted = await CountdownDialogs
-                              .showCountdownRevisionDialog(
-                            context: context,
-                            item: item,
-                          );
+                          final submitted =
+                              await CountdownDialogs.showCountdownRevisionDialog(
+                                context: context,
+                                item: item,
+                              );
                           if (submitted) {
                             if (context.mounted) Navigator.pop(context);
                             onRevisionRequested();
@@ -264,7 +296,8 @@ class CountdownDetailSheet extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.orange,
                           side: BorderSide(
-                              color: AppColors.orange.withValues(alpha: 0.5)),
+                            color: AppColors.orange.withValues(alpha: 0.5),
+                          ),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
@@ -288,7 +321,8 @@ class CountdownDetailSheet extends StatelessWidget {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textPrimary,
                         side: BorderSide(
-                            color: AppColors.textPrimary.withValues(alpha: 0.3)),
+                          color: AppColors.textPrimary.withValues(alpha: 0.3),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
@@ -296,8 +330,10 @@ class CountdownDetailSheet extends StatelessWidget {
                   if (isPm) ...[
                     const Text(
                       'Mode PM: Anda dapat melihat detail aktual pada halaman countdown.',
-                      style:
-                          TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                       textAlign: TextAlign.center,
                     ),
                   ],
@@ -326,8 +362,10 @@ class CountdownDetailSheet extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style:
-                  const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textPrimary,
+              ),
             ),
           ),
         ],

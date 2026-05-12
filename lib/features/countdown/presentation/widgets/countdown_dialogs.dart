@@ -12,6 +12,7 @@ import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/utils/time_parser.dart';
+import '../../../../core/widgets/duration_input.dart';
 
 class CountdownDialogs {
   static Future<bool> showCreatePlanDialog({
@@ -59,7 +60,8 @@ class CountdownDialogs {
         .where((i) =>
             i.panelName == item.panelName &&
             i.id != item.id &&
-            i.targetHoursRevised > 0)
+            i.targetHoursRevised > 0 &&
+            !CountdownHelper.isWorkCompleted(i))
         .toList();
 
     final selectedCombos = <CountdownJobdesc>{};
@@ -74,11 +76,9 @@ class CountdownDialogs {
       return total;
     }
 
-    final hoursCtrl = TextEditingController(
-      text: TimeParser.formatDecimalToHHmm(availablePlanHours > 0
-          ? availablePlanHours
-          : item.targetHoursRevised),
-    );
+    double? hoursVal = availablePlanHours > 0
+        ? availablePlanHours
+        : item.targetHoursRevised;
     final descriptionCtrl = TextEditingController();
     DateTime selectedDate = initialDate ?? DateTime.now();
     TimeOfDay startTime = const TimeOfDay(hour: 8, minute: 0);
@@ -447,31 +447,20 @@ class CountdownDialogs {
                       // Target Jam
                       sectionCard(
                         title: 'TARGET JAM PENGERJAAN',
-                        child: TextField(
-                          controller: hoursCtrl,
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [HHHMMFormatter()],
-                          style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700),
-                          decoration: InputDecoration(
-                            hintText: '008:00',
-                            helperText:
-                                'Maks: ${TimeParser.formatDecimalToHHmm(getTotalAvailableHours())}',
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                          ),
+                        child: DurationInput(
+                          initialHours: hoursVal,
+                          isTripleHours: true,
+                          labelText:
+                              'Maks: ${TimeParser.formatDecimalToHHmm(getTotalAvailableHours())}',
                           onChanged: (val) {
-                            final hrs = TimeParser.parseHHmmToDecimal(val);
-                            if (hrs != null && hrs > 0) {
+                            hoursVal = val;
+                            if (val > 0) {
                               setSheet(() {
                                 if (!finishTimeEdited) {
                                   finishTime =
                                       CountdownHelper.calculateFinishTime(
                                     startTime: startTime,
-                                    durationHours: hrs,
+                                    durationHours: val,
                                     date: selectedDate,
                                   );
                                 }
@@ -501,8 +490,7 @@ class CountdownDialogs {
                                   lastDate: DateTime(2027),
                                 );
                                 if (picked != null) {
-                                  final hrs = TimeParser.parseHHmmToDecimal(
-                                      hoursCtrl.text);
+                                  final hrs = hoursVal;
                                   setSheet(() {
                                     selectedDate = picked;
                                     if (!finishTimeEdited &&
@@ -534,8 +522,7 @@ class CountdownDialogs {
                                     final picked = await showTimePicker(
                                         context: ctx, initialTime: startTime);
                                     if (picked != null) {
-                                      final hrs = TimeParser.parseHHmmToDecimal(
-                                          hoursCtrl.text);
+                                      final hrs = hoursVal;
                                       setSheet(() {
                                         startTime = picked;
                                         if (!finishTimeEdited &&
@@ -640,9 +627,7 @@ class CountdownDialogs {
                                   } else {
                                     selectedCombos.add(combo);
                                   }
-                                  hoursCtrl.text =
-                                      TimeParser.formatDecimalToHHmm(
-                                          getTotalAvailableHours());
+                                  hoursVal = getTotalAvailableHours();
                                   if (!finishTimeEdited) {
                                     finishTime =
                                         CountdownHelper.calculateFinishTime(
@@ -757,8 +742,7 @@ class CountdownDialogs {
                                 ctx, 'Pilih pelaksana terlebih dahulu.');
                             return;
                           }
-                          final inputHours =
-                              TimeParser.parseHHmmToDecimal(hoursCtrl.text);
+                          final inputHours = hoursVal;
                           if (inputHours == null || inputHours <= 0) {
                             AppNotification.showError(
                                 ctx, 'Target jam wajib diisi dengan benar.');
