@@ -35,6 +35,13 @@ abstract class WorkOrderRepository {
     double? targetHours,
   });
 
+  Future<Either<Failure, Map<String, dynamic>>> createWorkOrdersBatch({
+    required String carId,
+    required String targetDivId,
+    required String targetDate,
+    required List<Map<String, dynamic>> items,
+  });
+
   /// Approve WO di stage saat ini
   Future<Either<Failure, Map<String, dynamic>>> approveWorkOrder({
     required String woId,

@@ -12,6 +12,7 @@ import '../../features/qc/presentation/pages/qc_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/pr/presentation/pages/pr_page.dart';
+import '../../features/wov/presentation/pages/wov_page.dart';
 import '../../features/task_execution/presentation/pages/task_section_page.dart';
 import '../../features/task_execution/presentation/pages/alarm_page.dart';
 import '../../features/warehouse_request/presentation/pages/warehouse_request_page.dart';
@@ -143,9 +144,20 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/pr',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => FeatureShellPage(
           title: 'Purchase Request',
-          child: PrPage(),
+          child: PrPage(
+            focusReqId: state.uri.queryParameters['reqId'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/wov',
+        builder: (context, state) => FeatureShellPage(
+          title: 'Work Order Vendor',
+          child: WovPage(
+            focusReqId: state.uri.queryParameters['reqId'],
+          ),
         ),
       ),
       GoRoute(

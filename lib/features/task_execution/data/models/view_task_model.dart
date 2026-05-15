@@ -192,7 +192,10 @@ class TaskCheckpointSessionModel {
         json['time'],
         TimeParser.extractFirstClockFromText(note),
       ], fallback: '--:--'),
-      jobStatus: json['jobStatus'] as String? ?? 'ON_PROGRESS',
+      jobStatus: _asString(
+        json['jobStatus'] ?? json['status'],
+        fallback: 'ON_PROGRESS',
+      ).toUpperCase(),
       actorRole: json['actorRole'] as String? ?? 'kd',
       actorName: json['actorName'] as String? ?? 'SYSTEM',
       reviewers: reviewerItems.isNotEmpty

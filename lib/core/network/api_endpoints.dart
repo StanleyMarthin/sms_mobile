@@ -56,11 +56,11 @@ abstract class ApiEndpoints {
 
   // ── PR (sm_pr) ────────────────────────────────────────────
   static String get pr => '$_prBase/pr';
-  static String prFinalize(String reqId) => '$_prBase/pr/$reqId/finalize';
+  static String prDetail(String reqId) => '$_prBase/pr/$reqId';
 
   // ── WOV (sm_pr service, separate route) ───────────────────
   static String get wov => '$_prBase/wov';
-  static String wovFinalize(String reqId) => '$_prBase/wov/$reqId/finalize';
+  static String wovDetail(String reqId) => '$_prBase/wov/$reqId';
 
   // ── Countdown (sm_countdown) ─────────────────────────────
   static String get countdown => '$_countdownBase/countdown';

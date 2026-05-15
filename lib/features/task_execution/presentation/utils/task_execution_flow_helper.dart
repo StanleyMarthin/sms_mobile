@@ -79,6 +79,9 @@ class TaskExecutionFlowHelper {
         progressPercent >= 100) {
       return 'done';
     }
+    if (selectedStatus.trim().toLowerCase() == 'on_progress') {
+      return 'on_progress';
+    }
     return 'pending';
   }
 

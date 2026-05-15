@@ -204,9 +204,11 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     switch (value) {
       case 'done':
         return 'Selesai';
+      case 'on_progress':
+        return 'On Progress';
       case 'pending':
       default:
-        return 'Lanjut Besok';
+        return 'Pending';
     }
   }
 
@@ -414,7 +416,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         const SizedBox(width: 10),
         Expanded(
           child: Text(
-            isUpdatingProgress ? 'Update Progress' : 'Submit Progress',
+            'Selesaikan',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -695,7 +697,9 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           const SizedBox(height: 14),
           Row(
             children: [
-              _statusChip('pending', 'Lanjut Besok'),
+              _statusChip('pending', 'Pending'),
+              const SizedBox(width: 8),
+              _statusChip('on_progress', 'On Progress'),
               const SizedBox(width: 8),
               _statusChip('done', 'Selesai'),
             ],
@@ -778,6 +782,11 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     if (isActive) {
       switch (value) {
         case 'pending':
+          bgColor = const Color(0xFF1A1A2E);
+          borderColor = const Color(0xFF3A3A5C);
+          textColor = AppColors.textSecondary;
+          break;
+        case 'on_progress':
           bgColor = const Color(0xFF2A1F00);
           borderColor = const Color(0xFF7A5C00);
           textColor = AppColors.gold;

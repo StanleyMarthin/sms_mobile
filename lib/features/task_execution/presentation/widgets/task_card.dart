@@ -642,7 +642,7 @@ class TaskCard extends StatelessWidget {
                   ),
                 )
               : const Icon(Icons.edit_note_rounded, size: 18),
-          label: Text(isActionLoading ? 'Menyimpan...' : 'Update Progress'),
+          label: Text(isActionLoading ? 'Menyimpan...' : 'Selesaikan'),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.orange,
             foregroundColor: AppColors.background,

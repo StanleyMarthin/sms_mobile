@@ -95,6 +95,27 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
   }
 
   @override
+  Future<Either<Failure, Map<String, dynamic>>> createWorkOrdersBatch({
+    required String carId,
+    required String targetDivId,
+    required String targetDate,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    try {
+      return Right(
+        await dataSource.createWorkOrdersBatch(
+          carId: carId,
+          targetDivId: targetDivId,
+          targetDate: targetDate,
+          items: items,
+        ),
+      );
+    } catch (e, s) {
+      return _handle(e, s);
+    }
+  }
+
+  @override
   Future<Either<Failure, Map<String, dynamic>>> approveWorkOrder({
     required String woId,
     double? estimatedHours,

@@ -668,6 +668,17 @@ List<_MenuItem> _buildMenusForSession(SessionManager session) {
     );
   }
 
+  if (perms.contains(Permission.wovView)) {
+    menus.add(
+      _MenuItem(
+        icon: Icons.store_mall_directory_outlined,
+        label: 'WO\nVendor',
+        route: '/wov',
+        color: alt(),
+      ),
+    );
+  }
+
   // ── Profil (PROFILE_VIEW) ──
   if (_hasSessionPermission(session, Permission.profileView) ||
       perms.contains(Permission.profileView)) {

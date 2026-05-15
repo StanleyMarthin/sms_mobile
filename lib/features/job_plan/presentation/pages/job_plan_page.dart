@@ -51,22 +51,16 @@ String? _pickNullableJobPlanText(Iterable<Object?> values) {
 
 bool _canReviewApprovalStatus(String? role, String status) {
   final r = UserRole.fromString(role);
+  final s = status.toUpperCase();
+  // Hanya status PENDING yang masuk antrean review
+  if (!s.startsWith('PENDING')) return false;
+
   return switch (r) {
-    UserRole.pm => true, // MP/PM: semua status
-    UserRole.adv => status == 'PENDING_ADV', // ADV: hanya PENDING_ADV
+    UserRole.pm => true, // MP/PM: semua status PENDING
+    UserRole.adv => s == 'PENDING_ADV', // ADV: hanya PENDING_ADV
     _ => false,
   };
 }
-
-bool _canEditPlan(String? role, String status) {
-  final r = UserRole.fromString(role);
-  return switch (r) {
-    UserRole.kd => status == 'REJECTED' || status.startsWith('PENDING'),
-    _ => false,
-  };
-}
-
-bool _truthy(dynamic value) => value == true || value == 1 || value == '1';
 
 String _formatHours(double hours) {
   if (hours <= 0) return '-';
@@ -75,6 +69,21 @@ String _formatHours(double hours) {
   if (h > 0 && m > 0) return '${h}j ${m}m';
   if (h > 0) return '${h}j';
   return '${m}m';
+}
+
+String _formatHoursClock(
+  double hours, {
+  bool zeroAsClock = false,
+  bool isTriple = false,
+}) {
+  if (hours <= 0) {
+    return zeroAsClock ? (isTriple ? '000:00' : '00:00') : '-';
+  }
+  final formatted = TimeParser.formatDecimalToHHmm(hours, isTriple: isTriple);
+  if (formatted.isEmpty) {
+    return zeroAsClock ? (isTriple ? '000:00' : '00:00') : '-';
+  }
+  return formatted;
 }
 
 TimeOfDay _calculateFinishTime({
@@ -542,6 +551,13 @@ class _JobPlanPageState extends State<JobPlanPage>
   late final JobPlanRepository _repository;
   late final SessionManager _session;
 
+  // Notifier untuk trigger refresh di child tabs
+  final ValueNotifier<int> _refreshNotifier = ValueNotifier(0);
+
+  void _triggerRefresh() {
+    if (mounted) _refreshNotifier.value++;
+  }
+
   // Browse state
   DateTime _browseDate = DateTime.now();
 
@@ -567,6 +583,7 @@ class _JobPlanPageState extends State<JobPlanPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _refreshNotifier.dispose();
     super.dispose();
   }
 
@@ -809,6 +826,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                           userId: _session.employeeId ?? '',
                                           rejectNote: note,
                                         );
+                                        _triggerRefresh();
                                         if (ctx.mounted) Navigator.pop(ctx);
                                         if (mounted)
                                           ScaffoldMessenger.of(
@@ -853,6 +871,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                           planId: plan.planId,
                                           userId: _session.employeeId ?? '',
                                         );
+                                        _triggerRefresh();
                                         if (ctx.mounted) Navigator.pop(ctx);
                                         if (mounted)
                                           ScaffoldMessenger.of(
@@ -913,6 +932,10 @@ class _JobPlanPageState extends State<JobPlanPage>
       'PENDING_KP' => 'Menunggu KP',
       'PENDING_MP' => 'Menunggu MP',
       'PLAN' => 'Disetujui',
+      'ONPROGRESS' || 'ON_PROGRESS' => 'Dikerjakan',
+      'PENDING' => 'Pending Pengerjaan',
+      'READY_QC' => 'Siap QC',
+      'DONE' => 'Selesai',
       'APPROVED' => 'Disetujui',
       'REJECTED' => 'Ditolak',
       _ => status,
@@ -954,14 +977,15 @@ class _JobPlanPageState extends State<JobPlanPage>
               leading: const Icon(Icons.timer_outlined, color: AppColors.gold),
               title: const Text('Countdown List'),
               subtitle: const Text('Gunakan sisa jam dari project car aktif'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                Navigator.of(context).push(
+                final res = await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) =>
                         _CountdownPlanFormPage(initialDate: _browseDate),
                   ),
                 );
+                if (res == true) _triggerRefresh();
               },
             ),
             ListTile(
@@ -983,9 +1007,10 @@ class _JobPlanPageState extends State<JobPlanPage>
               ),
               title: const Text('Additional Task'),
               subtitle: const Text('Input pekerjaan manual atau urgent'),
-              onTap: () {
+              onTap: () async {
                 Navigator.pop(ctx);
-                _showAdditionalTaskDialog();
+                final res = await _showAdditionalTaskDialog();
+                if (res == true) _triggerRefresh();
               },
             ),
             const SizedBox(height: 12),
@@ -1016,9 +1041,9 @@ class _JobPlanPageState extends State<JobPlanPage>
           ),
           builder: (ctx) => _WoSourcePicker(
             orders: orders,
-            onSelect: (wo) {
+            onSelect: (wo) async {
               Navigator.pop(ctx);
-              Navigator.of(context).push(
+              final res = await Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => _SourcePlanFormPage(
                     seed: _PlanSourceSeed(
@@ -1037,6 +1062,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                   ),
                 ),
               );
+              if (res == true) _triggerRefresh();
             },
           ),
         );
@@ -1044,8 +1070,8 @@ class _JobPlanPageState extends State<JobPlanPage>
     );
   }
 
-  void _showAdditionalTaskDialog() {
-    Navigator.of(context).push(
+  Future<bool?> _showAdditionalTaskDialog() {
+    return Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => _AdditionalPlanFormPage(initialDate: _browseDate),
       ),
@@ -1079,10 +1105,17 @@ class _JobPlanPageState extends State<JobPlanPage>
       body: TabBarView(
         controller: _tabController,
         children: [
-          _ApprovalTab(onPlanTap: _showApprovalPlanDetail),
+          _ApprovalTab(
+            onPlanTap: _showApprovalPlanDetail,
+            refreshNotifier: _refreshNotifier,
+            initialDate: _browseDate,
+            onRefresh: _triggerRefresh,
+          ),
           if (isKd)
             _BrowseTab(
               initialDate: _browseDate,
+              refreshNotifier: _refreshNotifier,
+              onRefresh: _triggerRefresh,
               onParamsChanged: (date, divId, carId) {
                 setState(() {
                   _browseDate = date;
@@ -1139,6 +1172,17 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
   final TextEditingController _instructionCtrl = TextEditingController();
   bool _finishTimeEdited = false;
   bool _isOvertime = false;
+
+  String _panelSectionLabel(CountdownSection panel) {
+    final name = panel.sectionName.trim();
+    final section = panel.section.trim();
+    if (section.isNotEmpty &&
+        section != '-' &&
+        section.toLowerCase() != name.toLowerCase()) {
+      return '$name • $section';
+    }
+    return name;
+  }
 
   @override
   void initState() {
@@ -1225,10 +1269,21 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         divisionId: matchingDiv.divisionId,
         panelId: panel.panelId,
       );
-      final activeJobs = jobdescs.where((j) {
+      final activeJobsRaw = jobdescs.where((j) {
         final st = j.status.toUpperCase();
-        return st == 'PLAN' || st == 'PROSES';
+        final canPlan = st == 'PLAN' || st == 'PROSES';
+        return canPlan && _hasUsableCountdownJobdesc(j);
       }).toList();
+
+      final uniqueJobs = <String, CountdownJobdesc>{};
+      for (final j in activeJobsRaw) {
+        final key = j.jobdesc.trim().toLowerCase();
+        // Hanya masukkan jika belum ada, untuk mencegah duplikasi (bug backend)
+        if (!uniqueJobs.containsKey(key)) {
+          uniqueJobs[key] = j;
+        }
+      }
+      final activeJobs = uniqueJobs.values.toList();
 
       // Draft lokal hanya mengurangi kapasitas planning, bukan sisa aktual pekerjaan.
       final draftData = await sl<JobPlanRepository>().getDraft(
@@ -1332,10 +1387,15 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     return raw.clamp(0.0, double.infinity);
   }
 
+  bool _hasUsableCountdownJobdesc(CountdownJobdesc job) {
+    final text = job.jobdesc.trim();
+    return text.isNotEmpty && text != '-' && _availablePlanHours(job) > 0;
+  }
+
   String _availablePlanHoursLabel(CountdownJobdesc job) {
     final available = _availablePlanHours(job);
     final actual = job.remainingHours.clamp(0.0, double.infinity);
-    return '${available.toStringAsFixed(1)} jam tersedia plan • ${actual.toStringAsFixed(1)} jam aktual';
+    return '${_formatHoursClock(available, zeroAsClock: true)} tersedia plan • ${_formatHoursClock(actual, zeroAsClock: true)} sisa kerja';
   }
 
   Future<void> _save() async {
@@ -1357,7 +1417,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     if (hrs > totalRemaining) {
       AppNotification.showWarning(
         context,
-        'Target jam melebihi sisa jam countdown (maks $totalRemaining jam).',
+        'Target jam melebihi sisa jam countdown (maks ${_formatHoursClock(totalRemaining, zeroAsClock: true)}).',
       );
       return;
     }
@@ -1521,7 +1581,9 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                       if (_selectedUnit != null) ...[
                         _SearchFieldTile(
                           label: 'Panel / Section',
-                          value: _selectedPanel?.sectionName,
+                          value: _selectedPanel == null
+                              ? null
+                              : _panelSectionLabel(_selectedPanel!),
                           hint: 'Pilih Panel di Unit ini',
                           onTap: () async {
                             final res = await jobPlanMasterSearchPicker(
@@ -1531,8 +1593,9 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                   .map(
                                     (p) => {
                                       'id': p.panelId,
-                                      'name': p.sectionName,
-                                      'section': p.section,
+                                      'name': _panelSectionLabel(p),
+                                      'section':
+                                          '${p.totalJobdesc} jobdesc • ${_formatHoursClock(p.totalRemainingHours, zeroAsClock: true)} sisa',
                                       'raw': p,
                                     },
                                   )
@@ -1622,11 +1685,22 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                             children: [
                               _infoRow(
                                 'Total Target (Dipilih)',
-                                CountdownHelper.formatWorkHours(
-                                  _selectedJobs.fold(
-                                    0,
+                                _formatHoursClock(
+                                  _selectedJobs.fold<double>(
+                                    0.0,
                                     (sum, j) => sum + j.targetHoursRevised,
                                   ),
+                                  zeroAsClock: true,
+                                ),
+                              ),
+                              _infoRow(
+                                'Sisa Jam Kerja (Dipilih)',
+                                _formatHoursClock(
+                                  _selectedJobs.fold<double>(
+                                    0.0,
+                                    (sum, j) => sum + _availablePlanHours(j),
+                                  ),
+                                  zeroAsClock: true,
                                 ),
                               ),
                               _infoRow(
@@ -2021,10 +2095,25 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
 
     _selectedDivision = hydrated.divisionLabel;
     _selectedEmployeeId = hydrated.selectedEmployeeId;
+    _selectedCategory = hydrated.selectedCategory;
     _selectedDate = DateTime.tryParse(draft['taskDate'] ?? '') ?? _selectedDate;
-    _hoursCtrl.text = TimeParser.formatDecimalToHHmm(
-      (draft['targetHours'] as num?)?.toDouble() ?? 0.0,
-    );
+    final targetHours = switch (draft['targetHours']) {
+      final num value => value.toDouble(),
+      final String value => TimeParser.parseHHmmToDecimal(value),
+      _ => null,
+    };
+    _hoursCtrl.text = TimeParser.formatDecimalToHHmm(targetHours ?? 0.0);
+    final totalProjectHours = switch (draft['totalProjectHours']) {
+      final num value => value.toDouble(),
+      final String value => TimeParser.parseHHmmToDecimal(value),
+      _ => null,
+    };
+    _totalProjectHoursCtrl.text =
+        totalProjectHours == null || totalProjectHours <= 0
+        ? ''
+        : TimeParser.formatDecimalToHHmm(totalProjectHours, isTriple: true);
+    _startDate = DateTime.tryParse((draft['startDate'] ?? '').toString());
+    _deadlineDate = DateTime.tryParse((draft['deadlineDate'] ?? '').toString());
 
     final st = TimeParser.parseTimeOfDay(draft['startTime'] ?? '');
     if (st != null) _startTime = st;
@@ -2035,8 +2124,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
       _finishTimeEdited = true;
     }
 
-    _isOvertime = draft['isOvertime'] == true;
-    _isRework = draft['isRework'] == true;
+    _isOvertime = draft['isOvertime'] == true || draft['isOvertime'] == 1;
+    _isRework = draft['isRework'] == true || draft['isRework'] == 1;
     _noteCtrl.text = draft['note']?.toString() ?? '';
 
     _loadDivisionStaff();
@@ -2385,7 +2474,11 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(widget.isUrgent ? 'Urgent Job' : 'Additional Job'),
+        title: Text(
+          widget.initialDraft != null
+              ? 'Edit Job Plan'
+              : (widget.isUrgent ? 'Urgent Job' : 'Additional Job'),
+        ),
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
         centerTitle: true,
@@ -2612,8 +2705,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                     return;
                                   }
 
-                                  final names = await JobPlanJobTypeHelper
-                                      .loadAdditionalJobTypeNames(
+                                  final names =
+                                      await JobPlanJobTypeHelper.loadAdditionalJobTypeNames(
                                         divisionId: _selectedDivision,
                                         loadDropdowns:
                                             _repository.getAdditionalDropdowns,
@@ -3842,8 +3935,16 @@ class _SearchFieldTile extends StatelessWidget {
 
 /// Tab Approval: Date → Divisi → Unit → Plans (dengan bulk approve)
 class _ApprovalTab extends StatefulWidget {
-  const _ApprovalTab({required this.onPlanTap});
-  final void Function(JobPlan) onPlanTap;
+  const _ApprovalTab({
+    required this.onPlanTap,
+    required this.refreshNotifier,
+    required this.onRefresh,
+    this.initialDate,
+  });
+  final Future<void> Function(JobPlan) onPlanTap;
+  final ValueNotifier<int> refreshNotifier;
+  final VoidCallback onRefresh;
+  final DateTime? initialDate;
 
   @override
   State<_ApprovalTab> createState() => _ApprovalTabState();
@@ -3854,7 +3955,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
   late final SessionManager _session;
 
   bool _isLoading = false;
-  DateTime _date = DateTime.now();
+  late DateTime _date;
 
   // Navigasi drill-down
   Map<String, dynamic>? _selDivision;
@@ -3886,7 +3987,15 @@ class _ApprovalTabState extends State<_ApprovalTab> {
     super.initState();
     _repo = sl<JobPlanRepository>();
     _session = sl<SessionManager>();
+    _date = widget.initialDate ?? DateTime.now();
+    widget.refreshNotifier.addListener(_fetchCurrentLevel);
     _fetchCurrentLevel();
+  }
+
+  @override
+  void dispose() {
+    widget.refreshNotifier.removeListener(_fetchCurrentLevel);
+    super.dispose();
   }
 
   Future<void> _fetchCurrentLevel() async {
@@ -3897,16 +4006,23 @@ class _ApprovalTabState extends State<_ApprovalTab> {
         unitId: _selUnit?['id']?.toString() ?? _selUnit?['unitId']?.toString(),
         taskDate: _dateStr,
       );
-      res.fold((_) => setState(() => _isLoading = false), (raw) {
-        final items = (raw['items'] as List<dynamic>? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .toList();
-        setState(() {
-          _isLoading = false;
-          if (_level == 0) _unitItems = items;
-          if (_level == 1) _divisionItems = items;
-        });
-      });
+      res.fold(
+        (_) {
+          if (mounted) setState(() => _isLoading = false);
+        },
+        (raw) {
+          final items = (raw['items'] as List<dynamic>? ?? [])
+              .whereType<Map<String, dynamic>>()
+              .toList();
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              if (_level == 0) _unitItems = items;
+              if (_level == 1) _divisionItems = items;
+            });
+          }
+        },
+      );
     } else {
       // Level 2: both unitId + divisionId → plans
       _repo
@@ -3919,13 +4035,19 @@ class _ApprovalTabState extends State<_ApprovalTab> {
             taskDate: _dateStr,
           )
           .then((result) {
-            result.fold((_) => setState(() => _isLoading = false), (plans) {
-              if (mounted)
-                setState(() {
-                  _planItems = plans;
-                  _isLoading = false;
-                });
-            });
+            result.fold(
+              (_) {
+                if (mounted) setState(() => _isLoading = false);
+              },
+              (plans) {
+                if (mounted) {
+                  setState(() {
+                    _planItems = plans;
+                    _isLoading = false;
+                  });
+                }
+              },
+            );
           });
     }
   }
@@ -3990,11 +4112,13 @@ class _ApprovalTabState extends State<_ApprovalTab> {
             : const Color(0xFFFFA000),
       ),
     );
-    setState(() {
-      _isBulkApproving = false;
-      _selectedIds.clear();
-    });
-    _fetchCurrentLevel();
+    if (mounted) {
+      setState(() {
+        _isBulkApproving = false;
+        _selectedIds.clear();
+      });
+    }
+    widget.onRefresh();
   }
 
   @override
@@ -4204,8 +4328,12 @@ class _ApprovalTabState extends State<_ApprovalTab> {
                 final plan = _planItems[i];
                 final isSelected = _selectedIds.contains(plan.planId);
                 return _ApprovalPlanCard(
+                  key: ValueKey('appr_${plan.planId}'),
                   plan: plan,
-                  onTap: () => widget.onPlanTap(plan),
+                  onTap: () async {
+                    await widget.onPlanTap(plan);
+                    _fetchCurrentLevel();
+                  },
                   isSelected: isSelected,
                   onSelectionChanged: _canReview(plan.status)
                       ? (val) => setState(
@@ -4337,6 +4465,7 @@ class _BulkApproveBar extends StatelessWidget {
 
 class _ApprovalPlanCard extends StatelessWidget {
   const _ApprovalPlanCard({
+    super.key,
     required this.plan,
     required this.onTap,
     required this.isSelected,
@@ -4444,10 +4573,11 @@ class _ApprovalPlanCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (plan.status != 'DRAFT') ...[
+                  if (plan.status != 'DRAFT' &&
+                      (plan.totalActualHours > 0 || plan.progress > 0)) ...[
                     const SizedBox(height: 2),
                     Text(
-                      'Riwayat: ${plan.totalActualHours.toStringAsFixed(1)}j (${plan.progress}%)',
+                      'Riwayat: ${_formatHoursClock(plan.totalActualHours, zeroAsClock: true)} (${plan.progress}%)',
                       style: const TextStyle(
                         fontSize: 10,
                         color: AppColors.textSecondary,
@@ -4495,8 +4625,14 @@ class _StatusChip extends StatelessWidget {
   Color _resolveColor(String s) {
     return switch (s.toUpperCase()) {
       'PENDING_ADV' => AppColors.gold,
+      'PENDING_KP' => Colors.indigo,
+      'PENDING_MP' => Colors.blue,
       'PENDING_PM' => Colors.blue,
-      'APPROVED' => AppColors.statusDone,
+      'PLAN' || 'APPROVED' => AppColors.statusDone,
+      'ONPROGRESS' || 'ON_PROGRESS' => AppColors.gold,
+      'PENDING' => Colors.orange,
+      'READY_QC' => Colors.teal,
+      'DONE' => AppColors.statusDone,
       'REJECTED' => AppColors.statusLocked,
       _ => AppColors.textMuted,
     };
@@ -4505,8 +4641,14 @@ class _StatusChip extends StatelessWidget {
   String _resolveLabel(String s) {
     return switch (s.toUpperCase()) {
       'PENDING_ADV' => 'ADV',
+      'PENDING_KP' => 'KP',
+      'PENDING_MP' => 'MP',
       'PENDING_PM' => 'PM',
-      'APPROVED' => 'ACC',
+      'PLAN' || 'APPROVED' => 'ACC',
+      'ONPROGRESS' || 'ON_PROGRESS' => 'PROSES',
+      'PENDING' => 'HOLD',
+      'READY_QC' => 'QC',
+      'DONE' => 'DONE',
       'REJECTED' => 'REJ',
       _ => s,
     };
@@ -4579,9 +4721,16 @@ class _ApprovalDetailField extends StatelessWidget {
 }
 
 class _BrowseTab extends StatefulWidget {
-  const _BrowseTab({required this.initialDate, required this.onParamsChanged});
+  const _BrowseTab({
+    required this.initialDate,
+    required this.onParamsChanged,
+    required this.refreshNotifier,
+    required this.onRefresh,
+  });
   final DateTime initialDate;
   final void Function(DateTime, String?, String?) onParamsChanged;
+  final ValueNotifier<int> refreshNotifier;
+  final VoidCallback onRefresh;
 
   @override
   State<_BrowseTab> createState() => _BrowseTabState();
@@ -4603,7 +4752,14 @@ class _BrowseTabState extends State<_BrowseTab> {
     _repository = sl<JobPlanRepository>();
     _session = sl<SessionManager>();
     _selectedDate = widget.initialDate;
+    widget.refreshNotifier.addListener(_fetch);
     _fetch();
+  }
+
+  @override
+  void dispose() {
+    widget.refreshNotifier.removeListener(_fetch);
+    super.dispose();
   }
 
   Future<void> _fetch() async {
@@ -4612,14 +4768,6 @@ class _BrowseTabState extends State<_BrowseTab> {
         '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
 
     List<JobPlan> fetchedPlans = [];
-
-    // 1. Fetch DB plans (for REJECTED)
-    final res = await _repository.browsePlans(taskDate: dateStr);
-    res.fold<void>((failure) {}, (data) {
-      fetchedPlans.addAll(
-        data.where((p) => p.status.toUpperCase() == 'REJECTED'),
-      );
-    });
 
     // 2. Fetch Drafts from Redis
     try {
@@ -4660,7 +4808,10 @@ class _BrowseTabState extends State<_BrowseTab> {
                 status: 'DRAFT',
                 note: map['note']?.toString() ?? '',
                 remainingHoursAlias: map['remainingHours'] != null
-                    ? '${map['remainingHours']} jam'
+                    ? _formatHoursClock(
+                        (map['remainingHours'] as num?)?.toDouble() ?? 0.0,
+                        zeroAsClock: true,
+                      )
                     : null,
                 progress: 0,
                 totalActualHours: 0.0,
@@ -4681,13 +4832,41 @@ class _BrowseTabState extends State<_BrowseTab> {
     }
   }
 
+  /// Deletes a REJECTED plan from DB (not Redis draft).
+  Future<void> _deleteRejectedItem(JobPlan plan) async {
+    setState(() {
+      _plans.removeWhere((p) => p.planId == plan.planId);
+      _isLoading = true;
+    });
+    try {
+      final uid = _session.employeeId ?? '';
+      await _repository.deleteRejectedPlan(planId: plan.planId, userId: uid);
+      if (mounted) {
+        AppNotification.showSuccess(
+          context,
+          'Rencana ditolak berhasil dihapus.',
+        );
+        widget.onRefresh();
+      }
+    } catch (e) {
+      if (mounted) {
+        AppNotification.showError(context, 'Gagal menghapus: $e');
+        _fetch(); // Re-fetch to restore list on error
+      }
+    }
+  }
+
   Future<void> _deleteDraftItem(JobPlan plan) async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _plans.removeWhere((p) => p.planId == plan.planId);
+      _isLoading = true;
+    });
     try {
       final uid = _session.employeeId ?? '';
       final existingDraft = await _repository.getDraft(userId: uid);
       if (existingDraft != null && existingDraft.containsKey('items')) {
-        final items = (existingDraft['items'] as List<dynamic>)
+        final originalItems = existingDraft['items'] as List<dynamic>;
+        final items = originalItems
             .asMap()
             .entries
             .where((entry) {
@@ -4699,24 +4878,43 @@ class _BrowseTabState extends State<_BrowseTab> {
             .map((e) => e.value as Map<String, dynamic>)
             .toList();
 
-        if (items.isEmpty) {
-          await _repository.deleteDraft(userId: uid);
+        if (items.length < originalItems.length) {
+          if (items.isEmpty) {
+            await _repository.deleteDraft(userId: uid);
+          } else {
+            await _repository.saveDraft(
+              userId: uid,
+              items: items,
+              sourceType:
+                  existingDraft['sourceType']?.toString() ?? 'ADDITIONAL',
+              replaceItems: true,
+              note: existingDraft['note']?.toString(),
+            );
+          }
+          if (mounted) {
+            AppNotification.showSuccess(context, 'Draf berhasil dihapus.');
+            widget.onRefresh();
+          }
         } else {
-          await _repository.saveDraft(
-            userId: uid,
-            items: items,
-            sourceType: existingDraft['sourceType']?.toString() ?? 'ADDITIONAL',
-            replaceItems: true,
-          );
+          // No item matched the plan.planId
+          if (mounted) {
+            setState(() => _isLoading = false);
+            _fetch(); // Re-fetch to sync UI
+          }
         }
+      } else {
         if (mounted) {
-          AppNotification.showSuccess(context, 'Draf berhasil dihapus.');
+          setState(() => _isLoading = false);
           _fetch();
         }
       }
     } catch (e) {
       if (mounted) {
         AppNotification.showError(context, 'Gagal menghapus draf: $e');
+        _fetch(); // Re-fetch on error
+      }
+    } finally {
+      if (mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -4788,7 +4986,7 @@ class _BrowseTabState extends State<_BrowseTab> {
             context,
             'Draft berhasil dikirim ke antrean.',
           );
-          _fetch();
+          widget.onRefresh();
         }
       } else {
         if (mounted)
@@ -4888,22 +5086,6 @@ class _BrowseTabState extends State<_BrowseTab> {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
-                        icon: const Icon(Icons.edit_outlined, size: 16),
-                        label: const Text('Edit'),
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          _editDraft(plan);
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.gold,
-                          side: const BorderSide(color: AppColors.gold),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
                       child: FilledButton.icon(
                         icon: const Icon(Icons.delete_outline, size: 16),
                         label: const Text('Hapus'),
@@ -4927,69 +5109,13 @@ class _BrowseTabState extends State<_BrowseTab> {
     );
   }
 
-  /// Opens _AdditionalPlanFormPage pre-filled with draft data for editing.
-  Future<void> _editDraft(JobPlan plan) async {
-    Map<String, dynamic>? rawDraft;
-    int? idxToEdit;
-    try {
-      final uid = _session.employeeId ?? '';
-      final existing = await _repository.getDraft(userId: uid);
-      if (existing != null && existing.containsKey('items')) {
-        final items = (existing['items'] as List<dynamic>)
-            .map((e) => e as Map<String, dynamic>)
-            .toList();
-        int foundIdx = -1;
-        for (int i = 0; i < items.length; i++) {
-          final m = items[i];
-          final id = m['draftItemId']?.toString() ?? 'idx_$i';
-          if (id == plan.planId) {
-            foundIdx = i;
-            break;
-          }
-        }
-        if (foundIdx >= 0) {
-          rawDraft = Map<String, dynamic>.from(items[foundIdx]);
-          idxToEdit = foundIdx;
-        }
-      }
-    } catch (_) {}
-
-    if (!mounted) return;
-    final result = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => _AdditionalPlanFormPage(
-          initialDate: _selectedDate,
-          initialDraft:
-              rawDraft ??
-              {
-                'draftItemId': plan.planId,
-                'carId': plan.carId,
-                'unitName': plan.unitName,
-                'panelName': plan.panelName,
-                'divisionName': plan.assignedDivision,
-                'assignedUserId': plan.assignedUserId,
-                'assignedUserName': plan.assignedTo,
-                'jobDescription': plan.description,
-                'targetHours': plan.targetHours,
-                'taskDate': plan.workDate,
-                'startTime': plan.startTime,
-                'finishTime': plan.finishTime,
-                'isOvertime': plan.isOvertime,
-                'note': plan.note,
-              },
-          editIndex: idxToEdit,
-        ),
-        fullscreenDialog: true,
-      ),
-    );
-    if (result == true && mounted) _fetch();
-  }
-
   @override
   Widget build(BuildContext context) {
     final draftPlans = _plans.where((p) => p.status == 'DRAFT').toList();
     final hasDrafts = draftPlans.isNotEmpty;
-    final allDraftsSelected = draftPlans.isNotEmpty && draftPlans.every((p) => _selectedDraftIds.contains(p.planId));
+    final allDraftsSelected =
+        draftPlans.isNotEmpty &&
+        draftPlans.every((p) => _selectedDraftIds.contains(p.planId));
     return Column(
       children: [
         Padding(
@@ -5045,11 +5171,18 @@ class _BrowseTabState extends State<_BrowseTab> {
                   itemBuilder: (ctx, i) {
                     final plan = _plans[i];
                     final isDraft = plan.status == 'DRAFT';
+                    final isRejected = plan.status == 'REJECTED';
+                    final isEditable = isDraft || isRejected;
                     return _SubmittedPlanCard(
+                      key: ValueKey('browse_${plan.planId}'),
                       plan: plan,
-                      onDelete: isDraft ? () => _deleteDraftItem(plan) : null,
-                      onTap: isDraft ? () => _showDraftDetail(plan) : null,
-                      onEdit: isDraft ? () => _editDraft(plan) : null,
+                      onDelete: isDraft
+                          ? () => _deleteDraftItem(plan)
+                          : isRejected
+                          ? () => _deleteRejectedItem(plan)
+                          : null,
+                      onTap: isEditable ? () => _showDraftDetail(plan) : null,
+                      onEdit: null,
                       isSelected:
                           isDraft && _selectedDraftIds.contains(plan.planId),
                       onSelectionChanged: isDraft
@@ -5098,6 +5231,7 @@ class _BrowseTabState extends State<_BrowseTab> {
 
 class _SubmittedPlanCard extends StatelessWidget {
   const _SubmittedPlanCard({
+    super.key,
     required this.plan,
     this.onDelete,
     this.onTap,
@@ -5183,20 +5317,6 @@ class _SubmittedPlanCard extends StatelessWidget {
                     ),
                   ),
                   // Edit & Delete — only for drafts
-                  if (isDraft && onEdit != null) ...[
-                    const SizedBox(width: 4),
-                    GestureDetector(
-                      onTap: onEdit,
-                      child: const Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.edit_outlined,
-                          size: 16,
-                          color: AppColors.gold,
-                        ),
-                      ),
-                    ),
-                  ],
                   if (isDraft && onDelete != null) ...[
                     const SizedBox(width: 4),
                     GestureDetector(

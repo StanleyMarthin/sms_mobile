@@ -11,8 +11,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../job_plan/domain/repositories/job_plan_repository.dart';
+import '../../domain/repositories/work_order_repository.dart';
 import '../bloc/work_order_bloc.dart';
-import '../bloc/work_order_event.dart';
 import '../bloc/work_order_state.dart';
 
 class WoCreatePage extends StatefulWidget {
@@ -22,23 +22,63 @@ class WoCreatePage extends StatefulWidget {
   State<WoCreatePage> createState() => _WoCreatePageState();
 }
 
+class _WoCreateItemDraft {
+  String? selectedPanelName;
+  bool useFreeTextPanel = false;
+  String? selectedCategory;
+  final sectionNameCtrl = TextEditingController();
+  final jobDetailCtrl = TextEditingController();
+  final quomCtrl = TextEditingController();
+
+  bool get hasAnyInput =>
+      (selectedPanelName?.trim().isNotEmpty ?? false) ||
+      sectionNameCtrl.text.trim().isNotEmpty ||
+      jobDetailCtrl.text.trim().isNotEmpty ||
+      quomCtrl.text.trim().isNotEmpty ||
+      (selectedCategory?.trim().isNotEmpty ?? false);
+
+  bool get isValid => jobDetailCtrl.text.trim().isNotEmpty;
+
+  String? buildNotes() {
+    final quom = quomCtrl.text.trim();
+    if (quom.isEmpty) return null;
+    return 'QUOM: $quom';
+  }
+
+  Map<String, dynamic> toPayload() => {
+    'jobDetail': jobDetailCtrl.text.trim(),
+    if (buildNotes() != null) 'notes': buildNotes(),
+    if (useFreeTextPanel)
+      'panelName': sectionNameCtrl.text.trim()
+    else if (selectedPanelName != null)
+      'panelName': selectedPanelName,
+    if (useFreeTextPanel) 'sectionName': sectionNameCtrl.text.trim(),
+    if (useFreeTextPanel && selectedCategory != null)
+      'panelCategory': selectedCategory,
+    if (useFreeTextPanel) 'addPanelToMaster': true,
+  };
+
+  void dispose() {
+    sectionNameCtrl.dispose();
+    jobDetailCtrl.dispose();
+    quomCtrl.dispose();
+  }
+}
+
 class _WoCreatePageState extends State<WoCreatePage> {
+  late final WorkOrderRepository _workOrderRepository;
+
   // ── Dropdown data ──────────────────────────────────────────────────────
   List<Map<String, dynamic>> _cars = [];
   List<Map<String, dynamic>> _panels = [];
   List<Map<String, dynamic>> _divisions = [];
   bool _loading = true;
+  bool _isSubmitting = false;
 
   // ── Form state ─────────────────────────────────────────────────────────
   Map<String, dynamic>? _selectedCar;
   Map<String, dynamic>? _selectedDiv;
-  String? _selectedPanelName; // from master
-  bool _useFreeTextPanel = false;
-  String? _selectedCategory;
-
-  final _sectionNameCtrl = TextEditingController();
-  final _jobDetailCtrl = TextEditingController();
-  final _quomCtrl = TextEditingController();
+  final List<_WoCreateItemDraft> _items = [_WoCreateItemDraft()];
 
   DateTime _targetDate = DateTime.now().add(const Duration(days: 3));
 
@@ -55,14 +95,15 @@ class _WoCreatePageState extends State<WoCreatePage> {
   @override
   void initState() {
     super.initState();
+    _workOrderRepository = sl<WorkOrderRepository>();
     _loadDropdowns();
   }
 
   @override
   void dispose() {
-    _sectionNameCtrl.dispose();
-    _jobDetailCtrl.dispose();
-    _quomCtrl.dispose();
+    for (final item in _items) {
+      item.dispose();
+    }
     super.dispose();
   }
 
@@ -75,11 +116,14 @@ class _WoCreatePageState extends State<WoCreatePage> {
         _cars = List<Map<String, dynamic>>.from(data['cars'] ?? []);
         _panels = List<Map<String, dynamic>>.from(data['panels'] ?? []);
         _divisions = List<Map<String, dynamic>>.from(data['divisions'] ?? []);
-        if (_selectedPanelName != null &&
-            !_panels.any(
-              (panel) => panel['name']?.toString() == _selectedPanelName,
-            )) {
-          _selectedPanelName = null;
+        for (final item in _items) {
+          final selectedPanelName = item.selectedPanelName;
+          if (selectedPanelName != null &&
+              !_panels.any(
+                (panel) => panel['name']?.toString() == selectedPanelName,
+              )) {
+            item.selectedPanelName = null;
+          }
         }
         _loading = false;
       });
@@ -90,7 +134,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
     }
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (_selectedCar == null) {
       _snack('Pilih unit kendaraan terlebih dahulu');
       return;
@@ -99,44 +143,58 @@ class _WoCreatePageState extends State<WoCreatePage> {
       _snack('Pilih divisi tujuan terlebih dahulu');
       return;
     }
-    if (_jobDetailCtrl.text.trim().isEmpty) {
-      _snack('Deskripsi pekerjaan wajib diisi');
-      return;
+
+    final validItems = <_WoCreateItemDraft>[];
+    for (var index = 0; index < _items.length; index++) {
+      final item = _items[index];
+      if (!item.hasAnyInput) {
+        continue;
+      }
+      if (!item.isValid) {
+        _snack('Item ${index + 1}: deskripsi pekerjaan wajib diisi');
+        return;
+      }
+      if (item.useFreeTextPanel && item.sectionNameCtrl.text.trim().isEmpty) {
+        _snack('Item ${index + 1}: nama panel/section wajib diisi');
+        return;
+      }
+      if (item.useFreeTextPanel && item.selectedCategory == null) {
+        _snack('Item ${index + 1}: pilih kategori panel untuk panel baru');
+        return;
+      }
+      validItems.add(item);
     }
-    if (_useFreeTextPanel && _sectionNameCtrl.text.trim().isEmpty) {
-      _snack('Nama panel/section wajib diisi');
-      return;
-    }
-    if (_useFreeTextPanel && _selectedCategory == null) {
-      _snack('Pilih kategori panel untuk panel baru');
+    if (validItems.isEmpty) {
+      _snack('Minimal satu pekerjaan wajib diisi');
       return;
     }
 
-    context.read<WorkOrderBloc>().add(
-      CreateWorkOrder(
-        carId: _selectedCar!['id']?.toString() ?? '',
-        targetDivId: _selectedDiv!['id']?.toString() ?? '',
-        jobDetail: _jobDetailCtrl.text.trim(),
-        notes: _buildCreateNotes(),
-        targetDate:
-            '${_targetDate.year}-'
-            '${_targetDate.month.toString().padLeft(2, '0')}-'
-            '${_targetDate.day.toString().padLeft(2, '0')}',
-        panelName: _useFreeTextPanel
-            ? _sectionNameCtrl.text.trim()
-            : _selectedPanelName,
-        sectionName: _useFreeTextPanel ? _sectionNameCtrl.text.trim() : null,
-        panelCategory: _selectedCategory,
-        addPanelToMaster: _useFreeTextPanel,
-      ),
+    setState(() => _isSubmitting = true);
+    final result = await _workOrderRepository.createWorkOrdersBatch(
+      carId: _selectedCar!['id']?.toString() ?? '',
+      targetDivId: _selectedDiv!['id']?.toString() ?? '',
+      targetDate:
+          '${_targetDate.year}-'
+          '${_targetDate.month.toString().padLeft(2, '0')}-'
+          '${_targetDate.day.toString().padLeft(2, '0')}',
+      items: validItems.map((item) => item.toPayload()).toList(),
     );
-    Navigator.pop(context, true);
-  }
+    if (!mounted) return;
 
-  String? _buildCreateNotes() {
-    final quom = _quomCtrl.text.trim();
-    if (quom.isEmpty) return null;
-    return 'QUOM: $quom';
+    result.fold((failure) => _snack(failure.message ?? 'Gagal membuat WO'), (
+      data,
+    ) {
+      final createdCount = data['createdCount'] as int? ?? validItems.length;
+      _snack(
+        createdCount > 1
+            ? '$createdCount Work Order berhasil dibuat'
+            : 'Work Order berhasil dibuat',
+      );
+      Navigator.pop(context, true);
+    });
+    if (mounted) {
+      setState(() => _isSubmitting = false);
+    }
   }
 
   void _snack(String msg) {
@@ -313,7 +371,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
         elevation: 0,
         shape: const Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      body: _loading
+      body: (_loading || _isSubmitting)
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
@@ -350,7 +408,9 @@ class _WoCreatePageState extends State<WoCreatePage> {
                               if (picked != null) {
                                 setState(() {
                                   _selectedCar = picked;
-                                  _selectedPanelName = null;
+                                  for (final item in _items) {
+                                    item.selectedPanelName = null;
+                                  }
                                 });
                                 await _loadDropdowns(
                                   carId: picked['id']?.toString(),
@@ -382,129 +442,43 @@ class _WoCreatePageState extends State<WoCreatePage> {
                         ),
                         const SizedBox(height: 12),
 
-                        // ── Panel / Section ───────────────────────────
-                        _SectionCard(
-                          icon: Icons.grid_view_rounded,
-                          title: 'Panel / Section',
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!_useFreeTextPanel)
-                                _TapField(
-                                  value: _selectedPanelName,
-                                  hint: 'Ketuk untuk pilih panel (opsional)',
-                                  onTap: () async {
-                                    final picked = await _pickFromList(
-                                      title: 'Pilih Panel',
-                                      items: _panels,
-                                      label: (p) => p['name']?.toString() ?? '',
-                                      sublabel: (p) =>
-                                          p['section']?.toString() ?? '',
-                                    );
-                                    if (picked != null) {
-                                      setState(
-                                        () => _selectedPanelName =
-                                            picked['name']?.toString(),
-                                      );
-                                    }
-                                  },
-                                ),
-                              const SizedBox(height: 8),
-                              CheckboxListTile.adaptive(
-                                contentPadding: EdgeInsets.zero,
-                                dense: true,
-                                value: _useFreeTextPanel,
-                                activeColor: AppColors.gold,
-                                onChanged: (v) => setState(() {
-                                  _useFreeTextPanel = v ?? false;
-                                  if (!_useFreeTextPanel) {
-                                    _selectedCategory = null;
-                                    _sectionNameCtrl.clear();
-                                  }
-                                }),
-                                title: const Text(
-                                  'Panel tidak ada di daftar (isi manual)',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.textMuted,
-                                  ),
+                        Row(
+                          children: [
+                            const Text(
+                              'Daftar Pekerjaan',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.gold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed: () => setState(
+                                () => _items.add(_WoCreateItemDraft()),
+                              ),
+                              icon: const Icon(
+                                Icons.add_rounded,
+                                size: 18,
+                                color: AppColors.gold,
+                              ),
+                              label: const Text(
+                                'Tambah Item',
+                                style: TextStyle(
+                                  color: AppColors.gold,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              if (_useFreeTextPanel) ...[
-                                TextField(
-                                  controller: _sectionNameCtrl,
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  decoration: _inputDeco(
-                                    'Nama Panel / Section',
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                const Text(
-                                  'Panel manual akan otomatis ditambahkan ke master sesuai unit terpilih.',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textMuted,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                DropdownButtonFormField<String>(
-                                  initialValue: _selectedCategory,
-                                  isExpanded: true,
-                                  dropdownColor: AppColors.surfaceCard,
-                                  decoration: _inputDeco('Kategori Panel *'),
-                                  items: _categories
-                                      .map(
-                                        (c) => DropdownMenuItem(
-                                          value: c,
-                                          child: Text(c),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (v) =>
-                                      setState(() => _selectedCategory = v),
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-
-                        // ── Detail Pekerjaan ──────────────────────────
-                        _SectionCard(
-                          icon: Icons.assignment_rounded,
-                          title: 'Detail Pekerjaan',
-                          child: Column(
-                            children: [
-                              TextField(
-                                controller: _jobDetailCtrl,
-                                maxLines: 4,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
-                                decoration: _inputDeco(
-                                  'Deskripsikan pekerjaan yang diperlukan...',
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextField(
-                                controller: _quomCtrl,
-                                maxLines: 2,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
-                                decoration: _inputDeco(
-                                  'QUOM (opsional, akan masuk catatan)',
-                                ),
-                              ),
-                            ],
-                          ),
+                        ...List.generate(
+                          _items.length,
+                          (index) =>
+                              _buildWorkItemSection(index, _items[index]),
                         ),
-                        const SizedBox(height: 12),
 
                         // ── Tanggal Target ─────────────────────────────
                         _SectionCard(
@@ -616,6 +590,155 @@ class _WoCreatePageState extends State<WoCreatePage> {
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
   );
+
+  Widget _buildWorkItemSection(int index, _WoCreateItemDraft item) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'Item ${index + 1}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.gold,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (_items.length > 1)
+                IconButton(
+                  icon: const Icon(
+                    Icons.remove_circle_outline_rounded,
+                    size: 20,
+                    color: AppColors.statusLocked,
+                  ),
+                  onPressed: () => setState(() {
+                    _items[index].dispose();
+                    _items.removeAt(index);
+                  }),
+                ),
+            ],
+          ),
+        ),
+        _buildPanelSectionCard(item),
+        const SizedBox(height: 12),
+        _buildDetailCard(item),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _buildPanelSectionCard(_WoCreateItemDraft item) {
+    return _SectionCard(
+      icon: Icons.grid_view_rounded,
+      title: 'Panel / Section',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (!item.useFreeTextPanel)
+            _TapField(
+              value: item.selectedPanelName,
+              hint: 'Ketuk untuk pilih panel (opsional)',
+              onTap: () async {
+                final picked = await _pickFromList(
+                  title: 'Pilih Panel',
+                  items: _panels,
+                  label: (panel) => panel['name']?.toString() ?? '',
+                  sublabel: (panel) => panel['section']?.toString() ?? '',
+                );
+                if (picked != null) {
+                  setState(
+                    () => item.selectedPanelName = picked['name']?.toString(),
+                  );
+                }
+              },
+            ),
+          const SizedBox(height: 8),
+          CheckboxListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: item.useFreeTextPanel,
+            activeColor: AppColors.gold,
+            onChanged: (value) => setState(() {
+              item.useFreeTextPanel = value ?? false;
+              if (!item.useFreeTextPanel) {
+                item.selectedCategory = null;
+                item.sectionNameCtrl.clear();
+              }
+            }),
+            title: const Text(
+              'Panel tidak ada di daftar (isi manual)',
+              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
+            ),
+          ),
+          if (item.useFreeTextPanel) ...[
+            TextField(
+              controller: item.sectionNameCtrl,
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: _inputDeco('Nama Panel / Section'),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Panel manual akan otomatis ditambahkan ke master sesuai unit terpilih.',
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: item.selectedCategory,
+              isExpanded: true,
+              dropdownColor: AppColors.surfaceCard,
+              decoration: _inputDeco('Kategori Panel *'),
+              items: _categories
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) =>
+                  setState(() => item.selectedCategory = value),
+              style: const TextStyle(color: AppColors.textPrimary),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailCard(_WoCreateItemDraft item) {
+    return _SectionCard(
+      icon: Icons.assignment_rounded,
+      title: 'Detail Pekerjaan',
+      child: Column(
+        children: [
+          TextField(
+            controller: item.jobDetailCtrl,
+            maxLines: 4,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: _inputDeco('Deskripsikan pekerjaan yang diperlukan...'),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: item.quomCtrl,
+            maxLines: 2,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: _inputDeco('QUOM (opsional, akan masuk catatan)'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Reusable widgets ────────────────────────────────────────────────────────

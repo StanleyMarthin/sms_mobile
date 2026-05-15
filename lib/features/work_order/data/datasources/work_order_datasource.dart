@@ -135,6 +135,26 @@ class WorkOrderRemoteDataSource {
     );
   }
 
+  Future<Map<String, dynamic>> createWorkOrdersBatch({
+    required String carId,
+    required String targetDivId,
+    required String targetDate,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await apiClient.post(
+      ApiEndpoints.workOrders,
+      data: {
+        'action': 'create',
+        'userId': _userId,
+        'carId': carId,
+        'targetDivId': targetDivId,
+        'targetDate': targetDate,
+        'items': items,
+      },
+    );
+    return response.data as Map<String, dynamic>? ?? {};
+  }
+
   // ── APPROVE ──────────────────────────────────────────────
   Future<Map<String, dynamic>> approveWorkOrder({
     required String woId,

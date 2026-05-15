@@ -139,7 +139,12 @@ class NotificationInboxService extends ChangeNotifier {
           : '/countdown?carId=${Uri.encodeComponent(carId)}';
     }
     if (module.contains('pr')) {
-      return '/pr';
+      final reqId = _pickFirst(data, const ['reqId']);
+      return reqId == null ? '/pr' : '/pr?reqId=${Uri.encodeComponent(reqId)}';
+    }
+    if (module.contains('wov')) {
+      final reqId = _pickFirst(data, const ['reqId']);
+      return reqId == null ? '/wov' : '/wov?reqId=${Uri.encodeComponent(reqId)}';
     }
     return '/notifications';
   }

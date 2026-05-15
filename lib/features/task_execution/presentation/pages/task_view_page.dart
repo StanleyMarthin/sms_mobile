@@ -688,15 +688,11 @@ class _TaskViewContent extends StatelessWidget {
         hasPermission(state.role, Permission.taskCheckpoint) &&
         _canCheckpoint(task.status);
 
-    final canReviewCheckpoint =
-        hasPermission(state.role, Permission.taskCheckpoint) &&
-        task.checkpointHistory.isNotEmpty;
-
     final canFinalValidate =
         hasPermission(state.role, Permission.taskCheckpoint) &&
         _canFinalValidate(task.status);
 
-    if (!canInputCheckpoint && !canReviewCheckpoint && !canFinalValidate) {
+    if (!canInputCheckpoint && !canFinalValidate) {
       return null;
     }
 
@@ -706,13 +702,8 @@ class _TaskViewContent extends StatelessWidget {
         if (canInputCheckpoint) ...[
           _buildCheckpointActionPanel(context, state, task, isBusy),
         ],
-        if (canReviewCheckpoint) ...[
-          if (canInputCheckpoint) const SizedBox(height: 10),
-          _buildCheckpointReviewPanel(state, task, isBusy),
-        ],
         if (canFinalValidate) ...[
-          if (canInputCheckpoint || canReviewCheckpoint)
-            const SizedBox(height: 10),
+          if (canInputCheckpoint) const SizedBox(height: 10),
           _buildFinalValidationPanel(context, state, task, isBusy),
         ],
       ],
@@ -923,56 +914,6 @@ class _TaskViewContent extends StatelessWidget {
     );
   }
 
-  Widget _buildCheckpointReviewPanel(
-    TaskViewLoaded state,
-    dynamic task,
-    bool isBusy,
-  ) {
-    final roleLabel = state.role.toUpperCase();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.rule_folder_outlined,
-                size: 16,
-                color: AppColors.gold,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Review sesi oleh $roleLabel',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            task.isDone
-                ? 'Pekerjaan sudah selesai. Buka sesi yang ada jika ingin meninjau catatan terakhir.'
-                : 'Buka sesi yang sudah diisi untuk melihat atau meninjau hasil checkpoint.',
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCheckpointActionPanel(
     BuildContext context,
     TaskViewLoaded state,
@@ -984,14 +925,18 @@ class _TaskViewContent extends StatelessWidget {
       Permission.taskCheckpoint,
     );
 
-    final sessionNow = task.checkpointHistory.length;
+    final sessionNow = task.managementCheckpointHistory.length;
     final sessionMax = task.maxCheckpointSessions as int;
 
-    // Batasi hanya 3x input jika masih proses (OP)
-    final isUnderLimit = sessionNow < sessionMax;
-    final canSubmitCheckpoint = canCheckpointByRole && !isBusy && isUnderLimit;
+    // Cek apakah jobdesc sudah dimulai (bukan ASSIGNED/PLAN)
+    final hasStarted = _hasTaskStarted(task.status as String);
 
-    final statusLabel = task.isDone
+    // Monitoring manajemen maksimal 3 sesi, berhenti jika sesi terakhir DONE/PENDING.
+    final isUnderLimit = task.hasRemainingCheckpointSessions;
+    final canSubmitCheckpoint =
+        canCheckpointByRole && !isBusy && isUnderLimit && hasStarted;
+
+    final statusLabel = task.isDone || task.isCheckpointFlowFinished
         ? 'Selesai'
         : (!isUnderLimit
               ? 'Batas $sessionNow sesi terpenuhi'
@@ -1032,6 +977,40 @@ class _TaskViewContent extends StatelessWidget {
                   ),
                 ],
               ),
+              // Tampilkan info jika jobdesc belum dimulai
+              if (!hasStarted) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.orange.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: AppColors.orange.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 14,
+                        color: AppColors.orange,
+                      ),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Jobdesc belum mulai — input monitoring tersedia setelah mekanik memulai pekerjaan.',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.orange,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1051,6 +1030,10 @@ class _TaskViewContent extends StatelessWidget {
                   ? 'Menyimpan...'
                   : !canCheckpointByRole
                   ? 'Tidak diizinkan'
+                  : !hasStarted
+                  ? 'Belum bisa dimonitor'
+                  : !isUnderLimit
+                  ? 'Sesi penuh'
                   : 'Input monitoring',
             ),
           ),
@@ -1059,17 +1042,20 @@ class _TaskViewContent extends StatelessWidget {
     );
   }
 
-  bool _canCheckpoint(String status) {
+  bool _hasTaskStarted(String status) {
     final normalized = status.trim().toUpperCase();
-    return normalized == 'ASSIGNED' ||
-        normalized == 'PLAN' ||
-        normalized == 'PROSES' ||
+    return normalized == 'PROSES' ||
         normalized == 'ONPROGRESS' ||
         normalized == 'ON_PROGRESS' ||
-        normalized == 'DONE' ||
-        normalized == 'READY_QC' ||
         normalized == 'CHECK_PROGRESS' ||
-        normalized == 'SUBMITTED';
+        normalized == 'SUBMITTED' ||
+        normalized == 'DONE' ||
+        normalized == 'READY_QC';
+  }
+
+  bool _canCheckpoint(String status) {
+    // Hanya izinkan monitoring jika mekanik sudah mulai kerja
+    return _hasTaskStarted(status);
   }
 
   bool _canFinalValidate(String status) {
@@ -1330,7 +1316,7 @@ class _TaskViewContent extends StatelessWidget {
                   ],
 
                   // --- Riwayat Singkat (Vertical Timeline) ---
-                  if (task.checkpointHistory.isNotEmpty) ...[
+                  if (task.managementCheckpointHistory.isNotEmpty) ...[
                     const SizedBox(height: 24),
                     const Text(
                       'Riwayat monitoring',
@@ -1341,7 +1327,7 @@ class _TaskViewContent extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ...task.checkpointHistory.reversed
+                    ...task.managementCheckpointHistory.reversed
                         .take(2)
                         .map(
                           (session) => Padding(
@@ -1356,7 +1342,7 @@ class _TaskViewContent extends StatelessWidget {
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    '${session.checkpointTime} • ${session.progress}% • ${session.jobStatusLabel}',
+                                    'Sesi ${task.managementCheckpointDisplayNumber(session)} • ${session.checkpointTime} • ${session.progress}% • ${session.jobStatusLabel}',
                                     style: const TextStyle(
                                       fontSize: 11,
                                       color: AppColors.textSecondary,
@@ -1435,7 +1421,7 @@ class _TaskViewContent extends StatelessWidget {
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
         title: Text(
-          'Monitoring ${session.sessionNumber}',
+          'Monitoring ${task.managementCheckpointDisplayNumber(session)}',
           style: const TextStyle(color: AppColors.textPrimary),
         ),
         content: Column(
@@ -2004,7 +1990,7 @@ class _TaskJobdescPage extends StatelessWidget {
                   showDivision: false,
                   onCheckpointTap:
                       hasPermission(state.role, Permission.taskCheckpoint) &&
-                          task.checkpointHistory.isNotEmpty
+                          task.managementCheckpointHistory.isNotEmpty
                       ? (TaskCheckpointSession session) => viewContent
                             ._showCheckpointReviewDialog(context, task, session)
                       : null,

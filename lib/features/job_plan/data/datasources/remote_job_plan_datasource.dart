@@ -335,9 +335,17 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   Future<Map<String, dynamic>> getAdditionalDropdowns({
     String? divisionId,
   }) async {
+    String? resolvedDivId;
+    if ((divisionId ?? '').isNotEmpty) {
+      resolvedDivId = int.tryParse(divisionId!) != null
+          ? divisionId
+          : await _resolveNumericDivisionId(divisionId);
+    }
     final response = await apiClient.get(
       ApiEndpoints.jobPlanDropdowns,
-      queryParameters: {if (divisionId != null) 'divisionId': divisionId},
+      queryParameters: {
+        if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
+      },
     );
     final payload = response.data as Map<String, dynamic>? ?? {};
     return {
@@ -359,9 +367,12 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     String? search,
     int limit = 200,
   }) async {
+    final resolvedDivId = int.tryParse(divisionId) != null
+        ? divisionId
+        : await _resolveNumericDivisionId(divisionId);
     final response = await apiClient.get(
       ApiEndpoints.jobPlanDropdowns,
-      queryParameters: {'divisionId': divisionId},
+      queryParameters: {'divisionId': resolvedDivId ?? divisionId},
     );
     final payload = response.data as Map<String, dynamic>? ?? {};
     return _asMapList(payload['users']).map(_normalizeDropdownUser).toList();

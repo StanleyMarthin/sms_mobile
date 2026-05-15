@@ -130,9 +130,12 @@ class ApiViewTaskDataSource implements ViewTaskDataSource {
     int? sessionNumber,
   }) {
     final userId = sessionManager.userId ?? sessionManager.employeeId ?? '';
-    final normalizedStatus = jobStatus.toUpperCase() == 'DONE'
-        ? 'done'
-        : 'pending';
+    final normalizedJobStatus = jobStatus.trim().toUpperCase();
+    final normalizedStatus = switch (normalizedJobStatus) {
+      'DONE' => 'done',
+      'PENDING' => 'pending',
+      _ => 'monitoring',
+    };
     final note = 'Checkpoint $checkpointTime ($startWorkTime-$finishWorkTime)';
 
     return <String, dynamic>{
@@ -141,7 +144,7 @@ class ApiViewTaskDataSource implements ViewTaskDataSource {
       'userId': userId,
       'progressSeen': progress,
       'status': normalizedStatus,
-      'jobStatus': jobStatus.toUpperCase(),
+      'jobStatus': normalizedJobStatus,
       'note': note,
       if (normalizedStatus == 'done') 'progressFinal': progress,
       if (sessionNumber != null) 'sessionNumber': sessionNumber,

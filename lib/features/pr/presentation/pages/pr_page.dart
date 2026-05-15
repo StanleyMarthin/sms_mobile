@@ -1,327 +1,328 @@
-/// Tujuan: Halaman daftar dan pembuatan Purchase Request (PR).
-/// Caller: AppRouter (/pr).
-/// Dependensi: RemotePrDataSource, ApiClient, SessionManager.
-/// Main Functions: _fetchPrs(), _approvePr(), _showCreatePrSheet().
-/// Side Effects: HTTP GET/POST ke backend PR service.
+// Halaman daftar Purchase Request — mengikuti pola WO list page.
+// Caller: FeatureShellPage route /pr
 
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../data/datasources/remote_pr_datasource.dart';
+import '../../data/models/pr_header.dart';
+import 'pr_detail_page.dart';
+import 'pr_form_page.dart';
 
 class PrPage extends StatefulWidget {
-  const PrPage({super.key});
-
+  final String? focusReqId;
+  const PrPage({super.key, this.focusReqId});
   @override
   State<PrPage> createState() => _PrPageState();
 }
 
-class _PrPageState extends State<PrPage> {
-  late final RemotePrDataSource _prDataSource;
-  List<Map<String, dynamic>> _prs = [];
+class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
+  late final RemotePrDataSource _ds;
+  late final TabController _tabCtrl;
+
+  List<PRHeader> _prs = [];
   bool _isLoading = true;
+  // Tab 0 = approval queue, Tab 1 = open/hunting, Tab 2 = selesai
+  static const _tabFilters = ['PENDING', 'OPEN', 'DONE'];
 
   @override
   void initState() {
     super.initState();
-    _prDataSource = RemotePrDataSource(
-      apiClient: sl(),
-      sessionManager: sl(),
-    );
-    _fetchPrs();
+    _ds = RemotePrDataSource(apiClient: sl(), sessionManager: sl());
+    _tabCtrl = TabController(length: 3, vsync: this);
+    _tabCtrl.addListener(() {
+      if (!_tabCtrl.indexIsChanging) _fetch();
+    });
+    _fetch();
+
+    if (widget.focusReqId != null && widget.focusReqId!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openDetail(widget.focusReqId!));
+    }
   }
 
-  Future<void> _fetchPrs() async {
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetch() async {
     setState(() => _isLoading = true);
     try {
-      final prs = await _prDataSource.getPrs();
-      setState(() => _prs = prs);
-    } catch (e) {
+      final filter = _tabFilters[_tabCtrl.index];
+      final prs = filter == 'PENDING'
+          ? await _ds.getPrs(accTracking: 'ALL')
+          : await _ds.getPrs(status: filter, accTracking: 'APPROVED');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat Purchase Requests: $e')),
-        );
+        setState(() {
+          if (filter == 'PENDING') {
+            _prs = prs.where((p) => p.accTracking != 'APPROVED').toList();
+          } else {
+            _prs = prs;
+          }
+        });
       }
+    } catch (e) {
+      if (mounted) _snack('Gagal memuat PR: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _approvePr(String reqId) async {
-    try {
-      await _prDataSource.approvePr(reqId);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PR berhasil di-approve')),
-        );
-      }
-      _fetchPrs();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal approve PR: $e')),
-        );
-      }
-    }
+  void _snack(String msg, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: isError ? AppColors.statusLocked : AppColors.statusDone,
+      behavior: SnackBarBehavior.floating,
+    ));
   }
 
-  /// Whether the current user can approve this PR based on status + role.
-  bool _canApprove(String status) {
-    final role = (sl<SessionManager>().role ?? '').toUpperCase();
-    if (status == 'PENDING_KP' && (role == 'KP' || role == 'KEPALA_PROJECT')) return true;
-    if (status == 'PENDING_MP' && (role == 'MP' || role == 'MANAGER_PRODUKSI' || role == 'PM')) return true;
-    if (status == 'PENDING_PUR' && (role == 'PUR' || role == 'ADMIN')) return true;
-    return false;
+  void _openDetail(String reqId) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => PrDetailPage(reqId: reqId)))
+        .then((_) => _fetch());
   }
 
-  Future<void> _showCreatePrSheet(BuildContext context) async {
-    String? selectedCarId;
-    String? selectedCarName;
-    final itemCtrl = TextEditingController();
-    final qtyCtrl = TextEditingController();
-    final uomCtrl = TextEditingController(text: 'Pcs');
-    final typeCtrl = TextEditingController(text: 'SPAREPART');
-    final priceCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    final divisionCtrl = TextEditingController();
-    
-    // Optional query to filter dummy cars
-    List<Map<String,dynamic>> matchingCars = [];
-    var carQuery = '';
-    
-    // Fetch real cars
-    sl<ApiClient>().get(ApiEndpoints.jobPlanDropdowns).then((res) {
-      final data = res.data['data'] ?? res.data;
-      if (data != null && data['cars'] is List) {
-        if (mounted) {
-           matchingCars = (data['cars'] as List).map((e) => Map<String, dynamic>.from(e)).toList();
-        }
-      }
-    }).catchError((_) {}).whenComplete(() {
-      if (mounted) {
-        // Force rebuild of sheet state if possible, though StatefulBuilder will do it.
-      }
-    });
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) {
-          final filteredCars = matchingCars.where((c) {
-             final n = '${c['unit_name']}'.toLowerCase();
-             final p = '${c['police_number']}'.toLowerCase();
-             return n.contains(carQuery) || p.contains(carQuery);
-          }).take(5).toList();
-
-          return SafeArea(
-            child: FractionallySizedBox(
-              heightFactor: 0.9,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
-                child: Column(
-                  children: [
-                    const Text('Buat Purchase Request Baru', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          TextField(
-                            decoration: const InputDecoration(labelText: 'Tipe Request (SPAREPART / MATERIAL / JASA)'),
-                            controller: typeCtrl,
-                          ),
-                          const SizedBox(height: 12),
-                          const Text('Pilih Unit (Ketik untuk filter):', style: TextStyle(color: AppColors.textPrimary)),
-                          TextField(
-                            onChanged: (v) => setSheetState(() => carQuery = v.toLowerCase()),
-                            decoration: InputDecoration(
-                              hintText: 'Cari Unit...',
-                              suffixIcon: matchingCars.isEmpty ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : null,
-                            ),
-                          ),
-                          if (filteredCars.isNotEmpty)
-                             ...filteredCars.map((c) => ListTile(
-                                title: Text('${c['unit_name']}', style: const TextStyle(color: AppColors.textPrimary)),
-                                subtitle: Text('${c['police_number']}', style: const TextStyle(color: AppColors.textMuted)),
-                                tileColor: selectedCarId == c['id'] ? AppColors.gold.withValues(alpha: 0.2) : null,
-                                onTap: () {
-                                  setSheetState(() {
-                                    selectedCarId = c['id'] as String;
-                                    selectedCarName = c['unit_name'] as String;
-                                  });
-                                }
-                             )),
-                          const SizedBox(height: 12),
-                          TextField(
-                            decoration: const InputDecoration(labelText: 'Divisi (Opsional)'),
-                            controller: divisionCtrl,
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            decoration: const InputDecoration(labelText: 'Nama Item'),
-                            controller: itemCtrl,
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  decoration: const InputDecoration(labelText: 'Qty'),
-                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                  controller: qtyCtrl,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  decoration: const InputDecoration(labelText: 'UoM (Pcs, Set, Liter...)'),
-                                  controller: uomCtrl,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            decoration: const InputDecoration(labelText: 'Harga Estimasi (Opsional)'),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            controller: priceCtrl,
-                          ),
-                          const SizedBox(height: 12),
-                          TextField(
-                            decoration: const InputDecoration(labelText: 'Catatan'),
-                            controller: notesCtrl,
-                            maxLines: 3,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: AppColors.gold, padding: const EdgeInsets.symmetric(vertical: 16)),
-                        onPressed: () async {
-                          if (selectedCarId == null || itemCtrl.text.trim().isEmpty || qtyCtrl.text.trim().isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Unit, Nama Item, dan Qty wajib diisi!')));
-                            return;
-                          }
-                          Navigator.pop(ctx);
-                          setState(() => _isLoading = true);
-                          try {
-                            await _prDataSource.createPr(
-                              carId: selectedCarId!,
-                              carName: selectedCarName,
-                              itemName: itemCtrl.text.trim(),
-                              qty: double.tryParse(qtyCtrl.text.trim()) ?? 1,
-                              uom: uomCtrl.text.trim(),
-                              requestType: typeCtrl.text.trim(),
-                              estimatedPrice: double.tryParse(priceCtrl.text.trim()),
-                              divisionName: divisionCtrl.text.trim().isNotEmpty ? divisionCtrl.text.trim() : null,
-                              notes: notesCtrl.text.trim(),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Purchase Request berhasil dibuat!')));
-                            _fetchPrs();
-                          } catch (e) {
-                            setState(() => _isLoading = false);
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal membuat PR: $e')));
-                          }
-                        },
-                        child: const Text('Buat PR', style: TextStyle(color: AppColors.background)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
+  void _openForm() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const PrFormPage()))
+        .then((result) { if (result == true) _fetch(); });
   }
 
   @override
   Widget build(BuildContext context) {
+    final canCreate = hasPermission(sl<SessionManager>().role, Permission.prCreate);
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Purchase Requests'),
         backgroundColor: AppColors.background,
         elevation: 0,
+        title: const Text('Purchase Request',
+            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 18)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.textMuted),
+            onPressed: _fetch,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabCtrl,
+          labelColor: AppColors.gold,
+          unselectedLabelColor: AppColors.textMuted,
+          indicatorColor: AppColors.gold,
+          indicatorWeight: 2.5,
+          tabs: const [
+            Tab(text: 'Approval'),
+            Tab(text: 'Hunting'),
+            Tab(text: 'Selesai'),
+          ],
+        ),
       ),
-      backgroundColor: AppColors.background,
       body: _isLoading
-          ? const Center(child: CircularProgressBinding())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
           : _prs.isEmpty
-              ? const Center(child: Text('Tidak ada PR ditemukan'))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _prs.length,
-                  itemBuilder: (context, index) {
-                    final pr = _prs[index];
-                    final reqId = '${pr['reqId'] ?? ''}';
-                    final status = '${pr['status'] ?? 'UNKNOWN'}';
-                    final orderNumber = '${pr['reqNumber'] ?? pr['orderNumber'] ?? reqId}';
-                    return Card(
-                      color: AppColors.surfaceCard,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: AppColors.border),
-                      ),
-                      child: ListTile(
-                        title: Text(
-                          orderNumber,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary),
-                        ),
-                        subtitle: Text(
-                          '${pr['item_name'] ?? pr['itemName'] ?? '-'} • ${pr['qty'] ?? ''} ${pr['uom'] ?? ''}\nStatus: $status',
-                          style:
-                              const TextStyle(color: AppColors.textSecondary),
-                        ),
-                        trailing: _canApprove(status)
-                            ? ElevatedButton(
-                                onPressed: () => _approvePr(reqId),
-                                style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.gold),
-                                child: const Text('Approve',
-                                    style:
-                                        TextStyle(color: AppColors.background)),
-                              )
-                            : Chip(
-                                backgroundColor: AppColors.background,
-                                side: const BorderSide(color: AppColors.border),
-                                label: Text(status,
-                                    style: const TextStyle(
-                                        fontSize: 10, color: AppColors.gold)),
-                              ),
-                      ),
-                    );
-                  },
+              ? _EmptyView(canCreate: canCreate, onTap: _openForm)
+              : RefreshIndicator(
+                  color: AppColors.gold,
+                  onRefresh: _fetch,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+                    itemCount: _prs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) => _PrCard(
+                      pr: _prs[i],
+                      isHighlighted: _prs[i].reqId == widget.focusReqId,
+                      onTap: () => _openDetail(_prs[i].reqId),
+                    ),
+                  ),
                 ),
-      floatingActionButton: hasPermission(sl<SessionManager>().role, Permission.prCreate)
-          ? FloatingActionButton(
+      floatingActionButton: canCreate
+          ? FloatingActionButton.extended(
+              heroTag: 'pr_fab',
+              onPressed: _openForm,
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
-              onPressed: () => _showCreatePrSheet(context),
-              child: const Icon(Icons.add),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Buat PR', style: TextStyle(fontWeight: FontWeight.w700)),
             )
           : null,
     );
   }
 }
 
-class CircularProgressBinding extends StatelessWidget {
-  const CircularProgressBinding({super.key});
+// ── PR Card ────────────────────────────────────────────────────
+
+class _PrCard extends StatelessWidget {
+  const _PrCard({required this.pr, required this.onTap, this.isHighlighted = false});
+  final PRHeader pr;
+  final VoidCallback onTap;
+  final bool isHighlighted;
+
   @override
-  Widget build(BuildContext context) =>
-      const CircularProgressIndicator(color: AppColors.gold);
+  Widget build(BuildContext context) {
+    final (label, color) = _stageInfo(pr.accTracking, pr.status);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceCard,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isHighlighted ? AppColors.gold : color.withValues(alpha: 0.22),
+            width: isHighlighted ? 1.2 : 0.9,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Colored left accent bar
+              Container(
+                width: 3, height: 52,
+                margin: const EdgeInsets.only(top: 2),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            pr.prNumber ?? pr.reqId,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _Badge(label: label, color: color),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${pr.carName ?? '-'} • ${pr.divisionName ?? '-'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 3),
+                    _ItemProgressRow(pr: pr),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${pr.requestedByName ?? '-'} • ${_fmtDate(pr.createdAt)}',
+                      style: const TextStyle(fontSize: 10, color: AppColors.textDisabled),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Padding(
+                padding: EdgeInsets.only(top: 18),
+                child: Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textDisabled),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _fmtDate(DateTime? d) {
+    if (d == null) return '-';
+    return DateFormat('d MMM yyyy', 'id_ID').format(d.toLocal());
+  }
+
+  (String, Color) _stageInfo(String? acc, String? status) => switch (acc) {
+    'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
+    'PENDING_KP'  => ('MENUNGGU KP', AppColors.gold),
+    'PENDING_MP'  => ('MENUNGGU MP', const Color(0xFF9C27B0)),
+    'PENDING_PUR' => ('MENUNGGU PUR', const Color(0xFF2196F3)),
+    'APPROVED'    => switch (status) {
+      'DONE'     => ('SELESAI', AppColors.statusDone),
+      'REJECTED' => ('DITOLAK', AppColors.statusLocked),
+      _          => ('HUNTING', AppColors.statusInProgress),
+    },
+    _ => ('DRAFT', AppColors.textMuted),
+  };
+}
+
+class _ItemProgressRow extends StatelessWidget {
+  const _ItemProgressRow({required this.pr});
+  final PRHeader pr;
+
+  @override
+  Widget build(BuildContext context) {
+    if (pr.totalItems == 0) return const SizedBox.shrink();
+    return Row(children: [
+      Text('${pr.totalItems} item', style: const TextStyle(fontSize: 10, color: AppColors.textDisabled)),
+      if (pr.arrivedItems > 0) _mini('  ${pr.arrivedItems}✓', AppColors.statusDone),
+      if (pr.huntingItems > 0) _mini('  ${pr.huntingItems} hunting', AppColors.gold),
+      if (pr.orderedItems > 0) _mini('  ${pr.orderedItems} ordered', AppColors.orange),
+    ]);
+  }
+
+  Widget _mini(String t, Color c) =>
+      Text(t, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w600));
+}
+
+// ── Shared Badge ───────────────────────────────────────────────
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label, required this.color});
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: color.withValues(alpha: 0.4)),
+    ),
+    child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+  );
+}
+
+// ── Empty state ────────────────────────────────────────────────
+
+class _EmptyView extends StatelessWidget {
+  final bool canCreate;
+  final VoidCallback onTap;
+  const _EmptyView({required this.canCreate, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.08), shape: BoxShape.circle),
+        child: const Icon(Icons.shopping_cart_outlined, size: 56, color: AppColors.gold),
+      ),
+      const SizedBox(height: 16),
+      const Text('Belum ada Purchase Request',
+          style: TextStyle(fontSize: 15, color: AppColors.textMuted, fontWeight: FontWeight.w600)),
+      if (canCreate) ...[
+        const SizedBox(height: 8),
+        const Text('Tekan tombol di bawah untuk membuat PR baru',
+            style: TextStyle(fontSize: 12, color: AppColors.textDisabled),
+            textAlign: TextAlign.center),
+      ],
+    ]),
+  );
 }

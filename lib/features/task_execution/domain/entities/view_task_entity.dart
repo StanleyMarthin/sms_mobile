@@ -9,6 +9,29 @@ library;
 
 import 'package:equatable/equatable.dart';
 
+bool _isManagementCheckpointRole(String role) {
+  final normalized = role.trim().toLowerCase();
+  return switch (normalized) {
+    'kd' ||
+    'ketua_divisi' ||
+    'kepala_divisi' ||
+    'adv' ||
+    'advisor' ||
+    'kp' ||
+    'project_head' ||
+    'kepala_project' ||
+    'mp' ||
+    'pm' ||
+    'manager_produksi' ||
+    'kepala_produksi' ||
+    'manager_operational' ||
+    'mo' ||
+    'admin' ||
+    'management' => true,
+    _ => false,
+  };
+}
+
 /// Division info nested in the task response.
 class TaskDivision extends Equatable {
   final String divisionId;
@@ -151,6 +174,8 @@ class TaskCheckpointSession extends Equatable {
     switch (jobStatus) {
       case 'DONE':
         return 'Selesai';
+      case 'PENDING':
+        return 'Pending';
       case 'CANCEL':
         return 'Cancel';
       default:
@@ -285,15 +310,31 @@ class ViewTaskEntity extends Equatable {
   /// Whether the task is assigned but not started.
   bool get isAssigned => status == 'ASSIGNED';
 
+  List<TaskCheckpointSession> get managementCheckpointHistory =>
+      checkpointHistory
+          .where((item) => _isManagementCheckpointRole(item.actorRole))
+          .toList()
+        ..sort((a, b) => a.sessionNumber.compareTo(b.sessionNumber));
+
+  int managementCheckpointDisplayNumber(TaskCheckpointSession session) {
+    final index = managementCheckpointHistory.indexWhere(
+      (item) => item.sessionNumber == session.sessionNumber,
+    );
+    return index >= 0 ? index + 1 : session.sessionNumber;
+  }
+
   bool get isCheckpointFlowFinished =>
-      checkpointHistory.isNotEmpty &&
-      checkpointHistory.last.jobStatus == 'DONE';
+      managementCheckpointHistory.isNotEmpty &&
+      const {
+        'DONE',
+        'PENDING',
+      }.contains(managementCheckpointHistory.last.jobStatus.toUpperCase());
 
   bool get hasRemainingCheckpointSessions =>
       !isCheckpointFlowFinished &&
-      checkpointHistory.length < maxCheckpointSessions;
+      managementCheckpointHistory.length < maxCheckpointSessions;
 
-  int get nextCheckpointSession => checkpointHistory.length + 1;
+  int get nextCheckpointSession => managementCheckpointHistory.length + 1;
 
   double get dailyTargetHours => task.targetHours;
 

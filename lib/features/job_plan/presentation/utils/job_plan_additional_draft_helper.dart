@@ -18,6 +18,7 @@ class JobPlanAdditionalDraftHydratedState {
     required this.divisionLabel,
     required this.selectedEmployeeId,
     required this.selectedJobs,
+    required this.selectedCategory,
   });
 
   final bool useManualInput;
@@ -31,6 +32,7 @@ class JobPlanAdditionalDraftHydratedState {
   final String divisionLabel;
   final String? selectedEmployeeId;
   final Set<String> selectedJobs;
+  final String? selectedCategory;
 }
 
 class JobPlanAdditionalDraftHelper {
@@ -50,6 +52,9 @@ class JobPlanAdditionalDraftHelper {
     final carId = _text(draft['carId']);
     final unitName = _text(draft['unitName']);
     final panelName = _text(draft['panelName']);
+    final panelCustomNote = _text(
+      draft['panelCustomNote'] ?? draft['panel_custom_note'],
+    );
     final sectionName = _text(draft['sectionName']);
     final jobDescription = _text(
       draft['jobDescription'] ?? draft['jobdescription'],
@@ -84,6 +89,9 @@ class JobPlanAdditionalDraftHelper {
       divisionLabel = divisionId;
     }
 
+    final resolvedPanelName = panelName.isNotEmpty
+        ? panelName
+        : panelCustomNote;
     final shouldUseManualInput =
         carId.isEmpty || (selectedUnit == null && unitName.isNotEmpty);
     final useFreeTextPanel = sectionName.isNotEmpty;
@@ -91,13 +99,13 @@ class JobPlanAdditionalDraftHelper {
     return JobPlanAdditionalDraftHydratedState(
       useManualInput: shouldUseManualInput,
       manualUnitName: shouldUseManualInput ? unitName : '',
-      manualPanelName: shouldUseManualInput ? panelName : '',
+      manualPanelName: shouldUseManualInput ? resolvedPanelName : '',
       manualJobDescription: shouldUseManualInput ? jobDescription : '',
       selectedUnit: shouldUseManualInput ? null : selectedUnit,
       selectedPanel:
-          shouldUseManualInput || useFreeTextPanel || panelName.isEmpty
+          shouldUseManualInput || useFreeTextPanel || resolvedPanelName.isEmpty
           ? null
-          : panelName,
+          : resolvedPanelName,
       useFreeTextPanel: !shouldUseManualInput && useFreeTextPanel,
       freeTextPanelName: useFreeTextPanel ? sectionName : '',
       divisionLabel: divisionLabel,
@@ -107,6 +115,9 @@ class JobPlanAdditionalDraftHelper {
       selectedJobs: shouldUseManualInput || jobDescription.isEmpty
           ? const <String>{}
           : {jobDescription},
+      selectedCategory: _text(draft['panelCategory']).isEmpty
+          ? null
+          : _text(draft['panelCategory']),
     );
   }
 }

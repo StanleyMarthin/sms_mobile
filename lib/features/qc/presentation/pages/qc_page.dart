@@ -60,10 +60,7 @@ class _QcTabState extends State<QcTab> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => QcSubmitPage(
-                item: item,
-                passed: passed,
-              ),
+              builder: (_) => QcSubmitPage(item: item, passed: passed),
             ),
           );
         });
@@ -95,11 +92,16 @@ class _QcTabState extends State<QcTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.domain_disabled,
-                size: 56, color: AppColors.textDisabled),
+            Icon(
+              Icons.domain_disabled,
+              size: 56,
+              color: AppColors.textDisabled,
+            ),
             SizedBox(height: 16),
-            Text('Tidak ada data divisi QC',
-                style: TextStyle(fontSize: 15, color: AppColors.textMuted)),
+            Text(
+              'Tidak ada data divisi QC',
+              style: TextStyle(fontSize: 15, color: AppColors.textMuted),
+            ),
           ],
         ),
       );
@@ -137,18 +139,24 @@ class _QcTabState extends State<QcTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(div.divisionName,
-                          style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.textPrimary)),
+                      Text(
+                        div.divisionName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                       const SizedBox(height: 4),
                       Text(
-                          div.totalItem > 0
-                              ? '${div.totalItem} antrian pekerjaan'
-                              : 'Ketuk untuk memuat antrian QC',
-                          style: const TextStyle(
-                              fontSize: 13, color: AppColors.textMuted)),
+                        div.totalItem > 0
+                            ? '${div.totalItem} antrian pekerjaan'
+                            : 'Ketuk untuk memuat antrian QC',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -213,8 +221,10 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
 
   Future<void> _loadUnits() async {
     _page = 1;
-    final response =
-        await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
+    final response = await _repo.getQcItems(
+      divisionId: widget.divisionId,
+      page: _page,
+    );
     if (!mounted) return;
     setState(() {
       _unitGroups = response.groups;
@@ -229,8 +239,10 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
     });
 
     _page++;
-    final response =
-        await _repo.getQcItems(divisionId: widget.divisionId, page: _page);
+    final response = await _repo.getQcItems(
+      divisionId: widget.divisionId,
+      page: _page,
+    );
     if (!mounted) return;
 
     setState(() {
@@ -238,12 +250,14 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
 
       // Append data by unit Id grouping
       for (final newGroup in response.groups) {
-        final existingIdx =
-            _unitGroups.indexWhere((g) => g.unitId == newGroup.unitId);
+        final existingIdx = _unitGroups.indexWhere(
+          (g) => g.unitId == newGroup.unitId,
+        );
         if (existingIdx >= 0) {
           // Add jobdescs into existing unit group
-          final existingJobdescs =
-              List<QcItem>.from(_unitGroups[existingIdx].jobdescs);
+          final existingJobdescs = List<QcItem>.from(
+            _unitGroups[existingIdx].jobdescs,
+          );
           existingJobdescs.addAll(newGroup.jobdescs);
 
           _unitGroups[existingIdx] = QcUnitGroup(
@@ -272,82 +286,92 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _unitGroups.isEmpty
-              ? const Center(
-                  child: Text('Tidak ada unit menunggu QC.',
-                      style: TextStyle(color: AppColors.textMuted)))
-              : ListView.separated(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _unitGroups.length + (_hasMore ? 1 : 0),
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (ctx, i) {
-                    if (i == _unitGroups.length) {
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (!_isLoading && !_isFetchingMore && _hasMore) {
-                          _loadMoreUnits();
-                        }
-                      });
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                            child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))),
-                      );
+          ? const Center(
+              child: Text(
+                'Tidak ada unit menunggu QC.',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            )
+          : ListView.separated(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              itemCount: _unitGroups.length + (_hasMore ? 1 : 0),
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (ctx, i) {
+                if (i == _unitGroups.length) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!_isLoading && !_isFetchingMore && _hasMore) {
+                      _loadMoreUnits();
                     }
+                  });
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  );
+                }
 
-                    final unit = _unitGroups[i];
+                final unit = _unitGroups[i];
 
-                    return InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => QcItemsPage(
-                              divisionId: widget.divisionId,
-                              divisionName: widget.divisionName,
-                              unitId: unit.unitId,
-                              unitName: unit.unitName,
-                              initialItems: unit.jobdescs,
-                            ),
-                          ),
-                        ).then((_) => _loadUnits()); // Reload when going back
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceCard,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(unit.unitName,
-                                      style: const TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w600,
-                                          color: AppColors.textPrimary)),
-                                  const SizedBox(height: 4),
-                                  const Text('Ketuk untuk memuat jobdesc QC',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.textMuted)),
-                                ],
-                              ),
-                            ),
-                          ],
+                return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => QcItemsPage(
+                          divisionId: widget.divisionId,
+                          divisionName: widget.divisionName,
+                          unitId: unit.unitId,
+                          unitName: unit.unitName,
+                          initialItems: unit.jobdescs,
                         ),
                       ),
-                    );
+                    ).then((_) => _loadUnits()); // Reload when going back
                   },
-                ),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                unit.unitName,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                'Ketuk untuk memuat jobdesc QC',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }
@@ -429,10 +453,12 @@ class _QcItemsPageState extends State<QcItemsPage> {
   }
 
   List<QcItem> get _antrianItems => _items
-      .where((i) =>
-          i.countdownStatus == 'READY_QC' ||
-          i.countdownStatus == 'WAITING_QC' ||
-          i.countdownStatus == 'QC_READY')
+      .where(
+        (i) =>
+            i.countdownStatus == 'READY_QC' ||
+            i.countdownStatus == 'WAITING_QC' ||
+            i.countdownStatus == 'QC_READY',
+      )
       .toList();
 
   List<String> get _panelOptions {
@@ -505,9 +531,10 @@ class _QcItemsPageState extends State<QcItemsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(widget.unitName, style: const TextStyle(fontSize: 16)),
-            Text('Divisi ${widget.divisionName}',
-                style:
-                    const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            Text(
+              'Divisi ${widget.divisionName}',
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
           ],
         ),
         backgroundColor: AppColors.surfaceCard,
@@ -523,8 +550,10 @@ class _QcItemsPageState extends State<QcItemsPage> {
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Cari panel/section/pekerjaan...',
-                    prefixIcon:
-                        const Icon(Icons.search, color: AppColors.textMuted),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textMuted,
+                    ),
                     suffixIcon: _searchCtrl.text.isEmpty
                         ? null
                         : IconButton(
@@ -606,9 +635,13 @@ class _QcItemsPageState extends State<QcItemsPage> {
                     PopupMenuItem(value: 'panel_asc', child: Text('Panel A-Z')),
                     PopupMenuItem(value: 'job_asc', child: Text('Job A-Z')),
                     PopupMenuItem(
-                        value: 'hours_desc', child: Text('Jam terbesar')),
+                      value: 'hours_desc',
+                      child: Text('Jam terbesar'),
+                    ),
                     PopupMenuItem(
-                        value: 'hours_asc', child: Text('Jam terkecil')),
+                      value: 'hours_asc',
+                      child: Text('Jam terkecil'),
+                    ),
                   ],
                   child: _MiniFilterButton(
                     icon: Icons.sort_rounded,
@@ -642,8 +675,10 @@ class _QcItemsPageState extends State<QcItemsPage> {
   Widget _buildList(List<QcItem> items, bool canSubmit) {
     if (items.isEmpty) {
       return const Center(
-        child: Text('Tidak ada data.',
-            style: TextStyle(color: AppColors.textMuted)),
+        child: Text(
+          'Tidak ada data.',
+          style: TextStyle(color: AppColors.textMuted),
+        ),
       );
     }
     return ListView.builder(
@@ -659,10 +694,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
             final res = await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => QcSubmitPage(
-                  item: item,
-                  passed: passed,
-                ),
+                builder: (_) => QcSubmitPage(item: item, passed: passed),
               ),
             );
             if (res == true) {
@@ -741,11 +773,7 @@ class QcSubmitPage extends StatefulWidget {
   final QcItem item;
   final bool passed;
 
-  const QcSubmitPage({
-    super.key,
-    required this.item,
-    required this.passed,
-  });
+  const QcSubmitPage({super.key, required this.item, required this.passed});
 
   @override
   State<QcSubmitPage> createState() => _QcSubmitPageState();
@@ -768,6 +796,13 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
   bool _isUploadingBefore = false;
   bool _isUploadingEvidence = false;
 
+  SessionManager get _session => sl<SessionManager>();
+
+  bool get _needsDirectReworkPlan {
+    final rawRole = (_session.role ?? '').trim().toLowerCase();
+    return rawRole == 'kd' || rawRole == 'ketua_divisi';
+  }
+
   String? _safeCurrentRoute() {
     try {
       return GoRouterState.of(context).uri.toString();
@@ -781,7 +816,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
   @override
   void initState() {
     super.initState();
-    if (!widget.passed) {
+    if (!widget.passed && _needsDirectReworkPlan) {
       _loadUsers();
     }
     _loadDraft();
@@ -839,8 +874,9 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
       final draftMap = {
         'notes': _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
         'duration': _durationCtrl.text.isNotEmpty ? _durationCtrl.text : null,
-        'reworkHours':
-            _reworkHours != null ? TimeParser.formatDecimalToHHmm(_reworkHours!) : null,
+        'reworkHours': _reworkHours != null
+            ? TimeParser.formatDecimalToHHmm(_reworkHours!)
+            : null,
         'selectedUserId': _selectedUserId,
         'reworkDate': _reworkDate?.toIso8601String(),
         'photoBeforeUrl': _photoBeforeUrl,
@@ -999,8 +1035,10 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     });
 
     try {
-      final url =
-          await _uploadPhoto(File(pickedFile.path), isBefore ? 'QC 1' : 'QC 2');
+      final url = await _uploadPhoto(
+        File(pickedFile.path),
+        isBefore ? 'QC 1' : 'QC 2',
+      );
 
       if (!mounted) return;
       setState(() {
@@ -1023,22 +1061,28 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
           _isUploadingEvidence = false;
         }
       });
-      messenger.showSnackBar(SnackBar(
-        content: Text('Gagal: $e'),
-        backgroundColor: AppColors.statusLocked,
-        duration: const Duration(seconds: 4),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Gagal: $e'),
+          backgroundColor: AppColors.statusLocked,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
   Future<void> _submitData() async {
-    if (!widget.passed) {
+    final needsDirectReworkPlan = !widget.passed && _needsDirectReworkPlan;
+
+    if (needsDirectReworkPlan) {
       if (_reworkDate == null ||
           _selectedUserId == null ||
           (_reworkHours == null || _reworkHours == 0)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Tanggal, pekerja, dan jam rework wajib diisi.'),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Tanggal, pekerja, dan jam rework wajib diisi.'),
+          ),
+        );
         return;
       }
     }
@@ -1056,9 +1100,11 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
         inspectionDurationMinutes: int.tryParse(_durationCtrl.text.trim()),
         photoBeforeUrl: _photoBeforeUrl,
         evidencePhotoUrl: _evidencePhotoUrl,
-        reworkDate: widget.passed ? null : _formatDate(_reworkDate!),
-        reworkAssignedUser: widget.passed ? null : _selectedUserId,
-        reworkDailyHours: widget.passed ? null : TimeParser.formatDecimalToHHmm(_reworkHours ?? 7.0),
+        reworkDate: needsDirectReworkPlan ? _formatDate(_reworkDate!) : null,
+        reworkAssignedUser: needsDirectReworkPlan ? _selectedUserId : null,
+        reworkDailyHours: needsDirectReworkPlan
+            ? TimeParser.formatDecimalToHHmm(_reworkHours ?? 7.0)
+            : null,
       );
 
       if (!mounted) return;
@@ -1070,18 +1116,26 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
         await prefs.remove('pending_qc_form');
       } catch (_) {}
 
-      messenger.showSnackBar(SnackBar(
-        content: Text(widget.passed
-            ? 'QC Lolos berhasil disimpan.'
-            : 'QC Tidak Lolos — rework dijadwalkan.'),
-        backgroundColor: AppColors.statusDone,
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            widget.passed
+                ? 'QC Lolos berhasil disimpan.'
+                : needsDirectReworkPlan
+                ? 'QC Tidak Lolos — rework dijadwalkan.'
+                : 'QC Tidak Lolos — notifikasi dikirim ke KD.',
+          ),
+          backgroundColor: AppColors.statusDone,
+        ),
+      );
       navigator.pop(true); // Success
     } catch (e) {
-      messenger.showSnackBar(SnackBar(
-        content: Text('Gagal submit: $e'),
-        backgroundColor: AppColors.statusLocked,
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Gagal submit: $e'),
+          backgroundColor: AppColors.statusLocked,
+        ),
+      );
       setState(() => _isSubmitting = false);
     }
   }
@@ -1117,12 +1171,18 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(widget.item.panelName,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    widget.item.panelName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 4),
-                  Text(widget.item.jobName,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary)),
+                  Text(
+                    widget.item.jobName,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1139,8 +1199,9 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -1158,17 +1219,21 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
             const SizedBox(height: 20),
 
             // Foto
-            const Text('Dokumentasi Foto',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary)),
+            const Text(
+              'Dokumentasi Foto',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
             const SizedBox(height: 8),
 
             _PhotoPickerRow(
@@ -1187,12 +1252,15 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               onPick: () => _pickAndUpload(false),
             ),
 
-            if (!widget.passed) ...[
+            if (!widget.passed && _needsDirectReworkPlan) ...[
               const SizedBox(height: 24),
-              const Text('Jadwal Pengerjaan Ulang',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.statusLocked)),
+              const Text(
+                'Jadwal Pengerjaan Ulang',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.statusLocked,
+                ),
+              ),
               const SizedBox(height: 12),
               InkWell(
                 onTap: () async {
@@ -1212,17 +1280,19 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                     filled: true,
                     fillColor: AppColors.surfaceInput,
                     border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none),
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                   child: Text(
                     _reworkDate == null
                         ? 'Pilih tanggal'
                         : _formatDateLabel(_reworkDate!),
                     style: TextStyle(
-                        color: _reworkDate == null
-                            ? AppColors.textMuted
-                            : AppColors.textPrimary),
+                      color: _reworkDate == null
+                          ? AppColors.textMuted
+                          : AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -1234,8 +1304,9 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                   filled: true,
                   fillColor: AppColors.surfaceInput,
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none),
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
                 dropdownColor: AppColors.surfaceCard,
                 items: _availableUsers.map((u) {
@@ -1243,15 +1314,19 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                   final name = '${u['name'] ?? u['full_name'] ?? id}';
                   return DropdownMenuItem<String>(
                     value: id.isNotEmpty ? id : null,
-                    child: Text(name,
-                        style: const TextStyle(color: AppColors.textPrimary)),
+                    child: Text(
+                      name,
+                      style: const TextStyle(color: AppColors.textPrimary),
+                    ),
                   );
                 }).toList(),
                 onChanged: (val) {
                   setState(() => _selectedUserId = val);
                 },
-                hint: const Text('Pilih anggota',
-                    style: TextStyle(color: AppColors.textMuted)),
+                hint: const Text(
+                  'Pilih anggota',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
               ),
               const SizedBox(height: 12),
               DurationInput(
@@ -1263,6 +1338,24 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 },
               ),
             ],
+            if (!widget.passed && !_needsDirectReworkPlan) ...[
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.statusLocked.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.statusLocked.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: const Text(
+                  'Reject pada level ini hanya mengirim pemberitahuan ke KD. Jobdesc penyempurnaan dan penjadwalan tindak lanjut dibuat oleh KD.',
+                  style: TextStyle(color: AppColors.textSecondary, height: 1.4),
+                ),
+              ),
+            ],
 
             const SizedBox(height: 40),
 
@@ -1270,7 +1363,8 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               width: double.infinity,
               height: 48,
               child: FilledButton(
-                onPressed: (_isUploadingBefore ||
+                onPressed:
+                    (_isUploadingBefore ||
                         _isUploadingEvidence ||
                         _isSubmitting)
                     ? null
@@ -1280,17 +1374,25 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                       ? AppColors.statusDone
                       : AppColors.statusLocked,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
                 child: _isSubmitting
                     ? const SizedBox(
                         width: 24,
                         height: 24,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Text('Kirim Hasil QC',
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Kirim Hasil QC',
                         style: TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.bold)),
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 20),
@@ -1345,20 +1447,27 @@ class _PhotoPickerRow extends StatelessWidget {
               ),
               if (isUploading)
                 const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
               else if (url == null)
                 InkWell(
                   onTap: onPick,
-                  child: const Icon(Icons.camera_alt_outlined,
-                      color: AppColors.gold, size: 24),
+                  child: const Icon(
+                    Icons.camera_alt_outlined,
+                    color: AppColors.gold,
+                    size: 24,
+                  ),
                 )
               else
                 InkWell(
                   onTap: onPick,
-                  child: const Icon(Icons.refresh_rounded,
-                      color: AppColors.textMuted, size: 24),
+                  child: const Icon(
+                    Icons.refresh_rounded,
+                    color: AppColors.textMuted,
+                    size: 24,
+                  ),
                 ),
             ],
           ),
@@ -1379,8 +1488,11 @@ class _PhotoPickerRow extends StatelessWidget {
                 height: 180,
                 color: AppColors.background,
                 alignment: Alignment.center,
-                child: const Icon(Icons.broken_image,
-                    color: AppColors.textMuted, size: 32),
+                child: const Icon(
+                  Icons.broken_image,
+                  color: AppColors.textMuted,
+                  size: 32,
+                ),
               ),
             ),
           ),
@@ -1403,7 +1515,8 @@ class _QcCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAntrian = item.countdownStatus == 'READY_QC' ||
+    final isAntrian =
+        item.countdownStatus == 'READY_QC' ||
         item.countdownStatus == 'WAITING_QC' ||
         item.countdownStatus == 'QC_READY';
     final isLolos = item.qcLastStatus == 'LOLOS';
@@ -1446,34 +1559,44 @@ class _QcCard extends StatelessWidget {
                   child: Text(
                     item.panelName,
                     style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(statusLabel,
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor)),
+                  child: Text(
+                    statusLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: statusColor,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text(item.jobName,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
+            child: Text(
+              item.jobName,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -1492,11 +1615,14 @@ class _QcCard extends StatelessWidget {
                   color: AppColors.surfaceInput,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text('Catatan Pengecekan: ${item.qcNotes}',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textPrimary,
-                        fontStyle: FontStyle.italic)),
+                child: Text(
+                  'Catatan Pengecekan: ${item.qcNotes}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textPrimary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
               ),
             ),
           if (canAct)
@@ -1511,7 +1637,8 @@ class _QcCard extends StatelessWidget {
                         side: const BorderSide(color: AppColors.statusLocked),
                         foregroundColor: AppColors.statusLocked,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       child: const Text('Tidak Lolos'),
                     ),
@@ -1523,7 +1650,8 @@ class _QcCard extends StatelessWidget {
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.statusDone,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       child: const Text('Lolos'),
                     ),

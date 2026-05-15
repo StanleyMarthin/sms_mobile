@@ -72,6 +72,13 @@ enum Permission {
   prView,
   prCreate,
   prApprove,
+  prReject,
+
+  // ── Work Order Vendor (WOV) ────────────────────────────
+  wovView,
+  wovCreate,
+  wovApprove,
+  wovReject,
 
   // ── Task Execution ─────────────────────────────────────
   taskExecute, // Start/finish jobs (mechanic only)
@@ -121,6 +128,10 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.notificationsView,
     Permission.prView,
     Permission.prApprove,
+    Permission.prReject,
+    Permission.wovView,
+    Permission.wovApprove,
+    Permission.wovReject,
     Permission.profileView,
     Permission.dashboardKd,
   },
@@ -138,6 +149,10 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.notificationsView,
     Permission.prView,
     Permission.prApprove,
+    Permission.prReject,
+    Permission.wovView,
+    Permission.wovApprove,
+    Permission.wovReject,
     Permission.profileView,
     Permission.dashboardKd,
   },
@@ -159,6 +174,8 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.notificationsView,
     Permission.prView,
     Permission.prCreate,
+    Permission.wovView,
+    Permission.wovCreate,
     Permission.profileView,
     Permission.dashboardKd,
   },

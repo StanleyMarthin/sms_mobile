@@ -136,6 +136,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
 
   void _showDetail(BuildContext context) {
     final task = widget.task;
+    final managementHistory = task.managementCheckpointHistory;
 
     final lastCp = task.checkpointHistory.isNotEmpty
         ? task.checkpointHistory.last
@@ -144,20 +145,13 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
     final isDone = task.isDone || task.progressPercent >= 100;
 
     // FILTER: Hanya tampilkan sesi monitoring dari level manajemen (bukan lapangan/op)
-    final managementHistory = task.checkpointHistory
-        .where(
-          (cp) =>
-              cp.actorRole != 'op' &&
-              cp.actorRole != 'operator' &&
-              cp.actorRole != 'lapangan',
-        )
-        .toList();
-
     final List<Map<String, dynamic>> checkpointItems = isDone
         ? (managementHistory.isNotEmpty
               ? [
                   {
-                    'session': managementHistory.last.sessionNumber,
+                    'session': task.managementCheckpointDisplayNumber(
+                      managementHistory.last,
+                    ),
                     'time': managementHistory.last.checkpointTime,
                     'progress': 100,
                     'status': 'Selesai',
@@ -167,7 +161,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
         : managementHistory
               .map(
                 (cp) => {
-                  'session': cp.sessionNumber,
+                  'session': task.managementCheckpointDisplayNumber(cp),
                   'time': cp.checkpointTime,
                   'progress': cp.progress,
                   'status': cp.jobStatusLabel,
@@ -210,10 +204,10 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
   @override
   Widget build(BuildContext context) {
     final task = widget.task;
-    final lastCheckpoint = task.checkpointHistory.isNotEmpty
-        ? task.checkpointHistory.last
+    final managementHistory = task.managementCheckpointHistory;
+    final lastMonitorTime = managementHistory.isNotEmpty
+        ? managementHistory.last.checkpointTime
         : null;
-    final lastMonitorTime = lastCheckpoint?.checkpointTime;
     final currentProgress = task.progressPercent;
 
     return AnimatedContainer(
@@ -331,7 +325,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Progress $currentProgress% • ${task.task.startTime} - ${task.task.targetFinishTime} • ${task.checkpointHistory.length}/${task.maxCheckpointSessions} sesi',
+                      'Progress $currentProgress% • ${task.task.startTime} - ${task.task.targetFinishTime} • ${managementHistory.length}/${task.maxCheckpointSessions} sesi',
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.textMuted,
@@ -339,7 +333,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                     ),
                     const SizedBox(height: 10),
                     _buildProgressSection(currentProgress),
-                    if (task.checkpointHistory.isNotEmpty) ...[
+                    if (managementHistory.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildMonitoringHistory(),
                     ],
@@ -379,6 +373,9 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
     if (status == 'DONE' || status == 'VALIDATED') {
       color = AppColors.statusDone;
       label = 'Selesai';
+    } else if (status == 'PENDING') {
+      color = AppColors.orange;
+      label = 'Pending';
     } else if (status == 'SUBMITTED' || status == 'ASSIGNED') {
       color = AppColors.orange;
     }
@@ -441,14 +438,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
   }
 
   Widget _buildMonitoringHistory() {
-    final managementLogs = widget.task.checkpointHistory
-        .where(
-          (cp) =>
-              cp.actorRole != 'op' &&
-              cp.actorRole != 'operator' &&
-              cp.actorRole != 'team_lapangan',
-        )
-        .toList();
+    final managementLogs = widget.task.managementCheckpointHistory;
 
     if (managementLogs.isEmpty) return const SizedBox.shrink();
 
@@ -475,7 +465,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Sesi ${session.sessionNumber} • ${session.checkpointTime}',
+                      'Sesi ${widget.task.managementCheckpointDisplayNumber(session)} • ${session.checkpointTime}',
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
