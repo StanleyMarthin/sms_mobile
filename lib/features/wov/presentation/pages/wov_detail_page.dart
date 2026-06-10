@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
@@ -43,27 +44,44 @@ class _WovDetailPageState extends State<WovDetailPage> {
   }
 
   void _snack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? AppColors.statusLocked : AppColors.statusDone,
-      behavior: SnackBarBehavior.floating,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError
+            ? AppColors.statusLocked
+            : AppColors.statusDone,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   bool _canApprove() {
     final acc = _wov?.accTracking;
     if (acc == null || acc == 'APPROVED') return false;
-    final r = (sl<SessionManager>().role ?? '').toUpperCase();
+    final session = sl<SessionManager>();
+    if (!hasPermission(session.role, Permission.wovApprove)) {
+      return false;
+    }
     return switch (acc) {
-      'PENDING_ADV' => r == 'ADV' || r == 'ADVISOR',
-      'PENDING_KP'  => r == 'KP' || r == 'KEPALA_PRODUKSI',
-      'PENDING_PM'  => r == 'MP' || r == 'PM' || r == 'MANAGER_PRODUKSI' || r == 'MANAGER_OPERATIONAL',
+      'PENDING_ADV' => session.isAdvisorAccess,
+      'PENDING_KP' => session.isKpAccess,
+      'PENDING_PM' => session.isGlobalAccess,
       _ => false,
     };
   }
 
-  bool _canUpdateStatus() =>
-      _wov?.accTracking == 'APPROVED' && !['RECEIVED'].contains(_wov?.status);
+  bool _canUpdateStatus() {
+    final session = sl<SessionManager>();
+    return hasPermission(session.role, Permission.wovUpdate) &&
+        _wov?.accTracking == 'APPROVED' &&
+        !['RECEIVED'].contains(_wov?.status);
+  }
+
+  bool _canFinalize() {
+    final session = sl<SessionManager>();
+    return hasPermission(session.role, Permission.wovUpdate) &&
+        (_wov?.status == 'DONE_VENDOR' || _wov?.status == 'RECEIVED');
+  }
 
   Future<void> _approve() async {
     if (!await _confirmDialog('Setujui WOV ini?')) return;
@@ -129,19 +147,33 @@ class _WovDetailPageState extends State<WovDetailPage> {
         context: context,
         builder: (c) => AlertDialog(
           backgroundColor: AppColors.surfaceCard,
-          title: Text(msg, style: const TextStyle(color: AppColors.textPrimary, fontSize: 16)),
+          title: Text(
+            msg,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(c, false),
-              child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+            TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text(
+                'Batal',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            ),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
               onPressed: () => Navigator.pop(c, true),
-              child: const Text('Ya, Setujui', style: TextStyle(
-                  color: AppColors.background, fontWeight: FontWeight.w700)),
+              child: const Text(
+                'Ya, Setujui',
+                style: TextStyle(
+                  color: AppColors.background,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),
-      ) ?? false;
+      ) ??
+      false;
 
   Future<String?> _notesDialog(String title) async {
     final ctrl = TextEditingController();
@@ -149,58 +181,100 @@ class _WovDetailPageState extends State<WovDetailPage> {
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 15)),
+        title: Text(
+          title,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+        ),
         content: TextField(
-          controller: ctrl, maxLines: 3,
+          controller: ctrl,
+          maxLines: 3,
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
           decoration: InputDecoration(
             hintText: 'Tulis alasan...',
             hintStyle: const TextStyle(color: AppColors.textDisabled),
-            filled: true, fillColor: AppColors.surfaceInput,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.statusLocked)),
+            filled: true,
+            fillColor: AppColors.surfaceInput,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.statusLocked),
+            ),
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(c),
-            child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text(
+              'Batal',
+              style: TextStyle(color: AppColors.textMuted),
+            ),
+          ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.statusLocked),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.statusLocked,
+            ),
             onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-            child: const Text('Tolak WOV', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            child: const Text(
+              'Tolak WOV',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<String?> _routeDialog() async =>
-      showDialog<String>(
-        context: context,
-        builder: (c) => AlertDialog(
-          backgroundColor: AppColors.surfaceCard,
-          title: const Text('Finalisasi WOV', style: TextStyle(color: AppColors.textPrimary, fontSize: 15)),
-          content: const Text('Kirim barang ke mana setelah diterima?',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(c),
-              child: const Text('Batal', style: TextStyle(color: AppColors.textMuted))),
-            OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(foregroundColor: AppColors.gold, side: const BorderSide(color: AppColors.gold)),
-              onPressed: () => Navigator.pop(c, 'TO_JOBDESC'),
-              icon: const Icon(Icons.engineering_outlined, size: 16),
-              label: const Text('Job Desc'),
-            ),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.background),
-              onPressed: () => Navigator.pop(c, 'TO_WAREHOUSE'),
-              icon: const Icon(Icons.warehouse_outlined, size: 16),
-              label: const Text('Warehouse'),
-            ),
-          ],
+  Future<String?> _routeDialog() async => showDialog<String>(
+    context: context,
+    builder: (c) => AlertDialog(
+      backgroundColor: AppColors.surfaceCard,
+      title: const Text(
+        'Finalisasi WOV',
+        style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
+      ),
+      content: const Text(
+        'Kirim barang ke mana setelah diterima?',
+        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(c),
+          child: const Text(
+            'Batal',
+            style: TextStyle(color: AppColors.textMuted),
+          ),
         ),
-      );
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.gold,
+            side: const BorderSide(color: AppColors.gold),
+          ),
+          onPressed: () => Navigator.pop(c, 'TO_JOBDESC'),
+          icon: const Icon(Icons.engineering_outlined, size: 16),
+          label: const Text('Job Desc'),
+        ),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.gold,
+            foregroundColor: AppColors.background,
+          ),
+          onPressed: () => Navigator.pop(c, 'TO_WAREHOUSE'),
+          icon: const Icon(Icons.warehouse_outlined, size: 16),
+          label: const Text('Warehouse'),
+        ),
+      ],
+    ),
+  );
 
   // ── Build ─────────────────────────────────────────────────
 
@@ -209,47 +283,85 @@ class _WovDetailPageState extends State<WovDetailPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.background, elevation: 0,
+        backgroundColor: AppColors.background,
+        elevation: 0,
         leading: const BackButton(color: AppColors.textMuted),
-        title: Text(_wov?.wovNumber ?? 'Detail WOV',
-            style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w700, fontSize: 15)),
+        title: Text(
+          _wov?.wovNumber ?? 'Detail WOV',
+          style: const TextStyle(
+            color: AppColors.gold,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+          ),
+        ),
         actions: [
           if (_wov != null)
-            IconButton(icon: const Icon(Icons.refresh_rounded, color: AppColors.textMuted), onPressed: _load),
+            IconButton(
+              icon: const Icon(
+                Icons.refresh_rounded,
+                color: AppColors.textMuted,
+              ),
+              onPressed: _load,
+            ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.gold),
+            )
           : _wov == null
-              ? const Center(child: Text('WOV tidak ditemukan', style: TextStyle(color: AppColors.textMuted)))
-              : Stack(children: [
-                  RefreshIndicator(
-                    onRefresh: _load, color: AppColors.gold,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
-                      children: [
-                        _ApprovalStatusBar(accTracking: _wov!.accTracking),
+          ? const Center(
+              child: Text(
+                'WOV tidak ditemukan',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
+            )
+          : Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: _load,
+                  color: AppColors.gold,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+                    children: [
+                      _ApprovalStatusBar(accTracking: _wov!.accTracking),
+                      const SizedBox(height: 16),
+                      _HeaderCard(wov: _wov!),
+                      const SizedBox(height: 16),
+                      _StatusCard(wov: _wov!),
+                      if (_canUpdateStatus()) ...[
                         const SizedBox(height: 16),
-                        _HeaderCard(wov: _wov!),
-                        const SizedBox(height: 16),
-                        _StatusCard(wov: _wov!),
-                        if (_canUpdateStatus()) ...[
-                          const SizedBox(height: 16),
-                          _StatusActions(wov: _wov!, isActing: _isActing, onUpdate: _updateStatus),
-                        ],
-                        if (_wov!.status == 'DONE_VENDOR' || _wov!.status == 'RECEIVED') ...[
-                          const SizedBox(height: 12),
-                          _FinalizeStrip(isActing: _isActing, onFinalize: _finalize),
-                        ],
+                        _StatusActions(
+                          wov: _wov!,
+                          isActing: _isActing,
+                          onUpdate: _updateStatus,
+                        ),
                       ],
+                      if (_canFinalize()) ...[
+                        const SizedBox(height: 12),
+                        _FinalizeStrip(
+                          isActing: _isActing,
+                          onFinalize: _finalize,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (_canApprove())
+                  _ApprovalBar(
+                    isActing: _isActing,
+                    onApprove: _approve,
+                    onReject: _reject,
+                  ),
+                if (_isActing)
+                  Container(
+                    color: Colors.black54,
+                    child: const Center(
+                      child: CircularProgressIndicator(color: AppColors.gold),
                     ),
                   ),
-                  if (_canApprove())
-                    _ApprovalBar(isActing: _isActing, onApprove: _approve, onReject: _reject),
-                  if (_isActing)
-                    Container(color: Colors.black54,
-                      child: const Center(child: CircularProgressIndicator(color: AppColors.gold))),
-                ]),
+              ],
+            ),
     );
   }
 }
@@ -262,9 +374,9 @@ class _ApprovalStatusBar extends StatelessWidget {
 
   static const _steps = [
     ('ADV', 'PENDING_ADV'),
-    ('KP',  'PENDING_KP'),
-    ('PM',  'PENDING_PM'),
-    ('✓',   'APPROVED'),
+    ('KP', 'PENDING_KP'),
+    ('PM', 'PENDING_PM'),
+    ('✓', 'APPROVED'),
   ];
 
   @override
@@ -274,7 +386,8 @@ class _ApprovalStatusBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(12),
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Row(
@@ -282,28 +395,63 @@ class _ApprovalStatusBar extends StatelessWidget {
         children: List.generate(_steps.length, (i) {
           final isDone = curIdx > i;
           final isCurrent = curIdx == i;
-          final color = isDone ? AppColors.statusDone : isCurrent ? AppColors.gold : AppColors.textDisabled;
-          return Expanded(child: Row(children: [
-            Expanded(child: Column(children: [
-              Container(
-                width: 12, height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDone || isCurrent ? color : AppColors.surfaceInput,
-                  border: Border.all(color: isDone || isCurrent ? color : AppColors.border),
+          final color = isDone
+              ? AppColors.statusDone
+              : isCurrent
+              ? AppColors.gold
+              : AppColors.textDisabled;
+          return Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDone || isCurrent
+                              ? color
+                              : AppColors.surfaceInput,
+                          border: Border.all(
+                            color: isDone || isCurrent
+                                ? color
+                                : AppColors.border,
+                          ),
+                        ),
+                        child: isDone
+                            ? const Icon(
+                                Icons.check,
+                                size: 8,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _steps[i].$1,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: color,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: isDone ? const Icon(Icons.check, size: 8, color: Colors.white) : null,
-              ),
-              const SizedBox(height: 6),
-              Text(_steps[i].$1, textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
-            ])),
-            if (i < _steps.length - 1)
-              Expanded(child: Container(
-                height: 2, margin: const EdgeInsets.only(bottom: 16),
-                color: isDone ? AppColors.statusDone : AppColors.border,
-              )),
-          ]));
+                if (i < _steps.length - 1)
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      color: isDone ? AppColors.statusDone : AppColors.border,
+                    ),
+                  ),
+              ],
+            ),
+          );
         }),
       ),
     );
@@ -323,81 +471,166 @@ class _HeaderCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14),
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.borderSubtle),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(wov.itemName ?? '-',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.gold)),
-            const SizedBox(height: 2),
-            Text('${wov.vendorName ?? '-'}${wov.picVendor != null ? ' • ${wov.picVendor}' : ''}',
-                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-          ])),
-          _StageBadge(label: stageLabel, color: stageColor),
-        ]),
-        const SizedBox(height: 10),
-        Wrap(spacing: 8, runSpacing: 6, children: [
-          if (wov.carName != null) _chip(Icons.directions_car_outlined, wov.carName!),
-          if (wov.quantity != null) _chip(Icons.inventory_2_outlined, '${wov.quantity} ${wov.uom ?? ''}'),
-          if (wov.estimatedCost != null && wov.estimatedCost! > 0)
-            _chip(Icons.attach_money_rounded, 'Est. Rp ${_fmt(wov.estimatedCost!)}'),
-          if (wov.targetDateReturn != null)
-            _chip(Icons.event_rounded, 'Target ${_fmtDate(wov.targetDateReturn)}'),
-        ]),
-        if (wov.goodsConditionOut != null) ...[
-          const SizedBox(height: 8),
-          const Divider(color: AppColors.borderSubtle, height: 1),
-          const SizedBox(height: 8),
-          _infoRow('Kondisi keluar', wov.goodsConditionOut!),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      wov.itemName ?? '-',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.gold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${wov.vendorName ?? '-'}${wov.picVendor != null ? ' • ${wov.picVendor}' : ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _StageBadge(label: stageLabel, color: stageColor),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (wov.carName != null)
+                _chip(Icons.directions_car_outlined, wov.carName!),
+              if (wov.quantity != null)
+                _chip(
+                  Icons.inventory_2_outlined,
+                  '${wov.quantity} ${wov.uom ?? ''}',
+                ),
+              if (wov.estimatedCost != null && wov.estimatedCost! > 0)
+                _chip(
+                  Icons.attach_money_rounded,
+                  'Est. Rp ${_fmt(wov.estimatedCost!)}',
+                ),
+              if (wov.targetDateReturn != null)
+                _chip(
+                  Icons.event_rounded,
+                  'Target ${_fmtDate(wov.targetDateReturn)}',
+                ),
+            ],
+          ),
+          if (wov.goodsConditionOut != null) ...[
+            const SizedBox(height: 8),
+            const Divider(color: AppColors.borderSubtle, height: 1),
+            const SizedBox(height: 8),
+            _infoRow('Kondisi keluar', wov.goodsConditionOut!),
+          ],
+          if (wov.remarks != null && wov.remarks!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.sticky_note_2_outlined,
+                  size: 14,
+                  color: AppColors.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    wov.remarks!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
-        if (wov.remarks != null && wov.remarks!.isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.sticky_note_2_outlined, size: 14, color: AppColors.textMuted),
-            const SizedBox(width: 6),
-            Expanded(child: Text(wov.remarks!,
-                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary,
-                    fontStyle: FontStyle.italic))),
-          ]),
-        ],
-      ]),
+      ),
     );
   }
 
   Widget _chip(IconData icon, String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border)),
-    child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 12, color: AppColors.textMuted),
-      const SizedBox(width: 5),
-      Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-    ]),
+    decoration: BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: AppColors.textMuted),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ],
+    ),
   );
 
   Widget _infoRow(String l, String v) => Padding(
     padding: const EdgeInsets.only(bottom: 4),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 108, child: Text(l, style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
-      Expanded(child: Text(v, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
-    ]),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 108,
+          child: Text(
+            l,
+            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            v,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 
-  String _fmt(double v) => v >= 1000 ? NumberFormat('#,###', 'id_ID').format(v) : v.toStringAsFixed(0);
-  String _fmtDate(DateTime? d) => d == null ? '-' : DateFormat('d MMM yy', 'id_ID').format(d.toLocal());
+  String _fmt(double v) => v >= 1000
+      ? NumberFormat('#,###', 'id_ID').format(v)
+      : v.toStringAsFixed(0);
+  String _fmtDate(DateTime? d) =>
+      d == null ? '-' : DateFormat('d MMM yy', 'id_ID').format(d.toLocal());
 
   (String, Color) _stageInfo(String? acc, String? status) => switch (acc) {
     'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
-    'PENDING_KP'  => ('MENUNGGU KP', AppColors.gold),
-    'PENDING_PM'  => ('MENUNGGU PM', const Color(0xFF9C27B0)),
-    'APPROVED'    => switch (status) {
-      'SENT'          => ('TERKIRIM', const Color(0xFF2196F3)),
+    'PENDING_KP' => ('MENUNGGU KP', AppColors.gold),
+    'PENDING_PM' => ('MENUNGGU PM', const Color(0xFF9C27B0)),
+    'APPROVED' => switch (status) {
+      'SENT' => ('TERKIRIM', const Color(0xFF2196F3)),
       'PROSES_VENDOR' => ('DI VENDOR', AppColors.orange),
-      'DONE_VENDOR'   => ('SELESAI VENDOR', AppColors.statusDone),
+      'DONE_VENDOR' => ('SELESAI VENDOR', AppColors.statusDone),
       'REWORK_VENDOR' => ('REWORK', AppColors.statusLocked),
-      'RECEIVED'      => ('DITERIMA', AppColors.statusDone),
+      'RECEIVED' => ('DITERIMA', AppColors.statusDone),
       _ => ('OPEN', AppColors.statusInProgress),
     },
     _ => ('DRAFT', AppColors.textMuted),
@@ -414,40 +647,81 @@ class _StatusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceCard, borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.borderSubtle)),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Administrasi', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
-        const SizedBox(height: 12),
-        _row('No. WOV', wov.wovNumber ?? '-'),
-        _row('Approval', wov.accTracking ?? '-'),
-        if (wov.status != null) _row('Status', wov.status!),
-        if (wov.dateOut != null) _row('Keluar', _fmtDate(wov.dateOut)),
-        if (wov.targetDateReturn != null) _row('Target Kembali', _fmtDate(wov.targetDateReturn)),
-        if (wov.dateIn != null) _row('Diterima', _fmtDate(wov.dateIn)),
-        if (wov.goodsConditionIn != null) _row('Kondisi Masuk', wov.goodsConditionIn!),
-        if (wov.actualCost != null)
-          _row('Biaya Aktual', 'Rp ${NumberFormat('#,###', 'id_ID').format(wov.actualCost!)}'),
-        if (wov.qcStatus != null) _row('QC', wov.qcStatus!),
-      ]),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Administrasi',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _row('No. WOV', wov.wovNumber ?? '-'),
+          _row('Approval', wov.accTracking ?? '-'),
+          if (wov.status != null) _row('Status', wov.status!),
+          if (wov.dateOut != null) _row('Keluar', _fmtDate(wov.dateOut)),
+          if (wov.targetDateReturn != null)
+            _row('Target Kembali', _fmtDate(wov.targetDateReturn)),
+          if (wov.dateIn != null) _row('Diterima', _fmtDate(wov.dateIn)),
+          if (wov.goodsConditionIn != null)
+            _row('Kondisi Masuk', wov.goodsConditionIn!),
+          if (wov.actualCost != null)
+            _row(
+              'Biaya Aktual',
+              'Rp ${NumberFormat('#,###', 'id_ID').format(wov.actualCost!)}',
+            ),
+          if (wov.qcStatus != null) _row('QC', wov.qcStatus!),
+        ],
+      ),
     );
   }
 
-  String _fmtDate(DateTime? d) => d == null ? '-' : DateFormat('d MMM yyyy', 'id_ID').format(d.toLocal());
+  String _fmtDate(DateTime? d) =>
+      d == null ? '-' : DateFormat('d MMM yyyy', 'id_ID').format(d.toLocal());
 
   Widget _row(String l, String v) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 116, child: Text(l, style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
-      Expanded(child: Text(v, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w500))),
-    ]),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 116,
+          child: Text(
+            l,
+            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            v,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    ),
   );
 }
 
 // ── Status Action Buttons ──────────────────────────────────────
 
 class _StatusActions extends StatelessWidget {
-  const _StatusActions({required this.wov, required this.isActing, required this.onUpdate});
+  const _StatusActions({
+    required this.wov,
+    required this.isActing,
+    required this.onUpdate,
+  });
   final WOVOrder wov;
   final bool isActing;
   final void Function(String) onUpdate;
@@ -456,11 +730,11 @@ class _StatusActions extends StatelessWidget {
   Widget build(BuildContext context) {
     final current = wov.status ?? 'OPEN';
     final nexts = switch (current) {
-      'OPEN'          => ['SENT'],
-      'SENT'          => ['PROSES_VENDOR'],
+      'OPEN' => ['SENT'],
+      'SENT' => ['PROSES_VENDOR'],
       'PROSES_VENDOR' => ['DONE_VENDOR', 'REWORK_VENDOR'],
       'REWORK_VENDOR' => ['DONE_VENDOR'],
-      'DONE_VENDOR'   => ['RECEIVED'],
+      'DONE_VENDOR' => ['RECEIVED'],
       _ => <String>[],
     };
 
@@ -469,36 +743,65 @@ class _StatusActions extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.gold.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(14),
+        color: AppColors.gold.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [
-          Icon(Icons.update_rounded, color: AppColors.gold, size: 16),
-          SizedBox(width: 8),
-          Text('Update Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.gold)),
-        ]),
-        const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: nexts.map((s) {
-          final label = switch (s) {
-            'SENT'          => 'Dikirim ke Vendor',
-            'PROSES_VENDOR' => 'Proses di Vendor',
-            'DONE_VENDOR'   => 'Selesai di Vendor',
-            'REWORK_VENDOR' => 'Rework',
-            'RECEIVED'      => 'Barang Diterima',
-            _ => s,
-          };
-          return FilledButton(
-            onPressed: isActing ? null : () => onUpdate(s),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.gold, foregroundColor: AppColors.background,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-          );
-        }).toList()),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.update_rounded, color: AppColors.gold, size: 16),
+              SizedBox(width: 8),
+              Text(
+                'Update Status',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.gold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: nexts.map((s) {
+              final label = switch (s) {
+                'SENT' => 'Dikirim ke Vendor',
+                'PROSES_VENDOR' => 'Proses di Vendor',
+                'DONE_VENDOR' => 'Selesai di Vendor',
+                'REWORK_VENDOR' => 'Rework',
+                'RECEIVED' => 'Barang Diterima',
+                _ => s,
+              };
+              return FilledButton(
+                onPressed: isActing ? null : () => onUpdate(s),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: AppColors.background,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -517,15 +820,29 @@ class _FinalizeStrip extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.statusDone.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12),
+        color: AppColors.statusDone.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.statusDone.withValues(alpha: 0.4)),
       ),
-      child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.check_circle_outline_rounded, size: 16, color: AppColors.statusDone),
-        SizedBox(width: 8),
-        Text('Finalisasi WOV', style: TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.statusDone)),
-      ]),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.check_circle_outline_rounded,
+            size: 16,
+            color: AppColors.statusDone,
+          ),
+          SizedBox(width: 8),
+          Text(
+            'Finalisasi WOV',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppColors.statusDone,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -533,44 +850,75 @@ class _FinalizeStrip extends StatelessWidget {
 // ── Approval Bar ───────────────────────────────────────────────
 
 class _ApprovalBar extends StatelessWidget {
-  const _ApprovalBar({required this.isActing, required this.onApprove, required this.onReject});
+  const _ApprovalBar({
+    required this.isActing,
+    required this.onApprove,
+    required this.onReject,
+  });
   final bool isActing;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) => Positioned(
-    left: 0, right: 0, bottom: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     child: Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard.withValues(alpha: 0.97),
         border: const Border(top: BorderSide(color: AppColors.borderSubtle)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, -4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: const Offset(0, -4),
+          ),
+        ],
       ),
-      child: Row(children: [
-        Expanded(child: OutlinedButton.icon(
-          onPressed: isActing ? null : onReject,
-          icon: const Icon(Icons.close_rounded, size: 16),
-          label: const Text('Tolak', style: TextStyle(fontWeight: FontWeight.w700)),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.statusLocked, side: const BorderSide(color: AppColors.statusLocked),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: isActing ? null : onReject,
+              icon: const Icon(Icons.close_rounded, size: 16),
+              label: const Text(
+                'Tolak',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.statusLocked,
+                side: const BorderSide(color: AppColors.statusLocked),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
           ),
-        )),
-        const SizedBox(width: 12),
-        Expanded(flex: 2, child: FilledButton.icon(
-          onPressed: isActing ? null : onApprove,
-          icon: const Icon(Icons.check_rounded, size: 16),
-          label: const Text('Setujui', style: TextStyle(fontWeight: FontWeight.w700)),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.gold, foregroundColor: AppColors.background,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: FilledButton.icon(
+              onPressed: isActing ? null : onApprove,
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text(
+                'Setujui',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.gold,
+                foregroundColor: AppColors.background,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
           ),
-        )),
-      ]),
+        ],
+      ),
     ),
   );
 }
@@ -586,9 +934,13 @@ class _StageBadge extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(999),
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(999),
       border: Border.all(color: color.withValues(alpha: 0.4)),
     ),
-    child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+    ),
   );
 }

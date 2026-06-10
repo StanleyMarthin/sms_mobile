@@ -87,19 +87,7 @@ class _PrFormPageState extends State<PrFormPage> {
   }
 
   bool _shouldLockDivision(SessionManager session) {
-    String normalize(String? value) => (value ?? '')
-        .trim()
-        .toLowerCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
-    final role = normalize(session.role);
-    final jabatan = normalize(session.jabatan);
-    return role == 'kd' ||
-        role == 'ketua_divisi' ||
-        role == 'kp' ||
-        role == 'kepala_produksi' ||
-        jabatan == 'kp' ||
-        jabatan == 'kepala_produksi';
+    return session.isKdAccess || session.isKpAccess;
   }
 
   List<Map<String, dynamic>> _resolveDivisionOptions(
@@ -386,20 +374,21 @@ class _PrFormPageState extends State<PrFormPage> {
             color: AppColors.textMuted,
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-          items: _cars
-              .map(
-                (c) {
-                  final String unitName = c['unit_name']?.toString() ?? '-';
-                  final String extraInfo = c['customer_name']?.toString() ?? c['police_number']?.toString() ?? '';
-                  final String displayText = extraInfo.isNotEmpty ? '$unitName - $extraInfo' : unitName;
-                  
-                  return DropdownMenuItem<String>(
-                    value: c['id'].toString(),
-                    child: Text(displayText),
-                  );
-                },
-              )
-              .toList(),
+          items: _cars.map((c) {
+            final String unitName = c['unit_name']?.toString() ?? '-';
+            final String extraInfo =
+                c['customer_name']?.toString() ??
+                c['police_number']?.toString() ??
+                '';
+            final String displayText = extraInfo.isNotEmpty
+                ? '$unitName - $extraInfo'
+                : unitName;
+
+            return DropdownMenuItem<String>(
+              value: c['id'].toString(),
+              child: Text(displayText),
+            );
+          }).toList(),
           onChanged: (v) {
             if (v == null) return;
             final c = _cars.firstWhere((x) => x['id'].toString() == v);
@@ -715,13 +704,25 @@ class _PrFormPageState extends State<PrFormPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.camera_alt_outlined, color: AppColors.textPrimary),
-              title: const Text('Kamera', style: TextStyle(color: AppColors.textPrimary)),
+              leading: const Icon(
+                Icons.camera_alt_outlined,
+                color: AppColors.textPrimary,
+              ),
+              title: const Text(
+                'Kamera',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined, color: AppColors.textPrimary),
-              title: const Text('Galeri', style: TextStyle(color: AppColors.textPrimary)),
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.textPrimary,
+              ),
+              title: const Text(
+                'Galeri',
+                style: TextStyle(color: AppColors.textPrimary),
+              ),
               onTap: () => Navigator.pop(ctx, ImageSource.gallery),
             ),
           ],
@@ -732,10 +733,7 @@ class _PrFormPageState extends State<PrFormPage> {
     if (source != null) {
       try {
         final picker = ImagePicker();
-        final file = await picker.pickImage(
-          source: source,
-          imageQuality: 70,
-        );
+        final file = await picker.pickImage(source: source, imageQuality: 70);
         if (file != null) {
           setState(() {
             r.localPhotoPath = file.path;
@@ -782,7 +780,8 @@ class _PrFormPageState extends State<PrFormPage> {
                 Text(
                   r.isUploading
                       ? 'Mengupload...'
-                      : ((r.localPhotoPath != null || r.uploadedPhotoUrl != null)
+                      : ((r.localPhotoPath != null ||
+                                r.uploadedPhotoUrl != null)
                             ? 'Ganti Foto'
                             : 'Ambil Foto'),
                   style: const TextStyle(

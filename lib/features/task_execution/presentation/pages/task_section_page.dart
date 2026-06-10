@@ -39,7 +39,9 @@ class TaskSectionPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
     final role = session.role;
-    final isOperator = hasPermission(role, Permission.dashboardMechanic);
+    final isOperator =
+        session.isFieldExecution &&
+        hasPermission(role, Permission.dashboardMechanic);
 
     switch (kind) {
       case TaskSectionKind.tasks:

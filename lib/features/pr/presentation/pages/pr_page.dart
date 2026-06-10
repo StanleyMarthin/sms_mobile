@@ -8,6 +8,7 @@ import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../data/datasources/remote_pr_datasource.dart';
 import '../../data/models/pr_header.dart';
 import 'pr_detail_page.dart';
@@ -26,8 +27,7 @@ class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
 
   List<PRHeader> _prs = [];
   bool _isLoading = true;
-  // Tab 0 = approval queue, Tab 1 = open/hunting, Tab 2 = selesai
-  static const _tabFilters = ['PENDING', 'OPEN', 'DONE'];
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void initState() {
@@ -40,7 +40,9 @@ class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
     _fetch();
 
     if (widget.focusReqId != null && widget.focusReqId!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _openDetail(widget.focusReqId!));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openDetail(widget.focusReqId!),
+      );
     }
   }
 
@@ -53,18 +55,12 @@ class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
   Future<void> _fetch() async {
     setState(() => _isLoading = true);
     try {
-      final filter = _tabFilters[_tabCtrl.index];
-      final prs = filter == 'PENDING'
-          ? await _ds.getPrs(accTracking: 'ALL')
-          : await _ds.getPrs(status: filter, accTracking: 'APPROVED');
+      final prs = switch (_tabCtrl.index) {
+        1 => await _ds.getPrs(accTracking: 'APPROVED', limit: 100),
+        _ => await _ds.getPrs(accTracking: 'ALL', limit: 100),
+      };
       if (mounted) {
-        setState(() {
-          if (filter == 'PENDING') {
-            _prs = prs.where((p) => p.accTracking != 'APPROVED').toList();
-          } else {
-            _prs = prs;
-          }
-        });
+        setState(() => _prs = prs);
       }
     } catch (e) {
       if (mounted) _snack('Gagal memuat PR: $e', isError: true);
@@ -74,33 +70,53 @@ class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
   }
 
   void _snack(String msg, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: isError ? AppColors.statusLocked : AppColors.statusDone,
-      behavior: SnackBarBehavior.floating,
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError
+            ? AppColors.statusLocked
+            : AppColors.statusDone,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _openDetail(String reqId) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => PrDetailPage(reqId: reqId)))
-        .then((_) => _fetch());
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => PrDetailPage(reqId: reqId)),
+    ).then((_) => _fetch());
   }
 
   void _openForm() {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => const PrFormPage()))
-        .then((result) { if (result == true) _fetch(); });
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const PrFormPage()),
+    ).then((result) {
+      if (result == true) _fetch();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final canCreate = hasPermission(sl<SessionManager>().role, Permission.prCreate);
+    final canCreate = hasPermission(
+      sl<SessionManager>().role,
+      Permission.prCreate,
+    );
+    final visiblePrs = _visiblePrs;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text('Purchase Request',
-            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 18)),
+        title: const Text(
+          'Purchase Request',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w700,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppColors.textMuted),
@@ -121,23 +137,42 @@ class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.gold))
-          : _prs.isEmpty
-              ? _EmptyView(canCreate: canCreate, onTap: _openForm)
-              : RefreshIndicator(
-                  color: AppColors.gold,
-                  onRefresh: _fetch,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-                    itemCount: _prs.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _PrCard(
-                      pr: _prs[i],
-                      isHighlighted: _prs[i].reqId == widget.focusReqId,
-                      onTap: () => _openDetail(_prs[i].reqId),
-                    ),
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.gold),
+            )
+          : visiblePrs.isEmpty
+          ? Column(
+              children: [
+                if (_tabCtrl.index == 2) _dateFilterBar(),
+                Expanded(
+                  child: _EmptyView(
+                    canCreate: canCreate && _tabCtrl.index != 2,
+                    onTap: _openForm,
                   ),
                 ),
+              ],
+            )
+          : RefreshIndicator(
+              color: AppColors.gold,
+              onRefresh: _fetch,
+              child: Column(
+                children: [
+                  if (_tabCtrl.index == 2) _dateFilterBar(),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+                      itemCount: visiblePrs.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) => _PrCard(
+                        pr: visiblePrs[i],
+                        isHighlighted: visiblePrs[i].reqId == widget.focusReqId,
+                        onTap: () => _openDetail(visiblePrs[i].reqId),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
       floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               heroTag: 'pr_fab',
@@ -145,17 +180,80 @@ class _PrPageState extends State<PrPage> with SingleTickerProviderStateMixin {
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
               icon: const Icon(Icons.add_rounded),
-              label: const Text('Buat PR', style: TextStyle(fontWeight: FontWeight.w700)),
+              label: const Text(
+                'Buat PR',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             )
           : null,
     );
+  }
+
+  List<PRHeader> get _visiblePrs {
+    return switch (_tabCtrl.index) {
+      0 =>
+        _prs.where((pr) => !_isApprovedPr(pr) && !_isTerminalPr(pr)).toList(),
+      1 => _prs.where((pr) => _isApprovedPr(pr) && !_isTerminalPr(pr)).toList(),
+      _ =>
+        _prs
+            .where(
+              (pr) =>
+                  _isTerminalPr(pr) && _isSameDate(pr.createdAt, _selectedDate),
+            )
+            .toList(),
+    };
+  }
+
+  Widget _dateFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: DateFilterBar(
+        selectedDate: _selectedDate,
+        onDateChanged: (date) => setState(() => _selectedDate = date),
+        label: 'Riwayat tanggal',
+      ),
+    );
+  }
+
+  bool _isTerminalPr(PRHeader pr) {
+    const terminalStatuses = {
+      'DONE',
+      'CLOSED',
+      'REJECTED',
+      'CANCEL',
+      'CANCELLED',
+      'CANCELED',
+      'ARRIVED',
+      'RECEIVED',
+      'NOT_FOUND',
+    };
+    final status = pr.status?.trim().toUpperCase();
+    final accTracking = pr.accTracking?.trim().toUpperCase();
+    return terminalStatuses.contains(status) ||
+        terminalStatuses.contains(accTracking);
+  }
+
+  bool _isApprovedPr(PRHeader pr) {
+    return pr.accTracking?.trim().toUpperCase() == 'APPROVED';
+  }
+
+  bool _isSameDate(DateTime? source, DateTime selected) {
+    if (source == null) return false;
+    final local = source.toLocal();
+    return local.year == selected.year &&
+        local.month == selected.month &&
+        local.day == selected.day;
   }
 }
 
 // ── PR Card ────────────────────────────────────────────────────
 
 class _PrCard extends StatelessWidget {
-  const _PrCard({required this.pr, required this.onTap, this.isHighlighted = false});
+  const _PrCard({
+    required this.pr,
+    required this.onTap,
+    this.isHighlighted = false,
+  });
   final PRHeader pr;
   final VoidCallback onTap;
   final bool isHighlighted;
@@ -173,7 +271,9 @@ class _PrCard extends StatelessWidget {
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isHighlighted ? AppColors.gold : color.withValues(alpha: 0.22),
+            color: isHighlighted
+                ? AppColors.gold
+                : color.withValues(alpha: 0.22),
             width: isHighlighted ? 1.2 : 0.9,
           ),
         ),
@@ -184,7 +284,8 @@ class _PrCard extends StatelessWidget {
             children: [
               // Colored left accent bar
               Container(
-                width: 3, height: 52,
+                width: 3,
+                height: 52,
                 margin: const EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.9),
@@ -205,7 +306,10 @@ class _PrCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -217,14 +321,20 @@ class _PrCard extends StatelessWidget {
                       '${pr.carName ?? '-'} • ${pr.divisionName ?? '-'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 3),
                     _ItemProgressRow(pr: pr),
                     const SizedBox(height: 3),
                     Text(
                       '${pr.requestedByName ?? '-'} • ${_fmtDate(pr.createdAt)}',
-                      style: const TextStyle(fontSize: 10, color: AppColors.textDisabled),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textDisabled,
+                      ),
                     ),
                   ],
                 ),
@@ -232,7 +342,11 @@ class _PrCard extends StatelessWidget {
               const SizedBox(width: 6),
               const Padding(
                 padding: EdgeInsets.only(top: 18),
-                child: Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textDisabled),
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: AppColors.textDisabled,
+                ),
               ),
             ],
           ),
@@ -246,18 +360,28 @@ class _PrCard extends StatelessWidget {
     return DateFormat('d MMM yyyy', 'id_ID').format(d.toLocal());
   }
 
-  (String, Color) _stageInfo(String? acc, String? status) => switch (acc) {
-    'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
-    'PENDING_KP'  => ('MENUNGGU KP', AppColors.gold),
-    'PENDING_MP'  => ('MENUNGGU MP', const Color(0xFF9C27B0)),
-    'PENDING_PUR' => ('MENUNGGU PUR', const Color(0xFF2196F3)),
-    'APPROVED'    => switch (status) {
-      'DONE'     => ('SELESAI', AppColors.statusDone),
+  (String, Color) _stageInfo(String? acc, String? status) {
+    final normalizedStatus = status?.trim().toUpperCase();
+    final terminal = switch (normalizedStatus) {
+      'DONE' || 'ARRIVED' || 'RECEIVED' => ('SELESAI', AppColors.statusDone),
       'REJECTED' => ('DITOLAK', AppColors.statusLocked),
-      _          => ('HUNTING', AppColors.statusInProgress),
-    },
-    _ => ('DRAFT', AppColors.textMuted),
-  };
+      'CANCEL' ||
+      'CANCELLED' ||
+      'CANCELED' => ('DIBATALKAN', AppColors.statusLocked),
+      'NOT_FOUND' => ('TIDAK ADA', AppColors.statusLocked),
+      _ => null,
+    };
+    if (terminal != null) return terminal;
+
+    return switch (acc) {
+      'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
+      'PENDING_KP' => ('MENUNGGU KP', AppColors.gold),
+      'PENDING_MP' => ('MENUNGGU MP', const Color(0xFF9C27B0)),
+      'PENDING_PUR' => ('MENUNGGU PUR', const Color(0xFF2196F3)),
+      'APPROVED' => ('HUNTING', AppColors.statusInProgress),
+      _ => ('DRAFT', AppColors.textMuted),
+    };
+  }
 }
 
 class _ItemProgressRow extends StatelessWidget {
@@ -267,16 +391,26 @@ class _ItemProgressRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (pr.totalItems == 0) return const SizedBox.shrink();
-    return Row(children: [
-      Text('${pr.totalItems} item', style: const TextStyle(fontSize: 10, color: AppColors.textDisabled)),
-      if (pr.arrivedItems > 0) _mini('  ${pr.arrivedItems}✓', AppColors.statusDone),
-      if (pr.huntingItems > 0) _mini('  ${pr.huntingItems} hunting', AppColors.gold),
-      if (pr.orderedItems > 0) _mini('  ${pr.orderedItems} ordered', AppColors.orange),
-    ]);
+    return Row(
+      children: [
+        Text(
+          '${pr.totalItems} item',
+          style: const TextStyle(fontSize: 10, color: AppColors.textDisabled),
+        ),
+        if (pr.arrivedItems > 0)
+          _mini('  ${pr.arrivedItems}✓', AppColors.statusDone),
+        if (pr.huntingItems > 0)
+          _mini('  ${pr.huntingItems} hunting', AppColors.gold),
+        if (pr.orderedItems > 0)
+          _mini('  ${pr.orderedItems} ordered', AppColors.orange),
+      ],
+    );
   }
 
-  Widget _mini(String t, Color c) =>
-      Text(t, style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w600));
+  Widget _mini(String t, Color c) => Text(
+    t,
+    style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w600),
+  );
 }
 
 // ── Shared Badge ───────────────────────────────────────────────
@@ -294,7 +428,10 @@ class _Badge extends StatelessWidget {
       borderRadius: BorderRadius.circular(999),
       border: Border.all(color: color.withValues(alpha: 0.4)),
     ),
-    child: Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color)),
+    child: Text(
+      label,
+      style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color),
+    ),
   );
 }
 
@@ -307,22 +444,39 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: AppColors.gold.withValues(alpha: 0.08), shape: BoxShape.circle),
-        child: const Icon(Icons.shopping_cart_outlined, size: 56, color: AppColors.gold),
-      ),
-      const SizedBox(height: 16),
-      const Text('Belum ada Purchase Request',
-          style: TextStyle(fontSize: 15, color: AppColors.textMuted, fontWeight: FontWeight.w600)),
-      if (canCreate) ...[
-        const SizedBox(height: 8),
-        const Text('Tekan tombol di bawah untuk membuat PR baru',
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.gold.withValues(alpha: 0.08),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.shopping_cart_outlined,
+            size: 56,
+            color: AppColors.gold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'Belum ada Purchase Request',
+          style: TextStyle(
+            fontSize: 15,
+            color: AppColors.textMuted,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        if (canCreate) ...[
+          const SizedBox(height: 8),
+          const Text(
+            'Tekan tombol di bawah untuk membuat PR baru',
             style: TextStyle(fontSize: 12, color: AppColors.textDisabled),
-            textAlign: TextAlign.center),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ],
-    ]),
+    ),
   );
 }

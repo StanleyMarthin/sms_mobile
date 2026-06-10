@@ -10,6 +10,16 @@ class LoginModel {
   final String roleName;
   final int divisionId;
   final List<String> permissions;
+  final String? accessBucket;
+  final int? roleLevel;
+  final String? scopeBasis;
+  final bool? webEnabled;
+  final bool? mobileEnabled;
+  final int? approvalRank;
+  final bool? canViewAllUnits;
+  final bool? canViewAssignedUnits;
+  final List<int> managedDivisionIds;
+  final List<String> managedUnitIds;
 
   const LoginModel({
     required this.token,
@@ -21,10 +31,22 @@ class LoginModel {
     required this.roleName,
     required this.divisionId,
     required this.permissions,
+    this.accessBucket,
+    this.roleLevel,
+    this.scopeBasis,
+    this.webEnabled,
+    this.mobileEnabled,
+    this.approvalRank,
+    this.canViewAllUnits,
+    this.canViewAssignedUnits,
+    this.managedDivisionIds = const [],
+    this.managedUnitIds = const [],
   });
 
   factory LoginModel.fromJson(Map<String, dynamic> json) {
     final user = json['user'] as Map<String, dynamic>? ?? json;
+    final roleProfile = user['roleProfile'] as Map<String, dynamic>? ?? {};
+    final scope = user['scope'] as Map<String, dynamic>? ?? {};
     return LoginModel(
       token: json['token'] as String? ?? '',
       refreshToken: json['refreshToken'] as String? ?? '',
@@ -44,6 +66,28 @@ class LoginModel {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      accessBucket: user['accessBucket'] as String?,
+      roleLevel: (roleProfile['roleLevel'] as num?)?.toInt(),
+      scopeBasis: roleProfile['scopeBasis'] as String?,
+      webEnabled: roleProfile['webEnabled'] as bool?,
+      mobileEnabled: roleProfile['mobileEnabled'] as bool?,
+      approvalRank: (roleProfile['approvalRank'] as num?)?.toInt(),
+      canViewAllUnits: scope['canViewAllUnits'] as bool?,
+      canViewAssignedUnits: scope['canViewAssignedUnits'] as bool?,
+      managedDivisionIds:
+          (scope['managedDivisionIds'] as List<dynamic>? ??
+                  user['managedDivisions'] as List<dynamic>?)
+              ?.map((e) => int.tryParse('$e'))
+              .whereType<int>()
+              .toList() ??
+          const [],
+      managedUnitIds:
+          (scope['unitIds'] as List<dynamic>? ??
+                  user['managedUnits'] as List<dynamic>?)
+              ?.map((e) => '$e')
+              .where((e) => e.trim().isNotEmpty)
+              .toList() ??
+          const [],
     );
   }
 
@@ -57,5 +101,15 @@ class LoginModel {
     roleName: roleName,
     divisionId: divisionId,
     permissions: permissions,
+    accessBucket: accessBucket,
+    roleLevel: roleLevel,
+    scopeBasis: scopeBasis,
+    webEnabled: webEnabled,
+    mobileEnabled: mobileEnabled,
+    approvalRank: approvalRank,
+    canViewAllUnits: canViewAllUnits,
+    canViewAssignedUnits: canViewAssignedUnits,
+    managedDivisionIds: managedDivisionIds,
+    managedUnitIds: managedUnitIds,
   );
 }

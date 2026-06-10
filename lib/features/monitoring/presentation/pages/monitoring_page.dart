@@ -44,9 +44,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
     _loadCancelToken = cancelToken;
 
     final session = sl<SessionManager>();
-    final role = session.role;
     final division = session.divisionName;
-    final canSeeAll = role == 'adv' || role == 'pm';
+    final canSeeAll = session.canViewAssignedUnits || session.canViewAllUnits;
     final items = await _repository.getCars(
       canSeeAll: canSeeAll,
       division: division,
@@ -80,7 +79,9 @@ class _MonitoringPageState extends State<MonitoringPage> {
 
   void _openFocusedCar() {
     if (_focusHandled || widget.focusCarId == null) return;
-    final target = _items.where((item) => item.carId == widget.focusCarId).toList();
+    final target = _items
+        .where((item) => item.carId == widget.focusCarId)
+        .toList();
     if (target.isEmpty) return;
 
     _focusHandled = true;
@@ -149,7 +150,9 @@ class _MonitoringPageState extends State<MonitoringPage> {
     final remainingTotal = car.remainingWorkHours > 0
         ? car.remainingWorkHours
         : divisions.fold<double>(0, (sum, item) => sum + item.remainingHours);
-    final estimatedWeeks = weeklyTotal <= 0 ? 0.0 : remainingTotal / weeklyTotal;
+    final estimatedWeeks = weeklyTotal <= 0
+        ? 0.0
+        : remainingTotal / weeklyTotal;
     final daysToDl = _daysToDelivery(car);
 
     await Navigator.of(context).push(
@@ -182,13 +185,31 @@ class _MonitoringPageState extends State<MonitoringPage> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    _summaryRow('Kategori', car.isMargin ? 'Margin' : 'Non Margin'),
+                    _summaryRow(
+                      'Kategori',
+                      car.isMargin ? 'Margin' : 'Non Margin',
+                    ),
                     _summaryRow('DL', _formatDate(car.deliveryDate)),
-                    _summaryRow('Sisa hari ke DL', _deliveryCountdownLabel(car)),
-                    _summaryRow('Sisa jam kerja total', '${remainingTotal.toStringAsFixed(1)} jam'),
-                    _summaryRow('Total jam kerja minggu ini', '${weeklyTotal.toStringAsFixed(1)} jam'),
-                    _summaryRow('Estimasi selesai', '${estimatedWeeks.toStringAsFixed(1)} minggu'),
-                    _summaryRow('Progress unit', '${car.avgProgressPercentage}%'),
+                    _summaryRow(
+                      'Sisa hari ke DL',
+                      _deliveryCountdownLabel(car),
+                    ),
+                    _summaryRow(
+                      'Sisa jam kerja total',
+                      '${remainingTotal.toStringAsFixed(1)} jam',
+                    ),
+                    _summaryRow(
+                      'Total jam kerja minggu ini',
+                      '${weeklyTotal.toStringAsFixed(1)} jam',
+                    ),
+                    _summaryRow(
+                      'Estimasi selesai',
+                      '${estimatedWeeks.toStringAsFixed(1)} minggu',
+                    ),
+                    _summaryRow(
+                      'Progress unit',
+                      '${car.avgProgressPercentage}%',
+                    ),
                     if (car.nextMilestone != null)
                       _summaryRow('Milestone berikutnya', car.nextMilestone!),
                     if (daysToDl != 99999 && weeklyTotal > 0)
@@ -221,13 +242,24 @@ class _MonitoringPageState extends State<MonitoringPage> {
                       ...divisions.map((division) {
                         final estWeeks = division.weeklyWorkHours <= 0
                             ? 0
-                            : division.remainingHours / division.weeklyWorkHours;
+                            : division.remainingHours /
+                                  division.weeklyWorkHours;
                         return DataRow(
                           cells: [
                             DataCell(Text(division.divisionName)),
-                            DataCell(Text('${division.weeklyWorkHours.toStringAsFixed(1)} jam')),
-                            DataCell(Text('${division.remainingHours.toStringAsFixed(1)} jam')),
-                            DataCell(Text('${estWeeks.toStringAsFixed(1)} minggu')),
+                            DataCell(
+                              Text(
+                                '${division.weeklyWorkHours.toStringAsFixed(1)} jam',
+                              ),
+                            ),
+                            DataCell(
+                              Text(
+                                '${division.remainingHours.toStringAsFixed(1)} jam',
+                              ),
+                            ),
+                            DataCell(
+                              Text('${estWeeks.toStringAsFixed(1)} minggu'),
+                            ),
                             DataCell(Text('${division.progressPercentage}%')),
                           ],
                         );
@@ -237,26 +269,44 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           AppColors.gold.withValues(alpha: 0.12),
                         ),
                         cells: [
-                          const DataCell(Text(
-                            'TOTAL',
-                            style: TextStyle(fontWeight: FontWeight.w700),
-                          )),
-                          DataCell(Text(
-                            '${weeklyTotal.toStringAsFixed(1)} jam',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          )),
-                          DataCell(Text(
-                            '${remainingTotal.toStringAsFixed(1)} jam',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          )),
-                          DataCell(Text(
-                            '${estimatedWeeks.toStringAsFixed(1)} minggu',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          )),
-                          DataCell(Text(
-                            '${car.avgProgressPercentage}%',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          )),
+                          const DataCell(
+                            Text(
+                              'TOTAL',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              '${weeklyTotal.toStringAsFixed(1)} jam',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              '${remainingTotal.toStringAsFixed(1)} jam',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              '${estimatedWeeks.toStringAsFixed(1)} minggu',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          DataCell(
+                            Text(
+                              '${car.avgProgressPercentage}%',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ],
@@ -267,7 +317,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
-                  onPressed: () => context.push('/countdown?carId=${car.carId}'),
+                  onPressed: () =>
+                      context.push('/countdown?carId=${car.carId}'),
                   icon: const Icon(Icons.timer_rounded, size: 16),
                   label: const Text('Buka di Countdown'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.gold),
@@ -368,9 +419,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: AppColors.border),
-          ),
+          border: Border(bottom: BorderSide(color: AppColors.border)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -391,7 +440,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   const SizedBox(height: 2),
                   Text(
                     car.owner,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
@@ -409,7 +461,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 _formatDate(car.deliveryDate),
-                style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
             Expanded(
@@ -417,7 +472,9 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 _deliveryCountdownLabel(car),
                 style: TextStyle(
                   fontSize: 11,
-                  color: _daysToDelivery(car) < 0 ? AppColors.statusLocked : AppColors.textPrimary,
+                  color: _daysToDelivery(car) < 0
+                      ? AppColors.statusLocked
+                      : AppColors.textPrimary,
                 ),
               ),
             ),
@@ -434,10 +491,17 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 '${estWeeks.toStringAsFixed(1)} mg',
-                style: const TextStyle(fontSize: 11, color: AppColors.textPrimary),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textPrimary,
+                ),
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.textMuted),
+            const Icon(
+              Icons.chevron_right_rounded,
+              size: 16,
+              color: AppColors.textMuted,
+            ),
           ],
         ),
       ),
@@ -447,9 +511,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
-    final role = session.role;
     final division = session.divisionName;
-    final canSeeAll = role == 'adv' || role == 'pm';
+    final canSeeAll = session.canViewAssignedUnits || session.canViewAllUnits;
 
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -497,44 +560,65 @@ class _MonitoringPageState extends State<MonitoringPage> {
             children: [
               Container(
                 color: AppColors.background,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 child: const Row(
                   children: [
                     Expanded(
                       flex: 3,
                       child: Text(
                         'Unit',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         'Tipe',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         'DL',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         'Sisa Hari',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         'Sisa Jam',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     Expanded(
                       child: Text(
                         'Est',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     SizedBox(width: 16),

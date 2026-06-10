@@ -3,7 +3,6 @@ library;
 import '../../domain/entities/qc_item.dart';
 import '../../domain/repositories/qc_repository.dart';
 import '../datasources/qc_datasource.dart';
-import '../datasources/remote_qc_datasource.dart';
 
 class QcRepositoryImpl implements QcRepository {
   const QcRepositoryImpl({required this.dataSource});
@@ -14,11 +13,13 @@ class QcRepositoryImpl implements QcRepository {
   Future<List<QcDivision>> getDivisions() async {
     final rows = await dataSource.getQcDivisions();
     return rows
-        .map((d) => QcDivision(
-              divisionId: d['divisionId']?.toString() ?? '',
-              divisionName: d['divisionName']?.toString() ?? '-',
-              totalItem: (d['totalItem'] as num?)?.toInt() ?? 0,
-            ))
+        .map(
+          (d) => QcDivision(
+            divisionId: d['divisionId']?.toString() ?? '',
+            divisionName: d['divisionName']?.toString() ?? '-',
+            totalItem: (d['totalItem'] as num?)?.toInt() ?? 0,
+          ),
+        )
         .toList();
   }
 
@@ -51,10 +52,9 @@ class QcRepositoryImpl implements QcRepository {
           [];
       return QcUnitGroup(
         unitId: g['unitId'] as String? ?? '',
-        unitName:
-            (g['unitName'] as String?)?.isNotEmpty == true
-                ? g['unitName'] as String
-                : 'Tanpa Unit',
+        unitName: (g['unitName'] as String?)?.isNotEmpty == true
+            ? g['unitName'] as String
+            : 'Tanpa Unit',
         jobdescs: jobdescs,
       );
     }).toList();
@@ -85,20 +85,20 @@ class QcRepositoryImpl implements QcRepository {
     bool? reworkIsPriority,
   }) async {
     await dataSource.submitQc(
-      coreId:                    coreId,
-      action:                    action,
-      notes:                     notes,
+      coreId: coreId,
+      action: action,
+      notes: notes,
       inspectionDurationMinutes: inspectionDurationMinutes,
-      photoBeforeUrl:            photoBeforeUrl,
-      evidencePhotoUrl:          evidencePhotoUrl,
-      reworkDate:                reworkDate,
-      reworkAssignedUser:        reworkAssignedUser,
-      reworkDailyHours:          reworkDailyHours,
-      reworkStartTime:           reworkStartTime,
-      reworkFinishTime:          reworkFinishTime,
-      reworkDescription:         reworkDescription,
-      reworkIsOvertime:          reworkIsOvertime,
-      reworkIsPriority:          reworkIsPriority,
+      photoBeforeUrl: photoBeforeUrl,
+      evidencePhotoUrl: evidencePhotoUrl,
+      reworkDate: reworkDate,
+      reworkAssignedUser: reworkAssignedUser,
+      reworkDailyHours: reworkDailyHours,
+      reworkStartTime: reworkStartTime,
+      reworkFinishTime: reworkFinishTime,
+      reworkDescription: reworkDescription,
+      reworkIsOvertime: reworkIsOvertime,
+      reworkIsPriority: reworkIsPriority,
     );
   }
 
@@ -111,22 +111,22 @@ class QcRepositoryImpl implements QcRepository {
 
   QcItem _mapItem(Map<String, dynamic> item) {
     return QcItem(
-      qcId:             item['qcId']  as String? ?? '',
-      coreId:           item['coreId'] as String? ?? '',
-      unitId:           item['unitId'] as String? ?? '',
-      unitName:         item['unitName'] as String? ?? '-',
-      panelName:        item['panelName'] as String? ?? '-',
-      jobName:          item['jobName'] as String? ?? '-',
+      qcId: item['qcId'] as String? ?? '',
+      coreId: item['coreId'] as String? ?? '',
+      unitId: item['unitId'] as String? ?? '',
+      unitName: item['unitName'] as String? ?? '-',
+      panelName: item['panelName'] as String? ?? '-',
+      jobName: item['jobName'] as String? ?? '-',
       mechanicDivision: item['mechanicDivision'] as String? ?? '',
-      totalActualHours: (item['totalActualHours']  as num?)?.toDouble() ?? 0,
+      totalActualHours: (item['totalActualHours'] as num?)?.toDouble() ?? 0,
       targetHoursRevised: (item['targetHoursRevised'] as num?)?.toDouble() ?? 0,
-      countdownStatus:  item['countdownStatus'] as String? ?? '',
-      qcLevel:          item['qcLevel'] as String?,
-      qcLastStatus:     item['qcLastStatus'] as String?,
-      qcNotes:          item['qcNotes'] as String?,
+      countdownStatus: item['countdownStatus'] as String? ?? '',
+      qcLevel: item['qcLevel'] as String?,
+      qcLastStatus: item['qcLastStatus'] as String?,
+      qcNotes: item['qcNotes'] as String?,
       inspectionDurationMinutes: item['inspectionDurationMinutes'] as int?,
-      remainingHours:   (item['remainingHours'] as num?)?.toDouble(),
-      reworkDate:       item['reworkDate'] as String?,
+      remainingHours: (item['remainingHours'] as num?)?.toDouble(),
+      reworkDate: item['reworkDate'] as String?,
     );
   }
 }

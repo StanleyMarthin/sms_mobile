@@ -15,7 +15,6 @@ abstract class ApiEndpoints {
   static final String _prBase = '${AppConfig.serviceOrigin(8096)}/sm';
   static final String _countdownBase = '${AppConfig.serviceOrigin(8090)}/sm';
   static final String _warehouseBase = '${AppConfig.serviceOrigin(8091)}/sm';
-  static final String _notificationBase = '${AppConfig.serviceOrigin(8084)}/sm';
 
   /// Used by ApiClient only if it needs a single baseUrl (kept for compat).
   static String get baseUrl => _loginBase;
@@ -73,7 +72,8 @@ abstract class ApiEndpoints {
   static String get warehouseMyItems => '$_warehouseBase/warehouse/my-items';
   static String get warehousePendingApproval =>
       '$_warehouseBase/warehouse/pending-approval';
-  static String get warehouseStockCard => '$_warehouseBase/warehouse/stock-card';
+  static String get warehouseStockCard =>
+      '$_warehouseBase/warehouse/stock-card';
   static String get warehouseStorageLocations =>
       '$_warehouseBase/warehouse/storage-locations';
   static String get warehouseItemsSearch =>
@@ -92,5 +92,5 @@ abstract class ApiEndpoints {
   // ── Notifications & Profile ───────────────────────────────
   static String get notifications => '$_loginBase/api/v1/notifications';
   static String get userProfile => '$_loginBase/api/v1/users/profile';
-  static String get notifySend => '$_notificationBase/notify/send';
+  static String get notifySend => '$_loginBase/sm/notify/send';
 }

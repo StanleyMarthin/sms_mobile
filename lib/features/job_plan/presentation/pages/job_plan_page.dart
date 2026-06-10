@@ -7,7 +7,6 @@ Side Effects: HTTP GET/POST/PUT job plan, navigasi ke source route, refresh appr
 */
 import 'package:flutter/material.dart';
 
-import 'package:sm_system/core/auth/rbac.dart';
 import 'package:sm_system/core/constants/app_colors.dart';
 import 'package:sm_system/core/di/injection.dart';
 import 'package:sm_system/core/session/session_manager.dart';
@@ -49,17 +48,18 @@ String? _pickNullableJobPlanText(Iterable<Object?> values) {
   return value.isEmpty ? null : value;
 }
 
-bool _canReviewApprovalStatus(String? role, String status) {
-  final r = UserRole.fromString(role);
+bool _canReviewApprovalStatus(SessionManager session, String status) {
   final s = status.toUpperCase();
   // Hanya status PENDING yang masuk antrean review
   if (!s.startsWith('PENDING')) return false;
 
-  return switch (r) {
-    UserRole.pm => true, // MP/PM: semua status PENDING
-    UserRole.adv => s == 'PENDING_ADV', // ADV: hanya PENDING_ADV
-    _ => false,
-  };
+  if (session.isGlobalAccess || session.isKpAccess) {
+    return true;
+  }
+  if (session.isAdvisorAccess) {
+    return s == 'PENDING_ADV';
+  }
+  return false;
 }
 
 String _formatHours(double hours) {
@@ -567,7 +567,7 @@ class _JobPlanPageState extends State<JobPlanPage>
     _repository = sl<JobPlanRepository>();
     _session = sl<SessionManager>();
     // Rencana tab hanya untuk KD; ADV/KP/MP hanya Approval
-    final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+    final isKd = _session.isKdAccess;
     _tabController = TabController(length: isKd ? 2 : 1, vsync: this);
     if (widget.initialDate != null) {
       _browseDate = widget.initialDate!;
@@ -629,7 +629,7 @@ class _JobPlanPageState extends State<JobPlanPage>
       plan.panelCustomNote,
     ]);
 
-    final canReview = _canReviewApprovalStatus(_session.role, plan.status);
+    final canReview = _canReviewApprovalStatus(_session, plan.status);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -639,7 +639,7 @@ class _JobPlanPageState extends State<JobPlanPage>
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        bool _isActing = false;
+        bool isActing = false;
 
         return StatefulBuilder(
           builder: (ctx, setLocalState) => SafeArea(
@@ -754,7 +754,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                           // Tolak
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: _isActing
+                              onPressed: isActing
                                   ? null
                                   : () async {
                                       final note = await showDialog<String>(
@@ -819,7 +819,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                         },
                                       );
                                       if (note == null || note.isEmpty) return;
-                                      setLocalState(() => _isActing = true);
+                                      setLocalState(() => isActing = true);
                                       try {
                                         await _repository.rejectPlan(
                                           planId: plan.planId,
@@ -828,7 +828,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                         );
                                         _triggerRefresh();
                                         if (ctx.mounted) Navigator.pop(ctx);
-                                        if (mounted)
+                                        if (mounted) {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -837,11 +837,11 @@ class _JobPlanPageState extends State<JobPlanPage>
                                               backgroundColor: Colors.redAccent,
                                             ),
                                           );
+                                        }
                                       } catch (_) {
-                                        if (ctx.mounted)
-                                          setLocalState(
-                                            () => _isActing = false,
-                                          );
+                                        if (ctx.mounted) {
+                                          setLocalState(() => isActing = false);
+                                        }
                                       }
                                     },
                               icon: const Icon(
@@ -862,10 +862,10 @@ class _JobPlanPageState extends State<JobPlanPage>
                           // Setujui
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: _isActing
+                              onPressed: isActing
                                   ? null
                                   : () async {
-                                      setLocalState(() => _isActing = true);
+                                      setLocalState(() => isActing = true);
                                       try {
                                         await _repository.approvePlan(
                                           planId: plan.planId,
@@ -873,7 +873,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                         );
                                         _triggerRefresh();
                                         if (ctx.mounted) Navigator.pop(ctx);
-                                        if (mounted)
+                                        if (mounted) {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
@@ -884,14 +884,14 @@ class _JobPlanPageState extends State<JobPlanPage>
                                               ),
                                             ),
                                           );
+                                        }
                                       } catch (_) {
-                                        if (ctx.mounted)
-                                          setLocalState(
-                                            () => _isActing = false,
-                                          );
+                                        if (ctx.mounted) {
+                                          setLocalState(() => isActing = false);
+                                        }
                                       }
                                     },
-                              icon: _isActing
+                              icon: isActing
                                   ? const SizedBox(
                                       width: 16,
                                       height: 16,
@@ -1080,7 +1080,7 @@ class _JobPlanPageState extends State<JobPlanPage>
 
   @override
   Widget build(BuildContext context) {
-    final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+    final isKd = _session.isKdAccess;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -1197,7 +1197,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
   Future<void> _initData() async {
     try {
       final units = await _countdownRepo.getUnits(
-        role: _session.role,
+        role: _session.accessBucket ?? _session.role,
         division: _session.divisionName,
       );
       if (!mounted) return;
@@ -1475,7 +1475,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         draftItems.addAll(TaskExecutionHelper.splitJobPlanItem(draftItem));
       }
 
-      final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+      final isKd = _session.isKdAccess;
 
       if (isKd) {
         await _repository.saveDraft(
@@ -1490,7 +1490,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
             coreId: item['coreId']?.toString() ?? '',
             carId: item['carId']?.toString() ?? '',
             sourceType: 'COUNTDOWN',
-            sourceRefId: '',
+            sourceRefId: item['sourceRefId']?.toString() ?? '',
             unitName: item['unitName']?.toString() ?? '',
             panelName: item['panelName']?.toString() ?? '',
             assignedDivision: item['divisionId']?.toString() ?? '',
@@ -1498,6 +1498,9 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
             assignedTo: item['assignedTo']?.toString() ?? '',
             description: item['jobDescription']?.toString() ?? '',
             targetHours: (item['targetHours'] as num?)?.toDouble() ?? 0.0,
+            totalProjectHours: (item['totalProjectHours'] as num?)?.toDouble(),
+            startDate: item['startDate']?.toString(),
+            deadlineDate: item['deadlineDate']?.toString(),
             workDate: item['taskDate']?.toString() ?? '',
             startTime: item['startTime']?.toString() ?? '',
             finishTime: item['finishTime']?.toString() ?? '',
@@ -1811,9 +1814,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                         ),
                         child: Builder(
                           builder: (context) {
-                            final isKd =
-                                UserRole.fromString(_session.role) ==
-                                UserRole.kd;
+                            final isKd = _session.isKdAccess;
                             return Text(
                               _isSaving
                                   ? (isKd ? 'MENYIMPAN...' : 'MENGIRIM...')
@@ -1964,9 +1965,13 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
 class _AdditionalPlanFormPage extends StatefulWidget {
   const _AdditionalPlanFormPage({
     required this.initialDate,
+    // ignore: unused_element_parameter
     this.isUrgent = false,
+    // ignore: unused_element_parameter
     this.isCountdown = false,
+    // ignore: unused_element_parameter
     this.initialDraft,
+    // ignore: unused_element_parameter
     this.editIndex,
   });
 
@@ -2200,7 +2205,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
 
     setState(() => _isSaving = true);
 
-    final _effectiveSourceType = widget.isCountdown
+    final effectiveSourceType = widget.isCountdown
         ? 'COUNTDOWN'
         : widget.isUrgent
         ? 'URGENT_ADDITIONAL'
@@ -2218,7 +2223,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
           await _repository.createPlan(
             coreId: '',
             carId: _useManualInput ? '' : selectedUnit!['id'].toString(),
-            sourceType: _effectiveSourceType,
+            sourceType: effectiveSourceType,
             sourceRefId: '',
             initialStatus: widget.isUrgent ? 'APPROVED' : null,
             syncToTasks: widget.isUrgent,
@@ -2357,7 +2362,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
           draftOffset++;
         }
 
-        final isKd = UserRole.fromString(_session.role) == UserRole.kd;
+        final isKd = _session.isKdAccess;
 
         if (isKd) {
           final existingDraft = await _repository.getDraft(userId: uid);
@@ -2413,7 +2418,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
               coreId: item['coreId']?.toString() ?? '',
               carId: item['carId']?.toString() ?? '',
               sourceType: item['sourceType']?.toString() ?? 'ADDITIONAL',
-              sourceRefId: '',
+              sourceRefId: item['sourceRefId']?.toString() ?? '',
               unitName: item['unitName']?.toString() ?? '',
               panelName: item['panelName']?.toString() ?? '',
               assignedDivision: item['divisionId']?.toString() ?? '',
@@ -2421,6 +2426,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
               assignedTo: item['assignedUserName']?.toString() ?? '',
               description: item['jobDescription']?.toString() ?? '',
               targetHours: (item['targetHours'] as num?)?.toDouble() ?? 0.0,
+              totalProjectHours: (item['totalProjectHours'] as num?)
+                  ?.toDouble(),
+              startDate: item['startDate']?.toString(),
+              deadlineDate: item['deadlineDate']?.toString(),
               workDate: item['taskDate']?.toString() ?? '',
               startTime: item['startTime']?.toString() ?? '',
               finishTime: item['finishTime']?.toString() ?? '',
@@ -2512,7 +2521,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          activeColor: AppColors.gold,
+                          activeThumbColor: AppColors.gold,
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
@@ -2615,7 +2624,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                     final drop = await _repository.getDropdowns(
                                       carId: _selectedUnit?['id']?.toString(),
                                     );
-                                    if (!mounted) return;
+                                    if (!context.mounted) return;
                                     final res = await jobPlanMasterSearchPicker(
                                       context,
                                       title: 'Pilih Panel',
@@ -3089,7 +3098,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               onChanged: (value) =>
                                   setState(() => _isOvertime = value),
                               contentPadding: EdgeInsets.zero,
-                              activeColor: AppColors.gold,
+                              activeThumbColor: AppColors.gold,
                               title: const Text(
                                 'Jam lembur',
                                 style: TextStyle(color: AppColors.textPrimary),
@@ -3152,9 +3161,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                         child: Builder(
                           builder: (context) {
                             final session = sl<SessionManager>();
-                            final isKd =
-                                UserRole.fromString(session.role) ==
-                                UserRole.kd;
+                            final isKd = session.isKdAccess;
                             return Text(
                               _isSaving
                                   ? (isKd ? 'MENYIMPAN...' : 'MENGIRIM...')
@@ -3287,8 +3294,6 @@ class _SourcePlanFormPage extends StatefulWidget {
 
 class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
   late final JobPlanRepository _repository;
-  late final SessionManager _session;
-
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -3310,7 +3315,6 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
   void initState() {
     super.initState();
     _repository = sl<JobPlanRepository>();
-    _session = sl<SessionManager>();
     _selectedDate = widget.initialDate;
     _jobdescCtrl.text = widget.seed.description;
     _panelCtrl.text = widget.seed.panelName;
@@ -3447,7 +3451,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
       final splitItems = TaskExecutionHelper.splitJobPlanItem(newItem);
       final uid = session.employeeId ?? '';
 
-      final isKd = UserRole.fromString(session.role) == UserRole.kd;
+      final isKd = session.isKdAccess;
 
       if (isKd) {
         final existingDraft = await _repository.getDraft(userId: uid);
@@ -3483,6 +3487,9 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
             assignedTo: item['assignedUserName']?.toString() ?? '',
             description: item['jobDescription']?.toString() ?? '',
             targetHours: (item['targetHours'] as num?)?.toDouble() ?? 0.0,
+            totalProjectHours: (item['totalProjectHours'] as num?)?.toDouble(),
+            startDate: item['startDate']?.toString(),
+            deadlineDate: item['deadlineDate']?.toString(),
             workDate: item['taskDate']?.toString() ?? '',
             startTime: item['startTime']?.toString() ?? '',
             finishTime: item['finishTime']?.toString() ?? '',
@@ -3781,7 +3788,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                               onChanged: (value) =>
                                   setState(() => _isOvertime = value),
                               contentPadding: EdgeInsets.zero,
-                              activeColor: AppColors.gold,
+                              activeThumbColor: AppColors.gold,
                               title: const Text(
                                 'Jam lembur',
                                 style: TextStyle(color: AppColors.textPrimary),
@@ -3972,8 +3979,9 @@ class _ApprovalTabState extends State<_ApprovalTab> {
 
   int get _level {
     if (_selUnit == null) return 0; // no unit selected → show units
-    if (_selDivision == null)
+    if (_selDivision == null) {
       return 1; // unit selected, no division → show divisions
+    }
     return 2; // both selected → show plans
   }
 
@@ -4085,8 +4093,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
     _fetchCurrentLevel();
   }
 
-  bool _canReview(String status) =>
-      _canReviewApprovalStatus(_session.role, status);
+  bool _canReview(String status) => _canReviewApprovalStatus(_session, status);
 
   Future<void> _processBulkApproval() async {
     if (_selectedIds.isEmpty) return;
@@ -4305,10 +4312,11 @@ class _ApprovalTabState extends State<_ApprovalTab> {
                 ),
                 TextButton(
                   onPressed: () => setState(() {
-                    if (allSelected)
+                    if (allSelected) {
                       _selectedIds.clear();
-                    else
+                    } else {
                       _selectedIds.addAll(reviewablePlans.map((p) => p.planId));
+                    }
                   }),
                   child: Text(
                     allSelected ? 'Batal Semua' : 'Pilih Semua',
@@ -4922,11 +4930,12 @@ class _BrowseTabState extends State<_BrowseTab> {
 
   Future<void> _submitDrafts() async {
     if (_selectedDraftIds.isEmpty) {
-      if (mounted)
+      if (mounted) {
         AppNotification.showWarning(
           context,
           'Pilih minimal satu draf untuk dikirim.',
         );
+      }
       return;
     }
     setState(() => _isSubmittingDrafts = true);
@@ -4989,15 +4998,17 @@ class _BrowseTabState extends State<_BrowseTab> {
           widget.onRefresh();
         }
       } else {
-        if (mounted)
+        if (mounted) {
           AppNotification.showWarning(
             context,
             'Tidak ada draft untuk dikirim.',
           );
+        }
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         AppNotification.showError(context, 'Gagal mengirim draft: $e');
+      }
     } finally {
       if (mounted) setState(() => _isSubmittingDrafts = false);
     }
@@ -5256,7 +5267,7 @@ class _SubmittedPlanCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isSelected
-            ? AppColors.gold.withOpacity(0.08)
+            ? AppColors.gold.withValues(alpha: 0.08)
             : AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(

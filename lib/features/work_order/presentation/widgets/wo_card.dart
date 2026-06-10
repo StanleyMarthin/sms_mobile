@@ -186,6 +186,7 @@ class WoCard extends StatelessWidget {
     'ON_PROGRESS' => ('PROSES', Colors.blueAccent),
     'REJECTED' => ('DITOLAK', AppColors.statusLocked),
     'DONE' => ('SELESAI', AppColors.statusDone),
+    'CANCELLED' => ('DIBATALKAN', AppColors.statusLocked),
     _ => (stage, AppColors.textMuted),
   };
 }

@@ -57,14 +57,12 @@ class _SplashPageState extends State<SplashPage>
       duration: const Duration(milliseconds: 1500),
     );
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
 
-    _scaleAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
 
@@ -171,8 +169,9 @@ class _SplashPageState extends State<SplashPage>
       }
     }
 
-    final deviceId =
-        await signingService.buildDeviceIdentity(androidId: androidId);
+    final deviceId = await signingService.buildDeviceIdentity(
+      androidId: androidId,
+    );
     final signatureExtra = await signingService.buildDeviceInitExtra(
       deviceId: deviceId,
       appVersion: appVersion,
@@ -191,8 +190,10 @@ class _SplashPageState extends State<SplashPage>
         if (permission == LocationPermission.whileInUse ||
             permission == LocationPermission.always) {
           final pos = await Geolocator.getCurrentPosition(
-            desiredAccuracy: LocationAccuracy.low,
-            timeLimit: const Duration(seconds: 3),
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.low,
+              timeLimit: Duration(seconds: 3),
+            ),
           );
           location = {'lat': pos.latitude, 'lng': pos.longitude};
         }
@@ -378,8 +379,10 @@ class _SplashPageState extends State<SplashPage>
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
               ),
             )
           else
@@ -403,12 +406,12 @@ class _SplashPageState extends State<SplashPage>
   }
 
   Future<void> _openStore() async {
-    final fallbackUrl =
-        Platform.isIOS ? AppConfig.iosStoreUrl : AppConfig.androidStoreUrl;
-    final rawUrl =
-        (_downloadUrl == null || _downloadUrl == 'required')
-            ? fallbackUrl
-            : _downloadUrl!;
+    final fallbackUrl = Platform.isIOS
+        ? AppConfig.iosStoreUrl
+        : AppConfig.androidStoreUrl;
+    final rawUrl = (_downloadUrl == null || _downloadUrl == 'required')
+        ? fallbackUrl
+        : _downloadUrl!;
     final launched = await launchUrl(
       Uri.parse(rawUrl),
       mode: LaunchMode.externalApplication,

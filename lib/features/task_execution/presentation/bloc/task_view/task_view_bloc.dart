@@ -40,8 +40,8 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
 
   /// Whether the user can filter by divisionId/unitId (ADV or PM).
   bool get _canFilterDivision {
-    final role = sl<SessionManager>().role;
-    return role == 'adv' || role == 'pm';
+    final session = sl<SessionManager>();
+    return session.canViewAssignedUnits || session.canViewAllUnits;
   }
 
   String get _role => sl<SessionManager>().role ?? 'op';
@@ -80,21 +80,24 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
     String? feedbackMessage,
     bool isFeedbackError = false,
   }) async {
-
     final result = await repository.getViewTasks(filter);
     result.fold(
-      (failure) => emit(TaskViewError(
-        message: failure.message ?? 'Gagal memuat daftar tugas',
-        filter: filter,
-      )),
-      (response) => emit(TaskViewLoaded(
-        filter: filter,
-        response: response,
-        canFilterDivision: _canFilterDivision,
-        role: _role,
-        feedbackMessage: feedbackMessage,
-        isFeedbackError: isFeedbackError,
-      )),
+      (failure) => emit(
+        TaskViewError(
+          message: failure.message ?? 'Gagal memuat daftar tugas',
+          filter: filter,
+        ),
+      ),
+      (response) => emit(
+        TaskViewLoaded(
+          filter: filter,
+          response: response,
+          canFilterDivision: _canFilterDivision,
+          role: _role,
+          feedbackMessage: feedbackMessage,
+          isFeedbackError: isFeedbackError,
+        ),
+      ),
     );
   }
 
@@ -148,11 +151,13 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
     final currentState = state;
     if (currentState is! TaskViewLoaded) return;
 
-    emit(currentState.copyWith(
-      actionTaskId: event.planDailyId,
-      clearFeedback: true,
-      isFeedbackError: false,
-    ));
+    emit(
+      currentState.copyWith(
+        actionTaskId: event.planDailyId,
+        clearFeedback: true,
+        isFeedbackError: false,
+      ),
+    );
 
     final result = await repository.saveCheckpoint(
       planDailyId: event.planDailyId,
@@ -165,11 +170,15 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
 
     await result.fold(
       (failure) async {
-        emit(currentState.copyWith(
-          clearActionTaskId: true,
-          feedbackMessage: _normalizeCheckpointFailureMessage(failure.message),
-          isFeedbackError: true,
-        ));
+        emit(
+          currentState.copyWith(
+            clearActionTaskId: true,
+            feedbackMessage: _normalizeCheckpointFailureMessage(
+              failure.message,
+            ),
+            isFeedbackError: true,
+          ),
+        );
       },
       (_) async {
         await _loadTasksForFilter(
@@ -188,11 +197,13 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
     final currentState = state;
     if (currentState is! TaskViewLoaded) return;
 
-    emit(currentState.copyWith(
-      actionTaskId: event.planDailyId,
-      clearFeedback: true,
-      isFeedbackError: false,
-    ));
+    emit(
+      currentState.copyWith(
+        actionTaskId: event.planDailyId,
+        clearFeedback: true,
+        isFeedbackError: false,
+      ),
+    );
 
     final result = await repository.updateCheckpointSession(
       planDailyId: event.planDailyId,
@@ -206,11 +217,13 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
 
     await result.fold(
       (failure) async {
-        emit(currentState.copyWith(
-          clearActionTaskId: true,
-          feedbackMessage: failure.message ?? 'Gagal mengubah check progress',
-          isFeedbackError: true,
-        ));
+        emit(
+          currentState.copyWith(
+            clearActionTaskId: true,
+            feedbackMessage: failure.message ?? 'Gagal mengubah check progress',
+            isFeedbackError: true,
+          ),
+        );
       },
       (_) async {
         await _loadTasksForFilter(
@@ -229,11 +242,13 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
     final currentState = state;
     if (currentState is! TaskViewLoaded) return;
 
-    emit(currentState.copyWith(
-      actionTaskId: event.planDailyId,
-      clearFeedback: true,
-      isFeedbackError: false,
-    ));
+    emit(
+      currentState.copyWith(
+        actionTaskId: event.planDailyId,
+        clearFeedback: true,
+        isFeedbackError: false,
+      ),
+    );
 
     final result = await repository.validateCheckpointSession(
       planDailyId: event.planDailyId,
@@ -242,11 +257,14 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
 
     await result.fold(
       (failure) async {
-        emit(currentState.copyWith(
-          clearActionTaskId: true,
-          feedbackMessage: failure.message ?? 'Gagal memvalidasi check progress',
-          isFeedbackError: true,
-        ));
+        emit(
+          currentState.copyWith(
+            clearActionTaskId: true,
+            feedbackMessage:
+                failure.message ?? 'Gagal memvalidasi check progress',
+            isFeedbackError: true,
+          ),
+        );
       },
       (_) async {
         await _loadTasksForFilter(
@@ -265,11 +283,13 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
     final currentState = state;
     if (currentState is! TaskViewLoaded) return;
 
-    emit(currentState.copyWith(
-      actionTaskId: event.planDailyId,
-      clearFeedback: true,
-      isFeedbackError: false,
-    ));
+    emit(
+      currentState.copyWith(
+        actionTaskId: event.planDailyId,
+        clearFeedback: true,
+        isFeedbackError: false,
+      ),
+    );
 
     final result = await repository.validateTask(
       planDailyId: event.planDailyId,
@@ -279,11 +299,13 @@ class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
 
     await result.fold(
       (failure) async {
-        emit(currentState.copyWith(
-          clearActionTaskId: true,
-          feedbackMessage: failure.message ?? 'Gagal memvalidasi final task',
-          isFeedbackError: true,
-        ));
+        emit(
+          currentState.copyWith(
+            clearActionTaskId: true,
+            feedbackMessage: failure.message ?? 'Gagal memvalidasi final task',
+            isFeedbackError: true,
+          ),
+        );
       },
       (_) async {
         await _loadTasksForFilter(

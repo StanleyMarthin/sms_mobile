@@ -1,5 +1,7 @@
 library;
 
+import 'dart:convert';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -15,18 +17,15 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
   final SessionManager sessionManager;
 
   @override
-  Future<List<Map<String, dynamic>>> getNotifications(
-      {required String? role}) async {
+  Future<List<Map<String, dynamic>>> getNotifications({
+    required String? role,
+  }) async {
+    final employeeId = sessionManager.employeeId ?? sessionManager.userId ?? '';
+    if (employeeId.isEmpty) return <Map<String, dynamic>>[];
+
     final response = await apiClient.get(
       ApiEndpoints.notifications,
-      queryParameters: {
-        if ((sessionManager.userId ?? '').isNotEmpty)
-          'userId': sessionManager.userId,
-        if ((sessionManager.employeeId ?? '').isNotEmpty)
-          'employeeId': sessionManager.employeeId,
-        'limit': 100,
-        'offset': 0,
-      },
+      queryParameters: {'employee_id': employeeId, 'page': 1, 'limit': 50},
     );
 
     final list = _extractNotificationList(response.data);
@@ -69,9 +68,7 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
   }
 
   Map<String, dynamic> _normalizeItem(Map<String, dynamic> item) {
-    final data = item['data'] is Map<String, dynamic>
-        ? item['data'] as Map<String, dynamic>
-        : const <String, dynamic>{};
+    final data = _extractDataPayload(item);
 
     final module = '${data['module'] ?? item['module'] ?? ''}'.toLowerCase();
 
@@ -86,6 +83,24 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
       ),
       'targetRoute': _resolveTargetRoute(module),
     };
+  }
+
+  Map<String, dynamic> _extractDataPayload(Map<String, dynamic> item) {
+    final direct = item['data'];
+    if (direct is Map<String, dynamic>) return direct;
+
+    final payload = item['dataPayload'] ?? item['data_payload'];
+    if (payload is Map<String, dynamic>) return payload;
+    if (payload is String && payload.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(payload);
+        if (decoded is Map<String, dynamic>) return decoded;
+      } catch (_) {
+        return const <String, dynamic>{};
+      }
+    }
+
+    return const <String, dynamic>{};
   }
 
   String _resolveTargetRoute(String module) {

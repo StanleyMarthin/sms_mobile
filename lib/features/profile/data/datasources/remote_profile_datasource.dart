@@ -1,5 +1,6 @@
 library;
 
+import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -29,6 +30,24 @@ class RemoteProfileDataSource implements ProfileDataSource {
             ? data['user'] as Map<String, dynamic>
             : data;
 
+        // Coba beberapa alias field foto yang mungkin dipakai backend
+        final rawPhoto = user['photoUrl'] ??
+            user['photo_url'] ??
+            user['profilePhoto'] ??
+            user['avatar_url'] ??
+            user['avatarUrl'];
+        String? photoUrl =
+            (rawPhoto is String && rawPhoto.trim().isNotEmpty) ? rawPhoto.trim() : null;
+
+        // Wrap dengan proxy backend untuk menghindari blokir .r2.dev dari ISP lokal
+        if (photoUrl != null && photoUrl.contains('.r2.dev')) {
+          final encodedUrl = Uri.encodeComponent(photoUrl);
+          // ApiEndpoints.baseUrl mengarah ke sm_login (port 8085)
+          photoUrl = '${ApiEndpoints.baseUrl}/api/v1/proxy/image?url=$encodedUrl';
+        }
+
+        debugPrint('--- PROFILE DATASOURCE PARSED PHOTO URL: $photoUrl ---');
+
         result = {
           'employeeId':
               '${user['employeeId'] ?? user['employee_id'] ?? result['employeeId']}',
@@ -44,9 +63,11 @@ class RemoteProfileDataSource implements ProfileDataSource {
               ? (user['permissions'] as List).map((e) => '$e').toList()
               : (result['permissions'] as List<String>),
           'deviceId': sessionManager.deviceId ?? '-',
+          'photoUrl': photoUrl,
         };
       }
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('--- PROFILE DATASOURCE ERROR: $e\n$stack ---');
       // Keep session fallback when profile endpoint is unavailable.
     }
 
@@ -71,6 +92,7 @@ class RemoteProfileDataSource implements ProfileDataSource {
       'isActive': sessionManager.isLoggedIn,
       'permissions': sessionManager.permissions,
       'deviceId': sessionManager.deviceId ?? '-',
+      'photoUrl': null,
     };
   }
 }

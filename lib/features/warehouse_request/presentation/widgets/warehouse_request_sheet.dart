@@ -914,19 +914,19 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   }
 
   Future<void> _submit() async {
+    final needsJobReference =
+        _itemCategory == 'BAHAN' || _itemCategory == 'SPARE_PART';
+    if (!_isLinked && needsJobReference) {
+      AppNotification.showError(
+        context,
+        'Peminjaman atau pengambilan bahan/sparepart harus dari pekerjaan aktif.',
+      );
+      return;
+    }
     if (!_isLinked && _itemCategory != 'TOOLS' && _selectedCarId == null) {
       AppNotification.showError(
         context,
         'Pilih unit/kendaraan terlebih dahulu.',
-      );
-      return;
-    }
-    if (_transactionType == 'PENGAMBILAN' &&
-        (_itemCategory == 'BAHAN' || _itemCategory == 'SPARE_PART') &&
-        !_isLinked) {
-      AppNotification.showError(
-        context,
-        'Pengambilan bahan/sparepart harus dari task aktif.',
       );
       return;
     }

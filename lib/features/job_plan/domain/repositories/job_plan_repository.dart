@@ -6,7 +6,7 @@ import '../entities/job_plan.dart';
 
 abstract class JobPlanRepository {
   Future<List<JobPlan>> getPlans();
-  
+
   Future<fp.Either<Failure, List<JobPlan>>> getApprovalQueue({
     String? divisionId,
     String? unitId,
@@ -35,7 +35,7 @@ abstract class JobPlanRepository {
   });
 
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
-  
+
   Future<List<Map<String, dynamic>>> getDropdownUsers({
     required String divisionId,
     String? search,
@@ -67,25 +67,28 @@ abstract class JobPlanRepository {
   });
 
   // Approval
-  Future<fp.Either<Failure, JobPlan>> approvePlan({required String planId, required String userId});
-  
+  Future<fp.Either<Failure, JobPlan>> approvePlan({
+    required String planId,
+    required String userId,
+  });
+
   Future<JobPlan> rejectPlan({
     required String planId,
     required String userId,
     required String rejectNote,
   });
-  
+
   Future<JobPlan> resubmitPlan({
     required String planId,
     required String userId,
     required List<Map<String, dynamic>> items,
   });
-  
+
   Future<void> deleteRejectedPlan({
     required String planId,
     required String userId,
   });
-  
+
   Future<JobPlan> reviewPlan({required String planId, required bool approved});
 
   Future<JobPlan> updatePlan({
@@ -110,6 +113,9 @@ abstract class JobPlanRepository {
     required String assignedTo,
     required String description,
     required double targetHours,
+    double? totalProjectHours,
+    String? startDate,
+    String? deadlineDate,
     required String workDate,
     required String startTime,
     required String finishTime,

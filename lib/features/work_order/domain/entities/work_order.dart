@@ -44,6 +44,7 @@ String normalizeWoStatus(String? rawStatus, {String? currentStage}) {
     'IN_PROGRESS' || 'ON_PROGRESS' || 'PROGRESS' || 'PROSES' => 'ON_PROGRESS',
     'COMPLETED' || 'FINISHED' || 'SELESAI' || 'DONE' => 'DONE',
     'REJECT' || 'REJECTED' => 'REJECTED',
+    'CANCEL' || 'CANCELLED' || 'CANCELED' || 'CLOSED' => 'CANCELLED',
     'APPROVED' => 'APPROVED',
     _ => () {
       final normalizedStage = normalizeWoStage(value);
@@ -160,6 +161,8 @@ class WorkOrder extends Equatable {
   bool get isInProgress => status == 'ON_PROGRESS';
   bool get isRejected => status == 'REJECTED';
   bool get isDone => status == 'DONE';
+  bool get isCancelled => status == 'CANCELLED';
+  bool get isTerminal => isDone || isRejected || isCancelled;
   bool get hasCountdownLink =>
       (coreId ?? '').trim().isNotEmpty || isApproved || isInProgress || isDone;
   bool get isReadyForJobdesc =>
@@ -168,7 +171,7 @@ class WorkOrder extends Equatable {
       status == 'ON_PROGRESS';
 
   /// ACTIVE = semua status yang belum benar-benar selesai dikerjakan
-  bool get isActive => !isDone && !isRejected;
+  bool get isActive => !isTerminal;
 
   bool get waitingKdTarget => currentStage == 'PENDING_KD_TARGET';
   bool get waitingAdvisor => currentStage == 'PENDING_ADVISOR';
@@ -181,6 +184,7 @@ class WorkOrder extends Equatable {
     if (status == 'APPROVED') return 'APPROVED';
     if (isRejected) return 'REJECTED';
     if (isDone) return 'DONE';
+    if (isCancelled) return 'CANCELLED';
     return currentStage ?? status;
   }
 

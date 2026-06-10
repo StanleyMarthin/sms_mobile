@@ -17,7 +17,9 @@ class TasksPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
-    final isOperator = hasPermission(session.role, Permission.dashboardMechanic);
+    final isOperator =
+        session.isFieldExecution &&
+        hasPermission(session.role, Permission.dashboardMechanic);
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -41,7 +43,10 @@ class TasksPage extends StatelessWidget {
                 labelColor: AppColors.gold,
                 unselectedLabelColor: AppColors.textMuted,
                 dividerHeight: 0,
-                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                labelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
                 tabs: const [
                   Tab(text: 'Harian'),
                   Tab(text: 'Lembur'),

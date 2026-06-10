@@ -1,112 +1,93 @@
-// Role-Based Access Control (RBAC) definitions for SM Workshop.
-//
-// Dual-mode permission system:
-// 1. **BE-driven (production)**: Permissions come from login response as
-//    string codes (e.g. 'TASK_VIEW'). See `Perms` class in session_manager.
-//    Frontend checks via `SessionManager.hasPerm('TASK_VIEW')`.
-// 2. **Enum-based (guard widgets)**: Used by `RoleGuard` widget and static role maps.
-//
-// Roles (match sm_role table):
-// - pm (15): Project Manager — full oversight, final WO approval
-// - adv (16): Advisor — mid-level approval, monitoring
-// - kd (17): Kepala Divisi — division management, WO creation, planning
-// - op (18): Operator / Lapangan — task execution, peminjaman, laporan
+import '../di/injection.dart';
+import '../session/session_manager.dart';
 
-/// Role enum matching backend `roleName` values.
+/// Canonical role buckets for legacy guard compatibility.
 enum UserRole {
   op,
   kd,
   adv,
   pm;
 
-  /// Parse from backend `roleName` string (case-insensitive).
   static UserRole? fromString(String? value) {
     if (value == null) return null;
-    return switch (value.toLowerCase()) {
-      'op' || 'team_lapangan' => UserRole.op,
-      'kd' || 'ketua_divisi' => UserRole.kd,
+    return switch (_normalizeRole(value)) {
+      'op' || 'team_lapangan' || 'field' => UserRole.op,
+      'kd' || 'ketua_divisi' || 'kepala_divisi' => UserRole.kd,
       'adv' || 'advisor' => UserRole.adv,
-      'kepala_gudang' ||
-      'gudang' ||
-      'admin_gudang' ||
-      'gudang_tools' ||
-      'gudang_sparepart' ||
-      'gudang_bahan' => UserRole.kd,
-      'ppic' || 'ppc' || 'manager_gudang' => UserRole.kd,
+      'kp' ||
       'pm' ||
       'mp' ||
+      'global' ||
       'manager_produksi' ||
-      'admin' ||
       'kepala_produksi' ||
       'manager_operational' ||
+      'admin' ||
       'mis' => UserRole.pm,
       _ => null,
     };
   }
+
+  static UserRole? fromSession(SessionManager session) {
+    final bucket = (session.accessBucket ?? '').trim().toUpperCase();
+    switch (bucket) {
+      case 'FIELD':
+        return UserRole.op;
+      case 'KD':
+        return UserRole.kd;
+      case 'ADV':
+        return UserRole.adv;
+      case 'KP':
+      case 'GLOBAL':
+        return UserRole.pm;
+      default:
+        return fromString(session.rawRoleName ?? session.role);
+    }
+  }
 }
 
-/// All granular permissions in the system (enum for guard widgets).
 enum Permission {
-  // ── Job Plan ───────────────────────────────────────────
   jobPlanCreate,
   jobPlanReview,
   jobPlanUpdate,
-
-  // ── Work Order ─────────────────────────────────────────
-  woCreate, // Create new WO/WOV
-  woApproveAdvisor, // Approve as advisor (PENDING_ADVISOR → PENDING_PM)
-  woApprovePm, // Approve as PM (PENDING_PM → APPROVED)
-  woReject, // Reject a WO
-  woExtendDeadline, // Extend deadline (only requesting KD)
-  woView, // View work orders
-  // ── QC ─────────────────────────────────────────────────
-  qcView, // View QC checks
+  woCreate,
+  woApproveAdvisor,
+  woApprovePm,
+  woReject,
+  woExtensionRequest,
+  woExtensionApprove,
+  woView,
+  qcView,
   qcSubmit,
   qcValidate,
   unitsView,
   countdownView,
   countdownDetailView,
+  countdownSubmitApproval,
+  countdownMarkQcReady,
+  countdownRequestRevision,
   monitoringView,
-
-  // ── Purchase Request (PR) ──────────────────────────────
   prView,
   prCreate,
   prApprove,
   prReject,
-
-  // ── Work Order Vendor (WOV) ────────────────────────────
   wovView,
   wovCreate,
   wovApprove,
   wovReject,
-
-  // ── Task Execution ─────────────────────────────────────
-  taskExecute, // Start/finish jobs (mechanic only)
-  taskView, // View own task list
+  wovUpdate,
+  taskExecute,
+  taskView,
   taskAssign,
   taskCheckpoint,
-
-  // ── Warehouse / Peminjaman ─────────────────────────────
-  warehouseRequest, // Request/return tools & spareparts
-  warehouseApprove, // Approve warehouse requests
+  warehouseRequest,
+  warehouseApprove,
   warehouseLogsView,
-
-  // ── Profile ────────────────────────────────────────────
-  profileView, // View own profile
+  profileView,
   notificationsView,
-
-  // ── Dashboard ──────────────────────────────────────────
-  dashboardKd, // Access KD-style tabbed dashboard
-  dashboardMechanic, // Access mechanic bottom-nav dashboard (lapangan)
+  dashboardKd,
+  dashboardMechanic,
 }
 
-/// Maps each role to its set of permissions.
-///
-/// Usage:
-/// ```dart
-/// final perms = rolePermissions['kd']!;
-/// if (perms.contains(Permission.woCreate)) { ... }
-/// ```
 const Map<String, Set<Permission>> rolePermissions = {
   'pm': {
     Permission.jobPlanCreate,
@@ -114,9 +95,10 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.jobPlanUpdate,
     Permission.woApprovePm,
     Permission.woReject,
+    Permission.woExtensionApprove,
     Permission.woView,
     Permission.qcView,
-    Permission.qcSubmit, // MO/MP/Admin bisa submit QC secara independen
+    Permission.qcSubmit,
     Permission.qcValidate,
     Permission.taskView,
     Permission.taskAssign,
@@ -124,6 +106,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.unitsView,
     Permission.countdownView,
     Permission.countdownDetailView,
+    Permission.countdownSubmitApproval,
     Permission.monitoringView,
     Permission.notificationsView,
     Permission.prView,
@@ -132,6 +115,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.wovView,
     Permission.wovApprove,
     Permission.wovReject,
+    Permission.wovUpdate,
     Permission.profileView,
     Permission.dashboardKd,
   },
@@ -141,7 +125,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.woReject,
     Permission.woView,
     Permission.qcView,
-    Permission.qcSubmit, // ADV bisa submit QC secara independen
+    Permission.qcSubmit,
     Permission.qcValidate,
     Permission.taskView,
     Permission.taskCheckpoint,
@@ -160,6 +144,7 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.jobPlanCreate,
     Permission.jobPlanUpdate,
     Permission.woCreate,
+    Permission.woExtensionRequest,
     Permission.woView,
     Permission.qcView,
     Permission.qcSubmit,
@@ -169,6 +154,8 @@ const Map<String, Set<Permission>> rolePermissions = {
     Permission.unitsView,
     Permission.countdownView,
     Permission.countdownDetailView,
+    Permission.countdownMarkQcReady,
+    Permission.countdownRequestRevision,
     Permission.warehouseApprove,
     Permission.warehouseLogsView,
     Permission.notificationsView,
@@ -211,45 +198,180 @@ const Map<String, Set<Permission>> rolePermissions = {
   },
 };
 
-/// Checks if the given [role] has the specified [permission].
-bool hasPermission(String? role, Permission permission) {
-  if (role == null) return false;
-  return getPermissions(role).contains(permission);
+const Map<Permission, List<String>> _permissionCodeMap = {
+  Permission.jobPlanCreate: [Perms.jobPlanCreate],
+  Permission.jobPlanReview: [Perms.jobPlanReview],
+  Permission.jobPlanUpdate: [Perms.jobPlanUpdate],
+  Permission.woCreate: [Perms.woCreate],
+  Permission.woApproveAdvisor: [Perms.woApproveAdvisor, Perms.woApprove],
+  Permission.woApprovePm: [Perms.woApprovePm, Perms.woApprove],
+  Permission.woReject: [Perms.woReject],
+  Permission.woExtensionRequest: [Perms.woExtensionRequest],
+  Permission.woExtensionApprove: [Perms.woExtensionApprove],
+  Permission.woView: [Perms.woView, Perms.woCreate, Perms.woApprove],
+  Permission.qcView: [Perms.qcView, Perms.qcSubmit, Perms.qcValidate],
+  Permission.qcSubmit: [Perms.qcSubmit],
+  Permission.qcValidate: [Perms.qcValidate],
+  Permission.unitsView: [Perms.unitsView],
+  Permission.countdownView: [Perms.countdownView],
+  Permission.countdownDetailView: [
+    Perms.countdownDetailView,
+    Perms.monitoringDetail,
+  ],
+  Permission.countdownSubmitApproval: [Perms.countdownSubmitApproval],
+  Permission.countdownMarkQcReady: [Perms.countdownMarkQcReady],
+  Permission.countdownRequestRevision: [Perms.countdownRequestRevision],
+  Permission.monitoringView: [Perms.monitoringView],
+  Permission.prView: [Perms.prView, Perms.prCreate, Perms.prApprove],
+  Permission.prCreate: [Perms.prCreate],
+  Permission.prApprove: [Perms.prApprove],
+  Permission.prReject: [Perms.prApprove],
+  Permission.wovView: [Perms.vendorView, Perms.wovCreate, Perms.vendorApprove],
+  Permission.wovCreate: [Perms.wovCreate, Perms.vendorCreate],
+  Permission.wovApprove: [Perms.vendorApprove],
+  Permission.wovReject: [Perms.vendorApprove],
+  Permission.wovUpdate: [
+    Perms.wovUpdate,
+    Perms.vendorUpdateStatus,
+    Perms.vendorReceive,
+  ],
+  Permission.taskExecute: [
+    Perms.taskExecute,
+    Perms.taskSubmit,
+    Perms.taskPending,
+    Perms.taskBreak,
+    Perms.uploadTicket,
+  ],
+  Permission.taskView: [Perms.taskView],
+  Permission.taskAssign: [Perms.taskAssign],
+  Permission.taskCheckpoint: [Perms.taskCheckpoint],
+  Permission.warehouseRequest: [Perms.warehouseRequest],
+  Permission.warehouseApprove: [
+    Perms.warehouseApprove,
+    Perms.warehouseReady,
+    Perms.warehouseIssue,
+    Perms.warehouseReturn,
+  ],
+  Permission.warehouseLogsView: [
+    Perms.warehouseView,
+    Perms.warehouseStockCardView,
+    Perms.warehouseApprove,
+    Perms.warehouseRequest,
+  ],
+  Permission.profileView: [Perms.profileView],
+  Permission.notificationsView: [Perms.notificationsView],
+};
+
+SessionManager? _trySession() {
+  if (!sl.isRegistered<SessionManager>()) return null;
+  try {
+    return sl<SessionManager>();
+  } catch (_) {
+    return null;
+  }
 }
 
-/// Returns all permissions for a given [role].
-Set<Permission> getPermissions(String? role) {
-  if (role == null) return {};
-  final normalized = role.toLowerCase();
+String _normalizeRole(String value) {
+  return value.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+}
 
-  // Alias new BE roles to legacy FE roles to maintain UI mappings
-  if (normalized == 'admin') {
-    return {...?rolePermissions['pm'], ...?rolePermissions['warehouse']};
-  } else if (normalized == 'manager_produksi' ||
-      normalized == 'mp' ||
-      normalized == 'kepala_produksi' ||
-      normalized == 'manager_operational' ||
-      normalized == 'mis') {
-    return rolePermissions['pm'] ?? {};
-  } else if (normalized == 'ketua_divisi') {
-    return rolePermissions['kd'] ?? {};
-  } else if (normalized == 'advisor') {
-    return rolePermissions['adv'] ?? {};
-  } else if (normalized == 'team_lapangan') {
-    return rolePermissions['op'] ?? {};
-  } else if (normalized == 'kepala_gudang' ||
-      normalized == 'gudang' ||
-      normalized == 'admin_gudang') {
-    return rolePermissions['warehouse'] ?? {};
-  } else if (normalized == 'gudang_tools' ||
-      normalized == 'gudang_sparepart' ||
-      normalized == 'gudang_bahan') {
-    return rolePermissions['warehouse_staff'] ?? {};
-  } else if (normalized == 'ppic' ||
-      normalized == 'ppc' ||
-      normalized == 'manager_gudang') {
-    return rolePermissions['ppic'] ?? {};
+String _canonicalLegacyRole(String? role) {
+  return switch (_normalizeRole(role ?? '')) {
+    'admin' ||
+    'mis' ||
+    'manager_produksi' ||
+    'manager_operational' ||
+    'mp' ||
+    'pm' => 'pm',
+    'kp' || 'kepala_produksi' || 'kepala_project' => 'pm',
+    'adv' || 'advisor' => 'adv',
+    'kd' || 'ketua_divisi' || 'kepala_divisi' => 'kd',
+    'team_lapangan' || 'op' => 'op',
+    'kepala_gudang' || 'admin_gudang' || 'gudang' => 'warehouse',
+    'gudang_tools' || 'gudang_sparepart' || 'gudang_bahan' => 'warehouse_staff',
+    'ppic' || 'ppc' || 'manager_gudang' => 'ppic',
+    _ => _normalizeRole(role ?? ''),
+  };
+}
+
+bool _sessionHasPermission(SessionManager session, Permission permission) {
+  if (!session.mobileEnabled) {
+    return false;
   }
 
+  switch (permission) {
+    case Permission.dashboardMechanic:
+      return session.isFieldExecution;
+    case Permission.dashboardKd:
+      return !session.isFieldExecution &&
+          session.mobileEnabled &&
+          (session.permissions.isNotEmpty ||
+              session.isGlobalAccess ||
+              session.isDivisionAccess ||
+              session.isUnitAccess ||
+              session.isWarehouseAccess);
+    case Permission.woApproveAdvisor:
+      return session.isAdvisorAccess &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.woApprovePm:
+      return (session.isKpAccess || session.isGlobalAccess) &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.woCreate:
+      return session.isKdAccess &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.woExtensionRequest:
+      return session.isKdAccess &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.woExtensionApprove:
+      return (session.isKpAccess || session.isGlobalAccess) &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.countdownSubmitApproval:
+      return (session.isKpAccess || session.isGlobalAccess) &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.countdownMarkQcReady:
+    case Permission.countdownRequestRevision:
+      return session.isKdAccess &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.prApprove:
+    case Permission.prReject:
+      return !session.isFieldExecution &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    case Permission.wovApprove:
+    case Permission.wovReject:
+    case Permission.wovUpdate:
+      return !session.isFieldExecution &&
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+    default:
+      final codes = _permissionCodeMap[permission];
+      if (codes == null || codes.isEmpty) return false;
+      return session.hasAnyPerm(codes);
+  }
+}
+
+bool _legacyHasPermission(String? role, Permission permission) {
+  return _legacyPermissionsForRole(role).contains(permission);
+}
+
+Set<Permission> _legacyPermissionsForRole(String? role) {
+  if (role == null || role.trim().isEmpty) return {};
+  final normalized = _canonicalLegacyRole(role);
   return rolePermissions[normalized] ?? {};
+}
+
+bool hasPermission(String? role, Permission permission) {
+  final session = _trySession();
+  if (session != null) {
+    return _sessionHasPermission(session, permission);
+  }
+  return _legacyHasPermission(role, permission);
+}
+
+Set<Permission> getPermissions(String? role) {
+  final session = _trySession();
+  if (session != null) {
+    return Permission.values
+        .where((permission) => _sessionHasPermission(session, permission))
+        .toSet();
+  }
+  return _legacyPermissionsForRole(role);
 }

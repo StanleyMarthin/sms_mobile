@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:dio/dio.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
@@ -78,19 +79,7 @@ class _WovFormPageState extends State<WovFormPage> {
   }
 
   bool _shouldLockDivision(SessionManager session) {
-    String normalize(String? value) => (value ?? '')
-        .trim()
-        .toLowerCase()
-        .replaceAll('-', '_')
-        .replaceAll(' ', '_');
-    final role = normalize(session.role);
-    final jabatan = normalize(session.jabatan);
-    return role == 'kd' ||
-        role == 'ketua_divisi' ||
-        role == 'kp' ||
-        role == 'kepala_produksi' ||
-        jabatan == 'kp' ||
-        jabatan == 'kepala_produksi';
+    return session.isKdAccess || session.isKpAccess;
   }
 
   List<Map<String, dynamic>> _resolveDivisionOptions(
@@ -144,7 +133,13 @@ class _WovFormPageState extends State<WovFormPage> {
 
   Future<void> _loadVendors() async {
     try {
-      final res = await sl<ApiClient>().get('/sm/vendors');
+      final res = await sl<ApiClient>().get(
+        '/sm/vendors',
+        options: Options(extra: {
+          'useCache': true,
+          'cacheDuration': const Duration(minutes: 15),
+        }),
+      );
       final data = res.data['data'] ?? res.data;
       if (data != null && data is List && mounted) {
         setState(() => _vendors = List<Map<String, dynamic>>.from(data));

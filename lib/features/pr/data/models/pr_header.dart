@@ -1,10 +1,10 @@
-/// Model for Purchase Request header.
-///
-/// Maps to backend table `pur_pr_header` + aggregated item counts.
-/// Used for both list (items empty) and detail (items populated) views.
-///
-/// Approval chain: PENDING_ADV → PENDING_KP → PENDING_MP → PENDING_PUR → APPROVED
-/// Once APPROVED, `status` becomes OPEN → HUNTING → DONE.
+// Model for Purchase Request header.
+//
+// Maps to backend table `pur_pr_header` + aggregated item counts.
+// Used for both list (items empty) and detail (items populated) views.
+//
+// Approval chain: PENDING_ADV -> PENDING_KP -> PENDING_MP -> PENDING_PUR -> APPROVED
+// Once APPROVED, `status` becomes OPEN -> HUNTING -> DONE.
 import 'pr_item.dart';
 
 class PRHeader {
@@ -50,18 +50,22 @@ class PRHeader {
     final rawItems = json['items'];
     final items = rawItems is List
         ? rawItems
-            .whereType<Map<String, dynamic>>()
-            .map(PRItem.fromJson)
-            .toList()
+              .whereType<Map<String, dynamic>>()
+              .map(PRItem.fromJson)
+              .toList()
         : <PRItem>[];
 
     return PRHeader(
       reqId: '${json['reqId'] ?? json['id'] ?? ''}',
       prNumber: json['prNumber'] as String? ?? json['pr_number'] as String?,
       carName: json['car_name'] as String? ?? json['carName'] as String?,
-      divisionName: json['division_name'] as String? ?? json['divisionName'] as String?,
-      requestedByName: json['requested_by_name'] as String? ?? json['requestedByName'] as String?,
-      accTracking: json['acc_tracking'] as String? ?? json['accTracking'] as String?,
+      divisionName:
+          json['division_name'] as String? ?? json['divisionName'] as String?,
+      requestedByName:
+          json['requested_by_name'] as String? ??
+          json['requestedByName'] as String?,
+      accTracking:
+          json['acc_tracking'] as String? ?? json['accTracking'] as String?,
       status: json['status'] as String?,
       notes: json['notes'] as String?,
       targetDate: _parseDate(json['target_date'] ?? json['targetDate']),

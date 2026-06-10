@@ -22,6 +22,7 @@ class ProfileRepositoryImpl implements ProfileRepository {
       isActive: item['isActive'] as bool,
       permissions: (item['permissions'] as List).cast<String>(),
       deviceId: item['deviceId'] as String,
+      photoUrl: item['photoUrl'] as String?,
     );
   }
 

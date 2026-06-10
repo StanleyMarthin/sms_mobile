@@ -179,7 +179,6 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   DateTime? _historyDateFilter;
   // Filter untuk tab Pengajuan (requester)
   DateTime? _activeDateFilter;
-  String? _activeUnitFilterId;
   final Set<String> _selectedApprovalIds = <String>{};
   final Set<String> _selectedReminderGroupIds = <String>{};
   String? _selectedUsingDivisionKey;
@@ -204,8 +203,9 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   }
 
   // ── role helpers ──────────────────────────────────────────────
-  String get _role =>
-      _normalizeWarehouseRole(_session.role ?? '', _session.jabatan);
+  String get _role => _session.isGlobalAccess
+      ? 'ADMIN'
+      : _normalizeWarehouseRole(_session.role ?? '', _session.jabatan);
   bool get _hasWarehouseLogsAccess =>
       _session.hasPerm(Perms.warehouseLogs) ||
       hasPermission(_role, Permission.warehouseLogsView);
@@ -302,29 +302,12 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   List<WarehouseLog> get _historyItems =>
       _myLogs.where((l) => l.isReturned || l.isRejected || l.isStored).toList();
 
-  /// Semua unit unik dari _myLogs untuk filter tab Pengajuan
-  List<({String carId, String unitName})> get _activeUnitOptions {
-    final seen = <String>{};
-    final result = <({String carId, String unitName})>[];
-    for (final log in _myLogs) {
-      final cid = log.carId ?? '';
-      if (cid.isEmpty || seen.contains(cid)) continue;
-      seen.add(cid);
-      result.add((carId: cid, unitName: log.unitName ?? cid));
-    }
-    result.sort((a, b) => a.unitName.compareTo(b.unitName));
-    return result;
-  }
-
   List<WarehouseLog> get _filteredActiveItems {
     var items = _activeItems;
     if (_activeDateFilter != null) {
       items = items
           .where((l) => _sameDate(l.requestDate, _activeDateFilter!))
           .toList();
-    }
-    if (_activeUnitFilterId != null) {
-      items = items.where((l) => l.carId == _activeUnitFilterId).toList();
     }
     return items;
   }
@@ -790,29 +773,6 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
                   ? () => setState(() => _activeDateFilter = null)
                   : null,
             ),
-            if (_activeUnitOptions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 36,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: [
-                    _UnitFilterChip(
-                      label: 'Semua Unit',
-                      selected: _activeUnitFilterId == null,
-                      onTap: () => setState(() => _activeUnitFilterId = null),
-                    ),
-                    for (final opt in _activeUnitOptions)
-                      _UnitFilterChip(
-                        label: opt.unitName,
-                        selected: _activeUnitFilterId == opt.carId,
-                        onTap: () =>
-                            setState(() => _activeUnitFilterId = opt.carId),
-                      ),
-                  ],
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -820,7 +780,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
       Expanded(
         child: _listScaffold(
           items: _filteredActiveItems,
-          emptyMsg: _activeDateFilter != null || _activeUnitFilterId != null
+          emptyMsg: _activeDateFilter != null
               ? 'Tidak ada pengajuan sesuai filter'
               : 'Tidak ada transaksi aktif',
           fab: _canRequest
@@ -1215,48 +1175,6 @@ class _ClearableDateFilter extends StatelessWidget {
               ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// UNIT FILTER CHIP (Tab Pengajuan)
-// ═══════════════════════════════════════════════════════════════
-class _UnitFilterChip extends StatelessWidget {
-  const _UnitFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onTap(),
-        showCheckmark: false,
-        labelStyle: TextStyle(
-          color: selected ? AppColors.background : AppColors.textMuted,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-        ),
-        side: BorderSide(
-          color: selected
-              ? AppColors.gold
-              : AppColors.border.withValues(alpha: 0.9),
-        ),
-        backgroundColor: AppColors.surfaceCard,
-        selectedColor: AppColors.gold,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
       ),
     );
   }

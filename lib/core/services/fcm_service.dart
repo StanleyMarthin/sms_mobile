@@ -1,5 +1,4 @@
 import 'dart:io' show Platform;
-import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -8,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 
 // ──────────────────────────────────────────────────────────────────
 // Navigator key — diisi oleh app_router, dipakai untuk navigasi
@@ -96,7 +94,8 @@ class FCMService {
       if (Platform.isAndroid) {
         final androidPlugin = _localNotif
             .resolvePlatformSpecificImplementation<
-                AndroidFlutterLocalNotificationsPlugin>();
+              AndroidFlutterLocalNotificationsPlugin
+            >();
         await androidPlugin?.createNotificationChannel(_channel);
         await androidPlugin?.createNotificationChannel(_alarmChannel);
       }
@@ -114,14 +113,13 @@ class FCMService {
 
       // ── Background messages ──────────────────────────────────────
       FirebaseMessaging.onBackgroundMessage(
-          _firebaseMessagingBackgroundHandler);
+        _firebaseMessagingBackgroundHandler,
+      );
 
       // ── Foreground messages: tampilkan sebagai local notification ─
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         if (kDebugMode) {
-          debugPrint(
-            '[FCM] Foreground | title=${message.notification?.title}',
-          );
+          debugPrint('[FCM] Foreground | title=${message.notification?.title}');
         }
         sl<NotificationInboxService>().saveRemoteMessage(message);
         final notif = message.notification;
@@ -147,7 +145,8 @@ class FCMService {
 
           // In-App Popup for Reminders (Foreground only)
           final titleLower = (notif.title ?? '').toLowerCase();
-          if (titleLower.contains('reminder') || titleLower.contains('pengembalian')) {
+          if (titleLower.contains('reminder') ||
+              titleLower.contains('pengembalian')) {
             _showInAppPopup(message);
           }
         }
@@ -191,7 +190,7 @@ class FCMService {
   void _showInAppPopup(RemoteMessage message) {
     final ctx = appRouter.routerDelegate.navigatorKey.currentContext;
     if (ctx == null) return;
-    
+
     final title = message.notification?.title ?? 'Reminder';
     final body = message.notification?.body ?? '';
 
@@ -201,17 +200,27 @@ class FCMService {
         backgroundColor: const Color(0xFF1E1E1E),
         title: Row(
           children: [
-            const Icon(Icons.notifications_active_outlined, color: Color(0xFFFFCF40)),
+            const Icon(
+              Icons.notifications_active_outlined,
+              color: Color(0xFFFFCF40),
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
           ],
         ),
-        content: Text(body, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        content: Text(
+          body,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
@@ -227,7 +236,10 @@ class FCMService {
               backgroundColor: const Color(0xFFFFCF40),
               foregroundColor: Colors.black,
             ),
-            child: const Text('Lihat Detail', style: TextStyle(fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Lihat Detail',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -271,14 +283,18 @@ class FCMService {
         android: AndroidNotificationDetails(
           isAlarm ? _alarmChannel.id : _channel.id,
           isAlarm ? _alarmChannel.name : _channel.name,
-          channelDescription: isAlarm ? _alarmChannel.description : _channel.description,
+          channelDescription: isAlarm
+              ? _alarmChannel.description
+              : _channel.description,
           importance: Importance.max,
           priority: Priority.high,
           fullScreenIntent: isAlarm,
           category: isAlarm ? AndroidNotificationCategory.alarm : null,
           color: const Color(0xFFFFCF40),
           enableVibration: true,
-          vibrationPattern: isAlarm ? Int64List.fromList([0, 500, 200, 500]) : null,
+          vibrationPattern: isAlarm
+              ? Int64List.fromList([0, 500, 200, 500])
+              : null,
         ),
       ),
       payload: data != null ? _buildPayload(data) : null,
@@ -331,7 +347,7 @@ class FCMService {
   }
 
   // ── Alarm Scheduling (Background support) ──────────────────
-  
+
   /// Menjadwalkan alarm pengerjaan (T-10, T-5, T-0).
   /// [taskId] dipakai untuk ID notifikasi unik agar bisa di-cancel.
   Future<void> scheduleTaskAlarms({
@@ -340,7 +356,9 @@ class FCMService {
     required double targetHours,
     required String unitName,
   }) async {
-    final targetTime = startedAt.add(Duration(seconds: (targetHours * 3600).round()));
+    final targetTime = startedAt.add(
+      Duration(seconds: (targetHours * 3600).round()),
+    );
     final now = DateTime.now();
 
     // 10 Menit sebelum selesai

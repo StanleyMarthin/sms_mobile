@@ -91,7 +91,8 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted) return;
     _authBloc.add(
-        LoginRequested(employeeId: id, password: password, fcmToken: fcmToken));
+      LoginRequested(employeeId: id, password: password, fcmToken: fcmToken),
+    );
   }
 
   String _sanitizeEmployeeId(String value) {
@@ -128,6 +129,16 @@ class _LoginPageState extends State<LoginPage> {
         jabatan: result.grade,
         divisionId: result.divisionId,
         permissions: result.permissions,
+        accessBucket: result.accessBucket,
+        roleLevel: result.roleLevel,
+        scopeBasis: result.scopeBasis,
+        webEnabled: result.webEnabled,
+        mobileEnabled: result.mobileEnabled,
+        approvalRank: result.approvalRank,
+        canViewAllUnits: result.canViewAllUnits,
+        canViewAssignedUnits: result.canViewAssignedUnits,
+        managedDivisionIds: result.managedDivisionIds,
+        managedUnitIds: result.managedUnitIds,
       );
       if (!context.mounted) return;
       context.go('/home');
@@ -149,8 +160,9 @@ class _LoginPageState extends State<LoginPage> {
       listener: _onAuthState,
       child: Scaffold(
         body: Container(
-          decoration:
-              const BoxDecoration(gradient: AppColors.backgroundGradient),
+          decoration: const BoxDecoration(
+            gradient: AppColors.backgroundGradient,
+          ),
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -237,8 +249,10 @@ class _LoginPageState extends State<LoginPage> {
             decoration: const InputDecoration(
               labelText: 'Employee ID',
               hintText: 'e.g. SM-00.000',
-              prefixIcon:
-                  Icon(Icons.badge_outlined, color: AppColors.textMuted),
+              prefixIcon: Icon(
+                Icons.badge_outlined,
+                color: AppColors.textMuted,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -252,8 +266,10 @@ class _LoginPageState extends State<LoginPage> {
             decoration: InputDecoration(
               labelText: 'Password',
               hintText: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
-              prefixIcon:
-                  const Icon(Icons.lock_outline, color: AppColors.textMuted),
+              prefixIcon: const Icon(
+                Icons.lock_outline,
+                color: AppColors.textMuted,
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
                   _obscurePassword ? Icons.visibility_off : Icons.visibility,
@@ -270,8 +286,10 @@ class _LoginPageState extends State<LoginPage> {
           if (_errorMessage != null) ...[
             Text(
               _errorMessage!,
-              style:
-                  const TextStyle(color: AppColors.statusLocked, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.statusLocked,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 8),
           ],
@@ -295,13 +313,15 @@ class _LoginPageState extends State<LoginPage> {
                     width: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(AppColors.background),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.background,
+                      ),
                     ),
                   )
-                : const Text('Sign In',
-                    style:
-                        TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                : const Text(
+                    'Sign In',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                  ),
           ),
         ],
       ),

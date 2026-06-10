@@ -11,9 +11,11 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../domain/entities/work_order.dart';
 import '../bloc/work_order_bloc.dart';
 import '../bloc/work_order_event.dart';
 import '../bloc/work_order_state.dart';
+import '../../../task_execution/presentation/widgets/date_filter_bar.dart';
 import 'wo_detail_page.dart';
 import 'wo_create_page.dart';
 import '../widgets/wo_card.dart';
@@ -30,6 +32,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabCtrl;
   late WorkOrderBloc _bloc;
+  DateTime _historyDate = DateTime.now();
 
   @override
   void initState() {
@@ -38,6 +41,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
     _bloc = sl<WorkOrderBloc>()..add(const LoadWorkOrders(view: 'ACTIVE'));
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
+        setState(() {});
         _bloc.add(
           LoadWorkOrders(view: _tabCtrl.index == 0 ? 'ACTIVE' : 'DONE'),
         );
@@ -54,12 +58,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
-    final role = session.role ?? '';
-    final canCreate = [
-      'KD',
-      'KETUA_DIVISI',
-      'ADMIN',
-    ].contains(role.toUpperCase());
+    final canCreate = session.isKdAccess && session.hasPerm(Perms.woCreate);
 
     return BlocProvider.value(
       value: _bloc,
@@ -131,34 +130,67 @@ class _WorkOrderPageState extends State<WorkOrderPage>
               );
             }
 
-            final wos = state is WorkOrderLoaded
+            final rawWos = state is WorkOrderLoaded
                 ? state.workOrders
                 : state is WorkOrderActionSuccess
                 ? state.workOrders
-                : <dynamic>[];
+                : <WorkOrder>[];
+            final wos = _visibleWorkOrders(rawWos);
 
             if (wos.isEmpty) {
-              return _EmptyView(
-                canCreate: canCreate,
-                onTap: () => _openCreate(context),
+              return Column(
+                children: [
+                  if (_tabCtrl.index == 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                      child: DateFilterBar(
+                        selectedDate: _historyDate,
+                        onDateChanged: (date) =>
+                            setState(() => _historyDate = date),
+                        label: 'Riwayat tanggal',
+                      ),
+                    ),
+                  Expanded(
+                    child: _EmptyView(
+                      canCreate: canCreate && _tabCtrl.index == 0,
+                      onTap: () => _openCreate(context),
+                    ),
+                  ),
+                ],
               );
             }
 
             return RefreshIndicator(
               color: AppColors.gold,
               onRefresh: () async => _bloc.add(const RefreshWorkOrders()),
-              child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-                itemCount: wos.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) {
-                  final wo = wos[i];
-                  return WoCard(
-                    wo: wo,
-                    isHighlighted: wo.id == widget.focusWoId,
-                    onTap: () => _openDetail(context, wo.id),
-                  );
-                },
+              child: Column(
+                children: [
+                  if (_tabCtrl.index == 1)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                      child: DateFilterBar(
+                        selectedDate: _historyDate,
+                        onDateChanged: (date) =>
+                            setState(() => _historyDate = date),
+                        label: 'Riwayat tanggal',
+                      ),
+                    ),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+                      itemCount: wos.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (_, i) {
+                        final wo = wos[i];
+                        return WoCard(
+                          wo: wo,
+                          isHighlighted: wo.id == widget.focusWoId,
+                          onTap: () => _openDetail(context, wo.id),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             );
           },
@@ -200,6 +232,26 @@ class _WorkOrderPageState extends State<WorkOrderPage>
             BlocProvider.value(value: _bloc, child: const WoCreatePage()),
       ),
     );
+  }
+
+  List<WorkOrder> _visibleWorkOrders(List<WorkOrder> workOrders) {
+    if (_tabCtrl.index == 0) {
+      return workOrders.where((wo) => wo.isActive).toList();
+    }
+
+    return workOrders
+        .where((wo) => wo.isTerminal && _isSameHistoryDate(wo, _historyDate))
+        .toList();
+  }
+
+  bool _isSameHistoryDate(WorkOrder wo, DateTime date) {
+    final rawDate = wo.approvalDate ?? wo.requestDate;
+    if (rawDate == null || rawDate.length < 10) return false;
+    final parsed = DateTime.tryParse(rawDate.substring(0, 10));
+    if (parsed == null) return false;
+    return parsed.year == date.year &&
+        parsed.month == date.month &&
+        parsed.day == date.day;
   }
 }
 

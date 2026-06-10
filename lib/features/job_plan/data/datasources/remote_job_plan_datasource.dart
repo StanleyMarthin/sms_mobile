@@ -7,6 +7,8 @@ Side Effects: HTTP GET/POST/PUT ke service sm_job_plan.
 */
 library;
 
+import 'package:dio/dio.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -28,24 +30,14 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   final SessionManager sessionManager;
 
   String get _roleCode {
-    final role = (sessionManager.role ?? '').trim().toLowerCase();
-    final jabatan = (sessionManager.jabatan ?? '').trim().toLowerCase();
-    if (role == 'pm' && jabatan.contains('kepala project')) return 'KP';
-    return switch (role) {
-      'adv' => 'ADV',
-      'advisor' => 'ADV',
-      'kp' => 'KP',
-      'kepala_project' => 'KP',
-      'kepala project' => 'KP',
-      'project_head' => 'KP',
-      'pm' => 'MP',
-      'mp' => 'MP',
-      'manager_project' => 'MP',
-      'manager project' => 'MP',
-      'kd' => 'KD',
-      'ketua_divisi' => 'KD',
-      'kepala_divisi' => 'KD',
-      _ => role.toUpperCase(),
+    return switch ((sessionManager.accessBucket ?? '').trim().toUpperCase()) {
+      'ADV' => 'ADV',
+      'KP' => 'KP',
+      'KD' => 'KD',
+      'GLOBAL' => 'MP',
+      'FIELD' => 'OP',
+      'WAREHOUSE' => 'WAREHOUSE',
+      _ => (sessionManager.role ?? '').trim().toUpperCase(),
     };
   }
 
@@ -314,6 +306,10 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
         if ((carId ?? '').trim().isNotEmpty) 'carId': carId,
       },
+      options: Options(extra: {
+        'useCache': true,
+        'cacheDuration': const Duration(minutes: 5),
+      }),
     );
     // response.data is already inner payload: { divisions, panels, units, users, jobTypes }
     final payload = response.data as Map<String, dynamic>? ?? {};
@@ -346,6 +342,10 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       queryParameters: {
         if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
       },
+      options: Options(extra: {
+        'useCache': true,
+        'cacheDuration': const Duration(minutes: 5),
+      }),
     );
     final payload = response.data as Map<String, dynamic>? ?? {};
     return {
@@ -373,6 +373,10 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final response = await apiClient.get(
       ApiEndpoints.jobPlanDropdowns,
       queryParameters: {'divisionId': resolvedDivId ?? divisionId},
+      options: Options(extra: {
+        'useCache': true,
+        'cacheDuration': const Duration(minutes: 5),
+      }),
     );
     final payload = response.data as Map<String, dynamic>? ?? {};
     return _asMapList(payload['users']).map(_normalizeDropdownUser).toList();
@@ -500,6 +504,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     required String assignedTo,
     required String description,
     required double targetHours,
+    double? totalProjectHours,
+    String? startDate,
+    String? deadlineDate,
     required String workDate,
     required String startTime,
     required String finishTime,
@@ -528,6 +535,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'startTime': startTime,
       'finishTime': finishTime,
       'targetHours': targetHours,
+      if (totalProjectHours != null) 'totalProjectHours': totalProjectHours,
+      if ((startDate ?? '').trim().isNotEmpty) 'startDate': startDate,
+      if ((deadlineDate ?? '').trim().isNotEmpty) 'deadlineDate': deadlineDate,
       'isOvertime': isOvertime,
       'jobDescription': description,
     };
@@ -571,11 +581,12 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'assignedTo': assignedTo,
       'description': description,
       'targetHours': targetHours,
+      'totalProjectHours': totalProjectHours ?? targetHours,
       'workDate': workDate,
       'startTime': startTime,
       'finishTime': finishTime,
       'isOvertime': isOvertime,
-      'deadline': workDate,
+      'deadline': deadlineDate ?? workDate,
       'status': initialStatus ?? 'PLAN',
       'note': note,
     };

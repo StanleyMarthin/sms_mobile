@@ -7,12 +7,7 @@ import '../security/app_secure_storage.dart';
 /// Manages the authenticated user's session state.
 ///
 /// Stores the Redis session token, refresh token, user profile,
-/// and BE-driven permissions.
-/// The splash screen first obtains a [tempToken] via device attestation
-/// (POST /auth/device-init) which is only valid for the login endpoint.
-/// After login, the backend returns the full session payload:
-/// session token, refresh token, divisionName, jabatan (position),
-/// and permissions[].
+/// role profile, scope context, and BE-driven permissions.
 class SessionManager extends ChangeNotifier {
   SessionManager({this.storage = AppSecureStorage.instance});
 
@@ -28,6 +23,16 @@ class SessionManager extends ChangeNotifier {
   static const keyJabatan = 'session_jabatan';
   static const keyDivisionId = 'session_divisionId';
   static const keyPermissions = 'session_permissions';
+  static const keyAccessBucket = 'session_accessBucket';
+  static const keyRoleLevel = 'session_roleLevel';
+  static const keyScopeBasis = 'session_scopeBasis';
+  static const keyWebEnabled = 'session_webEnabled';
+  static const keyMobileEnabled = 'session_mobileEnabled';
+  static const keyApprovalRank = 'session_approvalRank';
+  static const keyCanViewAllUnits = 'session_canViewAllUnits';
+  static const keyCanViewAssignedUnits = 'session_canViewAssignedUnits';
+  static const keyManagedDivisionIds = 'session_managedDivisionIds';
+  static const keyManagedUnitIds = 'session_managedUnitIds';
 
   final dynamic storage;
 
@@ -36,16 +41,26 @@ class SessionManager extends ChangeNotifier {
   String? _deviceId;
 
   // ── Auth ───────────────────────────────────────────────
-  String? _token; // Redis session token from sm_login
+  String? _token;
   String? _refreshToken;
   String? _userId;
   String? _employeeId;
   String? _fullName;
-  String? _role; // roleName from BE (e.g. op, kd, adv, pm)
+  String? _role; // raw role name from backend
   String? _divisionName;
-  String? _jabatan; // human-readable position title from BE
+  String? _jabatan;
   int? _divisionId;
-  List<String> _permissions = []; // BE-driven permission codes
+  List<String> _permissions = [];
+  String? _accessBucket;
+  int? _roleLevel;
+  String? _scopeBasis;
+  bool? _webEnabled;
+  bool? _mobileEnabled;
+  int? _approvalRank;
+  bool _canViewAllUnits = false;
+  bool _canViewAssignedUnits = false;
+  List<int> _managedDivisionIds = [];
+  List<String> _managedUnitIds = [];
 
   // ── Getters ────────────────────────────────────────────
   bool get isLoggedIn => _token != null;
@@ -56,11 +71,56 @@ class SessionManager extends ChangeNotifier {
   String? get userId => _userId;
   String? get employeeId => _employeeId;
   String? get fullName => _fullName;
-  String? get role => _role;
+  String? get rawRoleName => _role;
+  String? get role => _deriveLegacyRole(_role, accessBucket, _permissions);
   String? get divisionName => _divisionName;
   String? get jabatan => _jabatan;
   int? get divisionId => _divisionId;
   List<String> get permissions => List.unmodifiable(_permissions);
+  String? get accessBucket =>
+      _accessBucket ?? _deriveAccessBucket(_role, _permissions);
+  int? get roleLevel => _roleLevel;
+  String get scopeBasis =>
+      _scopeBasis ?? _deriveScopeBasis(accessBucket, _permissions);
+  bool get webEnabled => _webEnabled ?? true;
+  bool get mobileEnabled => _mobileEnabled ?? true;
+  int? get approvalRank => _approvalRank;
+  bool get canViewAllUnits =>
+      _canViewAllUnits ||
+      _permissions.contains(Perms.viewAllUnits) ||
+      accessBucket == 'GLOBAL';
+  bool get canViewAssignedUnits =>
+      canViewAllUnits ||
+      _canViewAssignedUnits ||
+      _permissions.contains(Perms.viewAssignedUnits) ||
+      const {'KD', 'ADV', 'KP'}.contains(accessBucket);
+  List<int> get managedDivisionIds => List.unmodifiable(_managedDivisionIds);
+  List<String> get managedUnitIds => List.unmodifiable(_managedUnitIds);
+  bool get isGlobalAccess => accessBucket == 'GLOBAL';
+  bool get isDivisionAccess => accessBucket == 'KD' || accessBucket == 'ADV';
+  bool get isUnitAccess => accessBucket == 'KP';
+  bool get isFieldExecution => accessBucket == 'FIELD';
+  bool get isWarehouseAccess => accessBucket == 'WAREHOUSE';
+  bool get isKdAccess => accessBucket == 'KD';
+  bool get isAdvisorAccess => accessBucket == 'ADV';
+  bool get isKpAccess => accessBucket == 'KP';
+  bool get isManagementAccess =>
+      isGlobalAccess || isDivisionAccess || isUnitAccess;
+
+  String get roleLabel {
+    if (_normalizeRole(_role) == 'mis') return 'Super Admin';
+    final title = _jabatan?.trim();
+    if (title != null && title.isNotEmpty) return title;
+    return switch (accessBucket) {
+      'GLOBAL' => 'Manajemen',
+      'KP' => 'Penanggung Jawab Unit',
+      'ADV' => 'Advisor',
+      'KD' => 'Kepala Divisi',
+      'FIELD' => 'Tim Eksekusi',
+      'WAREHOUSE' => 'Gudang',
+      _ => _humanizeRole(_role),
+    };
+  }
 
   Future<void> init() async {
     _tempToken = await _read(keyTempToken);
@@ -74,23 +134,34 @@ class SessionManager extends ChangeNotifier {
     _divisionName = await _read(keyDivisionName);
     _jabatan = await _read(keyJabatan);
     _divisionId = int.tryParse(await _read(keyDivisionId) ?? '');
+    _accessBucket = _emptyToNull(await _read(keyAccessBucket));
+    _roleLevel = int.tryParse(await _read(keyRoleLevel) ?? '');
+    _scopeBasis = _emptyToNull(await _read(keyScopeBasis))?.toUpperCase();
+    _webEnabled = _decodeBool(await _read(keyWebEnabled));
+    _mobileEnabled = _decodeBool(await _read(keyMobileEnabled));
+    _approvalRank = int.tryParse(await _read(keyApprovalRank) ?? '');
+    _canViewAllUnits = _decodeBool(await _read(keyCanViewAllUnits)) ?? false;
+    _canViewAssignedUnits =
+        _decodeBool(await _read(keyCanViewAssignedUnits)) ?? false;
+    _managedDivisionIds = _decodeIntList(await _read(keyManagedDivisionIds));
+    _managedUnitIds = _decodeStringList(await _read(keyManagedUnitIds));
 
     final permsStr = await _read(keyPermissions);
     if (permsStr != null) {
       try {
         final decoded = jsonDecode(permsStr);
         if (decoded is List) {
-          _permissions = decoded.cast<String>();
+          _permissions = decoded.map((item) => '$item').toList();
         }
       } catch (_) {
         _permissions = [];
       }
     }
+
+    _normalizeLoadedScope();
     notifyListeners();
   }
 
-  /// Store temp token from device attestation (splash screen).
-  /// This token is ONLY valid for calling POST /auth/login.
   Future<void> setDeviceAttestation({
     required String tempToken,
     required String deviceId,
@@ -105,11 +176,6 @@ class SessionManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Store full session from login response.
-  ///
-  /// [token] Redis session token for all authenticated API calls.
-  /// [permissions] BE-driven permission codes like
-  ///   'TASK_VIEW', 'TASK_SUBMIT', 'WAREHOUSE_REQUEST', etc.
   Future<void> login({
     required String token,
     required String refreshToken,
@@ -121,6 +187,16 @@ class SessionManager extends ChangeNotifier {
     required String jabatan,
     required int divisionId,
     required List<String> permissions,
+    String? accessBucket,
+    int? roleLevel,
+    String? scopeBasis,
+    bool? webEnabled,
+    bool? mobileEnabled,
+    int? approvalRank,
+    bool? canViewAllUnits,
+    bool? canViewAssignedUnits,
+    List<int> managedDivisionIds = const [],
+    List<String> managedUnitIds = const [],
   }) async {
     _token = token;
     _refreshToken = refreshToken;
@@ -132,8 +208,21 @@ class SessionManager extends ChangeNotifier {
     _jabatan = jabatan;
     _divisionId = divisionId;
     _permissions = List<String>.from(permissions);
-    // Clear temp token after successful login
+    _accessBucket =
+        _emptyToNull(accessBucket)?.toUpperCase() ??
+        _deriveAccessBucket(role, _permissions);
+    _roleLevel = roleLevel;
+    _scopeBasis = _emptyToNull(scopeBasis)?.toUpperCase();
+    _webEnabled = webEnabled;
+    _mobileEnabled = mobileEnabled;
+    _approvalRank = approvalRank;
+    _canViewAllUnits = canViewAllUnits ?? false;
+    _canViewAssignedUnits = canViewAssignedUnits ?? false;
+    _managedDivisionIds = _normalizeDivisionIds(managedDivisionIds, divisionId);
+    _managedUnitIds = _normalizeStringList(managedUnitIds);
     _tempToken = null;
+
+    _normalizeLoadedScope();
 
     await Future.wait([
       _delete(keyTempToken),
@@ -147,26 +236,55 @@ class SessionManager extends ChangeNotifier {
       _write(keyJabatan, jabatan),
       _write(keyDivisionId, '$divisionId'),
       _write(keyPermissions, jsonEncode(_permissions)),
+      _write(keyAccessBucket, _accessBucket ?? ''),
+      _write(keyRoleLevel, _roleLevel?.toString() ?? ''),
+      _write(keyScopeBasis, _scopeBasis ?? ''),
+      _write(keyWebEnabled, (_webEnabled ?? true).toString()),
+      _write(keyMobileEnabled, (_mobileEnabled ?? true).toString()),
+      _write(keyApprovalRank, _approvalRank?.toString() ?? ''),
+      _write(keyCanViewAllUnits, _canViewAllUnits.toString()),
+      _write(keyCanViewAssignedUnits, _canViewAssignedUnits.toString()),
+      _write(keyManagedDivisionIds, jsonEncode(_managedDivisionIds)),
+      _write(keyManagedUnitIds, jsonEncode(_managedUnitIds)),
     ]);
 
     notifyListeners();
   }
 
-  /// Check if the user has a specific BE permission code.
   bool hasPerm(String permissionCode) {
     return _permissions.contains(permissionCode);
   }
 
-  /// Check if the user has ANY of the given permission codes.
   bool hasAnyPerm(List<String> codes) {
     return codes.any((c) => _permissions.contains(c));
+  }
+
+  bool matchesAccessBucket(String bucket) {
+    return accessBucket == bucket.trim().toUpperCase();
+  }
+
+  bool hasApprovalRankAtLeast(int rank) {
+    final currentRank = approvalRank;
+    return currentRank != null && currentRank >= rank;
+  }
+
+  bool canAccessDivision(String? divisionId) {
+    if (divisionId == null || divisionId.isEmpty) return false;
+    if (canViewAllUnits) return true;
+    final parsed = int.tryParse(divisionId);
+    if (parsed == null) return false;
+    return _managedDivisionIds.contains(parsed) || _divisionId == parsed;
+  }
+
+  bool canAccessUnit(String? unitId) {
+    if (unitId == null || unitId.isEmpty) return false;
+    if (canViewAllUnits) return true;
+    return _managedUnitIds.contains(unitId);
   }
 
   Future<void> logout() async {
     _token = null;
     _refreshToken = null;
-    // Do NOT clear _tempToken and _deviceId here so the user can login again
-    // _tempToken = null;
     _userId = null;
     _employeeId = null;
     _fullName = null;
@@ -175,6 +293,16 @@ class SessionManager extends ChangeNotifier {
     _jabatan = null;
     _divisionId = null;
     _permissions = [];
+    _accessBucket = null;
+    _roleLevel = null;
+    _scopeBasis = null;
+    _webEnabled = null;
+    _mobileEnabled = null;
+    _approvalRank = null;
+    _canViewAllUnits = false;
+    _canViewAssignedUnits = false;
+    _managedDivisionIds = [];
+    _managedUnitIds = [];
 
     await Future.wait([
       _delete(keyTempToken),
@@ -188,6 +316,16 @@ class SessionManager extends ChangeNotifier {
       _delete(keyJabatan),
       _delete(keyDivisionId),
       _delete(keyPermissions),
+      _delete(keyAccessBucket),
+      _delete(keyRoleLevel),
+      _delete(keyScopeBasis),
+      _delete(keyWebEnabled),
+      _delete(keyMobileEnabled),
+      _delete(keyApprovalRank),
+      _delete(keyCanViewAllUnits),
+      _delete(keyCanViewAssignedUnits),
+      _delete(keyManagedDivisionIds),
+      _delete(keyManagedUnitIds),
     ]);
 
     notifyListeners();
@@ -204,44 +342,378 @@ class SessionManager extends ChangeNotifier {
   Future<void> _delete(String key) {
     return storage.delete(key: key);
   }
+
+  void _normalizeLoadedScope() {
+    _accessBucket ??= _deriveAccessBucket(_role, _permissions);
+    _scopeBasis ??= _deriveScopeBasis(_accessBucket, _permissions);
+    _managedDivisionIds = _normalizeDivisionIds(
+      _managedDivisionIds,
+      _divisionId,
+    );
+    _managedUnitIds = _normalizeStringList(_managedUnitIds);
+  }
+
+  String? _emptyToNull(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  bool? _decodeBool(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) return null;
+    if (normalized == 'true' || normalized == '1') return true;
+    if (normalized == 'false' || normalized == '0') return false;
+    return null;
+  }
+
+  List<int> _decodeIntList(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .map((item) => int.tryParse('$item'))
+          .whereType<int>()
+          .toSet()
+          .toList()
+        ..sort();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<String> _decodeStringList(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return _normalizeStringList(decoded.map((item) => '$item').toList());
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<int> _normalizeDivisionIds(List<int> values, int? fallbackDivisionId) {
+    final normalized = <int>{
+      ...values.where((item) => item > 0),
+      if (values.isEmpty &&
+          fallbackDivisionId != null &&
+          fallbackDivisionId > 0)
+        fallbackDivisionId,
+    }.toList()..sort();
+    return normalized;
+  }
+
+  List<String> _normalizeStringList(List<String> values) {
+    return values
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  String _deriveLegacyRole(
+    String? rawRole,
+    String? bucket,
+    List<String> permissions,
+  ) {
+    final normalizedRaw = _normalizeRole(rawRole);
+    switch ((bucket ?? '').toUpperCase()) {
+      case 'GLOBAL':
+        return 'pm';
+      case 'KP':
+        return 'kp';
+      case 'ADV':
+        return 'adv';
+      case 'KD':
+        return 'kd';
+      case 'FIELD':
+        return 'op';
+      case 'WAREHOUSE':
+        return _warehouseLegacyRole(normalizedRaw) ?? 'kepala_gudang';
+      default:
+        return _normalizeRoleByPermission(normalizedRaw, permissions);
+    }
+  }
+
+  String _deriveAccessBucket(String? rawRole, List<String> permissions) {
+    final normalized = _normalizeRole(rawRole);
+    final normalizedPerms = permissions
+        .map((item) => item.toUpperCase())
+        .toSet();
+    final hasGlobalScope =
+        permissions.contains(Perms.viewAllUnits) ||
+        normalizedPerms.contains('VIEW_ALL_UNITS');
+    final hasKpApproval = normalizedPerms.any(
+      (code) => const {
+        'WO_APPROVE_PM',
+        'APPROVE_WO_PM',
+        'WO_APPROVE',
+        'PR_APPROVE',
+        'VENDOR_APPROVE',
+        'QC_VALIDATE',
+      }.contains(code),
+    );
+    final hasAdvisorApproval = normalizedPerms.any(
+      (code) => const {
+        'REVIEW_TASK',
+        'WO_APPROVE_ADVISOR',
+        'APPROVE_WO_ADVISOR',
+      }.contains(code),
+    );
+    final hasKdPlanning = normalizedPerms.any(
+      (code) => const {
+        'CREATE_TASK',
+        'UPDATE_PLAN',
+        'WO_CREATE',
+        'VIEW_COUNTDOWN',
+        'VIEW_UNITS',
+      }.contains(code),
+    );
+    final hasWarehouseScope =
+        normalizedPerms.any(
+          (code) => const {
+            'WAREHOUSE_VIEW',
+            'WAREHOUSE_REQUEST',
+            'WAREHOUSE_APPROVE',
+            'WAREHOUSE_READY',
+            'WAREHOUSE_ISSUE',
+            'WAREHOUSE_RETURN',
+            'WAREHOUSE_STOCK_CARD_VIEW',
+          }.contains(code),
+        ) &&
+        !hasKdPlanning &&
+        !hasAdvisorApproval &&
+        !hasKpApproval;
+    final hasFieldExecution = normalizedPerms.any(
+      (code) => const {
+        'TASK_EXECUTE',
+        'TASK_SUBMIT',
+        'TASK_PENDING',
+        'TASK_BREAK',
+        'UPLOAD_TICKET',
+      }.contains(code),
+    );
+
+    if (hasGlobalScope ||
+        const {
+          'pm',
+          'mp',
+          'admin',
+          'mis',
+          'manager_produksi',
+          'manager_operational',
+        }.contains(normalized)) {
+      return 'GLOBAL';
+    }
+    if (const {
+      'kp',
+      'kepala_produksi',
+      'kepala_project',
+      'kepala_project_unit',
+      'project_head',
+    }.contains(normalized)) {
+      return 'KP';
+    }
+    if (const {'adv', 'advisor'}.contains(normalized)) {
+      return 'ADV';
+    }
+    if (const {'kd', 'ketua_divisi', 'kepala_divisi'}.contains(normalized)) {
+      return 'KD';
+    }
+    if (const {
+          'kp',
+          'kepala_produksi',
+          'kepala_project',
+          'kepala_project_unit',
+          'project_head',
+        }.contains(normalized) ||
+        hasKpApproval) {
+      return 'KP';
+    }
+    if (const {'adv', 'advisor'}.contains(normalized) || hasAdvisorApproval) {
+      return 'ADV';
+    }
+    if (const {'kd', 'ketua_divisi', 'kepala_divisi'}.contains(normalized) ||
+        hasKdPlanning) {
+      return 'KD';
+    }
+    if (_warehouseLegacyRole(normalized) != null || hasWarehouseScope) {
+      return 'WAREHOUSE';
+    }
+    if (hasFieldExecution) {
+      return 'FIELD';
+    }
+    return 'USER';
+  }
+
+  String _deriveScopeBasis(String? bucket, List<String> permissions) {
+    if (permissions.contains(Perms.viewAllUnits)) return 'GLOBAL';
+    return switch ((bucket ?? '').toUpperCase()) {
+      'GLOBAL' => 'GLOBAL',
+      'KP' => 'ASSIGNED_UNITS',
+      'ADV' => 'ASSIGNED_DIVISIONS',
+      'KD' => 'ASSIGNED_DIVISIONS',
+      'FIELD' => 'SELF_ONLY',
+      _ => 'OWN_DIVISION',
+    };
+  }
+
+  String _normalizeRoleByPermission(
+    String normalizedRaw,
+    List<String> permissions,
+  ) {
+    final normalized = _warehouseLegacyRole(normalizedRaw) ?? normalizedRaw;
+    if (normalized.isNotEmpty) return normalized;
+    final normalizedPerms = permissions
+        .map((item) => item.toUpperCase())
+        .toSet();
+    if (normalizedPerms.contains('VIEW_ALL_UNITS')) return 'pm';
+    if (normalizedPerms.any(
+      (code) => const {
+        'WO_APPROVE_PM',
+        'APPROVE_WO_PM',
+        'WO_APPROVE',
+        'PR_APPROVE',
+        'VENDOR_APPROVE',
+        'QC_VALIDATE',
+      }.contains(code),
+    )) {
+      return 'kp';
+    }
+    if (normalizedPerms.any(
+      (code) => const {
+        'REVIEW_TASK',
+        'WO_APPROVE_ADVISOR',
+        'APPROVE_WO_ADVISOR',
+      }.contains(code),
+    )) {
+      return 'adv';
+    }
+    if (normalizedPerms.any(
+      (code) =>
+          const {'CREATE_TASK', 'UPDATE_PLAN', 'WO_CREATE'}.contains(code),
+    )) {
+      return 'kd';
+    }
+    if (normalizedPerms.contains('TASK_EXECUTE')) return 'op';
+    return 'user';
+  }
+
+  String _normalizeRole(String? value) {
+    return (value ?? '')
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+  }
+
+  String? _warehouseLegacyRole(String normalizedRole) {
+    if (normalizedRole.isEmpty) return null;
+    if (const {
+      'kepala_gudang',
+      'admin_gudang',
+      'gudang',
+      'gudang_tools',
+      'gudang_sparepart',
+      'gudang_bahan',
+      'ppic',
+      'ppc',
+      'manager_gudang',
+    }.contains(normalizedRole)) {
+      return normalizedRole;
+    }
+    return null;
+  }
+
+  String _humanizeRole(String? rawRole) {
+    final normalized = _normalizeRole(rawRole);
+    return switch (normalized) {
+      'kp' || 'kepala_produksi' || 'kepala_project' => 'Penanggung Jawab Unit',
+      'adv' || 'advisor' => 'Advisor',
+      'kd' || 'ketua_divisi' || 'kepala_divisi' => 'Kepala Divisi',
+      'op' || 'team_lapangan' => 'Tim Eksekusi',
+      'kepala_gudang' || 'admin_gudang' || 'gudang' => 'Gudang',
+      'gudang_tools' => 'Gudang Tools',
+      'gudang_sparepart' => 'Gudang Spare Part',
+      'gudang_bahan' => 'Gudang Material',
+      'ppic' || 'ppc' || 'manager_gudang' => 'PPIC',
+      'pm' ||
+      'mp' ||
+      'manager_produksi' ||
+      'manager_operational' => 'Manajemen',
+      'admin' => 'Administrator',
+      'mis' => 'Super Admin',
+      _ => 'User',
+    };
+  }
 }
 
 /// BE-driven permission code constants.
-///
-/// These mirror the `sys_permissions` table in the backend database.
-/// Frontend uses these to conditionally render UI elements.
 abstract class Perms {
   // ── Task ───────────────────────────────────────────────
   static const taskView = 'TASK_VIEW';
   static const taskAssign = 'TASK_ASSIGN';
   static const taskSubmit = 'TASK_SUBMIT';
   static const taskCheckpoint = 'TASK_CHECKPOINT';
+  static const taskPending = 'TASK_PENDING';
+  static const taskBreak = 'TASK_BREAK';
+  static const taskExecute = 'TASK_EXECUTE';
+  static const uploadTicket = 'UPLOAD_TICKET';
   static const jobPlanCreate = 'CREATE_TASK';
   static const jobPlanReview = 'REVIEW_TASK';
   static const jobPlanUpdate = 'UPDATE_PLAN';
+  static const viewAllUnits = 'view_all_units';
+  static const viewAssignedUnits = 'view_assigned_units';
   static const unitsView = 'VIEW_UNITS';
   static const countdownView = 'VIEW_COUNTDOWN';
   static const countdownDetailView = 'VIEW_COUNTDOWN_DETAIL';
+  static const countdownSubmitApproval = 'COUNTDOWN_SUBMIT_APPROVAL';
+  static const countdownMarkQcReady = 'COUNTDOWN_MARK_QC_READY';
+  static const countdownRequestRevision = 'COUNTDOWN_REQUEST_REVISION';
 
   // ── Work Order ─────────────────────────────────────────
   static const woCreate = 'WO_CREATE';
   static const woApprove = 'WO_APPROVE';
   static const woApproveAdvisor = 'APPROVE_WO_ADVISOR';
   static const woApprovePm = 'APPROVE_WO_PM';
+  static const woExtensionRequest = 'WO_EXTENSION_REQUEST';
+  static const woExtensionApprove = 'WO_EXTENSION_APPROVE';
+  static const woReject = 'WO_REJECT';
   static const woView = 'WO_VIEW';
 
   // ── QC ─────────────────────────────────────────────────
+  static const qcView = 'QC_VIEW';
   static const qcSubmit = 'QC_SUBMIT';
   static const qcValidate = 'QC_VALIDATE';
 
   // ── Warehouse / Peminjaman ─────────────────────────────
+  static const warehouseView = 'WAREHOUSE_VIEW';
   static const warehouseRequest = 'WAREHOUSE_REQUEST';
   static const warehouseApprove = 'WAREHOUSE_APPROVE';
-  static const warehouseLogs = 'LIST_LOGS';
+  static const warehouseReady = 'WAREHOUSE_READY';
+  static const warehouseIssue = 'WAREHOUSE_ISSUE';
+  static const warehouseReturn = 'WAREHOUSE_RETURN';
+  static const warehouseLogs = 'WAREHOUSE_VIEW';
+  static const warehouseStockCardView = 'WAREHOUSE_STOCK_CARD_VIEW';
 
   // ── Monitoring ─────────────────────────────────────────
   static const monitoringView = 'LIST_CAR_PROGRESS';
   static const monitoringDetail = 'CAR_PROGRESS_DETAIL';
+
+  // ── Purchase / Vendor ──────────────────────────────────
+  static const prView = 'PR_VIEW';
+  static const prCreate = 'PR_CREATE';
+  static const prApprove = 'PR_APPROVE';
+  static const wovCreate = 'WOV_CREATE';
+  static const wovUpdate = 'WOV_UPDATE';
+  static const vendorView = 'VENDOR_VIEW';
+  static const vendorCreate = 'VENDOR_CREATE';
+  static const vendorApprove = 'VENDOR_APPROVE';
+  static const vendorUpdateStatus = 'VENDOR_UPDATE_STATUS';
+  static const vendorReceive = 'VENDOR_RECEIVE';
 
   // ── Profile ────────────────────────────────────────────
   static const notificationsView = 'LIST_NOTIFICATIONS';

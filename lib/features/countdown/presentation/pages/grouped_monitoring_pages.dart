@@ -73,8 +73,8 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
     final overallProgress = _divisions.isEmpty
         ? 0.0
         : _divisions.fold<double>(0, (s, d) => s + d.divisionProgress) /
-            _divisions.length /
-            100.0;
+              _divisions.length /
+              100.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -98,9 +98,13 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.unit.unitName,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textMuted)),
+                Text(
+                  widget.unit.unitName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -109,12 +113,15 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
                     if (widget.unit.contractDeliveryDate != null)
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.orange.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: AppColors.orange.withValues(alpha: 0.35)),
+                            color: AppColors.orange.withValues(alpha: 0.35),
+                          ),
                         ),
                         child: Text(
                           'DL ${widget.unit.contractDeliveryDate}',
@@ -153,8 +160,10 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
                 const SizedBox(height: 4),
                 Text(
                   '${_divisions.length} divisi',
-                  style:
-                      const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -242,15 +251,14 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
       selectedColor: AppColors.gold.withValues(alpha: 0.2),
       checkmarkColor: AppColors.gold,
       labelStyle: TextStyle(
-          fontSize: 12,
-          color: isSelected ? AppColors.gold : AppColors.textPrimary,
-          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400),
+        fontSize: 12,
+        color: isSelected ? AppColors.gold : AppColors.textPrimary,
+        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+      ),
       backgroundColor: AppColors.surfaceInput,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: isSelected ? AppColors.gold : AppColors.border,
-        ),
+        side: BorderSide(color: isSelected ? AppColors.gold : AppColors.border),
       ),
     );
   }
@@ -298,10 +306,14 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
     }
 
     final progress = widget.division.divisionProgress / 100.0;
-    final totalJobdesc =
-        _sections.fold<int>(0, (s, sec) => s + sec.totalJobdesc);
-    final totalRemainingHours =
-        _sections.fold<double>(0, (s, sec) => s + sec.totalRemainingHours);
+    final totalJobdesc = _sections.fold<int>(
+      0,
+      (s, sec) => s + sec.totalJobdesc,
+    );
+    final totalRemainingHours = _sections.fold<double>(
+      0,
+      (s, sec) => s + sec.totalRemainingHours,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -325,11 +337,13 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    '${widget.unit.unitName} • ${widget.division.divisionName}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                  '${widget.unit.unitName} • ${widget.division.divisionName}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -345,15 +359,19 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                     Text(
                       '${(progress * 100).round()}%',
                       style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemainingHours)} sisa',
-                  style:
-                      const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -376,8 +394,10 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
             ),
           ),
           Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (value) {
@@ -396,14 +416,22 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Cari nama panel/part...',
-                hintStyle:
-                    const TextStyle(color: AppColors.textMuted, fontSize: 13),
-                prefixIcon: const Icon(Icons.search,
-                    color: AppColors.textMuted, size: 20),
+                hintStyle: const TextStyle(
+                  color: AppColors.textMuted,
+                  fontSize: 13,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
                 suffixIcon: _searchCtrl.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear,
-                            size: 18, color: AppColors.textMuted),
+                        icon: const Icon(
+                          Icons.clear,
+                          size: 18,
+                          color: AppColors.textMuted,
+                        ),
                         onPressed: () {
                           _searchCtrl.clear();
                           setState(() => _searchQuery = '');
@@ -413,8 +441,10 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                     : null,
                 filled: true,
                 fillColor: AppColors.surfaceInput,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 0,
+                  horizontal: 16,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: AppColors.border),
@@ -528,8 +558,7 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
       );
     }
 
-    final doneCount =
-        _items.where(CountdownHelper.isWorkCompleted).length;
+    final doneCount = _items.where(CountdownHelper.isWorkCompleted).length;
     final totalItems = _items.length;
     final progress = totalItems == 0 ? 0.0 : doneCount / totalItems;
 
@@ -541,7 +570,7 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
       'ready_qc': 3,
       'waiting_qc': 3,
       'qc ready': 3,
-      'done': 4
+      'done': 4,
     };
     filteredItems.sort((a, b) {
       final stA = CountdownHelper.effectiveCountdownStatus(a).toLowerCase();
@@ -577,15 +606,21 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    '${widget.unit.unitName} • ${widget.division.divisionName}',
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textMuted)),
+                  '${widget.unit.unitName} • ${widget.division.divisionName}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(widget.section.sectionName,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                Text(
+                  widget.section.sectionName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -598,15 +633,23 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text('${(progress * 100).round()}%',
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
+                    Text(
+                      '${(progress * 100).round()}%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('$doneCount/$totalItems jobdesc selesai',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
+                Text(
+                  '$doneCount/$totalItems jobdesc selesai',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -625,8 +668,8 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
                       '${item.progress}% • ${item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(item.remainingHours)} sisa • DL ${item.deadlineDate}',
                   statusStr: status,
                   onTap: () {
-                    final role = sl<SessionManager>().role;
-                    if (role == 'pm') {
+                    final session = sl<SessionManager>();
+                    if (session.isGlobalAccess) {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => PmJobdescActualPage(
@@ -720,20 +763,30 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${widget.item.panelName} • ${widget.item.jobdesc}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-                const SizedBox(height: 4),
-                Text('Status: $status • DL ${widget.item.deadlineDate}',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
+                Text(
+                  '${widget.item.panelName} • ${widget.item.jobdesc}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
-                    '${widget.item.progress}% • ${widget.item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(widget.item.remainingHours)} sisa',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
+                  'Status: $status • DL ${widget.item.deadlineDate}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${widget.item.progress}% • ${widget.item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(widget.item.remainingHours)} sisa',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -750,8 +803,10 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
                   return const Center(
                     child: Text(
                       'Belum ada aktual (countdown detail) untuk jobdesc ini.',
-                      style:
-                          TextStyle(fontSize: 12, color: AppColors.textMuted),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                   );
                 }
@@ -772,22 +827,29 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(detail.employeeName,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
-                              )),
+                          Text(
+                            detail.employeeName,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                           const SizedBox(height: 2),
-                          Text('${detail.job} • ${detail.detailJob}',
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.textSecondary)),
+                          Text(
+                            '${detail.job} • ${detail.detailJob}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                           const SizedBox(height: 3),
                           Text(
                             '${detail.workDate} ${detail.startTime}-${detail.finishTime} • ${detail.durationHours.toStringAsFixed(1)} jam • ${detail.percentage.toStringAsFixed(0)}%',
                             style: const TextStyle(
-                                fontSize: 10, color: AppColors.textMuted),
+                              fontSize: 10,
+                              color: AppColors.textMuted,
+                            ),
                           ),
                         ],
                       ),
@@ -860,8 +922,8 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
     final overallProgress = _divisions.isEmpty
         ? 0.0
         : _divisions.fold<double>(0, (s, d) => s + d.divisionProgress) /
-            _divisions.length /
-            100.0;
+              _divisions.length /
+              100.0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -885,9 +947,13 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.unit.unitName,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textMuted)),
+                Text(
+                  widget.unit.unitName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
@@ -903,17 +969,20 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
                     Text(
                       '${(overallProgress * 100).round()}%',
                       style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${_divisions.length} divisi',
-                  style:
-                      const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -1013,10 +1082,14 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
     }
 
     final progress = widget.division.divisionProgress / 100.0;
-    final totalJobdesc =
-        _sections.fold<int>(0, (s, sec) => s + sec.totalJobdesc);
-    final totalRemaining =
-        _sections.fold<double>(0, (s, sec) => s + sec.totalRemainingHours);
+    final totalJobdesc = _sections.fold<int>(
+      0,
+      (s, sec) => s + sec.totalJobdesc,
+    );
+    final totalRemaining = _sections.fold<double>(
+      0,
+      (s, sec) => s + sec.totalRemainingHours,
+    );
 
     final filteredSections = _sections.where((sec) {
       if (_searchQuery.isEmpty) return true;
@@ -1045,11 +1118,13 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                    '${widget.unit.unitName} • ${widget.division.divisionName}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                  '${widget.unit.unitName} • ${widget.division.divisionName}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -1062,16 +1137,23 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text('${(progress * 100).round()}%',
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
+                    Text(
+                      '${(progress * 100).round()}%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
                 Text(
-                    '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemaining)} sisa',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
+                  '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemaining)} sisa',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1080,15 +1162,22 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Cari Panel/Part',
-                hintStyle:
-                    const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                prefixIcon: const Icon(Icons.search,
-                    color: AppColors.textMuted, size: 20),
+                hintStyle: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 16,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: AppColors.border),
@@ -1102,8 +1191,10 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                   borderSide: const BorderSide(color: AppColors.gold),
                 ),
               ),
-              style:
-                  const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary,
+              ),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
           ),
@@ -1207,8 +1298,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
       );
     }
 
-    final doneCount =
-        _items.where(CountdownHelper.isWorkCompleted).length;
+    final doneCount = _items.where(CountdownHelper.isWorkCompleted).length;
     final totalItems = _items.length;
     final progress = totalItems == 0 ? 0.0 : doneCount / totalItems;
 
@@ -1234,7 +1324,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
       'ready_qc': 3,
       'waiting_qc': 3,
       'qc ready': 3,
-      'done': 4
+      'done': 4,
     };
     filteredItems.sort((a, b) {
       final stA = CountdownHelper.effectiveCountdownStatus(a).toLowerCase();
@@ -1269,15 +1359,22 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.unit.unitName,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.textMuted)),
+                Text(
+                  widget.unit.unitName,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textMuted,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(widget.section.sectionName,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
+                Text(
+                  widget.section.sectionName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -1290,15 +1387,23 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text('${(progress * 100).round()}%',
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w700)),
+                    Text(
+                      '${(progress * 100).round()}%',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text('$doneCount/$totalItems jobdesc selesai',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textMuted)),
+                Text(
+                  '$doneCount/$totalItems jobdesc selesai',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textMuted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1324,15 +1429,22 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Cari jobdesc...',
-                hintStyle:
-                    const TextStyle(fontSize: 13, color: AppColors.textMuted),
-                prefixIcon: const Icon(Icons.search,
-                    color: AppColors.textMuted, size: 20),
+                hintStyle: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textMuted,
+                ),
+                prefixIcon: const Icon(
+                  Icons.search,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 isDense: true,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 16,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: const BorderSide(color: AppColors.border),
@@ -1346,8 +1458,10 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                   borderSide: const BorderSide(color: AppColors.gold),
                 ),
               ),
-              style:
-                  const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppColors.textPrimary,
+              ),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
           ),
@@ -1411,9 +1525,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
         fontSize: 12,
       ),
       backgroundColor: AppColors.surfaceCard,
-      side: BorderSide(
-        color: isSelected ? AppColors.gold : AppColors.border,
-      ),
+      side: BorderSide(color: isSelected ? AppColors.gold : AppColors.border),
     );
   }
 }
@@ -1479,7 +1591,9 @@ class _CountdownJobdescListCard extends StatelessWidget {
                         child: Text(
                           subtitle,
                           style: const TextStyle(
-                              fontSize: 10, color: AppColors.textMuted),
+                            fontSize: 10,
+                            color: AppColors.textMuted,
+                          ),
                         ),
                       ),
                     ],

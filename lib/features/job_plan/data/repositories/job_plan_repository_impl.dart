@@ -166,7 +166,10 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     required String userId,
   }) async {
     try {
-      final result = await dataSource.approvePlan(planId: planId, userId: userId);
+      final result = await dataSource.approvePlan(
+        planId: planId,
+        userId: userId,
+      );
       return fp.Right(_mapPlan(result));
     } catch (e) {
       return fp.Left(ServerFailure(message: e.toString()));
@@ -225,6 +228,9 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     required String assignedTo,
     required String description,
     required double targetHours,
+    double? totalProjectHours,
+    String? startDate,
+    String? deadlineDate,
     required String workDate,
     required String startTime,
     required String finishTime,
@@ -247,6 +253,9 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
         assignedTo: assignedTo,
         description: description,
         targetHours: targetHours,
+        totalProjectHours: totalProjectHours,
+        startDate: startDate,
+        deadlineDate: deadlineDate,
         workDate: workDate,
         startTime: startTime,
         finishTime: finishTime,
@@ -355,12 +364,27 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       remainingHoursAlias:
           item['remainingHours_alias']?.toString() ??
           item['remaining_hours_alias']?.toString(),
-      progress: (item['progress'] ?? item['actual_progress_percent'] ?? 0) is num
-          ? ((item['progress'] ?? item['actual_progress_percent'] ?? 0) as num).toInt()
-          : int.tryParse((item['progress'] ?? item['actual_progress_percent'])?.toString() ?? '0') ?? 0,
-      totalActualHours: (item['totalActualHours'] ?? item['total_actual_hours'] ?? 0.0) is num
-          ? ((item['totalActualHours'] ?? item['total_actual_hours'] ?? 0.0) as num).toDouble()
-          : double.tryParse((item['totalActualHours'] ?? item['total_actual_hours'])?.toString() ?? '0') ?? 0.0,
+      progress:
+          (item['progress'] ?? item['actual_progress_percent'] ?? 0) is num
+          ? ((item['progress'] ?? item['actual_progress_percent'] ?? 0) as num)
+                .toInt()
+          : int.tryParse(
+                  (item['progress'] ?? item['actual_progress_percent'])
+                          ?.toString() ??
+                      '0',
+                ) ??
+                0,
+      totalActualHours:
+          (item['totalActualHours'] ?? item['total_actual_hours'] ?? 0.0) is num
+          ? ((item['totalActualHours'] ?? item['total_actual_hours'] ?? 0.0)
+                    as num)
+                .toDouble()
+          : double.tryParse(
+                  (item['totalActualHours'] ?? item['total_actual_hours'])
+                          ?.toString() ??
+                      '0',
+                ) ??
+                0.0,
     );
   }
 

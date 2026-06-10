@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,13 +7,11 @@ import '../../../../core/di/injection.dart';
 import '../../domain/entities/profile_data.dart';
 import '../../domain/repositories/profile_repository.dart';
 
-/// Profile page for the Lapangan (field worker) bottom nav.
-///
-/// Displays:
-/// - User avatar & name
-/// - Division, jabatan (position), employee ID
-/// - Active permissions remain available in background data only
-/// - Logout button
+// Tujuan: Halaman profil user — menampilkan foto profil (dari URL), nama, divisi, jabatan, employee ID, dan logout.
+// Caller: FeatureShellPage via route /profile.
+// Dependensi: ProfileRepository, CachedNetworkImage, AppColors.
+// Main Functions: ProfilePage (widget utama), _buildProfileHeader, _buildInitialsAvatar, _buildInfoCard, _confirmLogout.
+// Side Effects: Fetch GET /api/v1/users/profile via ProfileRepository.getProfile(); CachedNetworkImage load dari object storage.
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
@@ -82,26 +81,43 @@ class ProfilePage extends StatelessWidget {
         .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
         .join();
 
+    final hasPhoto =
+        profile.photoUrl != null && profile.photoUrl!.trim().isNotEmpty;
+
     return Column(
       children: [
-        // Avatar circle
+        // Avatar circle — foto profil atau inisial fallback
         Container(
-          width: 80,
-          height: 80,
+          width: 88,
+          height: 88,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: AppColors.gold.withValues(alpha: 0.15),
             border: Border.all(color: AppColors.gold, width: 2),
           ),
-          child: Center(
-            child: Text(
-              initials,
-              style: const TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: AppColors.gold,
-              ),
-            ),
+          child: ClipOval(
+            child: hasPhoto
+                ? CachedNetworkImage(
+                    imageUrl: profile.photoUrl!,
+                    fit: BoxFit.cover,
+                    width: 88,
+                    height: 88,
+                    placeholder: (context, url) => const Center(
+                      child: SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.gold,
+                        ),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) {
+                      debugPrint('--- AVATAR LOAD ERROR: $error ---');
+                      return _buildInitialsAvatar(initials);
+                    },
+                  )
+                : _buildInitialsAvatar(initials),
           ),
         ),
         const SizedBox(height: 14),
@@ -122,6 +138,22 @@ class ProfilePage extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// Widget avatar inisial (fallback saat tidak ada foto).
+  Widget _buildInitialsAvatar(String initials) {
+    return Container(
+      color: AppColors.gold.withValues(alpha: 0.15),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: AppColors.gold,
+        ),
+      ),
     );
   }
 

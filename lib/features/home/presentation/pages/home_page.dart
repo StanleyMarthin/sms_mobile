@@ -1,6 +1,10 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../profile/domain/entities/profile_data.dart';
+import '../../../profile/domain/repositories/profile_repository.dart';
 
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -159,15 +163,7 @@ class HomePage extends StatelessWidget {
   // ── Greeting card ───────────────────────────────────────
   Widget _buildGreeting(SessionManager session) {
     final name = session.fullName ?? 'User';
-    // Use jabatan from BE login response; fallback to role-based label.
-    final role =
-        session.jabatan ??
-        switch (session.role) {
-          'kd' => 'Kepala Divisi',
-          'pm' => 'Project Manager',
-          'adv' => 'Advisor',
-          _ => 'Operator / Lapangan',
-        };
+    final role = session.roleLabel;
     final div = session.divisionName ?? '';
 
     return Container(
@@ -181,24 +177,62 @@ class HomePage extends StatelessWidget {
       child: Row(
         children: [
           // Avatar
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.gold.withValues(alpha: 0.1),
-              border: Border.all(color: AppColors.gold, width: 1.5),
-            ),
-            child: Center(
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.gold,
+          FutureBuilder<ProfileData>(
+            future: sl<ProfileRepository>().getProfile(),
+            builder: (context, snapshot) {
+              final photoUrl = snapshot.data?.photoUrl;
+              final hasPhoto = photoUrl != null && photoUrl.trim().isNotEmpty;
+              final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+              return Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.gold.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.gold, width: 1.5),
                 ),
-              ),
-            ),
+                child: ClipOval(
+                  child: hasPhoto
+                      ? CachedNetworkImage(
+                          imageUrl: photoUrl,
+                          fit: BoxFit.cover,
+                          width: 46,
+                          height: 46,
+                          placeholder: (context, url) => const Center(
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: AppColors.gold,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Center(
+                            child: Text(
+                              initials,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.gold,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Center(
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.gold,
+                            ),
+                          ),
+                        ),
+                ),
+              );
+            },
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -520,7 +554,8 @@ List<_MenuItem> _buildMenusForSession(SessionManager session) {
   // ══════════════════════════════════════════════════════════
   // Lapangan / Mechanic: menus map to 5-tab bottom-nav layout
   // ══════════════════════════════════════════════════════════
-  if (perms.contains(Permission.dashboardMechanic)) {
+  if (session.isFieldExecution &&
+      perms.contains(Permission.dashboardMechanic)) {
     menus.add(
       _MenuItem(
         icon: Icons.assignment,

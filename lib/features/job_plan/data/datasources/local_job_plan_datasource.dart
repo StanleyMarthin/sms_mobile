@@ -159,22 +159,25 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
               '')
           .toString();
 
-String _itemJobDescription(Map<String, dynamic> item) =>
-    (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
+  String _itemJobDescription(Map<String, dynamic> item) =>
+      (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
 
-Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
-  final normalized = Map<String, dynamic>.from(item);
-  final name =
-      (normalized['name'] ?? normalized['job_name'] ?? normalized['jobName'] ?? '')
-          .toString()
-          .trim();
-  if (name.isNotEmpty && name.toLowerCase() != 'null') {
-    normalized['name'] = name;
-    normalized['job_name'] ??= name;
-    normalized['jobName'] ??= name;
+  Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
+    final normalized = Map<String, dynamic>.from(item);
+    final name =
+        (normalized['name'] ??
+                normalized['job_name'] ??
+                normalized['jobName'] ??
+                '')
+            .toString()
+            .trim();
+    if (name.isNotEmpty && name.toLowerCase() != 'null') {
+      normalized['name'] = name;
+      normalized['job_name'] ??= name;
+      normalized['jobName'] ??= name;
+    }
+    return normalized;
   }
-  return normalized;
-}
 
   Map<String, dynamic> _normalizeDraftItem(
     Map<String, dynamic> item, {
@@ -525,6 +528,9 @@ Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
     required String assignedTo,
     required String description,
     required double targetHours,
+    double? totalProjectHours,
+    String? startDate,
+    String? deadlineDate,
     required String workDate,
     required String startTime,
     required String finishTime,
@@ -552,11 +558,14 @@ Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
       'assignedTo': assignedTo,
       'description': description,
       'targetHours': targetHours,
+      'totalProjectHours': totalProjectHours ?? targetHours,
       'workDate': workDate,
       'startTime': startTime,
       'finishTime': finishTime,
       'isOvertime': isOvertime,
-      'deadline': workDate,
+      if ((startDate ?? '').trim().isNotEmpty) 'startDate': startDate,
+      if ((deadlineDate ?? '').trim().isNotEmpty) 'deadlineDate': deadlineDate,
+      'deadline': deadlineDate ?? workDate,
       'status': initialStatus ?? 'PENDING_ADV',
       'note': normalizedNote,
     };

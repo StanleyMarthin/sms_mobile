@@ -14,6 +14,10 @@ class TaskExecutionHelper {
   ) {
     final targetHours = item['targetHours'] as double? ?? 0.0;
     if (targetHours <= 0) return [item];
+    final totalProjectHours =
+        (item['totalProjectHours'] as num?)?.toDouble() ?? targetHours;
+    final hasSeparatedProjectTarget =
+        totalProjectHours > 0.0 && totalProjectHours > targetHours;
 
     final taskDate = DateTime.parse(item['taskDate'] as String);
     final startTimeStr = item['startTime'] as String;
@@ -39,7 +43,7 @@ class TaskExecutionHelper {
     int splitMins = finishMins;
 
     // Time-based split
-    if (finishMins > thresholdMins) {
+    if (!hasSeparatedProjectTarget && finishMins > thresholdMins) {
       if (startMins < thresholdMins) {
         needsSplit = true;
         splitMins = thresholdMins;
@@ -50,7 +54,7 @@ class TaskExecutionHelper {
     }
 
     // Duration-based split (target hours > 8)
-    if (targetHours > 8.0) {
+    if (!hasSeparatedProjectTarget && targetHours > 8.0) {
       final durationSplitMins = startMins + maxNormalMins;
       if (!needsSplit || durationSplitMins < splitMins) {
         needsSplit = true;

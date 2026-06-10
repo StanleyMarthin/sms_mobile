@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
@@ -47,10 +48,10 @@ class _CountdownPageState extends State<CountdownPage> {
 
   Future<void> _loadUnits() async {
     final session = sl<SessionManager>();
-    final role = session.role?.toLowerCase();
+    final role = session.accessBucket ?? session.role ?? '';
     try {
       final units = await _repository.getUnits(
-        role: role ?? '',
+        role: role,
         division: session.divisionName,
       );
       final unitStatuses = <String, String>{
@@ -68,7 +69,7 @@ class _CountdownPageState extends State<CountdownPage> {
       if (!mounted) return;
       try {
         final units = await _repository.getUnits(
-          role: role ?? '',
+          role: role,
           division: session.divisionName,
         );
         final unitStatuses = <String, String>{
@@ -91,14 +92,13 @@ class _CountdownPageState extends State<CountdownPage> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final role = sl<SessionManager>().role?.toLowerCase();
-    final isPmOrKp = role == 'pm' ||
-        role == 'kp' ||
-        role == 'manager_produksi' ||
-        role == 'kepala_produksi' ||
-        role == 'kepala_project';
+    final session = sl<SessionManager>();
+    final canReviewRevision = hasPermission(
+      session.role,
+      Permission.countdownSubmitApproval,
+    );
 
-    if (!isPmOrKp) {
+    if (!canReviewRevision) {
       return _buildCountdownListView();
     }
 
@@ -147,7 +147,8 @@ class _CountdownPageState extends State<CountdownPage> {
           // Instructional summary card intentionally hidden from UI.
           if (_units.isEmpty)
             _buildEmptyMessage(
-                'Belum ada kendaraan countdown untuk ditampilkan.')
+              'Belum ada kendaraan countdown untuk ditampilkan.',
+            )
           else
             ..._units.map((unit) => _buildVehicleCard(context, unit)),
         ],
@@ -157,8 +158,7 @@ class _CountdownPageState extends State<CountdownPage> {
 
   Widget _buildVehicleCard(BuildContext context, CountdownUnit unit) {
     final progress = unit.progress / 100;
-    final roleStr = sl<SessionManager>().role?.toLowerCase();
-    final isPm = roleStr == 'pm' || roleStr == 'manager_produksi';
+    final isPm = sl<SessionManager>().isGlobalAccess;
     final isFocused = widget.focusCarId == unit.carId;
 
     return InkWell(
@@ -187,11 +187,14 @@ class _CountdownPageState extends State<CountdownPage> {
                   color: AppColors.gold.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text('Fokus',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.gold)),
+                child: const Text(
+                  'Fokus',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.gold,
+                  ),
+                ),
               ),
             Row(
               children: [
@@ -211,9 +214,10 @@ class _CountdownPageState extends State<CountdownPage> {
             Text(
               'DL: ${unit.deliveryDate ?? '-'}',
               style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textMuted),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textMuted,
+              ),
             ),
             const SizedBox(height: 10),
             Row(
@@ -291,14 +295,17 @@ class _CountdownPageState extends State<CountdownPage> {
         final grouped = <String, List<CountdownJobdesc>>{};
         for (final request in requests) {
           final unitDivision = _units
-              .firstWhere((u) => u.carId == request.carId,
-                  orElse: () => CountdownUnit(
-                      carId: request.carId,
-                      unitName: 'Unknown',
-                      owner: '',
-                      progress: 0,
-                      status: '',
-                      division: 'UNKNOWN'))
+              .firstWhere(
+                (u) => u.carId == request.carId,
+                orElse: () => CountdownUnit(
+                  carId: request.carId,
+                  unitName: 'Unknown',
+                  owner: '',
+                  progress: 0,
+                  status: '',
+                  division: 'UNKNOWN',
+                ),
+              )
               .division;
           grouped.putIfAbsent(unitDivision, () => <CountdownJobdesc>[]);
           grouped[unitDivision]!.add(request);
@@ -344,17 +351,20 @@ class _CountdownPageState extends State<CountdownPage> {
                     subtitle: Text(
                       '${divisionRequests.length} pengajuan',
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textMuted),
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
                     ),
                     childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     children: divisionRequests.map((request) {
                       final fallbackUnit = CountdownUnit(
-                          carId: request.carId,
-                          unitName: "-",
-                          owner: "",
-                          progress: 0,
-                          status: "",
-                          division: "");
+                        carId: request.carId,
+                        unitName: "-",
+                        owner: "",
+                        progress: 0,
+                        status: "",
+                        division: "",
+                      );
                       final unitName = _units
                           .firstWhere(
                             (u) => u.carId == request.carId,
@@ -396,8 +406,10 @@ class _CountdownPageState extends State<CountdownPage> {
           const SizedBox(height: 4),
           Text(
             request.jobdesc,
-            style:
-                const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
@@ -421,8 +433,10 @@ class _CountdownPageState extends State<CountdownPage> {
           const SizedBox(height: 4),
           Text(
             'Alasan: ${request.requestedRevisionReason ?? '-'}',
-            style:
-                const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -437,7 +451,8 @@ class _CountdownPageState extends State<CountdownPage> {
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                          content: Text('Pengajuan revisi ditolak.')),
+                        content: Text('Pengajuan revisi ditolak.'),
+                      ),
                     );
                     await _loadUnits();
                   },
@@ -485,8 +500,8 @@ class _CountdownPageState extends State<CountdownPage> {
     );
     var approvedDeadline =
         DateTime.tryParse(request.requestedRevisionDeadline ?? '') ??
-            DateTime.tryParse(request.deadlineDate) ??
-            DateTime.now();
+        DateTime.tryParse(request.deadlineDate) ??
+        DateTime.now();
 
     final approved = await showDialog<bool>(
       context: context,
@@ -503,7 +518,10 @@ class _CountdownPageState extends State<CountdownPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${_units.firstWhere((u) => u.carId == request.carId, orElse: () => CountdownUnit(carId: request.carId, unitName: "-", owner: "", progress: 0, status: "", division: "")).unitName} • ${request.panelName}',
+                  '${_units.firstWhere(
+                    (u) => u.carId == request.carId,
+                    orElse: () => CountdownUnit(carId: request.carId, unitName: "-", owner: "", progress: 0, status: "", division: ""),
+                  ).unitName} • ${request.panelName}',
                   style: const TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -514,13 +532,16 @@ class _CountdownPageState extends State<CountdownPage> {
                 Text(
                   request.jobdesc,
                   style: const TextStyle(
-                      fontSize: 12, color: AppColors.textSecondary),
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: approvedHoursCtrl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Jam Disetujui',
                     helperText: 'PM bisa edit jam sebelum ACC.',
@@ -529,12 +550,19 @@ class _CountdownPageState extends State<CountdownPage> {
                 const SizedBox(height: 6),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Deadline Disetujui',
-                      style: TextStyle(color: AppColors.textPrimary)),
-                  subtitle: Text(_formatDate(approvedDeadline),
-                      style: const TextStyle(color: AppColors.textMuted)),
-                  trailing: const Icon(Icons.calendar_today_rounded,
-                      color: AppColors.gold, size: 18),
+                  title: const Text(
+                    'Deadline Disetujui',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
+                  subtitle: Text(
+                    _formatDate(approvedDeadline),
+                    style: const TextStyle(color: AppColors.textMuted),
+                  ),
+                  trailing: const Icon(
+                    Icons.calendar_today_rounded,
+                    color: AppColors.gold,
+                    size: 18,
+                  ),
                   onTap: () async {
                     final picked = await showDatePicker(
                       context: ctx,
@@ -557,8 +585,9 @@ class _CountdownPageState extends State<CountdownPage> {
             ),
             FilledButton(
               onPressed: () async {
-                final approvedHours =
-                    double.tryParse(approvedHoursCtrl.text.trim());
+                final approvedHours = double.tryParse(
+                  approvedHoursCtrl.text.trim(),
+                );
                 if (approvedHours == null || approvedHours < 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Jam disetujui tidak valid.')),
@@ -619,7 +648,9 @@ class _CountdownPageState extends State<CountdownPage> {
   }
 
   Future<void> _showVehicleCountdown(
-      BuildContext context, CountdownUnit unit) async {
+    BuildContext context,
+    CountdownUnit unit,
+  ) async {
     final effectiveStatus = _unitStatuses[unit.carId] ?? unit.status;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -638,7 +669,9 @@ class _CountdownPageState extends State<CountdownPage> {
   // ─── PM Monitoring ───────────────────────────────────────────
 
   Future<void> _showPmUnitMonitoring(
-      BuildContext context, CountdownUnit unit) async {
+    BuildContext context,
+    CountdownUnit unit,
+  ) async {
     final effectiveStatus = _unitStatuses[unit.carId] ?? unit.status;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -662,10 +695,7 @@ class _CountdownPageState extends State<CountdownPage> {
 }
 
 class _RevisionSectionHeader extends StatelessWidget {
-  const _RevisionSectionHeader({
-    required this.title,
-    required this.subtitle,
-  });
+  const _RevisionSectionHeader({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;

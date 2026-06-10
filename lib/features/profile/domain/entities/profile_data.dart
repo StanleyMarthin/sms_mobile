@@ -11,6 +11,7 @@ class ProfileData {
     required this.isActive,
     required this.permissions,
     required this.deviceId,
+    this.photoUrl,
   });
 
   final String employeeId;
@@ -22,4 +23,8 @@ class ProfileData {
   final bool isActive;
   final List<String> permissions;
   final String deviceId;
+
+  /// URL foto profil dari object storage. Nullable — fallback ke avatar inisial
+  /// jika null, kosong, atau gagal dimuat.
+  final String? photoUrl;
 }

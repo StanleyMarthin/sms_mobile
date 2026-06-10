@@ -798,10 +798,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
 
   SessionManager get _session => sl<SessionManager>();
 
-  bool get _needsDirectReworkPlan {
-    final rawRole = (_session.role ?? '').trim().toLowerCase();
-    return rawRole == 'kd' || rawRole == 'ketua_divisi';
-  }
+  bool get _needsDirectReworkPlan => _session.isKdAccess;
 
   String? _safeCurrentRoute() {
     try {

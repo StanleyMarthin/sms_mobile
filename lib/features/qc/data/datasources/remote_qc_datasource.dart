@@ -21,12 +21,8 @@ class RemoteQcDataSource implements QcDataSource {
   Future<List<Map<String, dynamic>>> getQcDivisions() async {
     final sessionDivisionId = sessionManager.divisionId;
     final sessionDivisionName = sessionManager.divisionName;
-    final role = sessionManager.role?.toLowerCase();
-    final canSeeAllDivisions = role == 'pm' ||
-        role == 'admin' ||
-        role == 'manager_produksi' ||
-        role == 'kepala_produksi' ||
-        role == 'kepala_project';
+    final canSeeAllDivisions =
+        sessionManager.canViewAssignedUnits || sessionManager.canViewAllUnits;
 
     if (!canSeeAllDivisions &&
         sessionDivisionId != null &&
@@ -37,7 +33,7 @@ class RemoteQcDataSource implements QcDataSource {
           'divisionId': sessionDivisionId.toString(),
           'divisionName': sessionDivisionName,
           'totalItem': 0,
-        }
+        },
       ];
     }
 
@@ -63,9 +59,9 @@ class RemoteQcDataSource implements QcDataSource {
       }
     }
 
-    return divisionsById.values.toList()
-      ..sort(
-          (a, b) => '${a['divisionName']}'.compareTo('${b['divisionName']}'));
+    return divisionsById.values.toList()..sort(
+      (a, b) => '${a['divisionName']}'.compareTo('${b['divisionName']}'),
+    );
   }
 
   @override
@@ -110,10 +106,10 @@ class RemoteQcDataSource implements QcDataSource {
 
     final hasMore = data['hasMore'] as bool? ?? false;
     final total = (data['total'] as num?)?.toInt() ?? 0;
-    
+
     // items from API is a flat list
     final rawItems = data['items'] as List<dynamic>? ?? [];
-    
+
     // Group them exactly like the old way: Map unitId -> QcUnitGroup format
     final unitGroupMap = <String, Map<String, dynamic>>{};
     for (final rawItem in rawItems) {
@@ -255,17 +251,14 @@ class RemoteQcDataSource implements QcDataSource {
   }
 
   Future<List<Map<String, dynamic>>> _getCountdownDivisions(
-      String carId) async {
+    String carId,
+  ) async {
     final response = await apiClient.get(
       ApiEndpoints.countdown,
-      queryParameters: {
-        'user_id': _userId,
-        'car_id': carId,
-      },
+      queryParameters: {'user_id': _userId, 'car_id': carId},
     );
     return (response.data as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .toList();
   }
-
 }

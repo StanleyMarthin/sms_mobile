@@ -10,7 +10,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/utils/time_parser.dart';
 import '../../../../core/widgets/duration_input.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
@@ -38,6 +37,24 @@ String? _formatWoDateTime(String? raw) {
     return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(local);
   }
   return raw;
+}
+
+bool _canActOnWoStage(SessionManager session, String stage) {
+  switch (stage) {
+    case 'PENDING_KD_TARGET':
+      return session.isKdAccess && session.hasPerm(Perms.woCreate);
+    case 'PENDING_ADVISOR':
+      return session.isAdvisorAccess &&
+          session.hasAnyPerm([Perms.woApproveAdvisor, Perms.woApprove]);
+    case 'PENDING_KP':
+      return session.isKpAccess &&
+          session.hasAnyPerm([Perms.woApprovePm, Perms.woApprove]);
+    case 'PENDING_MP':
+      return session.isGlobalAccess &&
+          session.hasAnyPerm([Perms.woApprovePm, Perms.woApprove]);
+    default:
+      return false;
+  }
 }
 
 class WoDetailPage extends StatefulWidget {
@@ -125,18 +142,8 @@ class _WoDetailContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
-    final role = (session.role ?? '').toUpperCase();
-
-    // Cek apakah role ini perlu aksi
-    final stageRoleMap = {
-      'PENDING_KD_TARGET': ['KD', 'KETUA_DIVISI'],
-      'PENDING_ADVISOR': ['ADV', 'ADVISOR'],
-      'PENDING_KP': ['KP', 'KEPALA_PRODUKSI'],
-      'PENDING_MP': ['MP', 'MANAGER_PRODUKSI', 'ADMIN'],
-    };
     final currentStage = wo.currentStage ?? '';
-    final allowedRoles = stageRoleMap[currentStage] ?? [];
-    final canAct = wo.isActive && allowedRoles.any((r) => r == role);
+    final canAct = wo.isActive && _canActOnWoStage(session, currentStage);
     final needsEstimate = currentStage == 'PENDING_KD_TARGET';
 
     return Scaffold(
@@ -843,9 +850,7 @@ class _ActionAreaState extends State<_ActionArea> {
       widget.wo.currentStage ?? '',
       widget.wo.needsAdvisor,
     );
-    final estStr = est != null
-        ? '${est.toStringAsFixed(1)} jam'
-        : 'estimasi sebelumnya';
+    final estStr = '${est.toStringAsFixed(1)} jam';
 
     showDialog(
       context: context,

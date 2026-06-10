@@ -8,10 +8,12 @@ import '../../../../core/session/session_manager.dart';
 import '../../../countdown/presentation/pages/countdown_page.dart';
 import '../../../job_plan/presentation/pages/job_plan_page.dart';
 import '../../../monitoring/presentation/pages/monitoring_page.dart';
+import '../../../pr/presentation/pages/pr_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../qc/presentation/pages/qc_page.dart';
 import '../../../warehouse_request/presentation/pages/warehouse_request_page.dart';
 import '../../../work_order/presentation/pages/work_order_page.dart';
+import '../../../wov/presentation/pages/wov_page.dart';
 import '../../../task_execution/presentation/pages/tasks_page.dart';
 import 'operator_dashboard_overview_page.dart';
 
@@ -80,11 +82,12 @@ class _DashboardPageState extends State<DashboardPage>
 
   /// Roles with dashboardKd use top tabs; mechanic uses bottom nav.
   bool get _useTopTabs =>
-      hasPermission(_session.role, Permission.dashboardKd) ||
+      (!_session.isFieldExecution &&
+          hasPermission(_session.role, Permission.dashboardKd)) ||
       ((_hasSessionPermission(Permission.warehouseLogsView) ||
               _hasSessionPermission(Permission.warehouseApprove) ||
               _hasSessionPermission(Permission.profileView)) &&
-          !hasPermission(_session.role, Permission.dashboardMechanic));
+          !_session.isFieldExecution);
 
   /// Build the list of tabs based on the user's role permissions.
   List<_DashTab> _buildTabs() {
@@ -93,7 +96,8 @@ class _DashboardPageState extends State<DashboardPage>
     // ══════════════════════════════════════════════════════
     // Lapangan / Mechanic: 5 fixed bottom-nav tabs
     // ══════════════════════════════════════════════════════
-    if (hasPermission(role, Permission.dashboardMechanic)) {
+    if (_session.isFieldExecution &&
+        hasPermission(role, Permission.dashboardMechanic)) {
       return _buildLapanganTabs();
     }
 
@@ -214,6 +218,28 @@ class _DashboardPageState extends State<DashboardPage>
       );
     }
 
+    if (hasPermission(role, Permission.prView)) {
+      tabs.add(
+        _DashTab(
+          icon: Icons.shopping_cart_outlined,
+          activeIcon: Icons.shopping_cart,
+          label: 'PR',
+          builder: () => const PrPage(),
+        ),
+      );
+    }
+
+    if (hasPermission(role, Permission.wovView)) {
+      tabs.add(
+        _DashTab(
+          icon: Icons.store_mall_directory_outlined,
+          activeIcon: Icons.store_mall_directory,
+          label: 'WO Vendor',
+          builder: () => const WovPage(),
+        ),
+      );
+    }
+
     if (_hasSessionPermission(Permission.warehouseApprove) ||
         _hasSessionPermission(Permission.warehouseRequest) ||
         _hasSessionPermission(Permission.warehouseLogsView)) {
@@ -254,15 +280,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   // ── App Bar ──────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar() {
-    // Use jabatan from BE login response; fallback to role-based label.
-    final roleName =
-        _session.jabatan ??
-        switch (_session.role) {
-          'kd' => 'Kepala Divisi',
-          'pm' => 'Project Manager',
-          'adv' => 'Advisor',
-          _ => 'Operator / Lapangan',
-        };
+    final roleName = _session.roleLabel;
 
     return AppBar(
       backgroundColor: AppColors.surfaceCard,

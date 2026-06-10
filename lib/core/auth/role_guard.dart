@@ -22,8 +22,8 @@ class RoleGuard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = sl<SessionManager>().role;
-    if (hasPermission(role, permission)) {
+    final session = sl<SessionManager>();
+    if (hasPermission(session.role, permission)) {
       return child;
     }
     return fallback;
@@ -45,8 +45,8 @@ class RoleGuardAny extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = sl<SessionManager>().role;
-    final hasAny = permissions.any((p) => hasPermission(role, p));
+    final session = sl<SessionManager>();
+    final hasAny = permissions.any((p) => hasPermission(session.role, p));
     return hasAny ? child : fallback;
   }
 }
@@ -75,7 +75,7 @@ class RoleGuardByRole extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = sl<SessionManager>();
-    final userRole = UserRole.fromString(session.role);
+    final userRole = UserRole.fromSession(session);
     if (userRole != null && allowedRoles.contains(userRole)) {
       return child;
     }

@@ -18,6 +18,18 @@ class CountdownRepositoryImpl implements CountdownRepository {
   final CountdownDataSource dataSource;
   final QcDataSource? qcDataSource;
 
+  String _normalizeScopeRole(String? role) {
+    final normalized = (role ?? '').trim().toLowerCase();
+    return switch (normalized) {
+      'global' || 'pm' || 'mp' || 'admin' || 'mis' => 'GLOBAL',
+      'kp' || 'kepala_produksi' || 'kepala_project' => 'KP',
+      'adv' || 'advisor' => 'ADV',
+      'kd' || 'ketua_divisi' || 'kepala_divisi' => 'KD',
+      'field' || 'op' || 'team_lapangan' => 'FIELD',
+      _ => normalized.toUpperCase(),
+    };
+  }
+
   @override
   Future<List<CountdownUnit>> getUnits({
     required String? role,
@@ -25,8 +37,11 @@ class CountdownRepositoryImpl implements CountdownRepository {
   }) async {
     final units = await dataSource.getUnits();
     final normalizedDivision = division?.trim().toUpperCase();
+    final scopeRole = _normalizeScopeRole(role);
     final canSeeAll =
-        role == 'pm' || role == 'adv' || normalizedDivision == 'MANAGEMENT';
+        scopeRole == 'GLOBAL' ||
+        scopeRole == 'ADV' ||
+        normalizedDivision == 'MANAGEMENT';
     final filtered = canSeeAll
         ? units
         : units.where((item) {

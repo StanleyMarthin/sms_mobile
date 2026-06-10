@@ -57,7 +57,8 @@ class RuntimeWarmupService {
       final role = (sessionManager.role ?? '').toLowerCase();
       final division = sessionManager.divisionName;
       final dateNow = DateTime.now();
-      final canSeeAllMonitoring = role == 'adv' || role == 'pm';
+      final canSeeAllMonitoring =
+          sessionManager.canViewAssignedUnits || sessionManager.canViewAllUnits;
 
       final rolePriorityWarmups = <Future<void>>[
         _safe(() async {
@@ -86,10 +87,15 @@ class RuntimeWarmupService {
               );
             }),
             _safe(() => jobPlanRepository.getPlans()),
-            _safe(() => _warmCountdown(role: sessionManager.role, division: division)),
-            _safe(() => qcRepository.getQcItems(
-                  divisionId: sessionManager.divisionId?.toString() ?? '',
-                )),
+            _safe(
+              () =>
+                  _warmCountdown(role: sessionManager.role, division: division),
+            ),
+            _safe(
+              () => qcRepository.getQcItems(
+                divisionId: sessionManager.divisionId?.toString() ?? '',
+              ),
+            ),
             _safe(() => workOrderRepository.getWorkOrders()),
           ]);
           break;
@@ -101,25 +107,35 @@ class RuntimeWarmupService {
                 TaskFilter(type: TaskType.plan, date: dateNow, limit: 20),
               );
             }),
-            _safe(() => monitoringRepository.getCars(
-                  canSeeAll: canSeeAllMonitoring,
-                  division: division,
-                )),
-            _safe(() => qcRepository.getQcItems(
-                  divisionId: sessionManager.divisionId?.toString() ?? '',
-                )),
+            _safe(
+              () => monitoringRepository.getCars(
+                canSeeAll: canSeeAllMonitoring,
+                division: division,
+              ),
+            ),
+            _safe(
+              () => qcRepository.getQcItems(
+                divisionId: sessionManager.divisionId?.toString() ?? '',
+              ),
+            ),
             _safe(() => workOrderRepository.getWorkOrders()),
           ]);
           break;
         default:
-          rolePriorityWarmups.add(_safe(() => _warmCountdown(
-                role: sessionManager.role,
-                division: division,
-              )));
+          rolePriorityWarmups.add(
+            _safe(
+              () =>
+                  _warmCountdown(role: sessionManager.role, division: division),
+            ),
+          );
       }
 
       final secondaryWarmups = <Future<void>>[
-        _safe(() => notificationsRepository.getNotifications(role: sessionManager.role)),
+        _safe(
+          () => notificationsRepository.getNotifications(
+            role: sessionManager.role,
+          ),
+        ),
       ];
 
       await Future.wait(rolePriorityWarmups, eagerError: false);
@@ -139,7 +155,9 @@ class RuntimeWarmupService {
     );
     final countdownFutures = units
         .take(8)
-        .map((unit) => _safe(() => countdownRepository.getDivisions(unit.carId)))
+        .map(
+          (unit) => _safe(() => countdownRepository.getDivisions(unit.carId)),
+        )
         .toList();
     await Future.wait(countdownFutures, eagerError: false);
   }

@@ -20,11 +20,13 @@ class ApiResponse<T> {
   final String message;
   final T? data;
 
-  const ApiResponse({
-    required this.success,
-    required this.message,
-    this.data,
-  });
+  const ApiResponse({required this.success, required this.message, this.data});
+}
+
+class _CacheEntry {
+  final Response response;
+  final DateTime expiry;
+  _CacheEntry(this.response, this.expiry);
 }
 
 /// Central HTTP client wrapping Dio with auth & error interceptors.
@@ -32,18 +34,18 @@ class ApiClient {
   final Dio _dio;
   final SessionManager _sessionManager;
   Future<bool>? _refreshFuture;
+  final Map<String, _CacheEntry> _cache = {};
 
-  ApiClient({
-    required SessionManager sessionManager,
-    Dio? dio,
-  })  : _sessionManager = sessionManager,
-        _dio = dio ?? Dio() {
+  ApiClient({required SessionManager sessionManager, Dio? dio})
+    : _sessionManager = sessionManager,
+      _dio = dio ?? Dio() {
     _dio.options
       ..connectTimeout = const Duration(seconds: 10)
       ..receiveTimeout = const Duration(seconds: 30)
       ..headers = {'Content-Type': 'application/json'};
 
     _dio.interceptors.add(_authInterceptor());
+    _dio.interceptors.add(_cacheInterceptor());
     _dio.interceptors.add(_retryInterceptor());
     _dio.interceptors.add(_responseInterceptor());
   }
@@ -72,6 +74,31 @@ class ApiClient {
     );
   }
 
+  /// Caches responses for GET requests if `useCache` is true in `extra`.
+  Interceptor _cacheInterceptor() {
+    return InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (options.method == 'GET' && options.extra['useCache'] == true) {
+          final cacheKey = '${options.uri}';
+          final entry = _cache[cacheKey];
+          if (entry != null && DateTime.now().isBefore(entry.expiry)) {
+            handler.resolve(entry.response);
+            return;
+          }
+        }
+        handler.next(options);
+      },
+      onResponse: (response, handler) {
+        if (response.requestOptions.method == 'GET' && response.requestOptions.extra['useCache'] == true) {
+          final cacheKey = '${response.requestOptions.uri}';
+          final duration = response.requestOptions.extra['cacheDuration'] as Duration? ?? const Duration(minutes: 5);
+          _cache[cacheKey] = _CacheEntry(response, DateTime.now().add(duration));
+        }
+        handler.next(response);
+      },
+    );
+  }
+
   /// Parses standard API response format.
   /// On `success: false`, rejects with a [DioException] carrying the
   /// mapped [Failure] in `error`.
@@ -82,7 +109,8 @@ class ApiClient {
         if (data is Map<String, dynamic>) {
           final success = data['success'] as bool? ?? true;
           if (!success) {
-            final errorCode = (data['errorCode'] as String?) ??
+            final errorCode =
+                (data['errorCode'] as String?) ??
                 (data['error'] as String?) ??
                 '';
             final message = data['message'] as String? ?? 'Terjadi kesalahan';
@@ -102,14 +130,15 @@ class ApiClient {
       },
       onError: (error, handler) async {
         final statusCode = error.response?.statusCode ?? 0;
-        final isAuthError = statusCode == 401 || statusCode == 403 || statusCode == 404;
+        final isAuthError =
+            statusCode == 401 || statusCode == 403 || statusCode == 404;
 
         // If already mapped (from response interceptor) and not an auth HTTP error, pass through
         if (error.error is Failure && !isAuthError) {
           handler.next(error);
           return;
         }
-        
+
         if (_shouldAttemptRefresh(error)) {
           await _retryAfterRefresh(error, handler);
           return;
@@ -218,18 +247,17 @@ class ApiClient {
         return false;
       }
 
-      final refreshDio = Dio(BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 30),
-        headers: {'Content-Type': 'application/json'},
-      ));
+      final refreshDio = Dio(
+        BaseOptions(
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 30),
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
 
       final response = await refreshDio.post(
         ApiEndpoints.refresh,
-        data: {
-          'refreshToken': refreshToken,
-          'deviceId': deviceId,
-        },
+        data: {'refreshToken': refreshToken, 'deviceId': deviceId},
       );
 
       final raw = response.data as Map<String, dynamic>? ?? {};
@@ -263,6 +291,46 @@ class ApiClient {
         jabatan: '${user['grade'] ?? ''}',
         divisionId: (user['divisionId'] as num?)?.toInt() ?? 0,
         permissions: permissions,
+        accessBucket: user['accessBucket'] as String?,
+        roleLevel:
+            ((user['roleProfile'] as Map<String, dynamic>?)?['roleLevel']
+                    as num?)
+                ?.toInt(),
+        scopeBasis:
+            ((user['roleProfile'] as Map<String, dynamic>?)?['scopeBasis']
+                as String?),
+        webEnabled:
+            ((user['roleProfile'] as Map<String, dynamic>?)?['webEnabled']
+                as bool?),
+        mobileEnabled:
+            ((user['roleProfile'] as Map<String, dynamic>?)?['mobileEnabled']
+                as bool?),
+        approvalRank:
+            ((user['roleProfile'] as Map<String, dynamic>?)?['approvalRank']
+                    as num?)
+                ?.toInt(),
+        canViewAllUnits:
+            ((user['scope'] as Map<String, dynamic>?)?['canViewAllUnits']
+                as bool?),
+        canViewAssignedUnits:
+            ((user['scope'] as Map<String, dynamic>?)?['canViewAssignedUnits']
+                as bool?),
+        managedDivisionIds:
+            (((user['scope'] as Map<String, dynamic>?)?['managedDivisionIds']
+                        as List<dynamic>? ??
+                    user['managedDivisions'] as List<dynamic>?)
+                ?.map((e) => int.tryParse('$e'))
+                .whereType<int>()
+                .toList()) ??
+            const [],
+        managedUnitIds:
+            (((user['scope'] as Map<String, dynamic>?)?['unitIds']
+                        as List<dynamic>? ??
+                    user['managedUnits'] as List<dynamic>?)
+                ?.map((e) => '$e')
+                .where((e) => e.trim().isNotEmpty)
+                .toList()) ??
+            const [],
       );
 
       completer.complete(true);
@@ -295,11 +363,13 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? queryParameters,
     CancelToken? cancelToken,
+    Options? options,
   }) async {
     final response = await _dio.get(
       path,
       queryParameters: queryParameters,
       cancelToken: cancelToken,
+      options: options,
     );
     return _parseResponse(response);
   }
@@ -324,11 +394,7 @@ class ApiClient {
     dynamic data,
     CancelToken? cancelToken,
   }) async {
-    final response = await _dio.put(
-      path,
-      data: data,
-      cancelToken: cancelToken,
-    );
+    final response = await _dio.put(path, data: data, cancelToken: cancelToken);
     return _parseResponse(response);
   }
 
@@ -417,7 +483,9 @@ class ApiClient {
         }
         if (statusCode >= 500) {
           return ServerFailure(
-              message: message ?? 'Server error', statusCode: statusCode);
+            message: message ?? 'Server error',
+            statusCode: statusCode,
+          );
         }
         if (statusCode == 401) {
           return UnauthorizedFailure(message: message);
@@ -426,7 +494,9 @@ class ApiClient {
           return ForbiddenFailure(message: message);
         }
         return ClientFailure(
-            message: message ?? 'Request gagal', statusCode: statusCode);
+          message: message ?? 'Request gagal',
+          statusCode: statusCode,
+        );
       case DioExceptionType.cancel:
         return const ClientFailure(message: 'Request dibatalkan');
       default:
