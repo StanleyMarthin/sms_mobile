@@ -1,117 +1,222 @@
 <!--
-Tujuan: Ringkasan produk, arsitektur, dan runtime mobile SM-MIS Workshop.
-Caller: Developer, reviewer, dan stakeholder teknis/non-teknis.
-Dependensi: Flutter app, FastAPI microservices, gateway API production, MySQL, Redis.
-Main Functions: Dokumentasi high-level fitur, arsitektur, workflow, dan konfigurasi runtime.
+Tujuan: Memperkenalkan SM-MIS Workshop Mobile sebagai portofolio produk dan engineering.
+Caller: Recruiter, calon klien, stakeholder, developer, dan reviewer teknis.
+Dependensi: Flutter app, REST API microservices, MySQL, Redis, dan Firebase Cloud Messaging.
+Main Functions: Ringkasan produk, kontribusi teknis, arsitektur, fitur, dan panduan menjalankan project.
 Side Effects: Tidak ada.
 -->
 
-# 🚀 Executive Summary & System Report: SM-MIS Workshop Mobile
+# SM-MIS Workshop Mobile
 
-Dokumen ini disusun sebagai laporan representasi arsitektur, fitur bisnis, dan capaian dari aplikasi **SM-MIS Workshop Mobile** beserta integrasi sistem *backend*-nya, ditujukan untuk evaluasi dan presentasi kepada jajaran Manajemen.
+**Aplikasi operasional bengkel yang menyatukan perencanaan, pengerjaan, kontrol kualitas, dan kebutuhan gudang dalam satu alur kerja.**
+
+SM-MIS Workshop Mobile dibangun untuk menjawab masalah yang sangat nyata di lantai produksi: pekerjaan tersebar di banyak catatan, progres sulit dilacak, penggunaan jam kerja tidak transparan, dan kebutuhan barang sering terputus dari pekerjaan yang membutuhkannya.
+
+Alih-alih menjadi sekadar aplikasi checklist, SM-MIS menghubungkan seluruh perjalanan pekerjaan—mulai dari target kendaraan dibuat, tugas dibagikan kepada mekanik, waktu kerja dicatat, hasil diperiksa QC, hingga material dan spare part diajukan. Setiap aktivitas membawa konteks yang sama, sehingga tim lapangan dan manajemen melihat sumber data yang konsisten.
+
+> Project ini menunjukkan bagaimana saya menerjemahkan proses bisnis bengkel yang kompleks menjadi aplikasi mobile yang terstruktur, aman, dan tetap praktis digunakan oleh tim operasional.
+
+## Masalah yang Diselesaikan
+
+Operasional bengkel memiliki banyak titik yang mudah kehilangan konteks. Sebuah pekerjaan bisa dimulai dari target produksi, berubah karena kerusakan tambahan, membutuhkan bantuan divisi lain, tertunda karena material, lalu kembali lagi karena tidak lolos QC.
+
+SM-MIS menjaga seluruh rangkaian itu tetap terhubung:
+
+- target pekerjaan diturunkan menjadi rencana harian yang terukur;
+- mekanik hanya melihat tugas yang relevan dengan peran dan penugasannya;
+- waktu aktual dibandingkan dengan target dan sisa budget pekerjaan;
+- pekerjaan yang selesai masuk ke alur Quality Control;
+- pekerjaan tambahan, lintas divisi, dan vendor memiliki jalur pengajuan sendiri;
+- permintaan gudang dan pembelian tetap terhubung dengan unit atau tugas asal;
+- pihak terkait menerima notifikasi ketika ada pekerjaan yang membutuhkan perhatian.
+
+Hasil akhirnya bukan hanya pencatatan yang lebih rapi. Sistem membentuk jejak operasional yang bisa digunakan untuk mengevaluasi progres kendaraan, akurasi perencanaan, penggunaan jam kerja, dan hambatan produksi.
+
+## Fitur Utama
+
+### Perencanaan dan monitoring pekerjaan
+
+- **Countdown** untuk melihat target, progres, sisa jam, dan milestone kendaraan.
+- **Job Plan** untuk membagi pekerjaan harian kepada PIC berdasarkan kapasitas yang tersedia.
+- Dukungan **multijob** dan alokasi pekerjaan berurutan agar jadwal seorang mekanik tidak saling bertabrakan.
+- Monitoring lintas unit dan divisi sesuai cakupan akses pengguna.
+
+### Eksekusi tugas di lapangan
+
+- Mekanik dapat memulai, memperbarui, dan menyelesaikan tugas dari perangkat mobile.
+- Durasi aktual, progres, catatan, dan foto pekerjaan tersimpan sebagai satu laporan.
+- Draft lokal membantu menjaga input saat aplikasi terputus atau proses belum selesai.
+- Pengingat dan alarm membantu pengguna merespons batas waktu pekerjaan.
+
+### Quality Control dan rework
+
+- Pekerjaan selesai masuk ke antrean QC untuk dinilai.
+- QC dapat meluluskan pekerjaan atau mengembalikannya sebagai rework dengan catatan yang jelas.
+- Foto bukti dan histori pemeriksaan menjaga keputusan tetap dapat ditelusuri.
+
+### Work Order, Additional, dan vendor
+
+- **Additional** menangani pekerjaan tambahan yang ditemukan di tengah proses.
+- **Work Order (WO)** mengatur kebutuhan pekerjaan lintas divisi internal.
+- **Work Order Vendor (WOV)** digunakan ketika pekerjaan perlu ditangani pihak eksternal.
+- Setiap jalur memiliki konteks unit, target, status, dan persetujuan yang sesuai.
+
+### Warehouse dan Purchase Request
+
+- Pengajuan peminjaman, pengambilan, pengembalian, dan penyimpanan barang.
+- Alur persetujuan berjenjang untuk divisi, warehouse, dan PPIC.
+- Monitoring barang yang sedang digunakan beserta PIC dan divisinya.
+- Riwayat serta aktivitas warehouse dapat ditelusuri per tanggal.
+- Purchase Request menangani kebutuhan barang yang belum tersedia.
+
+### Akses berbasis peran
+
+Tampilan dan data disesuaikan dengan tanggung jawab pengguna—mulai dari anggota lapangan, Ketua Divisi, Advisor, Kepala Pool, hingga level manajemen dan administrator. Sistem menggabungkan role mapping di aplikasi dengan permission dari backend agar menu, tindakan, dan cakupan data tetap terkendali.
+
+## Bagian Engineering yang Menarik
+
+### 1. Satu proses bisnis, banyak jalur yang tetap terhubung
+
+Tantangan terbesar project ini bukan membuat halaman, melainkan menjaga konteks ketika sebuah pekerjaan berpindah dari perencanaan ke eksekusi, QC, gudang, atau divisi lain. Setiap modul dibuat feature-first, tetapi tetap memakai ID dan kontrak data yang konsisten agar alurnya bisa ditelusuri dari awal sampai akhir.
+
+### 2. Perhitungan waktu tidak berhenti pada stopwatch
+
+Sistem membedakan target harian, waktu aktual, jam normal, overtime, dan sisa budget kendaraan. Saat pekerjaan melewati target, backend memeriksa shared panel pool dan unit budget sebelum menetapkan overtime. Pendekatan ini membuat data waktu lebih dekat dengan kondisi bisnis sebenarnya.
+
+### 3. Mobile app yang siap menghadapi kondisi lapangan
+
+Koneksi di area kerja tidak selalu ideal. Karena itu aplikasi memiliki penyimpanan draft lokal, pesan error yang lebih ramah, retry pada proses tertentu, recovery untuk input QC, serta upload foto melalui presigned URL. Pengguna tidak perlu memahami detail jaringan untuk tahu apa yang harus dilakukan saat terjadi gangguan.
+
+### 4. Keamanan ditempatkan di jalur utama
+
+- API production menggunakan gateway HTTPS dengan validasi sertifikat platform.
+- Token sesi dan refresh flow ditangani terpusat oleh network client.
+- Request otomatis membawa authorization header yang sesuai.
+- Aksi sensitif dibatasi oleh role dan permission.
+- Upload file menggunakan ticket sementara, bukan kredensial storage di aplikasi.
+
+## Arsitektur
+
+```mermaid
+flowchart LR
+    User[Pengguna Workshop] --> App[Flutter Mobile App]
+    App --> Router[Routing & Role Guard]
+    Router --> Feature[Feature Modules]
+    Feature --> Repo[Repository Layer]
+    Repo --> API[HTTPS API Gateway]
+    API --> Services[FastAPI Microservices]
+    Services --> DB[(MySQL)]
+    Services --> Cache[(Redis)]
+    Services --> FCM[Firebase Cloud Messaging]
+    FCM --> App
+```
+
+Aplikasi mobile menggunakan struktur feature-first dengan pemisahan layer:
+
+```text
+lib/
+├── core/                       # network, session, routing, theme, services
+└── features/
+    └── <feature>/
+        ├── data/               # datasource dan repository implementation
+        ├── domain/             # entity, contract, dan use case
+        └── presentation/       # page, widget, dan state management
+```
+
+Alur data utamanya:
+
+```text
+Page / Widget
+    → Bloc atau page state
+    → Repository contract
+    → Remote datasource
+    → API gateway
+    → Microservice terkait
+```
+
+## Tech Stack
+
+| Area | Teknologi |
+|---|---|
+| Mobile | Flutter, Dart |
+| State management | flutter_bloc, StatefulWidget untuk state lokal |
+| Navigation | go_router |
+| Dependency injection | get_it |
+| Networking | Dio, HTTP |
+| Backend integration | REST API, FastAPI microservices |
+| Data | MySQL, Redis, SharedPreferences |
+| Notification | Firebase Cloud Messaging, local notifications |
+| Media | Camera, image compression, presigned upload URL |
+| Testing | flutter_test |
+
+## Modul yang Tersedia
+
+| Modul | Tanggung jawab utama |
+|---|---|
+| Authentication | Device initialization, login, session, dan role profile |
+| Home | Navigasi fitur berdasarkan akses pengguna |
+| Countdown | Target dan progres kendaraan |
+| Job Plan | Perencanaan serta pembagian kerja harian |
+| Task Execution | Eksekusi, durasi, progres, dan bukti pekerjaan |
+| Monitoring | Ringkasan progres lintas unit dan divisi |
+| Quality Control | Inspeksi, pass, reject, dan rework |
+| Work Order | Pekerjaan lintas divisi |
+| WOV | Pekerjaan vendor eksternal |
+| Warehouse Request | Permintaan, pemakaian, dan histori barang |
+| Purchase Request | Pengajuan pengadaan barang |
+| Notifications | Inbox notifikasi operasional |
+| Profile | Informasi pengguna dan logout |
+
+## Menjalankan Project
+
+### Prasyarat
+
+- Flutter SDK yang kompatibel dengan Dart `>=3.11.0 <4.0.0`
+- Android Studio atau Xcode untuk emulator/perangkat
+- Akses ke API SM-MIS untuk menggunakan data nyata
+
+### Instalasi
+
+```bash
+flutter pub get
+flutter run
+```
+
+Secara default aplikasi menggunakan gateway production:
+
+```text
+https://api.stanleymarthin.com
+```
+
+Base URL dapat diarahkan ke environment lain melalui `dart-define`:
+
+```bash
+flutter run --dart-define=BASE_URL=https://example-api.internal
+```
+
+### Pemeriksaan kualitas
+
+```bash
+flutter analyze
+flutter test
+```
+
+Test yang tersedia mencakup kontrak endpoint, pemetaan role dan permission, normalisasi data task, alokasi Job Plan, label status, serta filter riwayat warehouse.
+
+## Keputusan Desain
+
+- **Feature-first structure** dipilih agar perubahan pada satu domain tidak menyebar ke seluruh project.
+- **Repository abstraction** menjaga presentation layer tidak bergantung langsung pada bentuk response API.
+- **Centralized session dan network client** mengurangi duplikasi token handling serta error mapping.
+- **Permission-driven UI** membuat satu aplikasi dapat melayani banyak level pengguna.
+- **Remote-first dengan local recovery** menjaga backend sebagai sumber data utama tanpa mengabaikan kondisi perangkat di lapangan.
+
+## Status Project
+
+SM-MIS Workshop Mobile adalah aplikasi bisnis yang terus berkembang mengikuti proses operasional workshop. Repository ini berfokus pada sisi mobile; implementasi backend berjalan sebagai kumpulan microservice terpisah.
+
+Dokumentasi arsitektur dan alur teknis yang lebih rinci tersedia di [SYSTEM_MAP.md](SYSTEM_MAP.md).
 
 ---
 
-## 📌 1. Latar Belakang & Tujuan Utama
-Sistem ini dibangun untuk **mendigitalisasi seluruh operasional bengkel (Workshop)** secara *end-to-end*, menggantikan pencatatan manual yang rentan terhadap inefisiensi dan manipulasi. Tujuan utama sistem ini adalah:
-- **Transparansi Jam Kerja:** Melacak durasi pengerjaan secara akurat hingga level menit, membedakan antara waktu reguler, efisiensi kerja, dan jam lembur aktual.
-- **Standarisasi Alur (SOP):** Mengunci alur kerja (*Work Order* $\rightarrow$ *Job Plan* $\rightarrow$ *Task Execution* $\rightarrow$ *Quality Control*) agar tidak bisa di-*bypass*.
-- **Kendali Finansial (HPP):** Mengubah estimasi jam (*budget*) menjadi parameter pembatas (*pool*) yang diawasi sistem secara *real-time*.
-
----
-
-## 🏗️ 2. Arsitektur Sistem (High-Level)
-Sistem menggunakan pendekatan **Modern Microservices** untuk skalabilitas tinggi:
-1. **Frontend (Mobile App):** Dibangun dengan **Flutter**, menjamin performa mulus di Android & iOS dengan antarmuka (UI) yang telah terstandardisasi penuh.
-2. **Backend (API Services):** Dibangun dengan **Python (FastAPI)**, dibagi menjadi beberapa *microservices* mandiri (`sm_tasks`, `sm_job_plan`, `sm_warehouse`, dll).
-3. **Database & Cache:** Memanfaatkan **MySQL** untuk penyimpanan permanen (RDBMS) dan **Redis** untuk *State Management* super cepat (seperti *Draft Plan*, *Shared Time Pool*, dan *Role Approval State*).
-
-### Runtime Mobile API
-
-- Default production `BASE_URL`: `https://api.stanleymarthin.com`
-- Endpoint mobile aktif melalui gateway publik:
-  - `/sm/auth/device-init`
-  - `/api/v1/auth/login`
-  - `/sm/tasks`
-  - `/sm/job-plans`
-  - `/sm/warehouse`
-- Mode legacy raw IP/port masih bisa dipakai eksplisit untuk debugging dengan `--dart-define=BASE_URL=http://108.136.189.225`, tetapi bukan default production.
-- Aplikasi tidak lagi mematikan verifikasi sertifikat TLS secara global; HTTPS production memakai validasi sertifikat platform.
-
----
-
-## ⚙️ 3. Alur Operasional Bengkel (End-to-End Workflow)
-Sistem merajut operasional lapangan menjadi satu alur linier yang saling mengunci (*locked workflow*), meniadakan kemungkinan mekanik bekerja tanpa instruksi tertulis dan persetujuan budget.
-
-## ⚙️ 3. Alur Operasional Bengkel (End-to-End Workflow)
-Sistem merajut operasional lapangan menjadi satu alur yang saling mengunci, meniadakan kemungkinan mekanik bekerja tanpa instruksi tertulis dan persetujuan budget.
-
-### A. Pendataan Awal & Penetapan Target (Countdown)
-*(Langkah Paling Awal)* Semua aktivitas operasional bermula dari inspeksi dan pendataan awal kendaraan masuk.
-- Hasil pendataan ini diklasifikasikan dan diubah menjadi *bundle* target pengerjaan per panel kendaraan yang disebut **Countdown**.
-- Halaman *Countdown* bertindak sebagai "Papan Skor" utama proyek. Seluruh alokasi budget jam, persentase *progress*, dan durasi yang telah dipakai berpusat di sini.
-
-### B. Distribusi Target Harian (Job Plan & Multijob)
-*(Pembagian Tugas)* Berdasarkan *Countdown* yang aktif, Ketua Divisi (KD) akan memecahnya menjadi target kerja harian (*Job Plan*) untuk mekaniknya (PIC).
-- KD berwenang mendistribusikan sisa jam *Countdown* ke dalam target harian yang rasional.
-- Mendukung fitur **Multijob**, di mana beberapa tugas di panel yang sama ditumpuk menjadi satu penugasan agar efisiensi waktu mekanik maksimal.
-
-### C. Dinamika Pengerjaan Lapangan (Additional, WO, WOV)
-Di tengah jalan, kendala bengkel dikelola melalui tiga jalur tiket yang sangat spesifik dan memiliki struktur *approval* (persetujuan) berjenjang:
-1. **Additional (Tambahan Internal):** Jika ditemukan kerusakan ekstra (misal karat tersembunyi) yang masih bisa diselesaikan oleh divisinya sendiri, maka ditambahkan tugas *Additional* ke dalam *Countdown*.
-2. **WO (Work Order Lintas Divisi):** Jika penyelesaian panel membutuhkan campur tangan divisi lain di dalam bengkel (contoh: Divisi *Body* meminta Divisi Mekanik untuk menurunkan mesin), maka diajukan *Work Order* internal.
-3. **WOV (Work Order Vendor):** Jika pekerjaan ternyata tidak memungkinkan atau di luar kapasitas internal bengkel, maka dibuatkan *WOV* untuk diserahkan ke pihak vendor/bengkel rekanan eksternal.
-
-### D. Persediaan Material & Part Baru (Warehouse & PR)
-*(Persiapan Eksekusi)* Sistem mengatur alur logistik bengkel dengan ketat:
-- **Peminjaman Gudang:** Mekanik diwajibkan mengajukan permintaan material (seperti dempul, cat) melalui aplikasi (*Warehouse Request*), menjaga stok gudang tetap riil.
-- **Purchase Request (PR):** Jika bagian mobil tidak mungkin di-restorasi/diperbaiki dan butuh penggantian *sparepart* baru, mekanik/divisi dapat mengajukan pengadaan barang (*Purchase*) kepada bagian *Purchasing*.
-
-### E. Eksekusi Pekerjaan & Submit (Smart Time Tracking)
-*(Lantai Produksi)* Di sinilah mekanik terjun melakukan tugas (*Task Execution*).
-- Sistem mencatat waktu mulai dan selesai secara akurat, sekaligus otomatis mendiskon jam istirahat wajib bengkel agar tidak merugikan mekanik.
-- Setelah selesai, mekanik melakukan **Submit** (laporan persentase pengerjaan beserta bukti foto). 
-- Pada detik *Submit* inilah **Auto-Overtime Engine** bekerja menimbang efisiensi. Waktu yang meleset dari taksiran KD akan memotong sisa target, memicu *Leakage Notification* (teguran), atau secara tegas divonis sebagai *Overtime*.
-
-### F. Quality Control (QC) & Penolakan (Reject)
-*(Validasi Akhir)* Pekerjaan mekanik yang berstatus 100% Selesai wajib diuji oleh tim *Quality Control* (`READY_QC`).
-- **Pass (Lulus):** Kendaraan dinyatakan layak dan bagian pekerjaan di panel tersebut selesai.
-- **Tidak Lolos QC (Reject):** Jika ditolak, pekerjaan dikembalikan ke mekanik dengan instruksi tambahan. Mekanik harus memperbaiki menggunakan sisa budget waktunya. Jika perbaikan tersebut memakan waktu hingga sisa target/budget WO ludes, maka aturan **Overtime/Leakage** di atas akan otomatis menjeratnya.
-
-### G. Kasus Khusus: Rework Murni & Garansi
-Sistem membedakan secara tegas antara "Gagal QC" dengan **Rework Murni**. Rework Murni adalah perbaikan yang terjadi *setelah* QC lulus atau setelah mobil keluar (delivery), di mana biayanya mutlak **tidak ditagihkan ke customer**.
-- **Rework Kesalahan Internal:** Contoh, mekanik mesin tidak sengaja menggores *body*. Divisi *Body* harus memoles ulang.
-- **Rework Garansi:** Komplain pelanggan atas panel yang sama setelah mobil dibawa pulang.
-Karena bersifat *Non-Billable* (tanggungan bengkel/mekanik), kasus Rework Murni ini hanya bisa diterbitkan melalui jalur pembuatan **Additional** dengan mengaktifkan *flag* khusus (`isRework = true`).
-
----
-
-## 🛡️ 4. Fitur Unggulan: Auto-Overtime & Budget Engine
-Ini adalah fitur bisnis paling canggih di dalam sistem untuk **mencegah kebocoran budget** dan **klaim lembur fiktif**. Perhitungan *Overtime* dan Performa kini 100% diambil alih oleh mesin *Backend* menggunakan **Multi-Layer Fallback Rule**:
-
-1. **Strict Shift Rule (Time-Based):** 
-   Setiap pekerjaan yang diselesaikan lewat dari jam pulang normal (17:00, atau 14:00 hari Sabtu) akan *langsung* dicatat sebagai Overtime.
-2. **Shared Panel Pool (Jaring Pengaman 1):**
-   Jika mekanik molor dari target harian yang ditetapkan KD, sistem akan mengecek apakah ada "sisa waktu" dari pekerjaan Multijob lain di panel yang sama. Waktu yang berlebih bisa saling disubstitusi.
-3. **Unit Budget Fallback (Jaring Pengaman 2):**
-   Jika Pool harian habis, sistem belum tentu memvonisnya sebagai lembur. Sistem akan melihat saldo total estimasi WO mobil tersebut (`wo_estimated_hours`). Jika masih ada alokasi, maka jam bocor tersebut ditutupi oleh sisa Unit Budget.
-4. **Final Vonis Overtime:**
-   Jika *Pool Panel* ludes **DAN** *Unit Budget* habis, barulah kelebihan waktu tersebut secara hukum disahkan sebagai **OVERTIME**.
-
-### 🚨 Sistem Notifikasi Kinerja (Real-Time Push Notification)
-Manajemen tidak perlu mengecek aplikasi setiap saat. Sistem secara otomatis menembakkan notifikasi *real-time* ke **KD, Advisor, Kepala Produksi, dan Manager Produksi**:
-- 🟢 **Tugas Siap QC:** Pekerjaan tuntas dan siap diinspeksi.
-- 🟡 **Tugas Melebihi Target (Leakage Warning):** Mekanik bekerja sangat lambat melebihi target KD, namun *berhasil diselamatkan* oleh Unit Budget (Tidak jadi Overtime tagihan, tapi performa SDM merah).
-- 🔴 **Tugas Overtime:** Kelebihan jam kerja yang sudah tidak tertolong oleh budget apapun, sah merugikan perusahaan dan menjadi *Overtime*.
-
----
-
-## 📈 5. Dampak Bisnis & Kesimpulan (Business Impact)
-Penerapan sistem **SM-MIS Workshop Mobile** memberikan dampak masif pada operasional perusahaan:
-1. **Akurasi HPP Terjamin:** Manajemen kini tahu pasti persis berapa *man-hours* produktif yang dihabiskan untuk satu kendaraan.
-2. **Disiplin Mekanik Meningkat:** Sistem *Time Tracking* yang kejam (tidak bisa dimanipulasi dari sisi UI) dan pemotongan otomatis jam istirahat memaksa mekanik untuk jujur.
-3. **Peringatan Dini Kebocoran:** Petinggi langsung di-ping (notifikasi) saat detik itu juga mekanik menyelesaikan tugas secara inefisien (*Leakage*), tanpa perlu menunggu laporan akhir bulan.
-4. **Data-Driven Decision:** Perusahaan dapat dengan mudah menilai KPI Ketua Divisi (dalam mengestimasi target) dan mekanik (dalam eksekusi target) berbasis data historis yang rapi.
-
----
-*Laporan ini dihasilkan dari rangkuman rilis pengembangan sistem terbaru (Versi Standardisasi UI & Multi-Job Overtime Engine).*
+**Dibangun untuk membuat pekerjaan workshop lebih mudah ditelusuri—dari rencana pertama sampai kendaraan benar-benar selesai.**
