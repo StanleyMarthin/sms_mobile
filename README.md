@@ -12,8 +12,6 @@ Side Effects: Tidak ada.
 
 Repository ini memperlihatkan sisi mobile dari **System Stanley Marthin**, sebuah sistem operasional yang menghubungkan banyak proses dan level akses dalam satu aplikasi. Tantangan engineering-nya bukan sekadar menampilkan data, tetapi menjaga state, izin, dan konteks pekerjaan tetap konsisten ketika sebuah job berpindah dari perencanaan ke eksekusi, QC, gudang, atau divisi lain.
 
-README ini ditujukan untuk Project Manager, Engineering Manager, dan senior programmer yang ingin memahami scope, keputusan arsitektur, serta trade-off project tanpa harus membaca seluruh codebase terlebih dahulu.
-
 ## Project Snapshot
 
 | Area | Implementasi |
