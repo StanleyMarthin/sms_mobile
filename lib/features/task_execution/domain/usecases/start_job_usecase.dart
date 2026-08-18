@@ -98,7 +98,7 @@ class StartJobUseCase {
   ///
   /// Parameters:
   ///   - repository: The task repository implementation (usually injected by GetIt)
-  const StartJobUseCase({required this.repository});
+  StartJobUseCase({required this.repository});
 
   /// Executes the use case to start a job.
   ///

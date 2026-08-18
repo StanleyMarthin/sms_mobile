@@ -1,7 +1,7 @@
 library;
 
 class MonitoringDivisionProgress {
-  const MonitoringDivisionProgress({
+  MonitoringDivisionProgress({
     required this.divisionName,
     required this.progressPercentage,
     required this.weeklyWorkHours,
@@ -23,7 +23,7 @@ class MonitoringDivisionProgress {
 }
 
 class MonitoringCar {
-  const MonitoringCar({
+  MonitoringCar({
     required this.carId,
     required this.unitName,
     required this.owner,

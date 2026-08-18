@@ -100,10 +100,10 @@ class _OverlayNotificationState extends State<_OverlayNotification>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: Duration(milliseconds: 300),
     );
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, -1),
+      begin: Offset(0, -1),
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
@@ -111,7 +111,7 @@ class _OverlayNotificationState extends State<_OverlayNotification>
     _controller.forward();
 
     // Auto-dismiss after 3 seconds
-    Future.delayed(const Duration(seconds: 3), _animateOut);
+    Future.delayed(Duration(seconds: 3), _animateOut);
   }
 
   void _animateOut() {
@@ -147,7 +147,7 @@ class _OverlayNotificationState extends State<_OverlayNotification>
             child: Material(
               color: Colors.transparent,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(12),
@@ -158,7 +158,7 @@ class _OverlayNotificationState extends State<_OverlayNotification>
                     BoxShadow(
                       color: Colors.black.withAlpha(100),
                       blurRadius: 16,
-                      offset: const Offset(0, 4),
+                      offset: Offset(0, 4),
                     ),
                   ],
                 ),
@@ -173,23 +173,23 @@ class _OverlayNotificationState extends State<_OverlayNotification>
                       ),
                       child: Icon(widget.icon, color: widget.accentColor, size: 18),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: Text(
                         widget.message,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textPrimary,
                           height: 1.3,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     GestureDetector(
                       onTap: _animateOut,
-                      child: const Icon(
+                      child: Icon(
                         Icons.close,
                         size: 16,
                         color: AppColors.textMuted,

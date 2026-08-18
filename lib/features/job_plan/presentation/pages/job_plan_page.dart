@@ -6,9 +6,11 @@ Main Functions: _loadPlans, _save, _showCreateSourceSheet, _showAdditionalTaskDi
 Side Effects: HTTP GET/POST/PUT job plan, navigasi ke source route, refresh approval dan browse state.
 */
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:sm_system/core/constants/app_colors.dart';
 import 'package:sm_system/core/di/injection.dart';
+import 'package:sm_system/core/errors/error_message.dart';
 import 'package:sm_system/core/session/session_manager.dart';
 import 'package:sm_system/features/task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../domain/entities/job_plan.dart';
@@ -86,6 +88,139 @@ String _formatHoursClock(
   return formatted;
 }
 
+class TotalProjectHoursFormatter extends TextInputFormatter {
+  static final RegExp _pattern = RegExp(r'^\d{0,3}(:\d{0,2})?$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var text = newValue.text;
+    if (!_pattern.hasMatch(text)) return oldValue;
+    if (text.length == 3 &&
+        !text.contains(':') &&
+        newValue.selection.end == 3) {
+      text = '$text:';
+      return TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+    return newValue;
+  }
+}
+
+int _minutesOfDayTop(TimeOfDay t) => t.hour * 60 + t.minute;
+
+Future<({double usedNormal, double usedOt, TimeOfDay latestFinish})>
+_employeeDayLoadFor({
+  required JobPlanRepository repository,
+  required SessionManager session,
+  required DateTime taskDate,
+  required String employeeId,
+  String? excludeDraftItemId,
+}) async {
+  var usedNormal = 0.0;
+  var usedOt = 0.0;
+  var latestFinish = TimeOfDay(hour: 8, minute: 0);
+  try {
+    final dateStr =
+        '${taskDate.year}-${taskDate.month.toString().padLeft(2, '0')}-${taskDate.day.toString().padLeft(2, '0')}';
+    final plans = await repository.getPlans();
+    for (final p in plans.whereType<Map<String, dynamic>>()) {
+      if ('${p['assignedUserId'] ?? ''}' != employeeId) continue;
+      if ('${p['workDate'] ?? ''}' != dateStr) continue;
+      final status = '${p['status'] ?? ''}'.toUpperCase();
+      if (status == 'REJECTED' || status == 'CANCEL' || status == 'READY_QC') {
+        continue;
+      }
+      final hours = (p['targetHours'] as num?)?.toDouble() ?? 0.0;
+      if (p['isOvertime'] == true || p['isOvertime'] == 1) {
+        usedOt += hours;
+      } else {
+        usedNormal += hours;
+      }
+      final end = TimeParser.parseTimeOfDay('${p['finishTime'] ?? ''}');
+      if (end != null &&
+          _minutesOfDayTop(end) > _minutesOfDayTop(latestFinish)) {
+        latestFinish = end;
+      }
+    }
+
+    final draft = await repository.getDraft(userId: session.employeeId ?? '');
+    for (final item
+        in (draft?['items'] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map<String, dynamic>>()) {
+      if (excludeDraftItemId != null &&
+          '${item['draftItemId'] ?? ''}' == excludeDraftItemId) {
+        continue;
+      }
+      if ('${item['assignedUserId'] ?? ''}' != employeeId) continue;
+      if ('${item['taskDate'] ?? ''}' != dateStr) continue;
+      final hours = (item['targetHours'] as num?)?.toDouble() ?? 0.0;
+      if (item['isOvertime'] == true || item['isOvertime'] == 1) {
+        usedOt += hours;
+      } else {
+        usedNormal += hours;
+      }
+      final end = TimeParser.parseTimeOfDay('${item['finishTime'] ?? ''}');
+      if (end != null &&
+          _minutesOfDayTop(end) > _minutesOfDayTop(latestFinish)) {
+        latestFinish = end;
+      }
+    }
+  } catch (_) {}
+  return (usedNormal: usedNormal, usedOt: usedOt, latestFinish: latestFinish);
+}
+
+List<Map<String, dynamic>> normalizeSequentialDraftItems(
+  List<Map<String, dynamic>> items,
+) {
+  final normalized = items.map(Map<String, dynamic>.from).toList();
+  final groups = <String, List<Map<String, dynamic>>>{};
+  for (final item in normalized) {
+    final key = '${item['assignedUserId'] ?? ''}|${item['taskDate'] ?? ''}';
+    groups.putIfAbsent(key, () => <Map<String, dynamic>>[]).add(item);
+  }
+
+  for (final group in groups.values) {
+    group.sort((a, b) {
+      final at =
+          TimeParser.parseTimeOfDay('${a['startTime'] ?? ''}') ??
+          TimeOfDay(hour: 0, minute: 0);
+      final bt =
+          TimeParser.parseTimeOfDay('${b['startTime'] ?? ''}') ??
+          TimeOfDay(hour: 0, minute: 0);
+      return _minutesOfDayTop(at).compareTo(_minutesOfDayTop(bt));
+    });
+
+    TimeOfDay? previousFinish;
+    for (final item in group) {
+      var start =
+          TimeParser.parseTimeOfDay('${item['startTime'] ?? ''}') ??
+          TimeOfDay(hour: 8, minute: 0);
+      if (previousFinish != null &&
+          _minutesOfDayTop(start) < _minutesOfDayTop(previousFinish)) {
+        start = previousFinish;
+        item['startTime'] = CountdownHelper.formatTime(start);
+      }
+      final hours = (item['targetHours'] as num?)?.toDouble() ?? 0.0;
+      final date =
+          DateTime.tryParse('${item['taskDate'] ?? ''}') ?? DateTime.now();
+      final finish = CountdownHelper.calculateFinishTime(
+        startTime: start,
+        durationHours: hours,
+        date: date,
+      );
+      item['finishTime'] = CountdownHelper.formatTime(finish);
+      item['isOvertime'] = CountdownHelper.isOvertimeByTime(finish, date: date);
+      previousFinish = finish;
+    }
+  }
+  return normalized;
+}
+
 TimeOfDay _calculateFinishTime({
   required TimeOfDay startTime,
   required double durationHours,
@@ -112,7 +247,7 @@ Future<Map<String, dynamic>?> jobPlanMasterSearchPicker(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceCard,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => StatefulBuilder(
@@ -129,7 +264,7 @@ Future<Map<String, dynamic>?> jobPlanMasterSearchPicker(
             heightFactor: 0.85,
             child: Column(
               children: [
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
                   height: 4,
                   width: 40,
@@ -138,62 +273,62 @@ Future<Map<String, dynamic>?> jobPlanMasterSearchPicker(
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: TextField(
                     autofocus: true,
                     onChanged: (v) => ss(() => query = v),
-                    style: const TextStyle(color: AppColors.textPrimary),
-                    decoration: const InputDecoration(
+                    style: TextStyle(color: AppColors.textPrimary),
+                    decoration: InputDecoration(
                       hintText: 'Cari...',
                       prefixIcon: Icon(Icons.search_rounded),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Expanded(
                   child: filtered.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
                             'Tidak ada hasil',
                             style: TextStyle(color: AppColors.textMuted),
                           ),
                         )
                       : ListView.separated(
-                          padding: const EdgeInsets.symmetric(
+                          padding: EdgeInsets.symmetric(
                             horizontal: 16,
                             vertical: 4,
                           ),
                           itemCount: filtered.length,
                           separatorBuilder: (_, __) =>
-                              const Divider(height: 1, color: AppColors.border),
+                              Divider(height: 1, color: AppColors.border),
                           itemBuilder: (_, i) {
                             final item = filtered[i];
                             return ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(
                                 labelBuilder(item),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textPrimary,
                                 ),
                               ),
                               subtitle: subtitleBuilder != null
                                   ? Text(
                                       subtitleBuilder(item),
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 12,
                                         color: AppColors.textMuted,
                                       ),
@@ -230,7 +365,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceCard,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => StatefulBuilder(
@@ -247,7 +382,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
             heightFactor: 0.9,
             child: Column(
               children: [
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Container(
                   width: 40,
                   height: 4,
@@ -257,13 +392,13 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16),
                   child: Row(
                     children: [
                       Expanded(
                         child: Text(
                           title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -273,7 +408,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                       if (selected.isNotEmpty)
                         Text(
                           '${selected.length} dipilih',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.gold,
                             fontWeight: FontWeight.bold,
@@ -283,10 +418,10 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: TextField(
                     onChanged: (v) => ss(() => query = v),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Cari pengerjaan...',
                       prefixIcon: Icon(Icons.search),
                     ),
@@ -294,7 +429,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                 ),
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.symmetric(vertical: 8),
                     itemCount: filtered.length,
                     itemBuilder: (ctx, i) {
                       final item = filtered[i];
@@ -306,7 +441,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                         activeColor: AppColors.gold,
                         title: Text(
                           labelBuilder(item),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
@@ -315,7 +450,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                         subtitle: subtitleBuilder != null
                             ? Text(
                                 subtitleBuilder(item),
-                                style: const TextStyle(fontSize: 12),
+                                style: TextStyle(fontSize: 12),
                               )
                             : null,
                         onChanged: (val) {
@@ -335,7 +470,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16),
                   child: SizedBox(
                     width: double.infinity,
                     height: 48,
@@ -344,7 +479,7 @@ Future<Set<Map<String, dynamic>>?> jobPlanMultiMasterSearchPicker(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.gold,
                       ),
-                      child: const Text(
+                      child: Text(
                         'PILIH PEKERJAAN',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
@@ -391,7 +526,7 @@ Future<Set<String>?> jobPlanMultiJobPicker(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.surfaceCard,
-    shape: const RoundedRectangleBorder(
+    shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => StatefulBuilder(
@@ -414,22 +549,22 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   TextField(
                     autofocus: true,
                     onChanged: (value) => setSheetState(() => query = value),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Cari job',
                       prefixIcon: Icon(Icons.search_rounded),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Expanded(
                     child: ListView.separated(
                       itemCount:
@@ -443,7 +578,7 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                               ? 1
                               : 0),
                       separatorBuilder: (_, __) =>
-                          const Divider(color: AppColors.border),
+                          Divider(color: AppColors.border),
                       itemBuilder: (_, index) {
                         final showManual =
                             query.trim().isNotEmpty &&
@@ -454,13 +589,13 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                         if (showManual && index == filteredItems.length) {
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: const Icon(
+                            leading: Icon(
                               Icons.add_circle_outline,
                               color: AppColors.gold,
                             ),
                             title: Text(
                               'Gunakan "${query.trim()}"',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.gold,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -476,7 +611,7 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
                             item,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
                             ),
                           ),
@@ -495,7 +630,7 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                       },
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -504,7 +639,7 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.gold,
                       ),
-                      child: const Text(
+                      child: Text(
                         'PILIH PEKERJAAN',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
@@ -588,7 +723,7 @@ class _JobPlanPageState extends State<JobPlanPage>
   }
 
   Future<void> _showApprovalPlanDetail(JobPlan plan) async {
-    final raw = _findApprovalPlanRaw(plan.planId) ?? const <String, dynamic>{};
+    final raw = _findApprovalPlanRaw(plan.planId) ?? <String, dynamic>{};
     final detailUnit = _pickJobPlanText([plan.unitName, raw['unit_name']], '-');
     final detailPanel = _pickJobPlanText([
       plan.panelName,
@@ -635,7 +770,7 @@ class _JobPlanPageState extends State<JobPlanPage>
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
@@ -644,7 +779,7 @@ class _JobPlanPageState extends State<JobPlanPage>
         return StatefulBuilder(
           builder: (ctx, setLocalState) => SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 24),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -653,7 +788,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                     // Header
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
                             'Detail Approval Plan',
                             style: TextStyle(
@@ -665,14 +800,14 @@ class _JobPlanPageState extends State<JobPlanPage>
                         ),
                         IconButton(
                           onPressed: () => Navigator.pop(ctx),
-                          icon: const Icon(
+                          icon: Icon(
                             Icons.close_rounded,
                             color: AppColors.textMuted,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     // Status + meta chips
                     Wrap(
                       spacing: 8,
@@ -694,7 +829,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     // Fields
                     _ApprovalDetailField(
                       label: 'Pelaksana',
@@ -746,9 +881,9 @@ class _JobPlanPageState extends State<JobPlanPage>
 
                     // ── Action buttons (hanya jika role bisa review) ──
                     if (canReview) ...[
-                      const SizedBox(height: 24),
-                      const Divider(color: AppColors.border),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 24),
+                      Divider(color: AppColors.border),
+                      SizedBox(height: 12),
                       Row(
                         children: [
                           // Tolak
@@ -764,7 +899,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                           return AlertDialog(
                                             backgroundColor:
                                                 AppColors.surfaceCard,
-                                            title: const Text(
+                                            title: Text(
                                               'Alasan Penolakan',
                                               style: TextStyle(
                                                 color: AppColors.textPrimary,
@@ -774,10 +909,10 @@ class _JobPlanPageState extends State<JobPlanPage>
                                             content: TextField(
                                               controller: ctrl,
                                               maxLines: 3,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 color: AppColors.textPrimary,
                                               ),
-                                              decoration: const InputDecoration(
+                                              decoration: InputDecoration(
                                                 hintText: 'Tulis alasan...',
                                                 hintStyle: TextStyle(
                                                   color: AppColors.textMuted,
@@ -800,14 +935,14 @@ class _JobPlanPageState extends State<JobPlanPage>
                                               TextButton(
                                                 onPressed: () =>
                                                     Navigator.pop(dCtx),
-                                                child: const Text('Batal'),
+                                                child: Text('Batal'),
                                               ),
                                               TextButton(
                                                 onPressed: () => Navigator.pop(
                                                   dCtx,
                                                   ctrl.text.trim(),
                                                 ),
-                                                child: const Text(
+                                                child: Text(
                                                   'Tolak',
                                                   style: TextStyle(
                                                     color: Colors.redAccent,
@@ -832,7 +967,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
-                                            const SnackBar(
+                                            SnackBar(
                                               content: Text('Plan ditolak.'),
                                               backgroundColor: Colors.redAccent,
                                             ),
@@ -844,21 +979,21 @@ class _JobPlanPageState extends State<JobPlanPage>
                                         }
                                       }
                                     },
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.close_rounded,
                                 color: Colors.redAccent,
                                 size: 18,
                               ),
-                              label: const Text(
+                              label: Text(
                                 'Tolak',
                                 style: TextStyle(color: Colors.redAccent),
                               ),
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Colors.redAccent),
+                                side: BorderSide(color: Colors.redAccent),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: 12),
                           // Setujui
                           Expanded(
                             child: ElevatedButton.icon(
@@ -877,7 +1012,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
-                                            const SnackBar(
+                                            SnackBar(
                                               content: Text('Plan disetujui ✓'),
                                               backgroundColor: Color(
                                                 0xFF2E7D32,
@@ -892,7 +1027,7 @@ class _JobPlanPageState extends State<JobPlanPage>
                                       }
                                     },
                               icon: isActing
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       width: 16,
                                       height: 16,
                                       child: CircularProgressIndicator(
@@ -900,8 +1035,8 @@ class _JobPlanPageState extends State<JobPlanPage>
                                         color: Colors.black,
                                       ),
                                     )
-                                  : const Icon(Icons.check_rounded, size: 18),
-                              label: const Text('Setujui'),
+                                  : Icon(Icons.check_rounded, size: 18),
+                              label: Text('Setujui'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.gold,
                                 foregroundColor: Colors.black,
@@ -928,7 +1063,7 @@ class _JobPlanPageState extends State<JobPlanPage>
 
   String _statusLabel(String status) {
     return switch (status.toUpperCase()) {
-      'PENDING_ADV' => 'Menunggu Advisor',
+      'PENDING_ADV' => 'Menunggu QA',
       'PENDING_KP' => 'Menunggu KP',
       'PENDING_MP' => 'Menunggu MP',
       'PLAN' => 'Disetujui',
@@ -955,14 +1090,14 @@ class _JobPlanPageState extends State<JobPlanPage>
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(20),
               child: Text(
                 'Buat Rencana Kerja Dari:',
@@ -974,9 +1109,9 @@ class _JobPlanPageState extends State<JobPlanPage>
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.timer_outlined, color: AppColors.gold),
-              title: const Text('Countdown List'),
-              subtitle: const Text('Gunakan sisa jam dari project car aktif'),
+              leading: Icon(Icons.timer_outlined, color: AppColors.gold),
+              title: Text('Countdown List'),
+              subtitle: Text('Gunakan sisa jam dari project car aktif'),
               onTap: () async {
                 Navigator.pop(ctx);
                 final res = await Navigator.of(context).push(
@@ -989,31 +1124,31 @@ class _JobPlanPageState extends State<JobPlanPage>
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.assignment_turned_in_outlined,
                 color: AppColors.gold,
               ),
-              title: const Text('Work Order / WOV'),
-              subtitle: const Text('Tarik dari WO internal atau vendor'),
+              title: Text('Work Order / WOV'),
+              subtitle: Text('Tarik dari WO internal atau vendor'),
               onTap: () {
                 Navigator.pop(ctx);
                 _showWoSourcePicker();
               },
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.add_task_rounded,
                 color: AppColors.gold,
               ),
-              title: const Text('Additional Task'),
-              subtitle: const Text('Input pekerjaan manual atau urgent'),
+              title: Text('Additional Task'),
+              subtitle: Text('Input pekerjaan manual atau urgent'),
               onTap: () async {
                 Navigator.pop(ctx);
                 final res = await _showAdditionalTaskDialog();
                 if (res == true) _triggerRefresh();
               },
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
           ],
         ),
       ),
@@ -1027,7 +1162,7 @@ class _JobPlanPageState extends State<JobPlanPage>
     result.fold<void>(
       (failure) => AppNotification.showError(
         context,
-        failure.message ?? 'Error unknown',
+        failure.message ?? 'Mohon maaf, terjadi kendala. Silakan coba lagi.',
       ),
       (orders) {
         // Filter those already hasCountdownLink?
@@ -1036,7 +1171,7 @@ class _JobPlanPageState extends State<JobPlanPage>
           context: context,
           isScrollControlled: true,
           backgroundColor: AppColors.surfaceCard,
-          shape: const RoundedRectangleBorder(
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           builder: (ctx) => _WoSourcePicker(
@@ -1084,7 +1219,7 @@ class _JobPlanPageState extends State<JobPlanPage>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Job Plan',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
@@ -1096,11 +1231,11 @@ class _JobPlanPageState extends State<JobPlanPage>
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.gold,
           tabs: [
-            const Tab(text: 'Approval Plan'),
-            if (isKd) const Tab(text: 'Rencana'),
+            Tab(text: 'Approval Plan'),
+            if (isKd) Tab(text: 'Rencana'),
           ],
         ),
-        actions: const [],
+        actions: [],
       ),
       body: TabBarView(
         controller: _tabController,
@@ -1130,7 +1265,7 @@ class _JobPlanPageState extends State<JobPlanPage>
           : FloatingActionButton(
               backgroundColor: AppColors.gold,
               onPressed: _showCreateSourceSheet,
-              child: const Icon(Icons.add_rounded, color: Colors.black),
+              child: Icon(Icons.add_rounded, color: Colors.black),
             ),
     );
   }
@@ -1139,9 +1274,15 @@ class _JobPlanPageState extends State<JobPlanPage>
 // ── Countdown Form ────────────────────────────────────────────────────────────
 
 class _CountdownPlanFormPage extends StatefulWidget {
-  const _CountdownPlanFormPage({required this.initialDate});
+  const _CountdownPlanFormPage({
+    required this.initialDate,
+    this.initialDraft,
+    this.editIndex,
+  });
 
   final DateTime initialDate;
+  final Map<String, dynamic>? initialDraft;
+  final int? editIndex;
 
   @override
   State<_CountdownPlanFormPage> createState() => _CountdownPlanFormPageState();
@@ -1166,8 +1307,8 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
   Map<String, dynamic>? _selectedEmployee;
 
   late DateTime _selectedDate;
-  TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay _finishTime = const TimeOfDay(hour: 16, minute: 0);
+  TimeOfDay _startTime = TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _finishTime = TimeOfDay(hour: 16, minute: 0);
   final TextEditingController _hoursCtrl = TextEditingController(text: '08:00');
   final TextEditingController _instructionCtrl = TextEditingController();
   bool _finishTimeEdited = false;
@@ -1201,8 +1342,130 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         division: _session.divisionName,
       );
       if (!mounted) return;
+      if (widget.initialDraft != null) {
+        await _hydrateDraft(widget.initialDraft!, units);
+      } else {
+        setState(() {
+          _units = units;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  T? _firstWhereOrNull<T>(List<T> list, bool Function(T) test) {
+    for (final item in list) {
+      if (test(item)) return item;
+    }
+    return null;
+  }
+
+  Future<void> _hydrateDraft(
+    Map<String, dynamic> draft,
+    List<CountdownUnit> units,
+  ) async {
+    final carId = draft['carId']?.toString() ?? '';
+    final unit = _firstWhereOrNull(units, (u) => u.carId == carId);
+    if (unit == null) {
+      if (mounted) setState(() => _isLoading = false);
+      return;
+    }
+
+    try {
+      final divisions = await _countdownRepo.getDivisions(unit.carId);
+      final divisionId = int.tryParse('${draft['divisionId'] ?? ''}') ?? 0;
+      final division =
+          _firstWhereOrNull(divisions, (d) => d.divisionId == divisionId) ??
+          (divisions.isNotEmpty ? divisions.first : null);
+      if (division == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final panels = await _countdownRepo.getSections(
+        carId: unit.carId,
+        divisionId: division.divisionId,
+        plannable: true,
+      );
+      final employees = await _repository.getDropdownUsers(
+        divisionId: division.divisionId.toString(),
+      );
+
+      final coreId = draft['coreId']?.toString() ?? '';
+      final panelName = (draft['panelName'] ?? '').toString().trim();
+      CountdownSection? panel;
+      CountdownJobdesc? job;
+
+      for (final p in panels) {
+        final jobs = await _countdownRepo.getJobdescs(
+          carId: unit.carId,
+          divisionId: division.divisionId,
+          panelId: p.panelId,
+          plannable: true,
+        );
+        final found = _firstWhereOrNull(jobs, (j) => j.id == coreId);
+        if (found != null) {
+          panel = p;
+          job = found;
+          break;
+        }
+      }
+
+      if (job == null && panelName.isNotEmpty) {
+        panel =
+            _firstWhereOrNull(
+              panels,
+              (p) =>
+                  p.sectionName.trim().toLowerCase() == panelName.toLowerCase(),
+            ) ??
+            panel;
+      }
+
+      final employeeId = draft['assignedUserId']?.toString() ?? '';
+      final employee = _firstWhereOrNull(
+        employees,
+        (e) => '${e['id'] ?? ''}' == employeeId,
+      );
+
+      final start = TimeParser.parseTimeOfDay('${draft['startTime'] ?? ''}');
+      final finish = TimeParser.parseTimeOfDay('${draft['finishTime'] ?? ''}');
+      final hours =
+          (draft['targetHours'] as num?)?.toDouble() ??
+          TimeParser.parseHHmmToDecimal('${draft['targetHours'] ?? ''}') ??
+          0.0;
+
+      if (!mounted) return;
       setState(() {
         _units = units;
+        _panels = panels;
+        _employees = employees;
+        _selectedUnit = unit;
+        _selectedPanel = panel;
+        _selectedJobs.clear();
+        if (job != null) _selectedJobs.add(job);
+        _selectedEmployee = employee;
+        _selectedDate =
+            DateTime.tryParse('${draft['taskDate'] ?? ''}') ?? _selectedDate;
+        _hoursCtrl.text = TimeParser.formatDecimalToHHmm(
+          hours,
+          isTriple: false,
+        );
+        if (start != null) _startTime = start;
+        if (finish != null) {
+          _finishTime = finish;
+          _finishTimeEdited = true;
+        } else {
+          _finishTime = _calculateFinishTime(
+            startTime: _startTime,
+            durationHours: hours,
+            date: _selectedDate,
+          );
+          _finishTimeEdited = false;
+        }
+        _isOvertime = draft['isOvertime'] == true || draft['isOvertime'] == 1;
+        _instructionCtrl.text = draft['note']?.toString() ?? '';
         _isLoading = false;
       });
     } catch (e) {
@@ -1232,6 +1495,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
       final panels = await _countdownRepo.getSections(
         carId: unit.carId,
         divisionId: matchingDiv.divisionId,
+        plannable: true,
       );
       final employees = await _repository.getDropdownUsers(
         divisionId: matchingDiv.divisionId.toString(),
@@ -1239,7 +1503,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
 
       if (!mounted) return;
       setState(() {
-        _panels = panels;
+        _panels = panels.where((p) => p.totalRemainingHours > 0).toList();
         _employees = employees;
         _isLoading = false;
       });
@@ -1268,6 +1532,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         carId: _selectedUnit!.carId,
         divisionId: matchingDiv.divisionId,
         panelId: panel.panelId,
+        plannable: true,
       );
       final activeJobsRaw = jobdescs.where((j) {
         final st = j.status.toUpperCase();
@@ -1398,15 +1663,105 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     return '${_formatHoursClock(available, zeroAsClock: true)} tersedia plan • ${_formatHoursClock(actual, zeroAsClock: true)} sisa kerja';
   }
 
+  int _minutesOfDay(TimeOfDay t) => t.hour * 60 + t.minute;
+
+  Future<({double usedNormal, double usedOt, TimeOfDay latestFinish})>
+  _employeeDayLoad(String employeeId, {String? excludeDraftItemId}) async {
+    return _employeeDayLoadFor(
+      repository: _repository,
+      session: _session,
+      taskDate: _selectedDate,
+      employeeId: employeeId,
+      excludeDraftItemId: excludeDraftItemId,
+    );
+  }
+
+  Future<void> _applyEmployeeDayCap() async {
+    final employeeId = _selectedEmployee?['id']?.toString() ?? '';
+    if (employeeId.isEmpty) return;
+    final load = await _employeeDayLoad(employeeId);
+    if (!mounted) return;
+
+    final eight = TimeOfDay(hour: 8, minute: 0);
+    final startTime = _minutesOfDay(load.latestFinish) > _minutesOfDay(eight)
+        ? load.latestFinish
+        : _startTime;
+    final requested = TimeParser.parseHHmmToDecimal(_hoursCtrl.text) ?? 0.0;
+    final allowed = JobPlanAllocationHelper.allowedDayHours(
+      usedNormal: load.usedNormal,
+      usedOt: load.usedOt,
+      isOvertime: _isOvertime,
+      isSunday: _selectedDate.weekday == DateTime.sunday,
+    );
+    final capped = requested > allowed ? allowed : requested;
+    final finishTime = _calculateFinishTime(
+      startTime: startTime,
+      durationHours: capped,
+      date: _selectedDate,
+    );
+
+    setState(() {
+      _startTime = startTime;
+      _hoursCtrl.text = TimeParser.formatDecimalToHHmm(capped, isTriple: false);
+      _finishTime = finishTime;
+      _finishTimeEdited = false;
+      _isOvertime = CountdownHelper.isOvertimeByTime(
+        finishTime,
+        date: _selectedDate,
+      );
+    });
+  }
+
+  String _defaultInstruction() {
+    if (_selectedJobs.isEmpty) return '';
+    final first = _selectedJobs.first;
+    return [
+      first.jobdesc.trim(),
+      first.panelName.trim(),
+    ].where((s) => s.isNotEmpty && s != '-').join(' - ');
+  }
+
   Future<void> _save() async {
     if (_selectedEmployee == null || _selectedJobs.isEmpty) {
       AppNotification.showWarning(context, 'Lengkapi data terlebih dahulu.');
       return;
     }
 
-    final hrs = TimeParser.parseHHmmToDecimal(_hoursCtrl.text);
+    final load = await _employeeDayLoad(
+      _selectedEmployee?['id']?.toString() ?? '',
+      excludeDraftItemId: widget.initialDraft?['draftItemId']?.toString(),
+    );
+    if (!mounted) return;
+    if (_minutesOfDay(_startTime) < _minutesOfDay(load.latestFinish)) {
+      _startTime = load.latestFinish;
+      AppNotification.showWarning(
+        context,
+        'Jam mulai digeser ke ${CountdownHelper.formatTime(_startTime)} karena operator sudah ada jadwal.',
+      );
+    }
+    var hrs = TimeParser.parseHHmmToDecimal(_hoursCtrl.text);
     if (hrs == null || hrs <= 0) {
       AppNotification.showWarning(context, 'Target jam tidak valid.');
+      return;
+    }
+
+    final allowed = JobPlanAllocationHelper.allowedDayHours(
+      usedNormal: load.usedNormal,
+      usedOt: load.usedOt,
+      isOvertime: _isOvertime,
+      isSunday: _selectedDate.weekday == DateTime.sunday,
+    );
+    if (hrs > allowed) {
+      final before = hrs;
+      hrs = allowed.clamp(0.0, 9999.0).toDouble();
+      _hoursCtrl.text = TimeParser.formatDecimalToHHmm(hrs, isTriple: false);
+      AppNotification.showWarning(
+        context,
+        'Target jam dikurangi dari ${_formatHoursClock(before, zeroAsClock: true)} menjadi ${_formatHoursClock(hrs, zeroAsClock: true)} karena batas jam kerja.',
+      );
+    }
+    if (hrs <= 0) {
+      AppNotification.showWarning(context, 'Jam kerja operator sudah penuh.');
       return;
     }
 
@@ -1427,8 +1782,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     try {
       final List<Map<String, dynamic>> draftItems = [];
 
-      final totalSessionHours =
-          TimeParser.parseHHmmToDecimal(_hoursCtrl.text) ?? 0.0;
+      final totalSessionHours = hrs;
       final allocations = JobPlanAllocationHelper.allocateSequential(
         taskDate: _selectedDate,
         sessionStartTime: _startTime,
@@ -1478,12 +1832,41 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
       final isKd = _session.isKdAccess;
 
       if (isKd) {
-        await _repository.saveDraft(
-          userId: _session.employeeId ?? '',
-          items: draftItems,
-          sourceType: 'COUNTDOWN',
-          replaceItems: false,
-        );
+        final uid = _session.employeeId ?? '';
+        if (widget.editIndex != null || widget.initialDraft != null) {
+          final existingDraft = await _repository.getDraft(userId: uid);
+          final existingItems =
+              (existingDraft?['items'] as List<dynamic>? ?? <dynamic>[])
+                  .whereType<Map<String, dynamic>>()
+                  .map(Map<String, dynamic>.from)
+                  .toList();
+          final editIndex =
+              widget.editIndex ??
+              existingItems.indexWhere(
+                (t) =>
+                    t['draftItemId']?.toString() ==
+                    widget.initialDraft?['draftItemId']?.toString(),
+              );
+          if (editIndex >= 0 && editIndex < existingItems.length) {
+            existingItems.removeAt(editIndex);
+            existingItems.insertAll(editIndex, draftItems);
+          } else {
+            existingItems.addAll(draftItems);
+          }
+          await _repository.saveDraft(
+            userId: uid,
+            items: existingItems,
+            sourceType: 'COUNTDOWN',
+            replaceItems: true,
+          );
+        } else {
+          await _repository.saveDraft(
+            userId: uid,
+            items: draftItems,
+            sourceType: 'COUNTDOWN',
+            replaceItems: false,
+          );
+        }
       } else {
         for (final item in draftItems) {
           await _repository.createPlan(
@@ -1519,7 +1902,10 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        AppNotification.showError(context, 'Gagal mengirim: $e');
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal mengirim rencana kerja'),
+        );
       }
     }
   }
@@ -1529,27 +1915,27 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Job Plan dari Countdown'),
+        title: Text('Job Plan dari Countdown'),
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: Icon(Icons.close_rounded),
             onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : Column(
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16),
                     children: [
                       // --- UNIT SELECTION ---
                       _SearchFieldTile(
@@ -1565,20 +1951,22 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                   (u) => {
                                     'id': u.carId,
                                     'name': u.unitName,
+                                    'progress': u.progress,
                                     'owner': u.owner,
                                     'raw': u,
                                   },
                                 )
                                 .toList(),
                             labelBuilder: (m) => m['name'].toString(),
-                            subtitleBuilder: (m) => m['owner'].toString(),
+                            subtitleBuilder: (m) =>
+                                '${m['progress']}% • ${m['owner']}',
                           );
                           if (res != null) {
                             _onUnitSelected(res['raw'] as CountdownUnit);
                           }
                         },
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
 
                       // --- PANEL SELECTION ---
                       if (_selectedUnit != null) ...[
@@ -1593,12 +1981,13 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                               context,
                               title: 'Pilih Panel',
                               items: _panels
+                                  .where((p) => p.totalRemainingHours > 0)
                                   .map(
                                     (p) => {
                                       'id': p.panelId,
                                       'name': _panelSectionLabel(p),
                                       'section':
-                                          '${p.totalJobdesc} jobdesc • ${_formatHoursClock(p.totalRemainingHours, zeroAsClock: true)} sisa',
+                                          '${p.sectionProgress.round()}% • ${p.totalJobdesc} jobdesc • ${_formatHoursClock(p.totalRemainingHours, zeroAsClock: true)} sisa',
                                       'raw': p,
                                     },
                                   )
@@ -1611,7 +2000,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                             }
                           },
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                       ],
 
                       // --- JOB SELECTION ---
@@ -1633,6 +2022,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                     (j) => {
                                       'id': j.id,
                                       'name': j.jobdesc,
+                                      'progress': j.progress,
                                       'hours': _availablePlanHoursLabel(j),
                                       'raw': j,
                                     },
@@ -1642,7 +2032,8 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                   .map((j) => j.id)
                                   .toSet(),
                               labelBuilder: (m) => m['name'].toString(),
-                              subtitleBuilder: (m) => m['hours'].toString(),
+                              subtitleBuilder: (m) =>
+                                  '${m['progress']}% • ${m['hours']}',
                             );
                             if (res != null) {
                               setState(() {
@@ -1665,18 +2056,22 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                       );
                                   _finishTimeEdited = false;
                                   _syncFinishTime();
+                                  if (_instructionCtrl.text.trim().isEmpty) {
+                                    _instructionCtrl.text =
+                                        _defaultInstruction();
+                                  }
                                 }
                               });
                             }
                           },
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                       ],
 
                       // --- PROJECT STATS ---
                       if (_selectedJobs.isNotEmpty) ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: AppColors.background,
                             borderRadius: BorderRadius.circular(10),
@@ -1713,7 +2108,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                       ],
 
                       // --- INSTRUCTIONS ---
@@ -1722,13 +2117,13 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                         child: TextField(
                           controller: _instructionCtrl,
                           maxLines: 3,
-                          style: const TextStyle(color: AppColors.textPrimary),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppColors.textPrimary),
+                          decoration: InputDecoration(
                             hintText: 'Tulis instruksi kerja...',
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
 
                       // --- EXECUTOR ---
                       _FormSection(
@@ -1746,11 +2141,12 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                             );
                             if (res != null) {
                               setState(() => _selectedEmployee = res);
+                              await _applyEmployeeDayCap();
                             }
                           },
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
 
                       // --- SHIFT ---
                       _FormSection(
@@ -1776,14 +2172,17 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                                 _syncFinishTime();
                               },
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             _dateTile(),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             _timeRow(),
                             SwitchListTile.adaptive(
                               value: _isOvertime,
-                              onChanged: (v) => setState(() => _isOvertime = v),
-                              title: const Text(
+                              onChanged: (v) async {
+                                setState(() => _isOvertime = v);
+                                await _applyEmployeeDayCap();
+                              },
+                              title: Text(
                                 'Lembur',
                                 style: TextStyle(color: AppColors.textPrimary),
                               ),
@@ -1798,8 +2197,8 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
 
                 // --- SAVE BUTTON ---
                 Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
                     border: Border(top: BorderSide(color: AppColors.border)),
                   ),
@@ -1819,7 +2218,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
                               _isSaving
                                   ? (isKd ? 'MENYIMPAN...' : 'MENGIRIM...')
                                   : (isKd ? 'SIMPAN KE DRAFT' : 'KIRIM'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.background,
                               ),
@@ -1837,17 +2236,17 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
 
   Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
               color: AppColors.gold,
@@ -1870,29 +2269,30 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         if (picked != null) {
           setState(() => _selectedDate = picked);
           _syncFinishTime();
+          await _applyEmployeeDayCap();
         }
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 14),
         decoration: BoxDecoration(
           border: Border.all(color: AppColors.border),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
-            const Icon(Icons.calendar_today, size: 16, color: AppColors.gold),
-            const SizedBox(width: 12),
+            Icon(Icons.calendar_today, size: 16, color: AppColors.gold),
+            SizedBox(width: 12),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Tanggal Kerja',
                   style: TextStyle(fontSize: 10, color: AppColors.textMuted),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   _formatDate(_selectedDate),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
                   ),
@@ -1919,7 +2319,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
             onTapIcon: () => _pickTime(isStart: true),
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: ClockTimeInput(
             labelText: 'Selesai',
@@ -2017,15 +2417,16 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
   DateTime? _startDate;
   DateTime? _deadlineDate;
 
-  TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay _finishTime = const TimeOfDay(hour: 16, minute: 0);
+  TimeOfDay _startTime = TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _finishTime = TimeOfDay(hour: 16, minute: 0);
   bool _finishTimeEdited = false;
   bool _isOvertime = false;
   bool _isRework = false;
+  bool _isNonTechnicalJob = false;
   bool _useFreeTextPanel = false;
   bool _useManualInput = false;
 
-  static const _panelCategories = [
+  static final _panelCategories = [
     'ENGINE',
     'UNDERCARRIAGE',
     'ELECTRICAL',
@@ -2131,6 +2532,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
 
     _isOvertime = draft['isOvertime'] == true || draft['isOvertime'] == 1;
     _isRework = draft['isRework'] == true || draft['isRework'] == 1;
+    _isNonTechnicalJob =
+        draft['isNonTechnicalJob'] == true || draft['isNonTechnicalJob'] == 1;
     _noteCtrl.text = draft['note']?.toString() ?? '';
 
     _loadDivisionStaff();
@@ -2168,8 +2571,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
   void _applyStandardWorkday() {
     setState(() {
       _hoursCtrl.text = TimeParser.formatDecimalToHHmm(8.0, isTriple: false);
-      _startTime = const TimeOfDay(hour: 8, minute: 0);
-      _finishTime = const TimeOfDay(hour: 16, minute: 0);
+      _startTime = TimeOfDay(hour: 8, minute: 0);
+      _finishTime = TimeOfDay(hour: 16, minute: 0);
       _finishTimeEdited = false;
       _isOvertime = false;
     });
@@ -2182,9 +2585,18 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     final manualUnit = _manualUnitCtrl.text.trim();
     final manualPanel = _manualPanelCtrl.text.trim();
     final manualJob = _manualJobCtrl.text.trim();
-    if (_useManualInput) {
-      if (manualUnit.isEmpty || manualPanel.isEmpty || manualJob.isEmpty) {
-        AppNotification.showWarning(context, 'Lengkapi input manual.');
+    final usesManualInput = _isNonTechnicalJob || _useManualInput;
+    if (_isNonTechnicalJob) {
+      if (manualJob.isEmpty) {
+        AppNotification.showWarning(context, 'Nama aktivitas wajib diisi.');
+        return;
+      }
+    } else if (_useManualInput) {
+      if (selectedUnit == null || manualPanel.isEmpty || manualJob.isEmpty) {
+        AppNotification.showWarning(
+          context,
+          'Pilih unit dari daftar, lalu lengkapi panel & pekerjaan.',
+        );
         return;
       }
     } else if (selectedUnit == null || _selectedJobs.isEmpty) {
@@ -2213,7 +2625,25 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     final sourceNote = _noteCtrl.text.trim();
 
     try {
-      final jobsToCreate = _useManualInput
+      final dayLoad = await _employeeDayLoadFor(
+        repository: _repository,
+        session: sl<SessionManager>(),
+        taskDate: _selectedDate,
+        employeeId: _selectedEmployeeId!,
+        excludeDraftItemId: widget.initialDraft?['draftItemId']?.toString(),
+      );
+      if (_minutesOfDayTop(_startTime) <
+          _minutesOfDayTop(dayLoad.latestFinish)) {
+        _startTime = dayLoad.latestFinish;
+        if (mounted) {
+          AppNotification.showWarning(
+            context,
+            'Jam mulai digeser ke ${CountdownHelper.formatTime(_startTime)} karena operator sudah ada jadwal.',
+          );
+        }
+      }
+
+      final jobsToCreate = usesManualInput
           ? <String>{manualJob}
           : _selectedJobs;
       final draftSeed = DateTime.now().microsecondsSinceEpoch;
@@ -2222,16 +2652,18 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
         for (final job in jobsToCreate) {
           await _repository.createPlan(
             coreId: '',
-            carId: _useManualInput ? '' : selectedUnit!['id'].toString(),
+            carId: _isNonTechnicalJob
+                ? ''
+                : (selectedUnit?['id']?.toString() ?? ''),
             sourceType: effectiveSourceType,
             sourceRefId: '',
             initialStatus: widget.isUrgent ? 'APPROVED' : null,
             syncToTasks: widget.isUrgent,
             isUrgent: widget.isUrgent,
-            unitName: _useManualInput
-                ? manualUnit
-                : (selectedUnit?['unit_name']?.toString() ?? ''),
-            panelName: _useManualInput
+            unitName: _isNonTechnicalJob
+                ? ''
+                : (selectedUnit?['unit_name']?.toString() ?? manualUnit),
+            panelName: usesManualInput
                 ? manualPanel
                 : (_useFreeTextPanel
                       ? _sectionNameCtrl.text.trim()
@@ -2299,23 +2731,24 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                 .toString()
                 .isNotEmpty)
               'rejectedPlanId': widget.initialDraft!['rejectedPlanId'],
-            'carId': _useManualInput
+            'carId': _isNonTechnicalJob
                 ? ''
                 : (selectedUnit?['id']?.toString() ?? ''),
             'divisionId': divId,
             'panelId': null,
-            'panelCustomNote': _useManualInput
+            'panelCustomNote': usesManualInput
                 ? manualPanel
                 : (_useFreeTextPanel ? null : (_selectedPanel ?? '')),
             'sectionName': _useFreeTextPanel
                 ? _sectionNameCtrl.text.trim()
                 : null,
-            'panelCategory': (_useManualInput || _useFreeTextPanel)
+            'panelCategory': (usesManualInput || _useFreeTextPanel)
                 ? _selectedCategory
                 : null,
             'addPanelToMaster': true,
             'jobTypeId': null,
             'sourceType': 'ADDITIONAL',
+            'isManualInput': usesManualInput,
             'assignedUserId': _selectedEmployeeId!,
             'assignedUserName':
                 selectedEmployee?['name']?.toString() ??
@@ -2324,18 +2757,21 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
             'taskDate': _formatDate(_selectedDate),
             'jobDescription': job,
             'targetHours': durationPerJob,
-            'totalProjectHours': () {
-              final raw = _totalProjectHoursCtrl.text.trim();
-              if (raw.isEmpty) return null;
-              if (raw.contains(':')) {
-                final parts = raw.split(':');
-                final h = double.tryParse(parts[0]) ?? 0;
-                final m =
-                    double.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
-                return h + m / 60.0;
-              }
-              return double.tryParse(raw);
-            }(),
+            'totalProjectHours': _isNonTechnicalJob
+                ? null
+                : () {
+                    final raw = _totalProjectHoursCtrl.text.trim();
+                    if (raw.isEmpty) return null;
+                    if (raw.contains(':')) {
+                      final parts = raw.split(':');
+                      final h = double.tryParse(parts[0]) ?? 0;
+                      final m =
+                          double.tryParse(parts.length > 1 ? parts[1] : '0') ??
+                          0;
+                      return h + m / 60.0;
+                    }
+                    return double.tryParse(raw);
+                  }(),
             'startDate': _startDate != null ? _formatDate(_startDate!) : null,
             'deadlineDate': _deadlineDate != null
                 ? _formatDate(_deadlineDate!)
@@ -2347,10 +2783,11 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
               date: _selectedDate,
             ),
             'isRework': _isRework,
-            'unitName': _useManualInput
-                ? manualUnit
-                : (selectedUnit?['unit_name']?.toString() ?? ''),
-            'panelName': _useManualInput
+            'isNonTechnicalJob': _isNonTechnicalJob,
+            'unitName': _isNonTechnicalJob
+                ? ''
+                : (selectedUnit?['unit_name']?.toString() ?? manualUnit),
+            'panelName': usesManualInput
                 ? manualPanel
                 : (_useFreeTextPanel
                       ? _sectionNameCtrl.text.trim()
@@ -2372,7 +2809,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                   .map(Map<String, dynamic>.from)
                   .toList();
           existingItems.removeWhere(
-            (t) => t['carId'] == null && t['panelId'] == null,
+            (t) =>
+                t['isNonTechnicalJob'] != true &&
+                t['carId'] == null &&
+                t['panelId'] == null,
           );
 
           if (isReplacingDraft) {
@@ -2434,6 +2874,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
               startTime: item['startTime']?.toString() ?? '',
               finishTime: item['finishTime']?.toString() ?? '',
               isOvertime: item['isOvertime'] == true,
+              isNonTechnicalJob: item['isNonTechnicalJob'] == true,
               note: sourceNote,
             );
           }
@@ -2463,9 +2904,11 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan task: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyMessage(e, fallback: 'Gagal menyimpan task')),
+        ),
+      );
     }
   }
 
@@ -2494,61 +2937,115 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: Icon(Icons.close_rounded),
             onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : Column(
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
                     children: [
                       _FormSection(
                         title: 'Metode Input',
-                        child: SwitchListTile.adaptive(
-                          value: _useManualInput,
-                          onChanged: (v) => setState(() => _useManualInput = v),
-                          title: const Text(
-                            'Input Nama Unit/Panel Manual',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textPrimary,
+                        child: Column(
+                          children: [
+                            SwitchListTile.adaptive(
+                              value: _isNonTechnicalJob,
+                              onChanged: (v) =>
+                                  setState(() => _isNonTechnicalJob = v),
+                              title: Text(
+                                'Pekerjaan Non Teknis',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Meeting, coaching, atau aktivitas tanpa panel',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              activeThumbColor: AppColors.gold,
+                              contentPadding: EdgeInsets.zero,
                             ),
-                          ),
-                          activeThumbColor: AppColors.gold,
-                          contentPadding: EdgeInsets.zero,
+                            if (!_isNonTechnicalJob)
+                              SwitchListTile.adaptive(
+                                value: _useManualInput,
+                                onChanged: (v) =>
+                                    setState(() => _useManualInput = v),
+                                title: Text(
+                                  'Input Nama Unit/Panel Manual',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                                activeThumbColor: AppColors.gold,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
 
-                      if (_useManualInput) ...[
+                      if (_isNonTechnicalJob) ...[
+                        _FormSection(
+                          title: 'Aktivitas',
+                          child: TextField(
+                            controller: _manualJobCtrl,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'Nama Aktivitas *',
+                              hintText: 'Contoh: Meeting progres',
+                            ),
+                          ),
+                        ),
+                      ] else if (_useManualInput) ...[
                         _FormSection(
                           title: 'Detail Unit & Panel',
                           child: Column(
                             children: [
-                              TextField(
-                                controller: _manualUnitCtrl,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
-                                decoration: const InputDecoration(
-                                  labelText: 'Nama Unit *',
-                                  hintText: 'Contoh: MB 190 SL',
-                                ),
+                              _SearchFieldTile(
+                                label: 'Unit Kendaraan',
+                                value: _selectedUnit?['unit_name'],
+                                hint: 'Cari Unit',
+                                onTap: () async {
+                                  final res = await jobPlanMasterSearchPicker(
+                                    context,
+                                    title: 'Pilih Unit',
+                                    items: _units,
+                                    labelBuilder: (m) =>
+                                        m['unit_name']?.toString() ?? '',
+                                    subtitleBuilder: (m) =>
+                                        m['customer_name']?.toString() ?? '',
+                                  );
+                                  if (res != null) {
+                                    setState(() {
+                                      _selectedUnit = res;
+                                      _manualUnitCtrl.text =
+                                          res['unit_name']?.toString() ?? '';
+                                    });
+                                  }
+                                },
                               ),
-                              const SizedBox(height: 12),
+                              SizedBox(height: 12),
                               TextField(
                                 controller: _manualPanelCtrl,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textPrimary,
                                 ),
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Nama Panel *',
                                   hintText: 'Contoh: Mesin',
                                 ),
@@ -2583,7 +3080,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                   }
                                 },
                               ),
-                              const SizedBox(height: 12),
+                              SizedBox(height: 12),
                               _SearchFieldTile(
                                 label: 'Divisi Pelaksana',
                                 value: _selectedDivision,
@@ -2610,7 +3107,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         _FormSection(
                           title: 'Panel & Section',
                           child: Column(
@@ -2650,7 +3147,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                     _sectionNameCtrl.clear();
                                   }
                                 }),
-                                title: const Text(
+                                title: Text(
                                   'Pakai nama section/panel baru',
                                   style: TextStyle(
                                     fontSize: 12,
@@ -2664,10 +3161,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               if (_useFreeTextPanel)
                                 TextField(
                                   controller: _sectionNameCtrl,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.textPrimary,
                                   ),
-                                  decoration: const InputDecoration(
+                                  decoration: InputDecoration(
                                     labelText: 'Nama Section/Panel Baru *',
                                   ),
                                 ),
@@ -2676,7 +3173,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                         ),
                       ],
 
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
 
                       _FormSection(
                         title: 'Detail Pekerjaan',
@@ -2685,10 +3182,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                             if (_useManualInput)
                               TextField(
                                 controller: _manualJobCtrl,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textPrimary,
                                 ),
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Nama Pekerjaan *',
                                   hintText: 'Contoh: Turunkan Mesin',
                                 ),
@@ -2705,7 +3202,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                 onTap: () async {
                                   if (_selectedDivision.trim().isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
+                                      SnackBar(
                                         content: Text(
                                           'Pilih divisi dulu sebelum memilih jobdesc.',
                                         ),
@@ -2747,15 +3244,15 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                   }
                                 },
                               ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             DropdownButtonFormField<String>(
                               initialValue: _selectedCategory,
                               isExpanded: true,
                               dropdownColor: AppColors.surfaceCard,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textPrimary,
                               ),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Kategori Pekerjaan *',
                               ),
                               items: _panelCategories
@@ -2773,7 +3270,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                         ),
                       ),
 
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
 
                       _FormSection(
                         title: 'Pelaksana',
@@ -2798,7 +3295,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                 }
                               },
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             DurationInput(
                               labelText: 'Target Jam Pengerjaan',
                               initialHours: TimeParser.parseHHmmToDecimal(
@@ -2816,145 +3313,147 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                 });
                               },
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton(
                                 onPressed: _applyStandardWorkday,
-                                child: const Text('Set jam kerja normal 8 jam'),
+                                child: Text('Set jam kerja normal 8 jam'),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       // ── Total Project Hours + Timeline ──────────────────
-                      _FormSection(
-                        title: 'Target Proyek',
-                        child: Column(
-                          children: [
-                            DurationInput(
-                              labelText: 'Total Target Proyek (000:00)',
-                              initialHours: TimeParser.parseHHmmToDecimal(
-                                _totalProjectHoursCtrl.text,
+                      if (!_isNonTechnicalJob)
+                        _FormSection(
+                          title: 'Target Proyek',
+                          child: Column(
+                            children: [
+                              TextField(
+                                controller: _totalProjectHoursCtrl,
+                                keyboardType:
+                                    TextInputType.numberWithOptions(
+                                      decimal: false,
+                                    ),
+                                inputFormatters: [TotalProjectHoursFormatter()],
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                ),
+                                decoration: InputDecoration(
+                                  labelText: 'Total Target Proyek (000:00)',
+                                  hintText: 'Contoh: 180:00',
+                                ),
                               ),
-                              isTripleHours: true,
-                              onChanged: (val) {
-                                setState(() {
-                                  _totalProjectHoursCtrl.text =
-                                      TimeParser.formatDecimalToHHmm(
-                                        val,
-                                        isTriple: true,
-                                      );
-                                });
-                              },
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: const Text(
-                                      'Tanggal Mulai Proyek',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textPrimary,
+                              SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        'Tanggal Mulai Proyek',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textPrimary,
+                                        ),
                                       ),
-                                    ),
-                                    subtitle: Text(
-                                      _startDate != null
-                                          ? _formatDate(_startDate!)
-                                          : 'Sama dg tgl pengerjaan',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textMuted,
+                                      subtitle: Text(
+                                        _startDate != null
+                                            ? _formatDate(_startDate!)
+                                            : 'Sama dg tgl pengerjaan',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textMuted,
+                                        ),
                                       ),
+                                      trailing: Icon(
+                                        Icons.play_circle_outline_rounded,
+                                        color: AppColors.gold,
+                                        size: 18,
+                                      ),
+                                      onTap: () async {
+                                        final picked = await showDatePicker(
+                                          context: context,
+                                          initialDate:
+                                              _startDate ?? _selectedDate,
+                                          firstDate: DateTime(2024),
+                                          lastDate: DateTime(2030),
+                                        );
+                                        if (picked != null) {
+                                          setState(() => _startDate = picked);
+                                        }
+                                      },
                                     ),
-                                    trailing: const Icon(
-                                      Icons.play_circle_outline_rounded,
-                                      color: AppColors.gold,
-                                      size: 18,
-                                    ),
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate:
-                                            _startDate ?? _selectedDate,
-                                        firstDate: DateTime(2024),
-                                        lastDate: DateTime(2030),
-                                      );
-                                      if (picked != null) {
-                                        setState(() => _startDate = picked);
-                                      }
-                                    },
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: const Text(
-                                      'Deadline Proyek',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.textPrimary,
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        'Deadline Proyek',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: AppColors.textPrimary,
+                                        ),
                                       ),
-                                    ),
-                                    subtitle: Text(
-                                      _deadlineDate != null
-                                          ? _formatDate(_deadlineDate!)
-                                          : 'Tidak ditentukan',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: AppColors.textMuted,
+                                      subtitle: Text(
+                                        _deadlineDate != null
+                                            ? _formatDate(_deadlineDate!)
+                                            : 'Tidak ditentukan',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textMuted,
+                                        ),
                                       ),
+                                      trailing: Icon(
+                                        Icons.flag_rounded,
+                                        color: AppColors.gold,
+                                        size: 18,
+                                      ),
+                                      onTap: () async {
+                                        final picked = await showDatePicker(
+                                          context: context,
+                                          initialDate:
+                                              _deadlineDate ??
+                                              _selectedDate.add(
+                                                Duration(days: 7),
+                                              ),
+                                          firstDate: DateTime(2024),
+                                          lastDate: DateTime(2030),
+                                        );
+                                        if (picked != null) {
+                                          setState(
+                                            () => _deadlineDate = picked,
+                                          );
+                                        }
+                                      },
                                     ),
-                                    trailing: const Icon(
-                                      Icons.flag_rounded,
-                                      color: AppColors.gold,
-                                      size: 18,
-                                    ),
-                                    onTap: () async {
-                                      final picked = await showDatePicker(
-                                        context: context,
-                                        initialDate:
-                                            _deadlineDate ??
-                                            _selectedDate.add(
-                                              const Duration(days: 7),
-                                            ),
-                                        firstDate: DateTime(2024),
-                                        lastDate: DateTime(2030),
-                                      );
-                                      if (picked != null) {
-                                        setState(() => _deadlineDate = picked);
-                                      }
-                                    },
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _FormSection(
                         title: 'Jadwal Harian',
                         child: Column(
                           children: [
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: const Text(
+                              title: Text(
                                 'Tanggal Pengerjaan',
                                 style: TextStyle(color: AppColors.textPrimary),
                               ),
                               subtitle: Text(
                                 _formatDate(_selectedDate),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textMuted,
                                 ),
                               ),
-                              trailing: const Icon(
+                              trailing: Icon(
                                 Icons.calendar_today_rounded,
                                 color: AppColors.gold,
                                 size: 18,
@@ -2992,7 +3491,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                 }
                               },
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Row(
                               children: [
                                 Expanded(
@@ -3056,7 +3555,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                     },
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: ClockTimeInput(
                                     labelText: 'Jam Selesai',
@@ -3099,7 +3598,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                   setState(() => _isOvertime = value),
                               contentPadding: EdgeInsets.zero,
                               activeThumbColor: AppColors.gold,
-                              title: const Text(
+                              title: Text(
                                 'Jam lembur',
                                 style: TextStyle(color: AppColors.textPrimary),
                               ),
@@ -3109,7 +3608,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               onChanged: (v) =>
                                   setState(() => _isRework = v ?? false),
                               contentPadding: EdgeInsets.zero,
-                              title: const Text(
+                              title: Text(
                                 'Pekerjaan Rework',
                                 style: TextStyle(
                                   fontSize: 13,
@@ -3122,15 +3621,15 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                         ),
                       ),
 
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
 
                       _FormSection(
                         title: 'Catatan Rencana',
                         child: TextField(
                           controller: _noteCtrl,
                           maxLines: 2,
-                          style: const TextStyle(color: AppColors.textPrimary),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppColors.textPrimary),
+                          decoration: InputDecoration(
                             hintText: 'Tulis catatan khusus (opsional)',
                           ),
                         ),
@@ -3141,8 +3640,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
 
                 // ── Submit bar ─────────────────────────────────────
                 Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
                     border: Border(top: BorderSide(color: AppColors.border)),
                   ),
@@ -3166,7 +3665,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               _isSaving
                                   ? (isKd ? 'MENYIMPAN...' : 'MENGIRIM...')
                                   : (isKd ? 'SIMPAN KE DRAFT' : 'KIRIM'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.background,
                               ),
@@ -3202,7 +3701,7 @@ class _WoSourcePicker extends StatelessWidget {
         heightFactor: 0.8,
         child: Column(
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(20),
               child: Text(
                 'Pilih Work Order',
@@ -3215,7 +3714,7 @@ class _WoSourcePicker extends StatelessWidget {
             ),
             Expanded(
               child: orders.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
                         'Tidak ada WO aktif',
                         style: TextStyle(color: AppColors.textMuted),
@@ -3228,16 +3727,16 @@ class _WoSourcePicker extends StatelessWidget {
                         return ListTile(
                           title: Text(
                             wo.unitName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           subtitle: Text(
                             '${wo.jobDetail}\nPanel: ${wo.panelName ?? '-'}',
-                            style: const TextStyle(fontSize: 12),
+                            style: TextStyle(fontSize: 12),
                           ),
-                          trailing: const Icon(
+                          trailing: Icon(
                             Icons.chevron_right_rounded,
                             color: AppColors.gold,
                           ),
@@ -3257,7 +3756,7 @@ class _WoSourcePicker extends StatelessWidget {
 // ── Generic Source Form (WO/WOV) ─────────────────────────────────────────────
 
 class _PlanSourceSeed {
-  const _PlanSourceSeed({
+  _PlanSourceSeed({
     required this.sourceLabel,
     required this.sourceType,
     required this.sourceRefId,
@@ -3306,8 +3805,8 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
   String? _selectedEmployeeId;
 
   late DateTime _selectedDate;
-  TimeOfDay _startTime = const TimeOfDay(hour: 8, minute: 0);
-  TimeOfDay _finishTime = const TimeOfDay(hour: 16, minute: 0);
+  TimeOfDay _startTime = TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _finishTime = TimeOfDay(hour: 16, minute: 0);
   bool _finishTimeEdited = false;
   bool _isOvertime = false;
 
@@ -3373,8 +3872,8 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
   void _applyStandardWorkday() {
     setState(() {
       _hoursCtrl.text = TimeParser.formatDecimalToHHmm(8.0, isTriple: false);
-      _startTime = const TimeOfDay(hour: 8, minute: 0);
-      _finishTime = const TimeOfDay(hour: 17, minute: 0);
+      _startTime = TimeOfDay(hour: 8, minute: 0);
+      _finishTime = TimeOfDay(hour: 17, minute: 0);
       _finishTimeEdited = false;
       _isOvertime = false;
     });
@@ -3385,18 +3884,18 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
     if (_selectedEmployeeId == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Harap pilih pelaksana.')));
+      ).showSnackBar(SnackBar(content: Text('Harap pilih pelaksana.')));
       return;
     }
     if (_jobdescCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Jobdesc tidak boleh kosong.')),
+        SnackBar(content: Text('Jobdesc tidak boleh kosong.')),
       );
       return;
     }
     if (targetHours == null || targetHours <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Target hours harus valid dan lebih dari 0.'),
         ),
       );
@@ -3505,9 +4004,11 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal menyimpan task: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyMessage(e, fallback: 'Gagal menyimpan task')),
+        ),
+      );
     }
   }
 
@@ -3532,20 +4033,20 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: Icon(Icons.close_rounded),
             onPressed: () => Navigator.pop(context),
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : Column(
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
                     children: [
                       _FormSection(
                         title: 'Info Sumber',
@@ -3555,7 +4056,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
+                                  padding: EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 4,
                                   ),
@@ -3567,7 +4068,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                   ),
                                   child: Text(
                                     widget.seed.sourceLabel,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 10,
                                       color: AppColors.gold,
                                       fontWeight: FontWeight.bold,
@@ -3576,10 +4077,10 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Text(
                               'Unit: ${widget.seed.unitName}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textMuted,
                               ),
@@ -3587,17 +4088,17 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _FormSection(
                         title: 'Panel & Jobdesc',
                         child: Column(
                           children: [
                             TextField(
                               controller: _panelCtrl,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textPrimary,
                               ),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Panel / Section *',
                                 hintText: 'Nama panel atau section',
                                 prefixIcon: Icon(
@@ -3607,15 +4108,15 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            SizedBox(height: 10),
                             TextField(
                               controller: _jobdescCtrl,
                               minLines: 2,
                               maxLines: 4,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.textPrimary,
                               ),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Jobdesc / Deskripsi Pekerjaan *',
                                 hintText: 'Deskripsi pekerjaan',
                                 prefixIcon: Icon(
@@ -3629,7 +4130,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _FormSection(
                         title: 'Pelaksana',
                         child: Column(
@@ -3653,7 +4154,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                 }
                               },
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             DurationInput(
                               labelText: 'Target Jam Pengerjaan',
                               initialHours: TimeParser.parseHHmmToDecimal(
@@ -3671,35 +4172,35 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                 });
                               },
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Align(
                               alignment: Alignment.centerLeft,
                               child: OutlinedButton(
                                 onPressed: _applyStandardWorkday,
-                                child: const Text('Set jam kerja normal 8 jam'),
+                                child: Text('Set jam kerja normal 8 jam'),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _FormSection(
                         title: 'Jadwal',
                         child: Column(
                           children: [
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              title: const Text(
+                              title: Text(
                                 'Tanggal Pengerjaan',
                                 style: TextStyle(color: AppColors.textPrimary),
                               ),
                               subtitle: Text(
                                 _formatDate(_selectedDate),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: AppColors.textMuted,
                                 ),
                               ),
-                              trailing: const Icon(
+                              trailing: Icon(
                                 Icons.calendar_today_rounded,
                                 color: AppColors.gold,
                                 size: 18,
@@ -3719,7 +4220,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                 }
                               },
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Row(
                               children: [
                                 Expanded(
@@ -3746,7 +4247,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                     },
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: ClockTimeInput(
                                     labelText: 'Selesai',
@@ -3789,7 +4290,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                                   setState(() => _isOvertime = value),
                               contentPadding: EdgeInsets.zero,
                               activeThumbColor: AppColors.gold,
-                              title: const Text(
+                              title: Text(
                                 'Jam lembur',
                                 style: TextStyle(color: AppColors.textPrimary),
                               ),
@@ -3797,14 +4298,14 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _FormSection(
                         title: 'Catatan Rencana',
                         child: TextField(
                           controller: _noteCtrl,
                           maxLines: 2,
-                          style: const TextStyle(color: AppColors.textPrimary),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppColors.textPrimary),
+                          decoration: InputDecoration(
                             hintText: 'Tulis catatan khusus (SPOK)',
                           ),
                         ),
@@ -3813,8 +4314,8 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: const BoxDecoration(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
                     border: Border(top: BorderSide(color: AppColors.border)),
                   ),
@@ -3832,7 +4333,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                         ),
                         child: Text(
                           _isSaving ? 'MENYIMPAN...' : 'SIMPAN KE DRAFT',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: AppColors.background,
                           ),
@@ -3865,14 +4366,14 @@ class _FormSection extends StatelessWidget {
       children: [
         Text(
           title.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w800,
             color: AppColors.gold,
             letterSpacing: 1.2,
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         child,
       ],
     );
@@ -3897,7 +4398,7 @@ class _SearchFieldTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 14),
         decoration: BoxDecoration(
           color: AppColors.surfaceInput,
           border: Border.all(color: AppColors.border),
@@ -3911,12 +4412,12 @@ class _SearchFieldTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       color: AppColors.textMuted,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     value ?? hint,
                     style: TextStyle(
@@ -3929,7 +4430,7 @@ class _SearchFieldTile extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(
+            Icon(
               Icons.keyboard_arrow_down_rounded,
               color: AppColors.gold,
             ),
@@ -4015,8 +4516,13 @@ class _ApprovalTabState extends State<_ApprovalTab> {
         taskDate: _dateStr,
       );
       res.fold(
-        (_) {
-          if (mounted) setState(() => _isLoading = false);
+        (failure) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          AppNotification.showError(
+            context,
+            friendlyMessage(failure, fallback: 'Gagal memuat data'),
+          );
         },
         (raw) {
           final items = (raw['items'] as List<dynamic>? ?? [])
@@ -4044,8 +4550,13 @@ class _ApprovalTabState extends State<_ApprovalTab> {
           )
           .then((result) {
             result.fold(
-              (_) {
-                if (mounted) setState(() => _isLoading = false);
+              (failure) {
+                if (!mounted) return;
+                setState(() => _isLoading = false);
+                AppNotification.showError(
+                  context,
+                  friendlyMessage(failure, fallback: 'Gagal memuat data'),
+                );
               },
               (plans) {
                 if (mounted) {
@@ -4115,8 +4626,8 @@ class _ApprovalTabState extends State<_ApprovalTab> {
       SnackBar(
         content: Text(msg),
         backgroundColor: failed.isEmpty
-            ? const Color(0xFF2E7D32)
-            : const Color(0xFFFFA000),
+            ? Color(0xFF2E7D32)
+            : Color(0xFFFFA000),
       ),
     );
     if (mounted) {
@@ -4138,7 +4649,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: DateFilterBar(
                   selectedDate: _date,
                   onDateChanged: (d) {
@@ -4157,11 +4668,11 @@ class _ApprovalTabState extends State<_ApprovalTab> {
               ),
               if (_level > 0)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 16, 8),
+                  padding: EdgeInsets.fromLTRB(8, 0, 16, 8),
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_rounded,
                           size: 16,
                           color: AppColors.gold,
@@ -4175,7 +4686,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
                                     _selUnit?['unitName'] ??
                                     '')
                               : '${_selUnit?['name'] ?? _selUnit?['unitName'] ?? ''} › ${_selDivision?['name'] ?? _selDivision?['divisionName'] ?? ''}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -4186,14 +4697,14 @@ class _ApprovalTabState extends State<_ApprovalTab> {
                     ],
                   ),
                 ),
-              const Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: AppColors.border),
             ],
           ),
         ),
         // Content
         Expanded(
           child: _isLoading
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(color: AppColors.gold),
                 )
               : _level == 0
@@ -4218,7 +4729,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
       return RefreshIndicator(
         onRefresh: _fetchCurrentLevel,
         child: ListView(
-          children: const [
+          children: [
             SizedBox(height: 100),
             Center(child: Text('Tidak ada antrian approval.')),
           ],
@@ -4228,7 +4739,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
     return RefreshIndicator(
       onRefresh: _fetchCurrentLevel,
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         itemCount: _divisionItems.length,
         itemBuilder: (ctx, i) {
           final div = _divisionItems[i];
@@ -4249,7 +4760,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
       return RefreshIndicator(
         onRefresh: _fetchCurrentLevel,
         child: ListView(
-          children: const [
+          children: [
             SizedBox(height: 100),
             Center(child: Text('Tidak ada unit dengan antrian.')),
           ],
@@ -4259,7 +4770,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
     return RefreshIndicator(
       onRefresh: _fetchCurrentLevel,
       child: ListView.builder(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         itemCount: _unitItems.length,
         itemBuilder: (ctx, i) {
           final unit = _unitItems[i];
@@ -4282,7 +4793,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
       return RefreshIndicator(
         onRefresh: _fetchCurrentLevel,
         child: ListView(
-          children: const [
+          children: [
             SizedBox(height: 100),
             Center(child: Text('Tidak ada rencana.')),
           ],
@@ -4299,13 +4810,13 @@ class _ApprovalTabState extends State<_ApprovalTab> {
       children: [
         if (reviewablePlans.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '${_planItems.length} rencana',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
@@ -4320,7 +4831,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
                   }),
                   child: Text(
                     allSelected ? 'Batal Semua' : 'Pilih Semua',
-                    style: const TextStyle(color: AppColors.gold, fontSize: 12),
+                    style: TextStyle(color: AppColors.gold, fontSize: 12),
                   ),
                 ),
               ],
@@ -4330,7 +4841,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
           child: RefreshIndicator(
             onRefresh: _fetchCurrentLevel,
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 80),
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 80),
               itemCount: _planItems.length,
               itemBuilder: (ctx, i) {
                 final plan = _planItems[i];
@@ -4379,8 +4890,8 @@ class _NavDrillCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: EdgeInsets.only(bottom: 10),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -4389,14 +4900,14 @@ class _NavDrillCard extends StatelessWidget {
         child: Row(
           children: [
             Icon(icon, color: AppColors.gold, size: 20),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -4404,7 +4915,7 @@ class _NavDrillCard extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textMuted,
                     ),
@@ -4412,7 +4923,7 @@ class _NavDrillCard extends StatelessWidget {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
           ],
         ),
       ),
@@ -4434,8 +4945,8 @@ class _BulkApproveBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: const BoxDecoration(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
@@ -4451,7 +4962,7 @@ class _BulkApproveBar extends StatelessWidget {
               foregroundColor: AppColors.background,
             ),
             icon: isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -4459,10 +4970,10 @@ class _BulkApproveBar extends StatelessWidget {
                       strokeWidth: 2,
                     ),
                   )
-                : const Icon(Icons.check_circle_rounded),
+                : Icon(Icons.check_circle_rounded),
             label: Text(
               isLoading ? 'Menyetujui...' : 'Setujui $selectedCount Rencana',
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -4490,7 +5001,7 @@ class _ApprovalPlanCard extends StatelessWidget {
     final canSelect = onSelectionChanged != null;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -4502,7 +5013,7 @@ class _ApprovalPlanCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12),
           child: Row(
             children: [
               if (canSelect)
@@ -4517,16 +5028,16 @@ class _ApprovalPlanCard extends StatelessWidget {
                   children: [
                     Text(
                       plan.unitName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       plan.description,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w600,
@@ -4534,19 +5045,19 @@ class _ApprovalPlanCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.person_outline,
                           size: 12,
                           color: AppColors.textMuted,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             plan.assignedTo,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textMuted,
                             ),
@@ -4564,7 +5075,7 @@ class _ApprovalPlanCard extends StatelessWidget {
                 children: [
                   Text(
                     plan.targetHoursAlias ?? _formatHours(plan.targetHours),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
@@ -4572,10 +5083,10 @@ class _ApprovalPlanCard extends StatelessWidget {
                   ),
                   if (plan.remainingHoursAlias != null &&
                       plan.remainingHoursAlias!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       'Sisa: ${plan.remainingHoursAlias}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
                         color: AppColors.textSecondary,
                       ),
@@ -4583,16 +5094,16 @@ class _ApprovalPlanCard extends StatelessWidget {
                   ],
                   if (plan.status != 'DRAFT' &&
                       (plan.totalActualHours > 0 || plan.progress > 0)) ...[
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       'Riwayat: ${_formatHoursClock(plan.totalActualHours, zeroAsClock: true)} (${plan.progress}%)',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
                         color: AppColors.textSecondary,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   _StatusChip(status: plan.status),
                 ],
               ),
@@ -4613,7 +5124,7 @@ class _StatusChip extends StatelessWidget {
     final color = _resolveColor(status);
     final label = _resolveLabel(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(4),
@@ -4648,7 +5159,7 @@ class _StatusChip extends StatelessWidget {
 
   String _resolveLabel(String s) {
     return switch (s.toUpperCase()) {
-      'PENDING_ADV' => 'ADV',
+      'PENDING_ADV' => 'QA',
       'PENDING_KP' => 'KP',
       'PENDING_MP' => 'MP',
       'PENDING_PM' => 'PM',
@@ -4671,7 +5182,7 @@ class _ApprovalMetaChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
@@ -4681,10 +5192,10 @@ class _ApprovalMetaChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: AppColors.gold),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
@@ -4705,18 +5216,18 @@ class _ApprovalDetailField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
@@ -4858,7 +5369,10 @@ class _BrowseTabState extends State<_BrowseTab> {
       }
     } catch (e) {
       if (mounted) {
-        AppNotification.showError(context, 'Gagal menghapus: $e');
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal menghapus rencana'),
+        );
         _fetch(); // Re-fetch to restore list on error
       }
     }
@@ -4918,7 +5432,10 @@ class _BrowseTabState extends State<_BrowseTab> {
       }
     } catch (e) {
       if (mounted) {
-        AppNotification.showError(context, 'Gagal menghapus draf: $e');
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal menghapus draf'),
+        );
         _fetch(); // Re-fetch on error
       }
     } finally {
@@ -4926,6 +5443,56 @@ class _BrowseTabState extends State<_BrowseTab> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _editDraftItem(JobPlan plan) async {
+    final uid = _session.employeeId ?? '';
+    final existingDraft = await _repository.getDraft(userId: uid);
+    final items =
+        (existingDraft?['items'] as List<dynamic>? ?? <dynamic>[])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+    final index = items.indexWhere(
+      (t) => t['draftItemId']?.toString() == plan.planId,
+    );
+    if (index < 0) {
+      if (mounted) {
+        AppNotification.showWarning(context, 'Draft tidak ditemukan.');
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final item = Map<String, dynamic>.from(items[index]);
+    final sourceType = (item['sourceType'] ?? plan.sourceType ?? '')
+        .toString()
+        .toUpperCase();
+    final date =
+        DateTime.tryParse('${item['taskDate'] ?? plan.workDate ?? ''}') ??
+        _selectedDate;
+    final bool? res;
+    if (sourceType == 'COUNTDOWN') {
+      res = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => _CountdownPlanFormPage(
+            initialDate: date,
+            initialDraft: item,
+            editIndex: index,
+          ),
+        ),
+      );
+    } else {
+      res = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => _AdditionalPlanFormPage(
+            initialDate: date,
+            initialDraft: item,
+            editIndex: index,
+          ),
+        ),
+      );
+    }
+    if (res == true) _fetch();
   }
 
   Future<void> _submitDrafts() async {
@@ -4944,9 +5511,9 @@ class _BrowseTabState extends State<_BrowseTab> {
       final existingDraft = await _repository.getDraft(userId: uid);
       if (existingDraft != null && existingDraft.containsKey('items')) {
         final itemsList = existingDraft['items'] as List<dynamic>;
-        final allItems = itemsList
-            .map((e) => e as Map<String, dynamic>)
-            .toList();
+        final allItems = normalizeSequentialDraftItems(
+          itemsList.map((e) => e as Map<String, dynamic>).toList(),
+        );
 
         final itemsToSubmit = allItems
             .asMap()
@@ -5007,7 +5574,10 @@ class _BrowseTabState extends State<_BrowseTab> {
       }
     } catch (e) {
       if (mounted) {
-        AppNotification.showError(context, 'Gagal mengirim draft: $e');
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal mengirim draft'),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSubmittingDrafts = false);
@@ -5020,19 +5590,19 @@ class _BrowseTabState extends State<_BrowseTab> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 24),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Detail Draft Rencana',
                         style: TextStyle(
@@ -5043,7 +5613,7 @@ class _BrowseTabState extends State<_BrowseTab> {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.close,
                         color: AppColors.textSecondary,
                       ),
@@ -5051,8 +5621,8 @@ class _BrowseTabState extends State<_BrowseTab> {
                     ),
                   ],
                 ),
-                const Divider(color: AppColors.borderSubtle),
-                const SizedBox(height: 8),
+                Divider(color: AppColors.borderSubtle),
+                SizedBox(height: 8),
                 _DetailRow(
                   label: 'Unit',
                   value: plan.unitName.isNotEmpty ? plan.unitName : '-',
@@ -5085,28 +5655,43 @@ class _BrowseTabState extends State<_BrowseTab> {
                   label: 'Lembur',
                   value: plan.isOvertime ? 'Ya' : 'Tidak',
                 ),
-                const Divider(color: AppColors.borderSubtle),
-                const SizedBox(height: 4),
+                Divider(color: AppColors.borderSubtle),
+                SizedBox(height: 4),
                 _DetailRow(
                   label: 'Jobdesc',
                   value: plan.description.isNotEmpty ? plan.description : '-',
                 ),
                 if (plan.note.isNotEmpty)
                   _DetailRow(label: 'Catatan', value: plan.note),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        icon: const Icon(Icons.delete_outline, size: 16),
-                        label: const Text('Hapus'),
+                        icon: Icon(Icons.edit_outlined, size: 16),
+                        label: Text('Edit'),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _editDraftItem(plan);
+                        },
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.gold,
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        icon: Icon(Icons.delete_outline, size: 16),
+                        label: Text('Hapus'),
                         onPressed: () {
                           Navigator.pop(ctx);
                           _deleteDraftItem(plan);
                         },
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.statusLocked,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
                     ),
@@ -5130,7 +5715,7 @@ class _BrowseTabState extends State<_BrowseTab> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: DateFilterBar(
             selectedDate: _selectedDate,
             onDateChanged: (dt) {
@@ -5142,13 +5727,13 @@ class _BrowseTabState extends State<_BrowseTab> {
         ),
         if (draftPlans.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '${draftPlans.length} draft',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
@@ -5163,7 +5748,7 @@ class _BrowseTabState extends State<_BrowseTab> {
                   }),
                   child: Text(
                     allDraftsSelected ? 'Batal Semua' : 'Pilih Semua',
-                    style: const TextStyle(color: AppColors.gold, fontSize: 12),
+                    style: TextStyle(color: AppColors.gold, fontSize: 12),
                   ),
                 ),
               ],
@@ -5171,13 +5756,13 @@ class _BrowseTabState extends State<_BrowseTab> {
           ),
         Expanded(
           child: _isLoading
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(color: AppColors.gold),
                 )
               : _plans.isEmpty
-              ? const Center(child: Text('Tidak ada rencana kerja.'))
+              ? Center(child: Text('Tidak ada rencana kerja.'))
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: EdgeInsets.all(16),
                   itemCount: _plans.length,
                   itemBuilder: (ctx, i) {
                     final plan = _plans[i];
@@ -5193,7 +5778,7 @@ class _BrowseTabState extends State<_BrowseTab> {
                           ? () => _deleteRejectedItem(plan)
                           : null,
                       onTap: isEditable ? () => _showDraftDetail(plan) : null,
-                      onEdit: null,
+                      onEdit: isDraft ? () => _editDraftItem(plan) : null,
                       isSelected:
                           isDraft && _selectedDraftIds.contains(plan.planId),
                       onSelectionChanged: isDraft
@@ -5209,8 +5794,8 @@ class _BrowseTabState extends State<_BrowseTab> {
         ),
         if (hasDrafts)
           Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               border: Border(top: BorderSide(color: AppColors.border)),
             ),
@@ -5226,7 +5811,7 @@ class _BrowseTabState extends State<_BrowseTab> {
                     _isSubmittingDrafts
                         ? 'MENGIRIM...'
                         : 'KIRIM ${_selectedDraftIds.length} DRAFT',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.background,
                     ),
@@ -5264,7 +5849,7 @@ class _SubmittedPlanCard extends StatelessWidget {
     final isOt = plan.isOvertime;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isSelected
             ? AppColors.gold.withValues(alpha: 0.08)
@@ -5279,7 +5864,7 @@ class _SubmittedPlanCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -5299,14 +5884,14 @@ class _SubmittedPlanCard extends StatelessWidget {
                         visualDensity: VisualDensity.compact,
                       ),
                     ),
-                  if (onSelectionChanged != null) const SizedBox(width: 8),
+                  if (onSelectionChanged != null) SizedBox(width: 8),
                   Expanded(
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(
                             plan.unitName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: AppColors.textPrimary,
@@ -5315,24 +5900,36 @@ class _SubmittedPlanCard extends StatelessWidget {
                           ),
                         ),
                         if (isOt) ...[
-                          const SizedBox(width: 4),
-                          const Icon(
+                          SizedBox(width: 4),
+                          Icon(
                             Icons.nights_stay_rounded,
                             size: 14,
                             color: AppColors.gold,
                           ),
                         ],
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _StatusChip(status: plan.status),
                       ],
                     ),
                   ),
                   // Edit & Delete — only for drafts
                   if (isDraft && onDelete != null) ...[
-                    const SizedBox(width: 4),
+                    SizedBox(width: 4),
+                    if (onEdit != null)
+                      GestureDetector(
+                        onTap: onEdit,
+                        child: Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.edit_outlined,
+                            size: 16,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ),
                     GestureDetector(
                       onTap: onDelete,
-                      child: const Padding(
+                      child: Padding(
                         padding: EdgeInsets.all(4),
                         child: Icon(
                           Icons.delete_outline,
@@ -5344,28 +5941,28 @@ class _SubmittedPlanCard extends StatelessWidget {
                   ],
                 ],
               ),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               // ── Job description ──────────────────────────────────
               Text(
                 plan.description,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   color: AppColors.textSecondary,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               // ── Panel name ───────────────────────────────────────
               if (plan.panelName.isNotEmpty)
                 Text(
                   plan.panelName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               // ── Bottom row: assignee + hours + history ───────────
               Wrap(
                 spacing: 8,
@@ -5375,15 +5972,15 @@ class _SubmittedPlanCard extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.person_outline,
                         size: 13,
                         color: AppColors.textMuted,
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         plan.assignedTo,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
                         ),
@@ -5393,15 +5990,15 @@ class _SubmittedPlanCard extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.timer_outlined,
                         size: 13,
                         color: AppColors.gold,
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         '${plan.startTime} - ${plan.finishTime}  |  ${plan.targetHoursAlias ?? _formatHours(plan.targetHours)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: AppColors.gold,
@@ -5414,15 +6011,15 @@ class _SubmittedPlanCard extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.hourglass_bottom,
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           'Sisa: ${plan.remainingHoursAlias}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -5433,15 +6030,15 @@ class _SubmittedPlanCard extends StatelessWidget {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.history,
                           size: 13,
                           color: AppColors.textSecondary,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           '${plan.totalActualHours.toStringAsFixed(1)}j (${plan.progress}%)',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
@@ -5468,7 +6065,7 @@ class _DetailRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -5476,7 +6073,7 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
               ),
@@ -5485,7 +6082,7 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,

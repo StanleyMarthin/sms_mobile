@@ -12,7 +12,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({
     required this.deviceInitUseCase,
     required this.loginUseCase,
-  }) : super(const AuthInitial()) {
+  }) : super(AuthInitial()) {
     on<DeviceInitRequested>(_onDeviceInit);
     on<LoginRequested>(_onLogin);
   }
@@ -21,7 +21,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     DeviceInitRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(const AuthLoading(message: 'Verifikasi perangkat...'));
+    emit(AuthLoading(message: 'Verifikasi perangkat...'));
     final result = await deviceInitUseCase(
       DeviceInitParams(deviceInfo: event.deviceInfo),
     );
@@ -38,7 +38,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     LoginRequested event,
     Emitter<AuthState> emit,
   ) async {
-    emit(const AuthLoading(message: 'Masuk...'));
+    emit(AuthLoading(message: 'Masuk...'));
     final result = await loginUseCase(
       LoginParams(
         employeeId: event.employeeId,

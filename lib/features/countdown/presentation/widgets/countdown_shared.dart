@@ -4,7 +4,7 @@ import '../utils/countdown_helper.dart';
 
 /// Data class used by [RevisionStatusBanner].
 class RevisionBannerData {
-  const RevisionBannerData({
+  RevisionBannerData({
     required this.color,
     required this.icon,
     required this.title,
@@ -25,7 +25,7 @@ class CountdownStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final visual = CountdownHelper.statusVisual(status);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: visual.color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
@@ -35,7 +35,7 @@ class CountdownStatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(visual.icon, size: 12, color: visual.color),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             visual.shortLabel,
             style: TextStyle(
@@ -57,7 +57,7 @@ class CountdownEmptyMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -65,7 +65,7 @@ class CountdownEmptyMessage extends StatelessWidget {
       ),
       child: Text(
         message,
-        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+        style: TextStyle(fontSize: 12, color: AppColors.textMuted),
       ),
     );
   }
@@ -79,7 +79,7 @@ class RevisionStatusBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: banner.color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
@@ -89,7 +89,7 @@ class RevisionStatusBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(banner.icon, size: 16, color: banner.color),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -102,10 +102,10 @@ class RevisionStatusBanner extends StatelessWidget {
                     color: banner.color,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   banner.detail,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textSecondary,
                   ),
@@ -136,8 +136,8 @@ class CountdownNavCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(10),
@@ -151,22 +151,22 @@ class CountdownNavCard extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            SizedBox(width: 8),
+            Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
           ],
         ),
       ),
@@ -187,7 +187,7 @@ class RevisionSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -198,16 +198,16 @@ class RevisionSectionHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -290,7 +290,7 @@ class CountdownFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -299,7 +299,7 @@ class CountdownFilterBar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Filter Jobdesc',
             style: TextStyle(
               fontSize: 13,
@@ -307,7 +307,7 @@ class CountdownFilterBar extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 560;
@@ -331,7 +331,7 @@ class CountdownFilterBar extends StatelessWidget {
                 _buildDropdownFilter(
                   label: 'Status / Progress',
                   value: selectedStatus,
-                  items: const [
+                  items: [
                     'all',
                     'plan',
                     'proses',
@@ -348,7 +348,7 @@ class CountdownFilterBar extends StatelessWidget {
                   _buildDropdownFilter(
                     label: 'Urutkan',
                     value: selectedSort,
-                    items: const [
+                    items: [
                       'deadline_asc',
                       'deadline_desc',
                       'progress_desc',
@@ -365,15 +365,15 @@ class CountdownFilterBar extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ...fields.expand((field) => [field, const SizedBox(height: 12)]),
+                    ...fields.expand((field) => [field, SizedBox(height: 12)]),
                     OutlinedButton.icon(
                       onPressed: onReset,
-                      icon: const Icon(Icons.refresh, size: 16, color: AppColors.gold),
-                      label: const Text('Reset', style: TextStyle(color: AppColors.gold)),
+                      icon: Icon(Icons.refresh, size: 16, color: AppColors.gold),
+                      label: Text('Reset', style: TextStyle(color: AppColors.gold)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.gold),
+                        side: BorderSide(color: AppColors.gold),
                         foregroundColor: AppColors.gold,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        padding: EdgeInsets.symmetric(vertical: 14),
                       ),
                     ),
                   ],
@@ -387,10 +387,10 @@ class CountdownFilterBar extends StatelessWidget {
                   ...fields,
                   OutlinedButton.icon(
                     onPressed: onReset,
-                    icon: const Icon(Icons.refresh, size: 16, color: AppColors.gold),
-                    label: const Text('Reset', style: TextStyle(color: AppColors.gold)),
+                    icon: Icon(Icons.refresh, size: 16, color: AppColors.gold),
+                    label: Text('Reset', style: TextStyle(color: AppColors.gold)),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.gold),
+                      side: BorderSide(color: AppColors.gold),
                       foregroundColor: AppColors.gold,
                     ),
                   ),

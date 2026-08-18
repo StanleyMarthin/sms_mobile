@@ -91,7 +91,7 @@ class _TaskListPageState extends State<TaskListPage> {
       listener: _blocListener,
       builder: (context, state) {
         if (state is TaskInitial || state is TaskLoading) {
-          return const Center(
+          return Center(
             child: CircularProgressIndicator(color: AppColors.gold),
           );
         }
@@ -121,7 +121,7 @@ class _TaskListPageState extends State<TaskListPage> {
         if (tasks == null || tasks.isEmpty) {
           return _EmptyView(
             onRefresh: () =>
-                context.read<TaskBloc>().add(const RefreshTasksEvent()),
+                context.read<TaskBloc>().add(RefreshTasksEvent()),
           );
         }
 
@@ -129,11 +129,11 @@ class _TaskListPageState extends State<TaskListPage> {
           color: AppColors.gold,
           backgroundColor: AppColors.surfaceCard,
           onRefresh: () async {
-            context.read<TaskBloc>().add(const RefreshTasksEvent());
-            await Future<void>.delayed(const Duration(milliseconds: 500));
+            context.read<TaskBloc>().add(RefreshTasksEvent());
+            await Future<void>.delayed(Duration(milliseconds: 500));
           },
           child: ListView(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: EdgeInsets.symmetric(vertical: 12),
             children: [
               _buildSectionHeader(tasks.length),
               ..._groupByUnit(tasks).map(
@@ -234,7 +234,7 @@ class _TaskListPageState extends State<TaskListPage> {
         '${dayNames[date.weekday % 7]}, ${date.day} ${monthNames[date.month]} ${date.year}';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -244,7 +244,7 @@ class _TaskListPageState extends State<TaskListPage> {
               Expanded(
                 child: Text(
                   '${widget.title} — $name',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
@@ -253,16 +253,16 @@ class _TaskListPageState extends State<TaskListPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$count',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.gold,
@@ -271,24 +271,24 @@ class _TaskListPageState extends State<TaskListPage> {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           // Date row
           Row(
             children: [
-              const Icon(Icons.today, size: 14, color: AppColors.gold),
-              const SizedBox(width: 6),
+              Icon(Icons.today, size: 14, color: AppColors.gold),
+              SizedBox(width: 6),
               Text(
                 widget.title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: AppColors.gold,
                 ),
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 '|  $dateStr',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   color: AppColors.textMuted,
                 ),
@@ -331,7 +331,7 @@ class _TaskListPageState extends State<TaskListPage> {
     if (state is TaskActionLoading) return state.tasks;
     if (state is TaskActionSuccess) return state.tasks;
     if (state is TaskActionError) return state.tasks;
-    return const [];
+    return [];
   }
 }
 
@@ -348,17 +348,17 @@ class _ErrorView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.error_outline,
               size: 56,
               color: AppColors.statusLocked,
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               'Terjadi Kesalahan',
               style: TextStyle(
                 fontSize: 18,
@@ -366,26 +366,26 @@ class _ErrorView extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh, color: AppColors.gold),
-              label: const Text(
+              icon: Icon(Icons.refresh, color: AppColors.gold),
+              label: Text(
                 'Coba Lagi',
                 style: TextStyle(color: AppColors.gold),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.gold),
+                side: BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -410,17 +410,17 @@ class _EmptyView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.assignment_outlined,
               size: 56,
               color: AppColors.textDisabled,
             ),
-            const SizedBox(height: 16),
-            const Text(
+            SizedBox(height: 16),
+            Text(
               'Tidak Ada Task',
               style: TextStyle(
                 fontSize: 18,
@@ -428,8 +428,8 @@ class _EmptyView extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Belum ada task yang dijadwalkan untuk hari ini.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -438,16 +438,16 @@ class _EmptyView extends StatelessWidget {
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             OutlinedButton.icon(
               onPressed: onRefresh,
-              icon: const Icon(Icons.refresh, color: AppColors.gold),
-              label: const Text(
+              icon: Icon(Icons.refresh, color: AppColors.gold),
+              label: Text(
                 'Refresh',
                 style: TextStyle(color: AppColors.gold),
               ),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.gold),
+                side: BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -480,8 +480,8 @@ class _DrilldownTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        padding: const EdgeInsets.all(14),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -490,23 +490,23 @@ class _DrilldownTile extends StatelessWidget {
         child: Row(
           children: [
             Icon(icon, color: AppColors.gold, size: 18),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textMuted,
                     ),
@@ -514,20 +514,20 @@ class _DrilldownTile extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
                   trailingLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: AppColors.gold,
                   ),
                 ),
-                const SizedBox(height: 2),
-                const Icon(
+                SizedBox(height: 2),
+                Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
                   color: AppColors.textMuted,
@@ -613,10 +613,10 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
               : null;
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(12),
@@ -624,14 +624,14 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
                 ),
                 child: Text(
                   '${tasks.length} jobdesc untuk kendaraan ini.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               ...tasks.map(
                 (task) => TaskCard(
                   task: task,
@@ -656,7 +656,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
     if (state is TaskActionLoading) return state.tasks;
     if (state is TaskActionSuccess) return state.tasks;
     if (state is TaskActionError) return state.tasks;
-    return const [];
+    return [];
   }
 
   Map<String, TaskDraft> _extractDrafts(TaskState state) {
@@ -664,7 +664,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
     if (state is TaskActionLoading) return state.drafts;
     if (state is TaskActionSuccess) return state.drafts;
     if (state is TaskActionError) return state.drafts;
-    return const {};
+    return {};
   }
 
   void _showExecutionSheet(BuildContext context, TaskEntity task) {
@@ -684,6 +684,7 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
     }
 
     final drafts = _extractDrafts(context.read<TaskBloc>().state);
+    final allTasks = _extractTasks(context.read<TaskBloc>().state);
     final existingDraft = drafts[task.plandailyId];
     final shouldOpenFinishSheet = task.isInProgress || existingDraft != null;
 
@@ -692,6 +693,9 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
         context: context,
         task: task,
         draft: existingDraft,
+        otherTasks: allTasks
+            .where((t) => t.plandailyId != task.plandailyId)
+            .toList(),
         onSubmit: (executionLog) {
           context.read<TaskBloc>().add(
             SubmitExecutionEvent(executionLog: executionLog),

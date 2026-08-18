@@ -99,7 +99,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => TaskExecutionDetailSheet(
@@ -154,14 +154,14 @@ class TaskExecutionDetailSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           Row(
             children: [
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -170,18 +170,18 @@ class TaskExecutionDetailSheet extends StatelessWidget {
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(
+                icon: Icon(
                   Icons.close_rounded,
                   color: AppColors.textMuted,
                   size: 20,
                 ),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
+                constraints: BoxConstraints(),
               ),
             ],
           ),
 
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
             child: Wrap(
@@ -196,7 +196,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           Flexible(
             child: SingleChildScrollView(
@@ -208,7 +208,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                   _row('Divisi', divisionName),
                   _row('Tanggal Kerja', taskDate),
 
-                  const Divider(color: AppColors.border, height: 24),
+                  Divider(color: AppColors.border, height: 24),
 
                   _row('Jobdesc', jobName),
                   if (description.isNotEmpty && description != jobName)
@@ -216,7 +216,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                   if (instruction != null && instruction!.isNotEmpty)
                     _row('Instruksi / SPOK', instruction!),
 
-                  const Divider(color: AppColors.border, height: 24),
+                  Divider(color: AppColors.border, height: 24),
 
                   _sectionHeader('RENCANA (PLAN)'),
                   _row('Jam Kerja', '$planStartTime - $planFinishTime'),
@@ -228,7 +228,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                       planRemainingDuration!.isNotEmpty)
                     _row('Sisa Target', planRemainingDuration!),
 
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
 
                   _sectionHeader('AKTUAL (REALTIME)'),
                   _row('Mulai', actualStartTime),
@@ -240,13 +240,13 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                   _row('Progress', '${progress.toInt()}%'),
 
                   if (checkpoints.isNotEmpty) ...[
-                    const Divider(color: AppColors.border, height: 32),
+                    Divider(color: AppColors.border, height: 32),
                     _sectionHeader('RIWAYAT MONITORING'),
                     ...checkpoints.map((cp) => _checkpointRow(cp)),
                   ],
 
                   if (actions != null) ...[
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     actions!,
                   ],
                 ],
@@ -260,14 +260,14 @@ class TaskExecutionDetailSheet extends StatelessWidget {
 
   Widget _sectionHeader(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
           Container(width: 3, height: 12, color: AppColors.gold),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w800,
               color: AppColors.gold,
@@ -281,7 +281,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
 
   Widget _row(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -289,13 +289,13 @@ class TaskExecutionDetailSheet extends StatelessWidget {
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -309,7 +309,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
 
   Widget _metaChip(IconData icon, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(6),
@@ -319,10 +319,10 @@ class TaskExecutionDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: AppColors.gold),
-          const SizedBox(width: 4),
+          SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
@@ -335,15 +335,15 @@ class TaskExecutionDetailSheet extends StatelessWidget {
 
   Widget _checkpointRow(Map<String, dynamic> cp) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 5,
             height: 5,
-            margin: const EdgeInsets.only(top: 6, right: 10),
-            decoration: const BoxDecoration(
+            margin: EdgeInsets.only(top: 6, right: 10),
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.gold,
             ),
@@ -354,7 +354,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
               children: [
                 Text(
                   'Sesi ${cp['session']} • ${cp['time']}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -362,7 +362,7 @@ class TaskExecutionDetailSheet extends StatelessWidget {
                 ),
                 Text(
                   'Progress: ${cp['progress']}% • ${cp['status']}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),

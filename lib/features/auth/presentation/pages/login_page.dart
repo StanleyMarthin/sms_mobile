@@ -83,7 +83,7 @@ class _LoginPageState extends State<LoginPage> {
       for (int attempt = 0; attempt < 3; attempt++) {
         fcmToken = await FCMService().getToken();
         if (fcmToken != null && fcmToken.isNotEmpty) break;
-        await Future<void>.delayed(const Duration(seconds: 1));
+        await Future<void>.delayed(Duration(seconds: 1));
       }
     } catch (_) {
       fcmToken = null;
@@ -160,21 +160,21 @@ class _LoginPageState extends State<LoginPage> {
       listener: _onAuthState,
       child: Scaffold(
         body: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: AppColors.backgroundGradient,
           ),
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
+                padding: EdgeInsets.symmetric(horizontal: 32),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     _buildBranding(),
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40),
                     _buildLoginForm(),
-                    const SizedBox(height: 40),
+                    SizedBox(height: 40),
                   ],
                 ),
               ),
@@ -197,8 +197,8 @@ class _LoginPageState extends State<LoginPage> {
             fit: BoxFit.cover,
           ),
         ),
-        const SizedBox(height: 20),
-        const Text(
+        SizedBox(height: 20),
+        Text(
           'Stanley Marthin System',
           style: TextStyle(
             fontSize: 20,
@@ -207,8 +207,8 @@ class _LoginPageState extends State<LoginPage> {
             letterSpacing: 1.2,
           ),
         ),
-        const SizedBox(height: 6),
-        const Text(
+        SizedBox(height: 6),
+        Text(
           'Classic Restoration Garage',
           style: TextStyle(
             fontSize: 13,
@@ -222,7 +222,7 @@ class _LoginPageState extends State<LoginPage> {
 
   Widget _buildLoginForm() {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
@@ -231,7 +231,7 @@ class _LoginPageState extends State<LoginPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'Sign In',
             style: TextStyle(
               fontSize: 18,
@@ -239,14 +239,14 @@ class _LoginPageState extends State<LoginPage> {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
 
           // Employee ID field
           TextField(
             controller: _idController,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: AppColors.textPrimary),
             textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Employee ID',
               hintText: 'e.g. SM-00.000',
               prefixIcon: Icon(
@@ -255,18 +255,18 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Password field
           TextField(
             controller: _passwordController,
             obscureText: _obscurePassword,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: AppColors.textPrimary),
             onSubmitted: (_) => _handleLogin(),
             decoration: InputDecoration(
               labelText: 'Password',
               hintText: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
-              prefixIcon: const Icon(
+              prefixIcon: Icon(
                 Icons.lock_outline,
                 color: AppColors.textMuted,
               ),
@@ -280,21 +280,21 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
 
           // Error message
           if (_errorMessage != null) ...[
             Text(
               _errorMessage!,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.statusLocked,
                 fontSize: 13,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
           ],
 
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
 
           // Sign In button
           FilledButton(
@@ -302,13 +302,13 @@ class _LoginPageState extends State<LoginPage> {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
             child: _isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     height: 20,
                     width: 20,
                     child: CircularProgressIndicator(
@@ -318,7 +318,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   )
-                : const Text(
+                : Text(
                     'Sign In',
                     style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),

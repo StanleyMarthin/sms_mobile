@@ -56,5 +56,30 @@ void main() {
       expect(state.manualJobDescription, 'Custom Job');
       expect(state.divisionLabel, 'BODY');
     });
+
+    test('keeps DB unit when manual draft is marked manual', () {
+      final state = JobPlanAdditionalDraftHelper.hydrate(
+        draft: const {
+          'carId': 'car-1',
+          'unitName': 'Ferrari Test',
+          'panelName': 'Custom Panel',
+          'jobDescription': 'Custom Job',
+          'divisionId': '12',
+          'assignedUserId': 'emp-1',
+          'isManualInput': true,
+        },
+        units: const [
+          {'id': 'car-1', 'unit_name': 'Ferrari Test'},
+        ],
+        divisions: const [
+          {'id': '12', 'name': 'INTERIOR'},
+        ],
+      );
+
+      expect(state.useManualInput, isTrue);
+      expect(state.selectedUnit?['id'], 'car-1');
+      expect(state.manualPanelName, 'Custom Panel');
+      expect(state.manualJobDescription, 'Custom Job');
+    });
   });
 }

@@ -6,7 +6,7 @@ import '../../domain/repositories/warehouse_repository.dart';
 import '../datasources/warehouse_request_datasource.dart';
 
 class WarehouseRepositoryImpl implements WarehouseRepository {
-  const WarehouseRepositoryImpl({required this.dataSource});
+  WarehouseRepositoryImpl({required this.dataSource});
   final WarehouseDataSource dataSource;
 
   // ── getLogs ─────────────────────────────────────────────────
@@ -52,8 +52,13 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
   Future<List<WarehouseItemSuggestion>> searchItems({
     required String query,
     String? category,
+    String? carId,
   }) async {
-    final rows = await dataSource.searchItems(query: query, category: category);
+    final rows = await dataSource.searchItems(
+      query: query,
+      category: category,
+      carId: carId,
+    );
     return rows.map(_mapSuggestion).toList();
   }
 
@@ -258,7 +263,7 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
   }
 
   List<WarehouseApprovalStep> _parseApprovalHistory(dynamic value) {
-    if (value is! List) return const [];
+    if (value is! List) return [];
     return value.whereType<Map>().map((raw) {
       final item = Map<String, dynamic>.from(raw);
       return WarehouseApprovalStep(
@@ -280,7 +285,7 @@ class WarehouseRepositoryImpl implements WarehouseRepository {
       itemCategory: '${m['itemCategory'] ?? ''}',
       uom: '${m['uom'] ?? 'PCS'}',
       matchedAlias: m['matchedAlias'] as String?,
-      photoUrls: _parsePhotoUrls(m['photoUrls']) ?? const [],
+      photoUrls: _parsePhotoUrls(m['photoUrls']) ?? [],
       lastLocation: m['lastLocation'] as String?,
       stockQty: (m['stockQty'] as num?)?.toDouble() ?? 0,
     );

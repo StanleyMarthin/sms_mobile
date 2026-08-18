@@ -101,7 +101,7 @@ class _WoDetailPageState extends State<WoDetailPage> {
           return Scaffold(
             backgroundColor: AppColors.background,
             appBar: AppBar(backgroundColor: AppColors.background, elevation: 0),
-            body: const Center(
+            body: Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             ),
           );
@@ -115,12 +115,12 @@ class _WoDetailPageState extends State<WoDetailPage> {
             appBar: AppBar(
               backgroundColor: AppColors.background,
               elevation: 0,
-              title: const Text(
+              title: Text(
                 'Detail WO',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
             ),
-            body: const Center(
+            body: Center(
               child: Text(
                 'Data tidak tersedia',
                 style: TextStyle(color: AppColors.textMuted),
@@ -153,17 +153,17 @@ class _WoDetailContent extends StatelessWidget {
         elevation: 0,
         title: Text(
           wo.woNumber,
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.gold,
             fontWeight: FontWeight.w700,
             fontSize: 15,
           ),
         ),
-        leading: const BackButton(color: AppColors.textMuted),
+        leading: BackButton(color: AppColors.textMuted),
         actions: [
           if (wo.isActive)
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.refresh_rounded,
                 color: AppColors.textMuted,
               ),
@@ -173,18 +173,18 @@ class _WoDetailContent extends StatelessWidget {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
           _ApprovalStatusBar(wo: wo),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
           _HeaderCard(wo: wo),
           if (canAct) ...[
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             _ActionArea(wo: wo, needsEstimate: needsEstimate),
           ],
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           _InfoCard(wo: wo),
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
         ],
       ),
     );
@@ -213,7 +213,7 @@ class _ApprovalStatusBar extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      padding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -254,7 +254,7 @@ class _ApprovalStatusBar extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          SizedBox(height: 6),
                           Text(
                             step.$1,
                             textAlign: TextAlign.center,
@@ -271,7 +271,7 @@ class _ApprovalStatusBar extends StatelessWidget {
                       Expanded(
                         child: Container(
                           height: 2,
-                          margin: const EdgeInsets.only(bottom: 16),
+                          margin: EdgeInsets.only(bottom: 16),
                           color: isDone
                               ? AppColors.statusDone
                               : AppColors.border,
@@ -309,7 +309,7 @@ class _ApprovalStatusBar extends StatelessWidget {
   }
 
   bool _stageMatchesRole(String stage, String role) {
-    const map = {
+    final map = {
       'PENDING_KD_TARGET': ['KD', 'KETUA_DIVISI'],
       'PENDING_ADVISOR': ['ADV', 'ADVISOR'],
       'PENDING_KP': ['KP', 'KEPALA_PRODUKSI'],
@@ -327,7 +327,7 @@ class _HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -344,16 +344,16 @@ class _HeaderCard extends StatelessWidget {
                   children: [
                     Text(
                       wo.unitName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       wo.ownerName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                       ),
@@ -364,25 +364,25 @@ class _HeaderCard extends StatelessWidget {
               _StageBadge(stage: wo.stageBadge),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             '${wo.fromDivName} → ${wo.toDivName}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               color: AppColors.textMuted,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             wo.jobDetail,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               color: AppColors.textPrimary,
               height: 1.35,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -407,7 +407,7 @@ class _HeaderCard extends StatelessWidget {
 
   Widget _chip(String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(999),
@@ -415,7 +415,7 @@ class _HeaderCard extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           color: AppColors.textSecondary,
@@ -433,7 +433,7 @@ class _InfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -442,7 +442,7 @@ class _InfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Administrasi',
             style: TextStyle(
               fontSize: 13,
@@ -450,13 +450,13 @@ class _InfoCard extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _row('No. WO', wo.woNumber),
           _row('Status', _statusLabel(wo)),
           _row('Tahap aktif', _stageLabel(wo)),
           _row(
             'Alur approval',
-            wo.needsAdvisor ? 'KD → Advisor → KP → MP' : 'KD → KP → MP',
+            wo.needsAdvisor ? 'KD → QA → KP → MP' : 'KD → KP → MP',
           ),
           _row('Tanggal Request', _formatWoDate(wo.requestDate) ?? '-'),
           _row('Divisi', '${wo.fromDivName} → ${wo.toDivName}'),
@@ -478,8 +478,8 @@ class _InfoCard extends StatelessWidget {
           if (wo.coreId != null && wo.coreId!.isNotEmpty)
             _row('Referensi', wo.coreId!),
           if (wo.stagesDone.isNotEmpty) ...[
-            const Divider(color: AppColors.border, height: 16),
-            const Text(
+            Divider(color: AppColors.border, height: 16),
+            Text(
               'Approval',
               style: TextStyle(
                 fontSize: 11,
@@ -487,7 +487,7 @@ class _InfoCard extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ...wo.stagesDone.map(
               (stage) => _row(
                 stage.role,
@@ -502,19 +502,19 @@ class _InfoCard extends StatelessWidget {
             ),
           ],
           if (wo.notes != null && wo.notes!.isNotEmpty) ...[
-            const Divider(color: AppColors.border, height: 16),
+            Divider(color: AppColors.border, height: 16),
             Text(
               'Catatan',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textMuted,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               wo.notes!,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,
                 fontStyle: FontStyle.italic,
@@ -530,7 +530,7 @@ class _InfoCard extends StatelessWidget {
     final stage = wo.stageBadge;
     return switch (stage) {
       'PENDING_KD_TARGET' => 'Menunggu KD tujuan',
-      'PENDING_ADVISOR' => 'Menunggu Advisor',
+      'PENDING_ADVISOR' => 'Menunggu QA',
       'PENDING_KP' => 'Menunggu KP',
       'PENDING_MP' => 'Menunggu MP',
       'COUNTDOWN_CREATED' => 'Siap jobdesc',
@@ -544,7 +544,7 @@ class _InfoCard extends StatelessWidget {
 
   String _stageLabel(WorkOrder wo) {
     if (wo.waitingKdTarget) return 'KD';
-    if (wo.waitingAdvisor) return 'Advisor';
+    if (wo.waitingAdvisor) return 'QA';
     if (wo.waitingKp) return 'KP';
     if (wo.waitingMp) return 'MP';
     if (wo.isInProgress) return 'Proses';
@@ -554,7 +554,7 @@ class _InfoCard extends StatelessWidget {
   }
 
   Widget _row(String label, String value) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+    padding: EdgeInsets.only(bottom: 6),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -562,13 +562,13 @@ class _InfoCard extends StatelessWidget {
           width: 108,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -641,7 +641,7 @@ class _ActionAreaState extends State<_ActionArea> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
@@ -652,17 +652,17 @@ class _ActionAreaState extends State<_ActionArea> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.edit_note_rounded,
                 color: AppColors.gold,
                 size: 18,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 widget.needsEstimate
                     ? 'Berikan Estimasi Jam'
                     : 'Tinjau & Putuskan',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: AppColors.gold,
@@ -670,7 +670,7 @@ class _ActionAreaState extends State<_ActionArea> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           // Estimasi jam
           DurationInput(
             initialHours: _estHours,
@@ -683,9 +683,9 @@ class _ActionAreaState extends State<_ActionArea> {
             },
           ),
           if (widget.needsEstimate) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             _isLoadingUsers
-                ? const Padding(
+                ? Padding(
                     padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     child: Text(
                       'Memuat daftar PIC...',
@@ -708,7 +708,7 @@ class _ActionAreaState extends State<_ActionArea> {
                         value: u['id'].toString(),
                         child: Text(
                           '$name$grade',
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 13,
                           ),
@@ -718,8 +718,8 @@ class _ActionAreaState extends State<_ActionArea> {
                     onChanged: (v) => setState(() => _selectedPicId = v),
                     decoration: InputDecoration(
                       hintText: 'Pilih Pelaksana / PIC *',
-                      hintStyle: const TextStyle(color: AppColors.textDisabled),
-                      prefixIcon: const Icon(
+                      hintStyle: TextStyle(color: AppColors.textDisabled),
+                      prefixIcon: Icon(
                         Icons.person_outline,
                         color: AppColors.gold,
                         size: 18,
@@ -728,86 +728,86 @@ class _ActionAreaState extends State<_ActionArea> {
                       fillColor: AppColors.surfaceInput,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.border),
+                        borderSide: BorderSide(color: AppColors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.border),
+                        borderSide: BorderSide(color: AppColors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.gold),
+                        borderSide: BorderSide(color: AppColors.gold),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
+                      contentPadding: EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 12,
                       ),
                     ),
                   ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           // Notes
           TextField(
             controller: _notesCtrl,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
             decoration: InputDecoration(
               hintText: 'Catatan (opsional)',
-              hintStyle: const TextStyle(color: AppColors.textDisabled),
+              hintStyle: TextStyle(color: AppColors.textDisabled),
               filled: true,
               fillColor: AppColors.surfaceInput,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.gold),
+                borderSide: BorderSide(color: AppColors.gold),
               ),
-              contentPadding: const EdgeInsets.symmetric(
+              contentPadding: EdgeInsets.symmetric(
                 horizontal: 14,
                 vertical: 12,
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _showRejectSheet(context),
-                  icon: const Icon(Icons.close_rounded, size: 16),
-                  label: const Text(
+                  icon: Icon(Icons.close_rounded, size: 16),
+                  label: Text(
                     'Tolak',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.statusLocked,
-                    side: const BorderSide(color: AppColors.statusLocked),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: AppColors.statusLocked),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 flex: 2,
                 child: FilledButton.icon(
                   onPressed: () => _confirmApprove(context),
-                  icon: const Icon(Icons.check_rounded, size: 16),
-                  label: const Text(
+                  icon: Icon(Icons.check_rounded, size: 16),
+                  label: Text(
                     'Setujui',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.gold,
                     foregroundColor: AppColors.background,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -826,7 +826,7 @@ class _ActionAreaState extends State<_ActionArea> {
     if (widget.needsEstimate) {
       if (est <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Estimasi jam wajib diisi'),
             backgroundColor: AppColors.statusLocked,
             behavior: SnackBarBehavior.floating,
@@ -836,7 +836,7 @@ class _ActionAreaState extends State<_ActionArea> {
       }
       if (_selectedPicId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Pelaksana / PIC wajib dipilih'),
             backgroundColor: AppColors.statusLocked,
             behavior: SnackBarBehavior.floating,
@@ -856,7 +856,7 @@ class _ActionAreaState extends State<_ActionArea> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text(
+        title: Text(
           'Konfirmasi Setujui',
           style: TextStyle(color: AppColors.textPrimary),
         ),
@@ -864,12 +864,12 @@ class _ActionAreaState extends State<_ActionArea> {
           nextLabel == 'FINAL'
               ? 'WO akan disetujui final dengan $estStr, countdown akan dibuat, dan WO siap dijadikan source jobdesc.'
               : 'WO akan diteruskan ke $nextLabel dengan $estStr.',
-          style: const TextStyle(color: AppColors.textMuted),
+          style: TextStyle(color: AppColors.textMuted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () {
@@ -889,7 +889,7 @@ class _ActionAreaState extends State<_ActionArea> {
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
             ),
-            child: const Text('Ya, Setujui'),
+            child: Text('Ya, Setujui'),
           ),
         ],
       ),
@@ -907,16 +907,16 @@ class _ActionAreaState extends State<_ActionArea> {
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
         child: Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Tolak Work Order',
                 style: TextStyle(
                   fontSize: 16,
@@ -924,18 +924,18 @@ class _ActionAreaState extends State<_ActionArea> {
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 4),
-              const Text(
+              SizedBox(height: 4),
+              Text(
                 'Alasan penolakan wajib diisi',
                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               TextField(
                 controller: reasonCtrl,
                 maxLines: 3,
                 autofocus: true,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.textPrimary),
+                decoration: InputDecoration(
                   hintText: 'Tulis alasan penolakan...',
                   hintStyle: TextStyle(color: AppColors.textDisabled),
                   filled: true,
@@ -943,7 +943,7 @@ class _ActionAreaState extends State<_ActionArea> {
                   border: OutlineInputBorder(),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
@@ -957,12 +957,12 @@ class _ActionAreaState extends State<_ActionArea> {
                   },
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.statusLocked,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Tolak WO',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
@@ -976,7 +976,7 @@ class _ActionAreaState extends State<_ActionArea> {
   }
 
   String _nextRoleLabel(String stage, bool needsAdvisor) {
-    if (stage == 'PENDING_KD_TARGET') return needsAdvisor ? 'Advisor' : 'KP';
+    if (stage == 'PENDING_KD_TARGET') return needsAdvisor ? 'QA' : 'KP';
     if (stage == 'PENDING_ADVISOR') return 'KP';
     if (stage == 'PENDING_KP') return 'MP';
     if (stage == 'PENDING_MP') return 'FINAL';
@@ -993,7 +993,7 @@ class _StageBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (label, color) = _resolve(stage);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
@@ -1012,7 +1012,7 @@ class _StageBadge extends StatelessWidget {
 
   (String, Color) _resolve(String stage) => switch (stage) {
     'PENDING_KD_TARGET' => ('MENUNGGU KD', AppColors.gold),
-    'PENDING_ADVISOR' => ('MENUNGGU ADV', Colors.orange),
+    'PENDING_ADVISOR' => ('MENUNGGU QA', Colors.orange),
     'PENDING_KP' => ('MENUNGGU KP', Colors.blue),
     'PENDING_MP' => ('MENUNGGU MP', Colors.purple),
     'COUNTDOWN_CREATED' => ('SIAP JOBDESC', AppColors.statusDone),

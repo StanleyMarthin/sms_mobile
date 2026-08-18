@@ -27,7 +27,7 @@ class WOVOrder {
   final DateTime? dateIn;
   final DateTime? createdAt;
 
-  const WOVOrder({
+  WOVOrder({
     required this.reqId,
     this.wovNumber,
     this.carName,

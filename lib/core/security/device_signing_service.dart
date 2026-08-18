@@ -13,10 +13,10 @@ import 'app_secure_storage.dart';
 class DeviceSigningService {
   DeviceSigningService({this.storage = AppSecureStorage.instance});
 
-  static const _privateKeyPref = 'device_ed25519_private_key_b64';
-  static const _publicKeyPref = 'device_ed25519_public_key_b64';
-  static const _registeredPref = 'device_ed25519_registered';
-  static const _installIdPref = 'device_install_scoped_id';
+  static final _privateKeyPref = 'device_ed25519_private_key_b64';
+  static final _publicKeyPref = 'device_ed25519_public_key_b64';
+  static final _registeredPref = 'device_ed25519_registered';
+  static final _installIdPref = 'device_install_scoped_id';
 
   final Ed25519 _algorithm = Ed25519();
   final dynamic storage;
@@ -135,7 +135,7 @@ class DeviceSigningService {
 }
 
 class _DeviceKeyMaterial {
-  const _DeviceKeyMaterial({
+  _DeviceKeyMaterial({
     required this.privateKeyBytes,
     required this.publicKeyBytes,
   });

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/network/api_client.dart';
 
 import '../../../../core/network/api_endpoints.dart';
@@ -106,7 +107,7 @@ class _PrFormPageState extends State<PrFormPage> {
       return idMatch || nameMatch;
     }).toList();
     if (filtered.isNotEmpty) return filtered;
-    if (ownId == null && (ownName == null || ownName.isEmpty)) return const [];
+    if (ownId == null && (ownName == null || ownName.isEmpty)) return [];
     return [
       {'id': ownId ?? '', 'name': ownName ?? 'Divisi Saya'},
     ];
@@ -176,7 +177,10 @@ class _PrFormPageState extends State<PrFormPage> {
             );
           } catch (e) {
             if (mounted) {
-              _snack('Gagal upload foto item ${i + 1}: $e', isError: true);
+              _snack(
+                friendlyMessage(e, fallback: 'Gagal upload foto item ${i + 1}'),
+                isError: true,
+              );
             }
             setState(() {
               r.isUploading = false;
@@ -205,7 +209,12 @@ class _PrFormPageState extends State<PrFormPage> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) _snack('Gagal: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal menyimpan PR'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -232,8 +241,8 @@ class _PrFormPageState extends State<PrFormPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: const BackButton(color: AppColors.textMuted),
-        title: const Text(
+        leading: BackButton(color: AppColors.textMuted),
+        title: Text(
           'Buat Purchase Request',
           style: TextStyle(
             color: AppColors.textPrimary,
@@ -243,48 +252,48 @@ class _PrFormPageState extends State<PrFormPage> {
         ),
       ),
       body: _isSubmitting
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : Column(
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
                     children: [
                       _sectionLabel('Unit Kendaraan'),
                       _carPicker(),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _sectionLabel('Divisi'),
                       _divisionPicker(),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _sectionLabel('Informasi Tambahan'),
                       Row(
                         children: [
                           Expanded(child: _datePicker()),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                           Expanded(child: _priorityPicker()),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _fieldMultiline(
                         'Catatan / Keterangan',
                         Icons.sticky_note_2_outlined,
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: 20),
                       Row(
                         children: [
                           _sectionLabel('Daftar Item'),
-                          const Spacer(),
+                          Spacer(),
                           TextButton.icon(
                             onPressed: () =>
                                 setState(() => _items.add(_ItemRow())),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.add_rounded,
                               size: 18,
                               color: AppColors.gold,
                             ),
-                            label: const Text(
+                            label: Text(
                               'Tambah Item',
                               style: TextStyle(
                                 color: AppColors.gold,
@@ -296,23 +305,23 @@ class _PrFormPageState extends State<PrFormPage> {
                         ],
                       ),
                       ...List.generate(_items.length, _buildItemForm),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                     ],
                   ),
                 ),
                 // Submit button
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
-                    border: const Border(
+                    border: Border(
                       top: BorderSide(color: AppColors.borderSubtle),
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 8,
-                        offset: const Offset(0, -4),
+                        offset: Offset(0, -4),
                       ),
                     ],
                   ),
@@ -320,8 +329,8 @@ class _PrFormPageState extends State<PrFormPage> {
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: _submit,
-                      icon: const Icon(Icons.send_rounded, size: 18),
-                      label: const Text(
+                      icon: Icon(Icons.send_rounded, size: 18),
+                      label: Text(
                         'Ajukan PR',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
@@ -331,7 +340,7 @@ class _PrFormPageState extends State<PrFormPage> {
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.gold,
                         foregroundColor: AppColors.background,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -345,10 +354,10 @@ class _PrFormPageState extends State<PrFormPage> {
   }
 
   Widget _sectionLabel(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: EdgeInsets.only(bottom: 10),
     child: Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w700,
         color: AppColors.textMuted,
@@ -364,16 +373,16 @@ class _PrFormPageState extends State<PrFormPage> {
           value: _carId,
           hint: Text(
             _cars.isEmpty ? 'Memuat unit...' : 'Pilih Unit Kendaraan',
-            style: const TextStyle(color: AppColors.textDisabled, fontSize: 13),
+            style: TextStyle(color: AppColors.textDisabled, fontSize: 13),
           ),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-          icon: const Icon(
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          icon: Icon(
             Icons.arrow_drop_down_rounded,
             color: AppColors.textMuted,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           items: _cars.map((c) {
             final String unitName = c['unit_name']?.toString() ?? '-';
             final String extraInfo =
@@ -409,18 +418,18 @@ class _PrFormPageState extends State<PrFormPage> {
           value: _divisionId,
           hint: Text(
             _divisions.isEmpty ? 'Memuat divisi...' : 'Pilih Divisi',
-            style: const TextStyle(color: AppColors.textDisabled, fontSize: 13),
+            style: TextStyle(color: AppColors.textDisabled, fontSize: 13),
           ),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
           icon: _lockDivisionToOwn
-              ? const SizedBox.shrink()
-              : const Icon(
+              ? SizedBox.shrink()
+              : Icon(
                   Icons.arrow_drop_down_rounded,
                   color: AppColors.textMuted,
                 ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           items: _divisions
               .map(
                 (d) => DropdownMenuItem<String>(
@@ -452,23 +461,23 @@ class _PrFormPageState extends State<PrFormPage> {
         final d = await showDatePicker(
           context: context,
           initialDate:
-              _targetDate ?? DateTime.now().add(const Duration(days: 1)),
+              _targetDate ?? DateTime.now().add(Duration(days: 1)),
           firstDate: DateTime.now(),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
+          lastDate: DateTime.now().add(Duration(days: 365)),
         );
         if (d != null) setState(() => _targetDate = d);
       },
       child: _inputDecor(
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.calendar_today_outlined,
                 size: 16,
                 color: AppColors.textMuted,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _targetDate != null
@@ -498,13 +507,13 @@ class _PrFormPageState extends State<PrFormPage> {
           value: _priority,
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-          icon: const Icon(
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          icon: Icon(
             Icons.arrow_drop_down_rounded,
             color: AppColors.textMuted,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-          items: const [
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          items: [
             DropdownMenuItem(value: 'NORMAL', child: Text('Normal')),
             DropdownMenuItem(
               value: 'URGENT',
@@ -520,7 +529,7 @@ class _PrFormPageState extends State<PrFormPage> {
   Widget _buildItemForm(int idx) {
     final r = _items[idx];
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -530,11 +539,11 @@ class _PrFormPageState extends State<PrFormPage> {
         children: [
           // Item header
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 6, 0),
+            padding: EdgeInsets.fromLTRB(14, 10, 6, 0),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 3,
                   ),
@@ -544,17 +553,17 @@ class _PrFormPageState extends State<PrFormPage> {
                   ),
                   child: Text(
                     'Item ${idx + 1}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: AppColors.gold,
                     ),
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 if (_items.length > 1)
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.remove_circle_outline_rounded,
                       size: 20,
                       color: AppColors.statusLocked,
@@ -568,7 +577,7 @@ class _PrFormPageState extends State<PrFormPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+            padding: EdgeInsets.fromLTRB(14, 8, 14, 14),
             child: Column(
               children: [
                 _inputField(
@@ -576,13 +585,13 @@ class _PrFormPageState extends State<PrFormPage> {
                   r.nameCtrl,
                   icon: Icons.inventory_2_outlined,
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _inputField(
                   'Deskripsi / Keterangan',
                   r.descCtrl,
                   icon: Icons.description_outlined,
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -590,12 +599,12 @@ class _PrFormPageState extends State<PrFormPage> {
                         'Qty',
                         r.qtyCtrl,
                         icon: Icons.numbers_rounded,
-                        keyboard: const TextInputType.numberWithOptions(
+                        keyboard: TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: _inputField(
                         'Satuan',
@@ -605,22 +614,22 @@ class _PrFormPageState extends State<PrFormPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _inputDecor(
                   DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: r.originType,
                       isExpanded: true,
                       dropdownColor: AppColors.surfaceCard,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 13,
                       ),
-                      padding: const EdgeInsets.symmetric(
+                      padding: EdgeInsets.symmetric(
                         horizontal: 14,
                         vertical: 2,
                       ),
-                      items: const [
+                      items: [
                         DropdownMenuItem(value: 'LOKAL', child: Text('Lokal')),
                         DropdownMenuItem(
                           value: 'LN',
@@ -632,7 +641,7 @@ class _PrFormPageState extends State<PrFormPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _photoPicker(idx, r),
               ],
             ),
@@ -655,10 +664,10 @@ class _PrFormPageState extends State<PrFormPage> {
       controller: ctrl,
       maxLines: maxLines,
       keyboardType: keyboard,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+      style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
       decoration: InputDecoration(
         hintText: label,
-        hintStyle: const TextStyle(color: AppColors.textDisabled, fontSize: 12),
+        hintStyle: TextStyle(color: AppColors.textDisabled, fontSize: 12),
         prefixIcon: icon != null
             ? Icon(icon, size: 16, color: AppColors.textMuted)
             : null,
@@ -681,13 +690,13 @@ class _PrFormPageState extends State<PrFormPage> {
     TextField(
       controller: _notesCtrl,
       maxLines: 3,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+      style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textDisabled, fontSize: 12),
+        hintStyle: TextStyle(color: AppColors.textDisabled, fontSize: 12),
         prefixIcon: Icon(icon, size: 16, color: AppColors.textMuted),
         border: InputBorder.none,
-        contentPadding: const EdgeInsets.fromLTRB(4, 12, 14, 12),
+        contentPadding: EdgeInsets.fromLTRB(4, 12, 14, 12),
       ),
     ),
   );
@@ -696,7 +705,7 @@ class _PrFormPageState extends State<PrFormPage> {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) => SafeArea(
@@ -704,22 +713,22 @@ class _PrFormPageState extends State<PrFormPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.camera_alt_outlined,
                 color: AppColors.textPrimary,
               ),
-              title: const Text(
+              title: Text(
                 'Kamera',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
               onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(
+              leading: Icon(
                 Icons.photo_library_outlined,
                 color: AppColors.textPrimary,
               ),
-              title: const Text(
+              title: Text(
                 'Galeri',
                 style: TextStyle(color: AppColors.textPrimary),
               ),
@@ -740,7 +749,12 @@ class _PrFormPageState extends State<PrFormPage> {
           });
         }
       } catch (e) {
-        if (mounted) _snack('Gagal mengambil foto: $e', isError: true);
+        if (mounted) {
+          _snack(
+            friendlyMessage(e, fallback: 'Gagal mengambil foto'),
+            isError: true,
+          );
+        }
       }
     }
   }
@@ -752,7 +766,7 @@ class _PrFormPageState extends State<PrFormPage> {
           onTap: r.isUploading ? null : () => _pickPhotoSource(idx, r),
           borderRadius: BorderRadius.circular(10),
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.surfaceInput,
               borderRadius: BorderRadius.circular(10),
@@ -762,7 +776,7 @@ class _PrFormPageState extends State<PrFormPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (r.isUploading)
-                  const SizedBox(
+                  SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
@@ -771,12 +785,12 @@ class _PrFormPageState extends State<PrFormPage> {
                     ),
                   )
                 else
-                  const Icon(
+                  Icon(
                     Icons.camera_alt_outlined,
                     size: 16,
                     color: AppColors.textMuted,
                   ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   r.isUploading
                       ? 'Mengupload...'
@@ -784,7 +798,7 @@ class _PrFormPageState extends State<PrFormPage> {
                                 r.uploadedPhotoUrl != null)
                             ? 'Ganti Foto'
                             : 'Ambil Foto'),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textSecondary,
@@ -796,7 +810,7 @@ class _PrFormPageState extends State<PrFormPage> {
         ),
       ),
       if (r.localPhotoPath != null || r.uploadedPhotoUrl != null) ...[
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: r.localPhotoPath != null

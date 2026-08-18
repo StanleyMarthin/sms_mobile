@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../data/datasources/remote_wov_datasource.dart';
 import '../../data/models/wov_order.dart';
@@ -37,7 +38,9 @@ class _WovDetailPageState extends State<WovDetailPage> {
       final d = await _ds.getWovDetail(widget.reqId);
       if (mounted) setState(() => _wov = d);
     } catch (e) {
-      if (mounted) _snack('Gagal memuat WOV: $e', isError: true);
+      if (mounted) {
+        _snack(friendlyMessage(e, fallback: 'Gagal memuat WOV'), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -91,7 +94,12 @@ class _WovDetailPageState extends State<WovDetailPage> {
       if (mounted) _snack('WOV berhasil di-approve');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal approve: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal approve WOV'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -106,7 +114,12 @@ class _WovDetailPageState extends State<WovDetailPage> {
       if (mounted) _snack('WOV ditolak');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal reject: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal menolak WOV'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -119,7 +132,12 @@ class _WovDetailPageState extends State<WovDetailPage> {
       if (mounted) _snack('Status diperbarui ke $newStatus');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal update status: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal perbarui status'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -134,7 +152,12 @@ class _WovDetailPageState extends State<WovDetailPage> {
       if (mounted) _snack('WOV berhasil difinalisasi');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal finalize: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal finalisasi WOV'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -149,12 +172,12 @@ class _WovDetailPageState extends State<WovDetailPage> {
           backgroundColor: AppColors.surfaceCard,
           title: Text(
             msg,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text(
+              child: Text(
                 'Batal',
                 style: TextStyle(color: AppColors.textMuted),
               ),
@@ -162,7 +185,7 @@ class _WovDetailPageState extends State<WovDetailPage> {
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
               onPressed: () => Navigator.pop(c, true),
-              child: const Text(
+              child: Text(
                 'Ya, Setujui',
                 style: TextStyle(
                   color: AppColors.background,
@@ -183,35 +206,35 @@ class _WovDetailPageState extends State<WovDetailPage> {
         backgroundColor: AppColors.surfaceCard,
         title: Text(
           title,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
         ),
         content: TextField(
           controller: ctrl,
           maxLines: 3,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
           decoration: InputDecoration(
             hintText: 'Tulis alasan...',
-            hintStyle: const TextStyle(color: AppColors.textDisabled),
+            hintStyle: TextStyle(color: AppColors.textDisabled),
             filled: true,
             fillColor: AppColors.surfaceInput,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.statusLocked),
+              borderSide: BorderSide(color: AppColors.statusLocked),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text(
+            child: Text(
               'Batal',
               style: TextStyle(color: AppColors.textMuted),
             ),
@@ -221,7 +244,7 @@ class _WovDetailPageState extends State<WovDetailPage> {
               backgroundColor: AppColors.statusLocked,
             ),
             onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-            child: const Text(
+            child: Text(
               'Tolak WOV',
               style: TextStyle(
                 color: Colors.white,
@@ -238,18 +261,18 @@ class _WovDetailPageState extends State<WovDetailPage> {
     context: context,
     builder: (c) => AlertDialog(
       backgroundColor: AppColors.surfaceCard,
-      title: const Text(
+      title: Text(
         'Finalisasi WOV',
         style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
       ),
-      content: const Text(
+      content: Text(
         'Kirim barang ke mana setelah diterima?',
         style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(c),
-          child: const Text(
+          child: Text(
             'Batal',
             style: TextStyle(color: AppColors.textMuted),
           ),
@@ -257,11 +280,11 @@ class _WovDetailPageState extends State<WovDetailPage> {
         OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.gold,
-            side: const BorderSide(color: AppColors.gold),
+            side: BorderSide(color: AppColors.gold),
           ),
           onPressed: () => Navigator.pop(c, 'TO_JOBDESC'),
-          icon: const Icon(Icons.engineering_outlined, size: 16),
-          label: const Text('Job Desc'),
+          icon: Icon(Icons.engineering_outlined, size: 16),
+          label: Text('Job Desc'),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -269,8 +292,8 @@ class _WovDetailPageState extends State<WovDetailPage> {
             foregroundColor: AppColors.background,
           ),
           onPressed: () => Navigator.pop(c, 'TO_WAREHOUSE'),
-          icon: const Icon(Icons.warehouse_outlined, size: 16),
-          label: const Text('Warehouse'),
+          icon: Icon(Icons.warehouse_outlined, size: 16),
+          label: Text('Warehouse'),
         ),
       ],
     ),
@@ -285,10 +308,10 @@ class _WovDetailPageState extends State<WovDetailPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: const BackButton(color: AppColors.textMuted),
+        leading: BackButton(color: AppColors.textMuted),
         title: Text(
           _wov?.wovNumber ?? 'Detail WOV',
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.gold,
             fontWeight: FontWeight.w700,
             fontSize: 15,
@@ -297,7 +320,7 @@ class _WovDetailPageState extends State<WovDetailPage> {
         actions: [
           if (_wov != null)
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.refresh_rounded,
                 color: AppColors.textMuted,
               ),
@@ -306,11 +329,11 @@ class _WovDetailPageState extends State<WovDetailPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : _wov == null
-          ? const Center(
+          ? Center(
               child: Text(
                 'WOV tidak ditemukan',
                 style: TextStyle(color: AppColors.textMuted),
@@ -322,15 +345,15 @@ class _WovDetailPageState extends State<WovDetailPage> {
                   onRefresh: _load,
                   color: AppColors.gold,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 110),
                     children: [
                       _ApprovalStatusBar(accTracking: _wov!.accTracking),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _HeaderCard(wov: _wov!),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _StatusCard(wov: _wov!),
                       if (_canUpdateStatus()) ...[
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         _StatusActions(
                           wov: _wov!,
                           isActing: _isActing,
@@ -338,7 +361,7 @@ class _WovDetailPageState extends State<WovDetailPage> {
                         ),
                       ],
                       if (_canFinalize()) ...[
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         _FinalizeStrip(
                           isActing: _isActing,
                           onFinalize: _finalize,
@@ -356,7 +379,7 @@ class _WovDetailPageState extends State<WovDetailPage> {
                 if (_isActing)
                   Container(
                     color: Colors.black54,
-                    child: const Center(
+                    child: Center(
                       child: CircularProgressIndicator(color: AppColors.gold),
                     ),
                   ),
@@ -372,7 +395,7 @@ class _ApprovalStatusBar extends StatelessWidget {
   const _ApprovalStatusBar({required this.accTracking});
   final String? accTracking;
 
-  static const _steps = [
+  static final _steps = [
     ('ADV', 'PENDING_ADV'),
     ('KP', 'PENDING_KP'),
     ('PM', 'PENDING_PM'),
@@ -384,7 +407,7 @@ class _ApprovalStatusBar extends StatelessWidget {
     final curIdx = _steps.indexWhere((s) => s.$2 == accTracking);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      padding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -421,14 +444,14 @@ class _ApprovalStatusBar extends StatelessWidget {
                           ),
                         ),
                         child: isDone
-                            ? const Icon(
+                            ? Icon(
                                 Icons.check,
                                 size: 8,
                                 color: Colors.white,
                               )
                             : null,
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Text(
                         _steps[i].$1,
                         textAlign: TextAlign.center,
@@ -445,7 +468,7 @@ class _ApprovalStatusBar extends StatelessWidget {
                   Expanded(
                     child: Container(
                       height: 2,
-                      margin: const EdgeInsets.only(bottom: 16),
+                      margin: EdgeInsets.only(bottom: 16),
                       color: isDone ? AppColors.statusDone : AppColors.border,
                     ),
                   ),
@@ -469,7 +492,7 @@ class _HeaderCard extends StatelessWidget {
     final (stageLabel, stageColor) = _stageInfo(wov.accTracking, wov.status);
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -486,16 +509,16 @@ class _HeaderCard extends StatelessWidget {
                   children: [
                     Text(
                       wov.itemName ?? '-',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       '${wov.vendorName ?? '-'}${wov.picVendor != null ? ' • ${wov.picVendor}' : ''}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                       ),
@@ -506,7 +529,7 @@ class _HeaderCard extends StatelessWidget {
               _StageBadge(label: stageLabel, color: stageColor),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 6,
@@ -531,26 +554,26 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           if (wov.goodsConditionOut != null) ...[
-            const SizedBox(height: 8),
-            const Divider(color: AppColors.borderSubtle, height: 1),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
+            Divider(color: AppColors.borderSubtle, height: 1),
+            SizedBox(height: 8),
             _infoRow('Kondisi keluar', wov.goodsConditionOut!),
           ],
           if (wov.remarks != null && wov.remarks!.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                Icon(
                   Icons.sticky_note_2_outlined,
                   size: 14,
                   color: AppColors.textMuted,
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     wov.remarks!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                       fontStyle: FontStyle.italic,
@@ -566,7 +589,7 @@ class _HeaderCard extends StatelessWidget {
   }
 
   Widget _chip(IconData icon, String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(999),
@@ -576,10 +599,10 @@ class _HeaderCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 12, color: AppColors.textMuted),
-        const SizedBox(width: 5),
+        SizedBox(width: 5),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: AppColors.textSecondary,
@@ -590,7 +613,7 @@ class _HeaderCard extends StatelessWidget {
   );
 
   Widget _infoRow(String l, String v) => Padding(
-    padding: const EdgeInsets.only(bottom: 4),
+    padding: EdgeInsets.only(bottom: 4),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -598,13 +621,13 @@ class _HeaderCard extends StatelessWidget {
           width: 108,
           child: Text(
             l,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             v,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -622,11 +645,11 @@ class _HeaderCard extends StatelessWidget {
       d == null ? '-' : DateFormat('d MMM yy', 'id_ID').format(d.toLocal());
 
   (String, Color) _stageInfo(String? acc, String? status) => switch (acc) {
-    'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
+    'PENDING_ADV' => ('MENUNGGU QA', AppColors.orange),
     'PENDING_KP' => ('MENUNGGU KP', AppColors.gold),
-    'PENDING_PM' => ('MENUNGGU PM', const Color(0xFF9C27B0)),
+    'PENDING_PM' => ('MENUNGGU PM', Color(0xFF9C27B0)),
     'APPROVED' => switch (status) {
-      'SENT' => ('TERKIRIM', const Color(0xFF2196F3)),
+      'SENT' => ('TERKIRIM', Color(0xFF2196F3)),
       'PROSES_VENDOR' => ('DI VENDOR', AppColors.orange),
       'DONE_VENDOR' => ('SELESAI VENDOR', AppColors.statusDone),
       'REWORK_VENDOR' => ('REWORK', AppColors.statusLocked),
@@ -646,7 +669,7 @@ class _StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -655,7 +678,7 @@ class _StatusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Administrasi',
             style: TextStyle(
               fontSize: 13,
@@ -663,7 +686,7 @@ class _StatusCard extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           _row('No. WOV', wov.wovNumber ?? '-'),
           _row('Approval', wov.accTracking ?? '-'),
           if (wov.status != null) _row('Status', wov.status!),
@@ -688,7 +711,7 @@ class _StatusCard extends StatelessWidget {
       d == null ? '-' : DateFormat('d MMM yyyy', 'id_ID').format(d.toLocal());
 
   Widget _row(String l, String v) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
+    padding: EdgeInsets.only(bottom: 6),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -696,13 +719,13 @@ class _StatusCard extends StatelessWidget {
           width: 116,
           child: Text(
             l,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             v,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -738,10 +761,10 @@ class _StatusActions extends StatelessWidget {
       _ => <String>[],
     };
 
-    if (nexts.isEmpty) return const SizedBox.shrink();
+    if (nexts.isEmpty) return SizedBox.shrink();
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
@@ -750,7 +773,7 @@ class _StatusActions extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.update_rounded, color: AppColors.gold, size: 16),
               SizedBox(width: 8),
@@ -764,7 +787,7 @@ class _StatusActions extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -782,7 +805,7 @@ class _StatusActions extends StatelessWidget {
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.gold,
                   foregroundColor: AppColors.background,
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
                   ),
@@ -792,7 +815,7 @@ class _StatusActions extends StatelessWidget {
                 ),
                 child: Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -818,13 +841,13 @@ class _FinalizeStrip extends StatelessWidget {
     onTap: isActing ? null : onFinalize,
     borderRadius: BorderRadius.circular(12),
     child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.statusDone.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.statusDone.withValues(alpha: 0.4)),
       ),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
@@ -865,15 +888,15 @@ class _ApprovalBar extends StatelessWidget {
     right: 0,
     bottom: 0,
     child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard.withValues(alpha: 0.97),
-        border: const Border(top: BorderSide(color: AppColors.borderSubtle)),
+        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 12,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -882,35 +905,35 @@ class _ApprovalBar extends StatelessWidget {
           Expanded(
             child: OutlinedButton.icon(
               onPressed: isActing ? null : onReject,
-              icon: const Icon(Icons.close_rounded, size: 16),
-              label: const Text(
+              icon: Icon(Icons.close_rounded, size: 16),
+              label: Text(
                 'Tolak',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.statusLocked,
-                side: const BorderSide(color: AppColors.statusLocked),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: AppColors.statusLocked),
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: FilledButton.icon(
               onPressed: isActing ? null : onApprove,
-              icon: const Icon(Icons.check_rounded, size: 16),
-              label: const Text(
+              icon: Icon(Icons.check_rounded, size: 16),
+              label: Text(
                 'Setujui',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -932,7 +955,7 @@ class _StageBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(999),

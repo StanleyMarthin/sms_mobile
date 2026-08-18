@@ -68,7 +68,7 @@ class _MechanicTaskPageState extends State<MechanicTaskPage> {
     final content = Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: DateFilterBar(
             selectedDate: _selectedDate,
             onDateChanged: (date) {

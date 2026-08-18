@@ -243,14 +243,14 @@ class TaskModel {
   /// Factory khusus untuk payload GET /tasks yang masih campur nested task,
   /// alias snake_case, dan field progres aktual.
   factory TaskModel.fromTaskApiJson(Map<String, dynamic> json) {
-    final division = json['division'] as Map<String, dynamic>? ?? const {};
-    final unit = json['unit'] as Map<String, dynamic>? ?? const {};
-    final task = json['task'] as Map<String, dynamic>? ?? const {};
-    final planDaily = json['planDaily'] as Map<String, dynamic>? ?? const {};
+    final division = json['division'] as Map<String, dynamic>? ?? {};
+    final unit = json['unit'] as Map<String, dynamic>? ?? {};
+    final task = json['task'] as Map<String, dynamic>? ?? {};
+    final planDaily = json['planDaily'] as Map<String, dynamic>? ?? {};
     final countdownCumulative =
-        json['countdownCumulative'] as Map<String, dynamic>? ?? const {};
+        json['countdownCumulative'] as Map<String, dynamic>? ?? {};
     final executionLatest =
-        json['executionLatest'] as Map<String, dynamic>? ?? const {};
+        json['executionLatest'] as Map<String, dynamic>? ?? {};
 
     final dailyTargetHours =
         _taskPlanHours([

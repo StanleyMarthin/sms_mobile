@@ -25,6 +25,7 @@ class LocalCountdownDataSource implements CountdownDataSource {
     required int divisionId,
     String? search,
     String? status,
+    bool plannable = false,
   }) async =>
       <Map<String, dynamic>>[];
 
@@ -35,6 +36,7 @@ class LocalCountdownDataSource implements CountdownDataSource {
     required int panelId,
     String? search,
     String? status,
+    bool plannable = false,
   }) async =>
       <Map<String, dynamic>>[];
 

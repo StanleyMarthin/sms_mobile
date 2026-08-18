@@ -11,28 +11,28 @@ import '../security/app_secure_storage.dart';
 class SessionManager extends ChangeNotifier {
   SessionManager({this.storage = AppSecureStorage.instance});
 
-  static const keyTempToken = 'session_tempToken';
-  static const keyDeviceId = 'session_deviceId';
-  static const keyToken = 'session_token';
-  static const keyRefreshToken = 'session_refreshToken';
-  static const keyUserId = 'session_userId';
-  static const keyEmployeeId = 'session_employeeId';
-  static const keyFullName = 'session_fullName';
-  static const keyRole = 'session_role';
-  static const keyDivisionName = 'session_divisionName';
-  static const keyJabatan = 'session_jabatan';
-  static const keyDivisionId = 'session_divisionId';
-  static const keyPermissions = 'session_permissions';
-  static const keyAccessBucket = 'session_accessBucket';
-  static const keyRoleLevel = 'session_roleLevel';
-  static const keyScopeBasis = 'session_scopeBasis';
-  static const keyWebEnabled = 'session_webEnabled';
-  static const keyMobileEnabled = 'session_mobileEnabled';
-  static const keyApprovalRank = 'session_approvalRank';
-  static const keyCanViewAllUnits = 'session_canViewAllUnits';
-  static const keyCanViewAssignedUnits = 'session_canViewAssignedUnits';
-  static const keyManagedDivisionIds = 'session_managedDivisionIds';
-  static const keyManagedUnitIds = 'session_managedUnitIds';
+  static final keyTempToken = 'session_tempToken';
+  static final keyDeviceId = 'session_deviceId';
+  static final keyToken = 'session_token';
+  static final keyRefreshToken = 'session_refreshToken';
+  static final keyUserId = 'session_userId';
+  static final keyEmployeeId = 'session_employeeId';
+  static final keyFullName = 'session_fullName';
+  static final keyRole = 'session_role';
+  static final keyDivisionName = 'session_divisionName';
+  static final keyJabatan = 'session_jabatan';
+  static final keyDivisionId = 'session_divisionId';
+  static final keyPermissions = 'session_permissions';
+  static final keyAccessBucket = 'session_accessBucket';
+  static final keyRoleLevel = 'session_roleLevel';
+  static final keyScopeBasis = 'session_scopeBasis';
+  static final keyWebEnabled = 'session_webEnabled';
+  static final keyMobileEnabled = 'session_mobileEnabled';
+  static final keyApprovalRank = 'session_approvalRank';
+  static final keyCanViewAllUnits = 'session_canViewAllUnits';
+  static final keyCanViewAssignedUnits = 'session_canViewAssignedUnits';
+  static final keyManagedDivisionIds = 'session_managedDivisionIds';
+  static final keyManagedUnitIds = 'session_managedUnitIds';
 
   final dynamic storage;
 
@@ -93,7 +93,7 @@ class SessionManager extends ChangeNotifier {
       canViewAllUnits ||
       _canViewAssignedUnits ||
       _permissions.contains(Perms.viewAssignedUnits) ||
-      const {'KD', 'ADV', 'KP'}.contains(accessBucket);
+      {'KD', 'ADV', 'KP'}.contains(accessBucket);
   List<int> get managedDivisionIds => List.unmodifiable(_managedDivisionIds);
   List<String> get managedUnitIds => List.unmodifiable(_managedUnitIds);
   bool get isGlobalAccess => accessBucket == 'GLOBAL';
@@ -447,7 +447,7 @@ class SessionManager extends ChangeNotifier {
         permissions.contains(Perms.viewAllUnits) ||
         normalizedPerms.contains('VIEW_ALL_UNITS');
     final hasKpApproval = normalizedPerms.any(
-      (code) => const {
+      (code) => {
         'WO_APPROVE_PM',
         'APPROVE_WO_PM',
         'WO_APPROVE',
@@ -457,14 +457,14 @@ class SessionManager extends ChangeNotifier {
       }.contains(code),
     );
     final hasAdvisorApproval = normalizedPerms.any(
-      (code) => const {
+      (code) => {
         'REVIEW_TASK',
         'WO_APPROVE_ADVISOR',
         'APPROVE_WO_ADVISOR',
       }.contains(code),
     );
     final hasKdPlanning = normalizedPerms.any(
-      (code) => const {
+      (code) => {
         'CREATE_TASK',
         'UPDATE_PLAN',
         'WO_CREATE',
@@ -474,7 +474,7 @@ class SessionManager extends ChangeNotifier {
     );
     final hasWarehouseScope =
         normalizedPerms.any(
-          (code) => const {
+          (code) => {
             'WAREHOUSE_VIEW',
             'WAREHOUSE_REQUEST',
             'WAREHOUSE_APPROVE',
@@ -488,7 +488,7 @@ class SessionManager extends ChangeNotifier {
         !hasAdvisorApproval &&
         !hasKpApproval;
     final hasFieldExecution = normalizedPerms.any(
-      (code) => const {
+      (code) => {
         'TASK_EXECUTE',
         'TASK_SUBMIT',
         'TASK_PENDING',
@@ -498,7 +498,7 @@ class SessionManager extends ChangeNotifier {
     );
 
     if (hasGlobalScope ||
-        const {
+        {
           'pm',
           'mp',
           'admin',
@@ -508,7 +508,7 @@ class SessionManager extends ChangeNotifier {
         }.contains(normalized)) {
       return 'GLOBAL';
     }
-    if (const {
+    if ({
       'kp',
       'kepala_produksi',
       'kepala_project',
@@ -517,13 +517,13 @@ class SessionManager extends ChangeNotifier {
     }.contains(normalized)) {
       return 'KP';
     }
-    if (const {'adv', 'advisor'}.contains(normalized)) {
+    if ({'adv', 'advisor'}.contains(normalized)) {
       return 'ADV';
     }
-    if (const {'kd', 'ketua_divisi', 'kepala_divisi'}.contains(normalized)) {
+    if ({'kd', 'ketua_divisi', 'kepala_divisi'}.contains(normalized)) {
       return 'KD';
     }
-    if (const {
+    if ({
           'kp',
           'kepala_produksi',
           'kepala_project',
@@ -533,10 +533,10 @@ class SessionManager extends ChangeNotifier {
         hasKpApproval) {
       return 'KP';
     }
-    if (const {'adv', 'advisor'}.contains(normalized) || hasAdvisorApproval) {
+    if ({'adv', 'advisor'}.contains(normalized) || hasAdvisorApproval) {
       return 'ADV';
     }
-    if (const {'kd', 'ketua_divisi', 'kepala_divisi'}.contains(normalized) ||
+    if ({'kd', 'ketua_divisi', 'kepala_divisi'}.contains(normalized) ||
         hasKdPlanning) {
       return 'KD';
     }
@@ -572,7 +572,7 @@ class SessionManager extends ChangeNotifier {
         .toSet();
     if (normalizedPerms.contains('VIEW_ALL_UNITS')) return 'pm';
     if (normalizedPerms.any(
-      (code) => const {
+      (code) => {
         'WO_APPROVE_PM',
         'APPROVE_WO_PM',
         'WO_APPROVE',
@@ -584,7 +584,7 @@ class SessionManager extends ChangeNotifier {
       return 'kp';
     }
     if (normalizedPerms.any(
-      (code) => const {
+      (code) => {
         'REVIEW_TASK',
         'WO_APPROVE_ADVISOR',
         'APPROVE_WO_ADVISOR',
@@ -594,7 +594,7 @@ class SessionManager extends ChangeNotifier {
     }
     if (normalizedPerms.any(
       (code) =>
-          const {'CREATE_TASK', 'UPDATE_PLAN', 'WO_CREATE'}.contains(code),
+          {'CREATE_TASK', 'UPDATE_PLAN', 'WO_CREATE'}.contains(code),
     )) {
       return 'kd';
     }
@@ -612,7 +612,7 @@ class SessionManager extends ChangeNotifier {
 
   String? _warehouseLegacyRole(String normalizedRole) {
     if (normalizedRole.isEmpty) return null;
-    if (const {
+    if ({
       'kepala_gudang',
       'admin_gudang',
       'gudang',
@@ -654,68 +654,68 @@ class SessionManager extends ChangeNotifier {
 /// BE-driven permission code constants.
 abstract class Perms {
   // ── Task ───────────────────────────────────────────────
-  static const taskView = 'TASK_VIEW';
-  static const taskAssign = 'TASK_ASSIGN';
-  static const taskSubmit = 'TASK_SUBMIT';
-  static const taskCheckpoint = 'TASK_CHECKPOINT';
-  static const taskPending = 'TASK_PENDING';
-  static const taskBreak = 'TASK_BREAK';
-  static const taskExecute = 'TASK_EXECUTE';
-  static const uploadTicket = 'UPLOAD_TICKET';
-  static const jobPlanCreate = 'CREATE_TASK';
-  static const jobPlanReview = 'REVIEW_TASK';
-  static const jobPlanUpdate = 'UPDATE_PLAN';
-  static const viewAllUnits = 'view_all_units';
-  static const viewAssignedUnits = 'view_assigned_units';
-  static const unitsView = 'VIEW_UNITS';
-  static const countdownView = 'VIEW_COUNTDOWN';
-  static const countdownDetailView = 'VIEW_COUNTDOWN_DETAIL';
-  static const countdownSubmitApproval = 'COUNTDOWN_SUBMIT_APPROVAL';
-  static const countdownMarkQcReady = 'COUNTDOWN_MARK_QC_READY';
-  static const countdownRequestRevision = 'COUNTDOWN_REQUEST_REVISION';
+  static final taskView = 'TASK_VIEW';
+  static final taskAssign = 'TASK_ASSIGN';
+  static final taskSubmit = 'TASK_SUBMIT';
+  static final taskCheckpoint = 'TASK_CHECKPOINT';
+  static final taskPending = 'TASK_PENDING';
+  static final taskBreak = 'TASK_BREAK';
+  static final taskExecute = 'TASK_EXECUTE';
+  static final uploadTicket = 'UPLOAD_TICKET';
+  static final jobPlanCreate = 'CREATE_TASK';
+  static final jobPlanReview = 'REVIEW_TASK';
+  static final jobPlanUpdate = 'UPDATE_PLAN';
+  static final viewAllUnits = 'view_all_units';
+  static final viewAssignedUnits = 'view_assigned_units';
+  static final unitsView = 'VIEW_UNITS';
+  static final countdownView = 'VIEW_COUNTDOWN';
+  static final countdownDetailView = 'VIEW_COUNTDOWN_DETAIL';
+  static final countdownSubmitApproval = 'COUNTDOWN_SUBMIT_APPROVAL';
+  static final countdownMarkQcReady = 'COUNTDOWN_MARK_QC_READY';
+  static final countdownRequestRevision = 'COUNTDOWN_REQUEST_REVISION';
 
   // ── Work Order ─────────────────────────────────────────
-  static const woCreate = 'WO_CREATE';
-  static const woApprove = 'WO_APPROVE';
-  static const woApproveAdvisor = 'APPROVE_WO_ADVISOR';
-  static const woApprovePm = 'APPROVE_WO_PM';
-  static const woExtensionRequest = 'WO_EXTENSION_REQUEST';
-  static const woExtensionApprove = 'WO_EXTENSION_APPROVE';
-  static const woReject = 'WO_REJECT';
-  static const woView = 'WO_VIEW';
+  static final woCreate = 'WO_CREATE';
+  static final woApprove = 'WO_APPROVE';
+  static final woApproveAdvisor = 'APPROVE_WO_ADVISOR';
+  static final woApprovePm = 'APPROVE_WO_PM';
+  static final woExtensionRequest = 'WO_EXTENSION_REQUEST';
+  static final woExtensionApprove = 'WO_EXTENSION_APPROVE';
+  static final woReject = 'WO_REJECT';
+  static final woView = 'WO_VIEW';
 
   // ── QC ─────────────────────────────────────────────────
-  static const qcView = 'QC_VIEW';
-  static const qcSubmit = 'QC_SUBMIT';
-  static const qcValidate = 'QC_VALIDATE';
+  static final qcView = 'QC_VIEW';
+  static final qcSubmit = 'QC_SUBMIT';
+  static final qcValidate = 'QC_VALIDATE';
 
   // ── Warehouse / Peminjaman ─────────────────────────────
-  static const warehouseView = 'WAREHOUSE_VIEW';
-  static const warehouseRequest = 'WAREHOUSE_REQUEST';
-  static const warehouseApprove = 'WAREHOUSE_APPROVE';
-  static const warehouseReady = 'WAREHOUSE_READY';
-  static const warehouseIssue = 'WAREHOUSE_ISSUE';
-  static const warehouseReturn = 'WAREHOUSE_RETURN';
-  static const warehouseLogs = 'WAREHOUSE_VIEW';
-  static const warehouseStockCardView = 'WAREHOUSE_STOCK_CARD_VIEW';
+  static final warehouseView = 'WAREHOUSE_VIEW';
+  static final warehouseRequest = 'WAREHOUSE_REQUEST';
+  static final warehouseApprove = 'WAREHOUSE_APPROVE';
+  static final warehouseReady = 'WAREHOUSE_READY';
+  static final warehouseIssue = 'WAREHOUSE_ISSUE';
+  static final warehouseReturn = 'WAREHOUSE_RETURN';
+  static final warehouseLogs = 'WAREHOUSE_VIEW';
+  static final warehouseStockCardView = 'WAREHOUSE_STOCK_CARD_VIEW';
 
   // ── Monitoring ─────────────────────────────────────────
-  static const monitoringView = 'LIST_CAR_PROGRESS';
-  static const monitoringDetail = 'CAR_PROGRESS_DETAIL';
+  static final monitoringView = 'LIST_CAR_PROGRESS';
+  static final monitoringDetail = 'CAR_PROGRESS_DETAIL';
 
   // ── Purchase / Vendor ──────────────────────────────────
-  static const prView = 'PR_VIEW';
-  static const prCreate = 'PR_CREATE';
-  static const prApprove = 'PR_APPROVE';
-  static const wovCreate = 'WOV_CREATE';
-  static const wovUpdate = 'WOV_UPDATE';
-  static const vendorView = 'VENDOR_VIEW';
-  static const vendorCreate = 'VENDOR_CREATE';
-  static const vendorApprove = 'VENDOR_APPROVE';
-  static const vendorUpdateStatus = 'VENDOR_UPDATE_STATUS';
-  static const vendorReceive = 'VENDOR_RECEIVE';
+  static final prView = 'PR_VIEW';
+  static final prCreate = 'PR_CREATE';
+  static final prApprove = 'PR_APPROVE';
+  static final wovCreate = 'WOV_CREATE';
+  static final wovUpdate = 'WOV_UPDATE';
+  static final vendorView = 'VENDOR_VIEW';
+  static final vendorCreate = 'VENDOR_CREATE';
+  static final vendorApprove = 'VENDOR_APPROVE';
+  static final vendorUpdateStatus = 'VENDOR_UPDATE_STATUS';
+  static final vendorReceive = 'VENDOR_RECEIVE';
 
   // ── Profile ────────────────────────────────────────────
-  static const notificationsView = 'LIST_NOTIFICATIONS';
-  static const profileView = 'PROFILE_VIEW';
+  static final notificationsView = 'LIST_NOTIFICATIONS';
+  static final profileView = 'PROFILE_VIEW';
 }

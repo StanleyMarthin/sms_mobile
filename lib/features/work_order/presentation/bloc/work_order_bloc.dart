@@ -15,7 +15,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
 
   String _currentView = 'ACTIVE';
 
-  WorkOrderBloc({required this.repository}) : super(const WorkOrderInitial()) {
+  WorkOrderBloc({required this.repository}) : super(WorkOrderInitial()) {
     on<LoadWorkOrders>(_onLoad);
     on<RefreshWorkOrders>(_onRefresh);
     on<LoadWorkOrderDetail>(_onLoadDetail);
@@ -30,7 +30,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
 
   Future<void> _onLoad(LoadWorkOrders e, Emitter<WorkOrderState> emit) async {
     _currentView = e.view;
-    emit(const WorkOrderLoading());
+    emit(WorkOrderLoading());
     final result = await repository.getWorkOrders(view: e.view);
     result.fold(
       (f) => emit(WorkOrderError(message: f.message ?? 'Gagal memuat WO')),
@@ -53,7 +53,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     LoadWorkOrderDetail e,
     Emitter<WorkOrderState> emit,
   ) async {
-    emit(const WorkOrderLoading());
+    emit(WorkOrderLoading());
     final result = await repository.getWorkOrderById(e.woId);
     result.fold(
       (f) =>
@@ -67,7 +67,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     result.fold(
       (f) => emit(
         WorkOrderActionSuccess(
-          workOrders: const [],
+          workOrders: [],
           message: msg,
           view: _currentView,
         ),
@@ -86,7 +86,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     CreateWorkOrder e,
     Emitter<WorkOrderState> emit,
   ) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.createWorkOrder(
       carId: e.carId,
       targetDivId: e.targetDivId,
@@ -107,7 +107,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
   }
 
   Future<void> _onApprove(ApproveWo e, Emitter<WorkOrderState> emit) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.approveWorkOrder(
       woId: e.woId,
       estimatedHours: e.estimatedHours,
@@ -128,7 +128,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
   }
 
   Future<void> _onReject(RejectWo e, Emitter<WorkOrderState> emit) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.rejectWorkOrder(
       woId: e.woId,
       rejectReason: e.rejectReason,
@@ -144,7 +144,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     RequestDlExtension e,
     Emitter<WorkOrderState> emit,
   ) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.requestDeadlineExtension(
       woId: e.woId,
       newDeadline: e.newDeadline,
@@ -163,7 +163,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     RespondDlExtension e,
     Emitter<WorkOrderState> emit,
   ) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.respondDeadlineExtension(
       woId: e.woId,
       approve: e.approve,
@@ -184,7 +184,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     RequestHourExtension e,
     Emitter<WorkOrderState> emit,
   ) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.requestHourExtension(
       woId: e.woId,
       requestedHours: e.requestedHours,
@@ -202,7 +202,7 @@ class WorkOrderBloc extends Bloc<WorkOrderEvent, WorkOrderState> {
     RespondHourExtension e,
     Emitter<WorkOrderState> emit,
   ) async {
-    emit(const WorkOrderActionLoading());
+    emit(WorkOrderActionLoading());
     final result = await repository.respondHourExtension(
       woId: e.woId,
       approve: e.approve,

@@ -1,7 +1,7 @@
 library;
 
 class JobPlan {
-  const JobPlan({
+  JobPlan({
     required this.planId,
     required this.coreId,
     required this.carId,

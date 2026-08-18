@@ -1,15 +1,23 @@
+// Tujuan: Menampilkan dan mengelola pengajuan, pemakaian, riwayat, serta aktivitas warehouse.
+// Caller: Route /warehouse melalui FeatureShellPage.
+// Dependensi: WarehouseRepository, SessionManager, DateFilterBar, WarehouseLog.
+// Main Functions: WarehouseRequestPage.
+// Side Effects: Membaca dan mengubah transaksi warehouse melalui repository.
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
+import '../../../../features/task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../domain/entities/warehouse_log.dart';
 import '../../domain/entities/warehouse_item_suggestion.dart';
 import '../../domain/repositories/warehouse_repository.dart';
-import '../widgets/active_job_picker.dart';
+import '../utils/warehouse_history_filter.dart';
 import '../widgets/warehouse_request_sheet.dart';
 
 class WarehouseRequestPage extends StatefulWidget {
@@ -20,7 +28,7 @@ class WarehouseRequestPage extends StatefulWidget {
 }
 
 String _warehouseTrxLabel(String t) =>
-    const {
+    {
       'PEMINJAMAN': 'Peminjaman',
       'PENGAMBILAN': 'Pengambilan',
       'PENGEMBALIAN': 'Pengembalian',
@@ -29,7 +37,7 @@ String _warehouseTrxLabel(String t) =>
     t;
 
 String _warehouseCategoryLabel(String t) =>
-    const {
+    {
       'TOOLS': 'Tools',
       'BAHAN': 'Bahan',
       'SPARE_PART': 'Spare Part',
@@ -56,14 +64,14 @@ String _normalizeWarehouseCategory(String category) {
 enum _WarehousePageMode { requester, console }
 
 class _DivisionFilterOption {
-  const _DivisionFilterOption({required this.key, required this.label});
+  _DivisionFilterOption({required this.key, required this.label});
 
   final String key;
   final String label;
 }
 
 class _UsageGroup {
-  const _UsageGroup({
+  _UsageGroup({
     required this.id,
     required this.requester,
     required this.division,
@@ -80,7 +88,7 @@ class _UsageGroup {
       items.first.actualReleaseDate ?? items.first.requestDate;
 }
 
-const Set<String> _warehouseManagerRoles = {
+Set<String> _warehouseManagerRoles = {
   'KEPALA_GUDANG',
   'ADMIN_GUDANG',
   'GUDANG',
@@ -124,11 +132,11 @@ String _divisionKey(WarehouseLog log) {
 Set<String>? _warehouseScopeForRole(String role) {
   switch (role.toUpperCase()) {
     case 'GUDANG_TOOLS':
-      return const {'TOOLS'};
+      return {'TOOLS'};
     case 'GUDANG_SPAREPART':
-      return const {'SPARE_PART'};
+      return {'SPARE_PART'};
     case 'GUDANG_BAHAN':
-      return const {'BAHAN', 'CONSUMABLE'};
+      return {'BAHAN', 'CONSUMABLE'};
     default:
       return null;
   }
@@ -177,8 +185,6 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   List<WarehouseLog> _pendingList = [];
   DateTime? _logsDateFilter;
   DateTime? _historyDateFilter;
-  // Filter untuk tab Pengajuan (requester)
-  DateTime? _activeDateFilter;
   final Set<String> _selectedApprovalIds = <String>{};
   final Set<String> _selectedReminderGroupIds = <String>{};
   String? _selectedUsingDivisionKey;
@@ -193,6 +199,9 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     _session = sl<SessionManager>();
     _repo = sl<WarehouseRepository>();
     _tabController = TabController(length: 3, vsync: this);
+    final now = DateTime.now();
+    _logsDateFilter = DateTime(now.year, now.month, now.day);
+    _historyDateFilter = DateTime(now.year, now.month, now.day);
     _loadAll();
   }
 
@@ -212,9 +221,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   bool get _canApprove =>
       _session.hasPerm(Perms.warehouseApprove) ||
       hasPermission(_role, Permission.warehouseApprove);
-  bool get _canRequest =>
-      _session.hasPerm(Perms.warehouseRequest) ||
-      hasPermission(_role, Permission.warehouseRequest);
+  bool get _canRequest => true;
   bool get _isWarehouseStaffByPermissionsOnly =>
       _hasWarehouseLogsAccess && !_canRequest && !_canApprove;
   bool get _canProcessWarehouse =>
@@ -258,11 +265,11 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         if (_mode == _WarehousePageMode.console && _canApprove)
           _repo.getPendingApprovals()
         else
-          Future.value(const <WarehouseLog>[]),
+          Future.value(<WarehouseLog>[]),
         if (_mode == _WarehousePageMode.requester)
           _repo.getMyItems()
         else
-          Future.value(const <WarehouseLog>[]),
+          Future.value(<WarehouseLog>[]),
       ]);
       if (!mounted) return;
       final validSelection = results[1]
@@ -290,7 +297,10 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        AppNotification.showError(context, 'Gagal memuat data: $e');
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal memuat data'),
+        );
       }
     }
   }
@@ -302,26 +312,17 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   List<WarehouseLog> get _historyItems =>
       _myLogs.where((l) => l.isReturned || l.isRejected || l.isStored).toList();
 
-  List<WarehouseLog> get _filteredActiveItems {
-    var items = _activeItems;
-    if (_activeDateFilter != null) {
-      items = items
-          .where((l) => _sameDate(l.requestDate, _activeDateFilter!))
-          .toList();
-    }
-    return items;
-  }
+  List<WarehouseLog> get _filteredActiveItems => _activeItems;
 
   List<WarehouseLog> get _filteredHistoryItems {
-    return _historyItems
-        .where((item) => _sameDate(item.requestDate, _historyDateFilter))
-        .toList();
+    return warehouseLogsForDate(
+      _historyItems,
+      _historyDateFilter ?? DateTime.now(),
+    );
   }
 
   List<WarehouseLog> get _filteredLogItems {
-    return _myLogs
-        .where((item) => _sameDate(item.requestDate, _logsDateFilter))
-        .toList();
+    return warehouseLogsForDate(_myLogs, _logsDateFilter ?? DateTime.now());
   }
 
   List<WarehouseLog> _visibleUsingItemsFrom(List<WarehouseLog> source) {
@@ -462,18 +463,18 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text(
+        title: Text(
           'Kirim Reminder',
           style: TextStyle(color: AppColors.textPrimary),
         ),
         content: Text(
           'Kirim reminder ke ${selectedGroups.length} anggota terpilih?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -481,7 +482,7 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
             ),
-            child: const Text('Kirim'),
+            child: Text('Kirim'),
           ),
         ],
       ),
@@ -555,6 +556,144 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
     return items;
   }
 
+  Future<void> _showRequestMenu() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Pilih Aksi Gudang',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.swap_horiz_rounded, color: AppColors.gold),
+              title: const Text('Peminjaman'),
+              subtitle: const Text('Pinjam barang dari gudang'),
+              onTap: () => Navigator.pop(ctx, 'PEMINJAMAN'),
+            ),
+            ListTile(
+              leading: Icon(Icons.exit_to_app_rounded, color: AppColors.gold),
+              title: const Text('Ambil'),
+              subtitle: const Text('Ambil barang untuk dipakai langsung'),
+              onTap: () => Navigator.pop(ctx, 'PENGAMBILAN'),
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.assignment_return_outlined,
+                color: AppColors.gold,
+              ),
+              title: const Text('Pengembalian'),
+              subtitle: const Text('Kembalikan barang yang dipinjam'),
+              onTap: () => Navigator.pop(ctx, 'RETURN'),
+            ),
+            ListTile(
+              leading: Icon(Icons.inventory_2_outlined, color: AppColors.gold),
+              title: const Text('Penyimpanan'),
+              subtitle: const Text('Simpan barang yang dilepas dari unit'),
+              onTap: () => Navigator.pop(ctx, 'STORE'),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'PEMINJAMAN':
+      case 'PENGAMBILAN':
+        final ok = await WarehouseRequestSheet.show(
+          context: context,
+          transactionType: choice,
+        );
+        if (ok && mounted) _loadAll();
+      case 'RETURN':
+        await _openReturnList();
+      case 'STORE':
+        final stored = await WarehouseRequestSheet.showStorage(
+          context: context,
+        );
+        if (stored && mounted) _loadAll();
+    }
+  }
+
+  Future<void> _openReturnList() async {
+    final items = (await _repo.getMyItems())
+        .where(
+          (l) =>
+              l.transactionType == 'PEMINJAMAN' && !l.isReturned && !l.isStored,
+        )
+        .toList();
+    if (!mounted) return;
+    final selected = await showModalBottomSheet<WarehouseLog>(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: items.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.all(24),
+                child: Text('Tidak ada barang pinjaman untuk dikembalikan.'),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      'Pilih Barang yang Dikembalikan',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  ...items.map(
+                    (log) => ListTile(
+                      leading: Icon(
+                        Icons.inventory_2_outlined,
+                        color: AppColors.gold,
+                      ),
+                      title: Text(
+                        log.itemName,
+                        style: TextStyle(color: AppColors.textPrimary),
+                      ),
+                      subtitle: Text(
+                        '${log.unitName} · ${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
+                      ),
+                      onTap: () => Navigator.pop(ctx, log),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    final returned = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReturnSheet(log: selected, repo: _repo),
+    );
+    if (returned == true && mounted) _loadAll();
+  }
+
   List<WarehouseLog> get _bulkApprovalItems =>
       _pendingList.where(_canBulkApproveLog).toList();
 
@@ -618,18 +757,18 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         backgroundColor: AppColors.surfaceCard,
         title: Text(
           approved ? 'Setujui Beberapa Item' : 'Tolak Beberapa Item',
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.textPrimary),
         ),
         content: Text(
           approved
               ? 'Setujui ${selectedItems.length} item yang dipilih?'
               : 'Tolak ${selectedItems.length} item yang dipilih?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -701,8 +840,8 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         // Tab bar
         Container(
           width: double.infinity,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          decoration: const BoxDecoration(
+          margin: EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(color: AppColors.border, width: 0.5),
             ),
@@ -711,16 +850,13 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
             controller: _tabController,
             isScrollable: false,
             indicatorSize: TabBarIndicatorSize.label,
-            indicator: const UnderlineTabIndicator(
+            indicator: UnderlineTabIndicator(
               borderSide: BorderSide(width: 3, color: AppColors.gold),
               insets: EdgeInsets.symmetric(horizontal: 16),
             ),
             labelColor: AppColors.gold,
             unselectedLabelColor: AppColors.textMuted,
-            labelStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
+            labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             dividerHeight: 0,
             tabs: tabs.map((t) {
               final isPrimary =
@@ -731,8 +867,8 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (isPrimary) ...[
-                      const Icon(Icons.warehouse_outlined, size: 16),
-                      const SizedBox(width: 8),
+                      Icon(Icons.warehouse_outlined, size: 16),
+                      SizedBox(width: 8),
                     ],
                     Text(t),
                   ],
@@ -742,16 +878,38 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
           ),
         ),
         Expanded(
-          child: _isLoading
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.gold),
-                )
-              : TabBarView(
-                  controller: _tabController,
-                  children: _mode == _WarehousePageMode.console
-                      ? [_consoleTab(), _usingTab(), _logsTab()]
-                      : [_activeTab(), _myItemsTab(), _historyTab()],
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _isLoading
+                    ? Center(
+                        child: CircularProgressIndicator(color: AppColors.gold),
+                      )
+                    : TabBarView(
+                        controller: _tabController,
+                        children: _mode == _WarehousePageMode.console
+                            ? [_consoleTab(), _usingTab(), _logsTab()]
+                            : [_activeTab(), _myItemsTab(), _historyTab()],
+                      ),
+              ),
+              if (_mode == _WarehousePageMode.console && _canRequest)
+                Positioned(
+                  right: 16,
+                  bottom: 16,
+                  child: FloatingActionButton.extended(
+                    heroTag: 'wh_fab_req_console',
+                    onPressed: _showRequestMenu,
+                    backgroundColor: AppColors.gold,
+                    foregroundColor: AppColors.background,
+                    icon: Icon(Icons.add_rounded, size: 20),
+                    label: Text(
+                      'Ajukan',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
                 ),
+            ],
+          ),
         ),
       ],
     );
@@ -760,45 +918,18 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   // ─ Tabs for OP ───────────────────────────────────────────────
   Widget _activeTab() => Column(
     children: [
-      // ── Filter bar (tanggal + unit) ──────────────────────
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ClearableDateFilter(
-              selectedDate: _activeDateFilter,
-              onDateChanged: (date) => setState(() => _activeDateFilter = date),
-              onClear: _activeDateFilter != null
-                  ? () => setState(() => _activeDateFilter = null)
-                  : null,
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 4),
       Expanded(
         child: _listScaffold(
           items: _filteredActiveItems,
-          emptyMsg: _activeDateFilter != null
-              ? 'Tidak ada pengajuan sesuai filter'
-              : 'Tidak ada transaksi aktif',
+          emptyMsg: 'Tidak ada transaksi aktif',
           fab: _canRequest
               ? FloatingActionButton.extended(
                   heroTag: 'wh_fab_req',
-                  onPressed: () async {
-                    final ctx = await ActiveJobPicker.show(context);
-                    if (!mounted) return;
-                    final ok = await WarehouseRequestSheet.show(
-                      context: context,
-                      jobContext: ctx,
-                    );
-                    if (ok && mounted) _loadAll();
-                  },
+                  onPressed: _showRequestMenu,
                   backgroundColor: AppColors.gold,
                   foregroundColor: AppColors.background,
-                  icon: const Icon(Icons.add_rounded, size: 20),
-                  label: const Text(
+                  icon: Icon(Icons.add_rounded, size: 20),
+                  label: Text(
                     'Ajukan',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
@@ -902,18 +1033,18 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
             onRefresh: _loadAll,
             child: groups.isEmpty
                 ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
+                    physics: AlwaysScrollableScrollPhysics(),
                     children: [
                       SizedBox(
                         height: MediaQuery.of(context).size.height * 0.24,
                       ),
-                      const _EmptyState(
+                      _EmptyState(
                         message: 'Belum ada anggota yang sedang memakai barang',
                       ),
                     ],
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
                     itemCount: groups.length,
                     itemBuilder: (_, index) => _UsageGroupCard(
                       group: groups[index],
@@ -941,7 +1072,10 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
                                 if (!mounted) return;
                                 AppNotification.showError(
                                   context,
-                                  'Gagal kirim reminder: $e',
+                                  friendlyMessage(
+                                    e,
+                                    fallback: 'Gagal kirim reminder',
+                                  ),
                                 );
                               }
                             }
@@ -962,15 +1096,24 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
           subtitle: _warehouseScopeLabel(_role),
         ),
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: _ClearableDateFilter(
-          selectedDate: _logsDateFilter,
-          onDateChanged: (date) {
-            setState(() => _logsDateFilter = date);
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity.abs() < 200) return;
+            setState(() {
+              _logsDateFilter = (_logsDateFilter ?? DateTime.now()).add(
+                Duration(days: velocity < 0 ? 1 : -1),
+              );
+            });
           },
-          onClear: () {
-            setState(() => _logsDateFilter = null);
-          },
+          child: DateFilterBar(
+            selectedDate: _logsDateFilter ?? DateTime.now(),
+            onDateChanged: (date) {
+              setState(() => _logsDateFilter = date);
+            },
+          ),
         ),
       ),
       Expanded(
@@ -987,15 +1130,24 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
   Widget _historyTab() => Column(
     children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-        child: _ClearableDateFilter(
-          selectedDate: _historyDateFilter,
-          onDateChanged: (date) {
-            setState(() => _historyDateFilter = date);
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity.abs() < 200) return;
+            setState(() {
+              _historyDateFilter = (_historyDateFilter ?? DateTime.now()).add(
+                Duration(days: velocity < 0 ? 1 : -1),
+              );
+            });
           },
-          onClear: () {
-            setState(() => _historyDateFilter = null);
-          },
+          child: DateFilterBar(
+            selectedDate: _historyDateFilter ?? DateTime.now(),
+            onDateChanged: (date) {
+              setState(() => _historyDateFilter = date);
+            },
+          ),
         ),
       ),
       Expanded(
@@ -1022,11 +1174,11 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
           onRefresh: _loadAll,
           child: items.isEmpty
               ? ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
+                  physics: AlwaysScrollableScrollPhysics(),
                   children: [
                     SizedBox(height: MediaQuery.of(context).size.height * 0.28),
                     _EmptyState(message: emptyMsg),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                   ],
                 )
               : ListView.builder(
@@ -1057,125 +1209,6 @@ class _WarehouseRequestPageState extends State<WarehouseRequestPage>
         ),
         if (fab != null) Positioned(right: 16, bottom: 24, child: fab),
       ],
-    );
-  }
-
-  bool _sameDate(DateTime a, DateTime? b) {
-    if (b == null) return true;
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// CLEARABLE DATE FILTER (Tab Pengajuan — nullable date)
-// ═══════════════════════════════════════════════════════════════
-class _ClearableDateFilter extends StatelessWidget {
-  const _ClearableDateFilter({
-    required this.selectedDate,
-    required this.onDateChanged,
-    this.onClear,
-  });
-
-  final DateTime? selectedDate;
-  final ValueChanged<DateTime> onDateChanged;
-  final VoidCallback? onClear;
-
-  static const _dayNames = [
-    'Senin',
-    'Selasa',
-    'Rabu',
-    'Kamis',
-    'Jumat',
-    'Sabtu',
-    'Minggu',
-  ];
-  static const _monthNames = [
-    '',
-    'Januari',
-    'Februari',
-    'Maret',
-    'April',
-    'Mei',
-    'Juni',
-    'Juli',
-    'Agustus',
-    'September',
-    'Oktober',
-    'November',
-    'Desember',
-  ];
-
-  String _fmt(DateTime d) =>
-      '${_dayNames[d.weekday - 1]}, ${d.day} ${_monthNames[d.month]}';
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = selectedDate != null;
-    return GestureDetector(
-      onTap: () async {
-        final now = DateTime.now();
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: selectedDate ?? now,
-          firstDate: DateTime(2024),
-          lastDate: DateTime(2030),
-          builder: (ctx, child) => Theme(
-            data: ThemeData.dark().copyWith(
-              colorScheme: const ColorScheme.dark(
-                primary: AppColors.gold,
-                onPrimary: AppColors.background,
-                surface: AppColors.surfaceCard,
-                onSurface: AppColors.textPrimary,
-              ),
-            ),
-            child: child!,
-          ),
-        );
-        if (picked != null) onDateChanged(picked);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.gold.withValues(alpha: 0.1)
-              : AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isActive
-                ? AppColors.gold.withValues(alpha: 0.5)
-                : AppColors.border,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 14,
-              color: isActive ? AppColors.gold : AppColors.textMuted,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                isActive ? _fmt(selectedDate!) : 'Filter Tanggal Pengajuan',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                  color: isActive ? AppColors.gold : AppColors.textMuted,
-                ),
-              ),
-            ),
-            if (isActive && onClear != null)
-              GestureDetector(
-                onTap: onClear,
-                child: const Icon(
-                  Icons.close_rounded,
-                  size: 16,
-                  color: AppColors.textMuted,
-                ),
-              ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -1211,8 +1244,8 @@ class _DailyUsageSummaryBar extends StatelessWidget {
     }).length;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(12),
@@ -1220,9 +1253,9 @@ class _DailyUsageSummaryBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.today_outlined, size: 14, color: AppColors.gold),
-          const SizedBox(width: 6),
-          const Text(
+          Icon(Icons.today_outlined, size: 14, color: AppColors.gold),
+          SizedBox(width: 6),
+          Text(
             'Hari ini:',
             style: TextStyle(
               fontSize: 11,
@@ -1230,23 +1263,23 @@ class _DailyUsageSummaryBar extends StatelessWidget {
               color: AppColors.gold,
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _SummaryChip(
             label: 'Bahan',
             count: todayBahan,
-            color: const Color(0xFF13B8A6),
+            color: Color(0xFF13B8A6),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _SummaryChip(
             label: 'Tools',
             count: todayTools,
             color: AppColors.gold,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _SummaryChip(
             label: 'Sparepart',
             count: todaySparepart,
-            color: const Color(0xFF5B8EFF),
+            color: Color(0xFF5B8EFF),
           ),
         ],
       ),
@@ -1268,7 +1301,7 @@ class _SummaryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
@@ -1297,8 +1330,8 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-        margin: const EdgeInsets.symmetric(horizontal: 28),
+        padding: EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        margin: EdgeInsets.symmetric(horizontal: 28),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(16),
@@ -1315,14 +1348,14 @@ class _EmptyState extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 Icons.inventory_2_outlined,
                 size: 26,
                 color: AppColors.textMuted,
               ),
             ),
-            const SizedBox(height: 12),
-            const Text(
+            SizedBox(height: 12),
+            Text(
               'Belum ada data',
               style: TextStyle(
                 fontSize: 14,
@@ -1330,11 +1363,11 @@ class _EmptyState extends StatelessWidget {
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textMuted,
                 fontSize: 12,
                 height: 1.35,
@@ -1357,31 +1390,27 @@ class _WarehouseRoleBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textPrimary,
               fontSize: 20,
               fontWeight: FontWeight.w800,
               letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Row(
             children: [
-              const Icon(
-                Icons.warehouse_outlined,
-                size: 12,
-                color: AppColors.gold,
-              ),
-              const SizedBox(width: 6),
+              Icon(Icons.warehouse_outlined, size: 12, color: AppColors.gold),
+              SizedBox(width: 6),
               Text(
                 subtitle,
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.gold,
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -1413,9 +1442,9 @@ class _WarehouseConsoleSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 40,
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: EdgeInsets.symmetric(horizontal: 20),
         scrollDirection: Axis.horizontal,
         children: [
           _StatPill(
@@ -1426,7 +1455,7 @@ class _WarehouseConsoleSummary extends StatelessWidget {
           _StatPill(
             label: 'Siapkan',
             value: needPrepare,
-            color: const Color(0xFF13B8A6),
+            color: Color(0xFF13B8A6),
           ),
           _StatPill(
             label: 'Siap Ambil',
@@ -1436,7 +1465,7 @@ class _WarehouseConsoleSummary extends StatelessWidget {
           _StatPill(
             label: 'Masuk',
             value: needStoreOrLocate,
-            color: const Color(0xFF5B8EFF),
+            color: Color(0xFF5B8EFF),
           ),
         ],
       ),
@@ -1453,8 +1482,8 @@ class _UsageOverviewBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 10),
+      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -1467,9 +1496,9 @@ class _UsageOverviewBar extends StatelessWidget {
             label: 'Anggota',
             value: '$memberCount',
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Container(width: 1, height: 28, color: AppColors.border),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           _OverviewMetric(
             icon: Icons.inventory_2_outlined,
             label: 'Barang',
@@ -1506,13 +1535,13 @@ class _OverviewMetric extends StatelessWidget {
           alignment: Alignment.center,
           child: Icon(icon, size: 16, color: AppColors.gold),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
@@ -1520,7 +1549,7 @@ class _OverviewMetric extends StatelessWidget {
             ),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textMuted,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
@@ -1546,11 +1575,11 @@ class _DivisionFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (options.isEmpty) return const SizedBox(height: 2);
+    if (options.isEmpty) return SizedBox(height: 2);
     return SizedBox(
       height: 42,
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
         children: [
           _DivisionChip(
@@ -1584,7 +1613,7 @@ class _DivisionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
+      padding: EdgeInsets.only(right: 8),
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
@@ -1603,7 +1632,7 @@ class _DivisionChip extends StatelessWidget {
         backgroundColor: AppColors.surfaceCard,
         selectedColor: AppColors.gold,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 0),
       ),
     );
   }
@@ -1629,8 +1658,8 @@ class _ApprovalBulkBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: selectedCount > 0
             ? AppColors.gold.withValues(alpha: 0.08)
@@ -1653,7 +1682,7 @@ class _ApprovalBulkBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             selectedCount == 0 ? 'Pilih Semua' : '$selectedCount dipilih',
             style: TextStyle(
@@ -1662,7 +1691,7 @@ class _ApprovalBulkBar extends StatelessWidget {
               color: selectedCount > 0 ? AppColors.gold : AppColors.textMuted,
             ),
           ),
-          const Spacer(),
+          Spacer(),
           if (selectedCount > 0) ...[
             TextButton(
               onPressed: isBusy ? null : onReject,
@@ -1670,25 +1699,22 @@ class _ApprovalBulkBar extends StatelessWidget {
                 foregroundColor: AppColors.statusLocked,
                 visualDensity: VisualDensity.compact,
               ),
-              child: const Text(
+              child: Text(
                 'Tolak',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
             ),
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
             FilledButton.icon(
               onPressed: isBusy ? null : onApprove,
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.statusDone,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 visualDensity: VisualDensity.compact,
               ),
               icon: isBusy
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 14,
                       height: 14,
                       child: CircularProgressIndicator(
@@ -1696,11 +1722,8 @@ class _ApprovalBulkBar extends StatelessWidget {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.done_all_rounded, size: 16),
-              label: const Text(
-                'ACC',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
+                  : Icon(Icons.done_all_rounded, size: 16),
+              label: Text('ACC', style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ],
         ],
@@ -1727,8 +1750,8 @@ class _ReminderBulkBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      margin: EdgeInsets.fromLTRB(16, 8, 16, 12),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: selectedCount > 0
             ? AppColors.gold.withValues(alpha: 0.08)
@@ -1751,7 +1774,7 @@ class _ReminderBulkBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(width: 2),
+          SizedBox(width: 2),
           Text(
             selectedCount == 0
                 ? 'Pilih Semua'
@@ -1762,17 +1785,17 @@ class _ReminderBulkBar extends StatelessWidget {
               color: selectedCount > 0 ? AppColors.gold : AppColors.textMuted,
             ),
           ),
-          const Spacer(),
+          Spacer(),
           FilledButton.icon(
             onPressed: isBusy ? null : onSend,
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               visualDensity: VisualDensity.compact,
             ),
             icon: isBusy
-                ? const SizedBox(
+                ? SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
@@ -1780,8 +1803,8 @@ class _ReminderBulkBar extends StatelessWidget {
                       color: AppColors.background,
                     ),
                   )
-                : const Icon(Icons.notifications_active_outlined, size: 16),
-            label: const Text(
+                : Icon(Icons.notifications_active_outlined, size: 16),
+            label: Text(
               'Reminder',
               style: TextStyle(fontWeight: FontWeight.w800),
             ),
@@ -1807,8 +1830,8 @@ class _StatPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasData = value > 0;
     return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      margin: EdgeInsets.only(right: 8),
+      padding: EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: hasData ? color.withValues(alpha: 0.12) : AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(20),
@@ -1827,7 +1850,7 @@ class _StatPill extends StatelessWidget {
               color: hasData ? color : AppColors.textMuted,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
@@ -1863,8 +1886,8 @@ class _UsageGroupCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(16),
@@ -1883,29 +1906,29 @@ class _UsageGroupCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.person_outline_rounded,
                   color: AppColors.gold,
                   size: 20,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       group.requester,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       group.division,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: AppColors.textMuted,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -1927,14 +1950,14 @@ class _UsageGroupCard extends StatelessWidget {
                   ),
                 ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                padding: EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '${group.itemCount} barang',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.gold,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
@@ -1943,21 +1966,21 @@ class _UsageGroupCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           ...group.items.map(
             (item) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: 8),
               child: _UsageItemRow(log: item, dateFormat: _df),
             ),
           ),
           if (onRemind != null) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Align(
               alignment: Alignment.centerRight,
               child: OutlinedButton.icon(
                 onPressed: selectionBusy ? null : onRemind,
-                icon: const Icon(Icons.notifications_active_outlined, size: 16),
-                label: const Text('Reminder'),
+                icon: Icon(Icons.notifications_active_outlined, size: 16),
+                label: Text('Reminder'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.gold,
                   side: BorderSide(
@@ -1983,7 +2006,7 @@ class _UsageItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusLabel = log.isInstalled ? 'Terpasang' : 'Dipakai';
-    final accent = log.isInstalled ? AppColors.gold : const Color(0xFF13B8A6);
+    final accent = log.isInstalled ? AppColors.gold : Color(0xFF13B8A6);
     final subtitleParts = <String>[
       '${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
       if (log.unitName != null && log.unitName!.trim().isNotEmpty)
@@ -1992,7 +2015,7 @@ class _UsageItemRow extends StatelessWidget {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(11),
+      padding: EdgeInsets.all(11),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
@@ -2006,16 +2029,16 @@ class _UsageItemRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   log.itemName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(20),
@@ -2031,10 +2054,10 @@ class _UsageItemRow extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             subtitleParts.join(' · '),
-            style: const TextStyle(
+            style: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 11,
               height: 1.35,
@@ -2042,18 +2065,18 @@ class _UsageItemRow extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.calendar_today_outlined,
                 size: 11,
                 color: AppColors.textMuted,
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               Text(
                 dateFormat.format(log.actualReleaseDate ?? log.requestDate),
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
@@ -2140,13 +2163,13 @@ class _LogCard extends StatelessWidget {
   // status colours / icons ──────────────────────────────────────
   Color get _statusColor {
     if (log.isRejected) return AppColors.statusLocked;
-    if (log.normalizedItemStatus == 'LOST') return const Color(0xFF111111);
-    if (log.isStored) return const Color(0xFF5B8EFF);
-    if (log.isReturned) return const Color(0xFF8B5CF6);
-    if (log.isReady) return const Color(0xFF13B8A6);
+    if (log.normalizedItemStatus == 'LOST') return Color(0xFF111111);
+    if (log.isStored) return Color(0xFF5B8EFF);
+    if (log.isReturned) return Color(0xFF8B5CF6);
+    if (log.isReady) return Color(0xFF13B8A6);
     if (log.isAnyPending) return AppColors.statusInProgress;
     if (log.isReleased) return AppColors.statusDone;
-    if (log.isApproved) return const Color(0xFF7C8799);
+    if (log.isApproved) return Color(0xFF7C8799);
     if (log.isOpen) return AppColors.textMuted;
     return AppColors.textMuted;
   }
@@ -2204,7 +2227,7 @@ class _LogCard extends StatelessWidget {
         ),
       ),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: EdgeInsets.only(bottom: 10),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -2221,37 +2244,37 @@ class _LogCard extends StatelessWidget {
           children: [
             // ── Header ──────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.all(14),
+              padding: EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(7),
+                        padding: EdgeInsets.all(7),
                         decoration: BoxDecoration(
                           color: _statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(_icon, size: 18, color: _statusColor),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               log.itemName,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w800,
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
                               '${_warehouseTrxLabel(log.transactionType)} · ${log.qty % 1 == 0 ? log.qty.toInt() : log.qty} ${log.uom}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.textMuted,
                                 fontWeight: FontWeight.w500,
@@ -2276,10 +2299,10 @@ class _LogCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                             ),
-                            const SizedBox(width: 6),
+                            SizedBox(width: 6),
                           ],
                           Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding: EdgeInsets.symmetric(
                               horizontal: 8,
                               vertical: 4,
                             ),
@@ -2301,7 +2324,7 @@ class _LogCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   Wrap(
                     spacing: 16,
                     runSpacing: 4,
@@ -2318,10 +2341,10 @@ class _LogCard extends StatelessWidget {
                   ),
                   if (log.notes != null &&
                       _cleanNotes(log.notes!).isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     Text(
                       'Catatan: ${_cleanNotes(log.notes!)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -2330,7 +2353,7 @@ class _LogCard extends StatelessWidget {
                     ),
                   ],
                   if (log.photoUrls != null && log.photoUrls!.isNotEmpty) ...[
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     _PhotoStrip(photoUrls: log.photoUrls!),
                   ],
                 ],
@@ -2369,10 +2392,10 @@ class _LogCard extends StatelessWidget {
   }
 
   Widget _buildActions(BuildContext context) => Container(
-    decoration: const BoxDecoration(
+    decoration: BoxDecoration(
       border: Border(top: BorderSide(color: AppColors.border)),
     ),
-    padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+    padding: EdgeInsets.fromLTRB(14, 8, 14, 14),
     child: Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -2408,7 +2431,7 @@ class _LogCard extends StatelessWidget {
             context,
             'Tandai Siap',
             Icons.inventory_rounded,
-            const Color(0xFF13B8A6),
+            Color(0xFF13B8A6),
             () => _doReady(context),
           ),
         if (_canRelease)
@@ -2416,7 +2439,7 @@ class _LogCard extends StatelessWidget {
             context,
             _isOwner ? 'Ambil' : 'Sudah Diambil',
             Icons.north_east_rounded,
-            const Color(0xFF13B8A6),
+            Color(0xFF13B8A6),
             () => _doRelease(context),
           ),
         if (_canInstall)
@@ -2450,7 +2473,7 @@ class _LogCard extends StatelessWidget {
             context,
             'Masuk Gudang',
             Icons.archive_rounded,
-            const Color(0xFF5B8EFF),
+            Color(0xFF5B8EFF),
             () => _doStore(context),
           ),
         if (_canLocate)
@@ -2458,7 +2481,7 @@ class _LogCard extends StatelessWidget {
             context,
             log.needsLocate ? 'Tentukan Lokasi' : 'Ubah Lokasi',
             Icons.place_outlined,
-            const Color(0xFF5B8EFF),
+            Color(0xFF5B8EFF),
             () => _doLocate(context),
             outlined: !log.needsLocate,
           ),
@@ -2472,7 +2495,7 @@ class _LogCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 12, color: c),
-        const SizedBox(width: 4),
+        SizedBox(width: 4),
         Text(label, style: TextStyle(fontSize: 11, color: c)),
       ],
     );
@@ -2494,15 +2517,12 @@ class _LogCard extends StatelessWidget {
             style: OutlinedButton.styleFrom(
               foregroundColor: color,
               side: BorderSide(color: color.withValues(alpha: 0.6)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              minimumSize: const Size(0, 40),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              minimumSize: Size(0, 40),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+              textStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           )
         : FilledButton.icon(
@@ -2512,15 +2532,12 @@ class _LogCard extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: color,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              minimumSize: const Size(0, 40),
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              minimumSize: Size(0, 40),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
-              textStyle: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+              textStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           );
   }
@@ -2537,7 +2554,12 @@ class _LogCard extends StatelessWidget {
         onDone();
       }
     } catch (e) {
-      if (ctx.mounted) AppNotification.showError(ctx, 'Gagal install: $e');
+      if (ctx.mounted) {
+        AppNotification.showError(
+          ctx,
+          friendlyMessage(e, fallback: 'Gagal install barang'),
+        );
+      }
     }
   }
 
@@ -2550,7 +2572,7 @@ class _LogCard extends StatelessWidget {
         title: 'Tandai Siap Diambil',
         subtitle: 'Simpan status dan kirim notifikasi ke peminjam.',
         actionLabel: 'Tandai Siap',
-        accentColor: const Color(0xFF13B8A6),
+        accentColor: Color(0xFF13B8A6),
         icon: Icons.inventory_rounded,
         showLocationPicker: true,
         repo: repo,
@@ -2580,7 +2602,10 @@ class _LogCard extends StatelessWidget {
       }
     } catch (e) {
       if (ctx.mounted) {
-        AppNotification.showError(ctx, 'Gagal konfirmasi pengambilan: $e');
+        AppNotification.showError(
+          ctx,
+          friendlyMessage(e, fallback: 'Gagal konfirmasi pengambilan'),
+        );
       }
     }
   }
@@ -2618,7 +2643,10 @@ class _LogCard extends StatelessWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          AppNotification.showError(context, 'Gagal koreksi nama: $e');
+          AppNotification.showError(
+            context,
+            friendlyMessage(e, fallback: 'Gagal koreksi nama'),
+          );
         }
       }
     }
@@ -2629,18 +2657,18 @@ class _LogCard extends StatelessWidget {
       context: ctx,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text(
+        title: Text(
           'Kirim Reminder',
           style: TextStyle(color: AppColors.textPrimary),
         ),
         content: Text(
           'Kirim reminder pengembalian untuk ${log.requester}?',
-          style: const TextStyle(color: AppColors.textSecondary),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -2648,7 +2676,7 @@ class _LogCard extends StatelessWidget {
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
             ),
-            child: const Text('Kirim'),
+            child: Text('Kirim'),
           ),
         ],
       ),
@@ -2665,7 +2693,10 @@ class _LogCard extends StatelessWidget {
       }
     } catch (e) {
       if (ctx.mounted) {
-        AppNotification.showError(ctx, 'Gagal kirim reminder: $e');
+        AppNotification.showError(
+          ctx,
+          friendlyMessage(e, fallback: 'Gagal kirim reminder'),
+        );
       }
     }
   }
@@ -2690,7 +2721,7 @@ class _LogCard extends StatelessWidget {
         subtitle:
             'Simpan kembali barang yang sudah dikembalikan dan catat lokasinya.',
         actionLabel: 'Simpan',
-        accentColor: const Color(0xFF5B8EFF),
+        accentColor: Color(0xFF5B8EFF),
         icon: Icons.archive_rounded,
         showLocationPicker: true,
         repo: repo,
@@ -2716,7 +2747,7 @@ class _LogCard extends StatelessWidget {
         title: 'Tentukan Lokasi Rak',
         subtitle: 'Simpan lokasi final supaya part mudah ditemukan lagi.',
         actionLabel: log.needsLocate ? 'Simpan Lokasi' : 'Perbarui Lokasi',
-        accentColor: const Color(0xFF5B8EFF),
+        accentColor: Color(0xFF5B8EFF),
         icon: Icons.place_outlined,
         showLocationPicker: true,
         initialLocationDetail: log.locationDetail,
@@ -2767,7 +2798,7 @@ class _MatchNameDialogState extends State<_MatchNameDialog> {
 
     return AlertDialog(
       backgroundColor: AppColors.surfaceCard,
-      title: const Text(
+      title: Text(
         'Koreksi Nama Barang',
         style: TextStyle(color: Colors.white, fontSize: 16),
       ),
@@ -2785,15 +2816,15 @@ class _MatchNameDialogState extends State<_MatchNameDialog> {
               children: [
                 RichText(
                   text: TextSpan(
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 14,
                     ),
                     children: [
-                      const TextSpan(text: 'Nama awal:\n'),
+                      TextSpan(text: 'Nama awal:\n'),
                       TextSpan(
                         text: currentAlias,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.gold,
                           fontWeight: FontWeight.bold,
                         ),
@@ -2803,21 +2834,18 @@ class _MatchNameDialogState extends State<_MatchNameDialog> {
                 ),
                 if (currentAlias.trim().isNotEmpty &&
                     currentAlias != log.itemName) ...[
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'Nama master saat ini: ${log.itemName}',
-                    style: const TextStyle(
-                      color: AppColors.textMuted,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   ),
                 ],
-                const SizedBox(height: 16),
-                const Text(
+                SizedBox(height: 16),
+                Text(
                   'Pilih barang dari master:',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 WarehouseItemSearchField(
                   controller: _controller,
                   category: log.itemCategory,
@@ -2834,10 +2862,7 @@ class _MatchNameDialogState extends State<_MatchNameDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text(
-            'Batal',
-            style: TextStyle(color: AppColors.textMuted),
-          ),
+          child: Text('Batal', style: TextStyle(color: AppColors.textMuted)),
         ),
         FilledButton(
           onPressed: _selectedItem == null
@@ -2849,7 +2874,7 @@ class _MatchNameDialogState extends State<_MatchNameDialog> {
             disabledBackgroundColor: AppColors.border,
             disabledForegroundColor: AppColors.textMuted,
           ),
-          child: const Text('Simpan'),
+          child: Text('Simpan'),
         ),
       ],
     );
@@ -2876,7 +2901,7 @@ class _LogDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -2900,7 +2925,7 @@ class _LogDetailSheet extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           Row(
             children: [
               Expanded(
@@ -2909,16 +2934,16 @@ class _LogDetailSheet extends StatelessWidget {
                   children: [
                     Text(
                       log.itemName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       'ID Transaksi: #${log.id.split("-").first}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                         letterSpacing: 0.5,
@@ -2930,7 +2955,7 @@ class _LogDetailSheet extends StatelessWidget {
               _statusBadge(),
             ],
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Flexible(
             child: SingleChildScrollView(
               child: Column(
@@ -2969,7 +2994,7 @@ class _LogDetailSheet extends StatelessWidget {
                           ? AppColors.statusDone
                           : AppColors.statusLocked,
                     ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   _sectionHeader('Konteks Kerja'),
                   _detailRow(
                     Icons.person_outline_rounded,
@@ -2989,7 +3014,7 @@ class _LogDetailSheet extends StatelessWidget {
                       'Pekerjaan',
                       log.jobdesc!,
                     ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                   _sectionHeader('Waktu & Lokasi'),
                   _detailRow(
                     Icons.calendar_today_outlined,
@@ -3013,14 +3038,14 @@ class _LogDetailSheet extends StatelessWidget {
                       Icons.place_outlined,
                       'Lokasi Simpan',
                       log.locationDetail!,
-                      valueColor: const Color(0xFF5B8EFF),
+                      valueColor: Color(0xFF5B8EFF),
                     ),
                   if (_cleanNotes(log.notes).isNotEmpty) ...[
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     _sectionHeader('Catatan Tambahan'),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(12),
+                      padding: EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: AppColors.background,
                         borderRadius: BorderRadius.circular(10),
@@ -3028,7 +3053,7 @@ class _LogDetailSheet extends StatelessWidget {
                       ),
                       child: Text(
                         _cleanNotes(log.notes),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
                           height: 1.4,
@@ -3037,33 +3062,33 @@ class _LogDetailSheet extends StatelessWidget {
                     ),
                   ],
                   if (log.photoUrls != null && log.photoUrls!.isNotEmpty) ...[
-                    const SizedBox(height: 20),
+                    SizedBox(height: 20),
                     _sectionHeader('Lampiran Foto'),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     _PhotoStrip(photoUrls: log.photoUrls!),
                   ],
                   if (log.approvalHistory.isNotEmpty) ...[
-                    const SizedBox(height: 24),
+                    SizedBox(height: 24),
                     _sectionHeader('Riwayat Persetujuan'),
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     _ApprovalTimeline(steps: log.approvalHistory),
                   ],
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-          if (footer != null) ...[const SizedBox(height: 8), footer!],
+          if (footer != null) ...[SizedBox(height: 8), footer!],
         ],
       ),
     );
   }
 
   Widget _sectionHeader(String title) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
+    padding: EdgeInsets.only(bottom: 12),
     child: Text(
       title.toUpperCase(),
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w800,
         color: AppColors.gold,
@@ -3079,30 +3104,27 @@ class _LogDetailSheet extends StatelessWidget {
     Color? valueColor,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(6),
             ),
             child: Icon(icon, size: 14, color: AppColors.textMuted),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 10, color: AppColors.textMuted),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   value,
                   softWrap: true,
@@ -3122,7 +3144,7 @@ class _LogDetailSheet extends StatelessWidget {
 
   Widget _statusBadge() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
@@ -3130,7 +3152,7 @@ class _LogDetailSheet extends StatelessWidget {
       ),
       child: Text(
         log.displayStatus,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w800,
           color: AppColors.gold,
@@ -3152,7 +3174,7 @@ class _PhotoStrip extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: photoUrls.length > 3 ? 3 : photoUrls.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        separatorBuilder: (context, index) => SizedBox(width: 8),
         itemBuilder: (_, index) => ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: Image.network(
@@ -3165,7 +3187,7 @@ class _PhotoStrip extends StatelessWidget {
               height: 76,
               color: AppColors.background,
               alignment: Alignment.center,
-              child: const Icon(
+              child: Icon(
                 Icons.broken_image_outlined,
                 color: AppColors.textMuted,
                 size: 20,
@@ -3201,7 +3223,7 @@ class _ApprovalTimeline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
@@ -3210,7 +3232,7 @@ class _ApprovalTimeline extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Riwayat Persetujuan',
             style: TextStyle(
               fontSize: 11,
@@ -3219,14 +3241,14 @@ class _ApprovalTimeline extends StatelessWidget {
               letterSpacing: 0.2,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           ...steps.map((step) {
             final approved = step.action.toUpperCase() == 'APPROVED';
             final color = approved
                 ? AppColors.statusDone
                 : AppColors.statusLocked;
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -3244,14 +3266,14 @@ class _ApprovalTimeline extends StatelessWidget {
                       color: color,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '${_label(step.stage)} · ${approved ? "Disetujui" : "Ditolak"}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
@@ -3265,17 +3287,17 @@ class _ApprovalTimeline extends StatelessWidget {
                               if (step.timestamp != null)
                                 _dtf.format(step.timestamp!),
                             ].join(' · '),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10,
                               color: AppColors.textMuted,
                             ),
                           ),
                         if (step.notes?.trim().isNotEmpty == true)
                           Padding(
-                            padding: const EdgeInsets.only(top: 2),
+                            padding: EdgeInsets.only(top: 2),
                             child: Text(
                               step.notes!.trim(),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 10,
                                 color: AppColors.textSecondary,
                               ),
@@ -3371,11 +3393,11 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 28),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3391,11 +3413,11 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: widget.accentColor.withValues(alpha: 0.14),
                       borderRadius: BorderRadius.circular(10),
@@ -3406,23 +3428,23 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                       color: widget.accentColor,
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           widget.title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           widget.subtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textMuted,
                           ),
@@ -3433,8 +3455,8 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                 ],
               ),
               if (widget.showLocationPicker) ...[
-                const SizedBox(height: 18),
-                const Text(
+                SizedBox(height: 18),
+                Text(
                   'Lokasi Penyimpanan',
                   style: TextStyle(
                     fontSize: 11,
@@ -3442,9 +3464,9 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 if (_isLoadingLocations)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Center(
                       child: CircularProgressIndicator(
@@ -3457,12 +3479,12 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                   DropdownButtonFormField<int>(
                     initialValue: _storageLocationId,
                     dropdownColor: AppColors.surfaceCard,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
                     isExpanded: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Pilih lokasi penyimpanan',
                     ),
                     items: _locations.map((location) {
@@ -3474,11 +3496,11 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                     onChanged: (value) =>
                         setState(() => _storageLocationId = value),
                   ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 TextField(
                   controller: _locationDetailCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
                     hintText: 'Detail lokasi (opsional)',
                     prefixIcon: Icon(
                       Icons.place_outlined,
@@ -3488,16 +3510,13 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _notesCtrl,
                 minLines: 2,
                 maxLines: 3,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
-                decoration: const InputDecoration(
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                decoration: InputDecoration(
                   hintText: 'Catatan (opsional)',
                   prefixIcon: Icon(
                     Icons.notes_outlined,
@@ -3506,11 +3525,11 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: _isSaving ? null : _submit,
                 icon: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
@@ -3521,12 +3540,12 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
                     : Icon(widget.icon),
                 label: Text(
                   _isSaving ? 'Menyimpan...' : widget.actionLabel,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: widget.accentColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -3554,7 +3573,12 @@ class _WarehouseFlowSheetState extends State<_WarehouseFlowSheet> {
       Navigator.of(context).pop(true);
       AppNotification.showSuccess(context, 'Perubahan berhasil disimpan.');
     } catch (e) {
-      if (mounted) AppNotification.showError(context, 'Gagal: $e');
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal menyimpan perubahan'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -3620,11 +3644,11 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, 28),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -3640,24 +3664,21 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               Text(
                 widget.approved ? 'Persetujuan Barang' : 'Tolak Pengajuan',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 widget.log.itemName,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMuted,
-                ),
+                style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               _summaryRow(
                 Icons.swap_horiz_rounded,
                 '${_warehouseTrxLabel(widget.log.transactionType)} · ${_warehouseCategoryLabel(widget.log.itemCategory)}',
@@ -3678,12 +3699,12 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                 ),
               if (widget.log.photoUrls != null &&
                   widget.log.photoUrls!.isNotEmpty) ...[
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _PhotoStrip(photoUrls: widget.log.photoUrls!),
               ],
               if (_needsStorageLocation) ...[
-                const SizedBox(height: 16),
-                const Text(
+                SizedBox(height: 16),
+                Text(
                   'Lokasi Simpan',
                   style: TextStyle(
                     fontSize: 11,
@@ -3691,9 +3712,9 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 if (_isLoadingLocations)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
                     child: Center(
                       child: CircularProgressIndicator(
@@ -3706,12 +3727,12 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                   DropdownButtonFormField<int>(
                     initialValue: _storageLocationId,
                     dropdownColor: AppColors.surfaceCard,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 13,
                     ),
                     isExpanded: true,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: 'Pilih rak / lokasi gudang',
                     ),
                     items: _locations.map((location) {
@@ -3723,11 +3744,11 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                     onChanged: (value) =>
                         setState(() => _storageLocationId = value),
                   ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 TextField(
                   controller: _locationDetailCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
                     hintText: 'Detail tambahan lokasi (opsional)',
                     prefixIcon: Icon(
                       Icons.place_outlined,
@@ -3737,31 +3758,28 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                   ),
                 ),
               ],
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               TextField(
                 controller: _notesCtrl,
                 minLines: 2,
                 maxLines: 3,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                ),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
                 decoration: InputDecoration(
                   hintText: widget.approved
                       ? 'Catatan persetujuan (opsional)'
                       : 'Alasan penolakan (opsional)',
-                  prefixIcon: const Icon(
+                  prefixIcon: Icon(
                     Icons.notes_outlined,
                     color: AppColors.textMuted,
                     size: 20,
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: _isSaving ? null : _submit,
                 icon: _isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
@@ -3780,14 +3798,14 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
                       : widget.approved
                       ? 'Setujui'
                       : 'Tolak',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 style: FilledButton.styleFrom(
                   backgroundColor: widget.approved
                       ? AppColors.statusDone
                       : AppColors.statusLocked,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -3802,18 +3820,15 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
 
   Widget _summaryRow(IconData icon, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
           Icon(icon, size: 14, color: AppColors.textMuted),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ),
         ],
@@ -3844,7 +3859,12 @@ class _ApprovalSheetState extends State<_ApprovalSheet> {
             : '${widget.log.itemName} ditolak',
       );
     } catch (e) {
-      if (mounted) AppNotification.showError(context, 'Gagal: $e');
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal memproses persetujuan'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -3884,11 +3904,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   Widget build(BuildContext context) => Padding(
     padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
     child: Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3903,8 +3923,8 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
+          SizedBox(height: 16),
+          Text(
             'Kembalikan Barang',
             style: TextStyle(
               fontSize: 16,
@@ -3912,14 +3932,14 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             widget.log.itemName,
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           if (!_isBahan) ...[
-            const Text(
+            Text(
               'Kondisi Barang',
               style: TextStyle(
                 fontSize: 11,
@@ -3927,11 +3947,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                 color: AppColors.textMuted,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             _conditionRow(),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
           ] else ...[
-            const Text(
+            Text(
               'Qty Sisa (dikembalikan)',
               style: TextStyle(
                 fontSize: 11,
@@ -3939,30 +3959,28 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                 color: AppColors.textMuted,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             TextField(
               controller: _qtyCtrl,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              style: const TextStyle(color: AppColors.textPrimary),
+              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Qty asli: ${widget.log.qty} ${widget.log.uom}',
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.numbers_outlined,
                   color: AppColors.textMuted,
                   size: 20,
                 ),
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
           ],
           TextField(
             controller: _notesCtrl,
             minLines: 2,
             maxLines: 3,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-            decoration: const InputDecoration(
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            decoration: InputDecoration(
               hintText: 'Catatan pengembalian (opsional)',
               prefixIcon: Icon(
                 Icons.notes_outlined,
@@ -3971,11 +3989,11 @@ class _ReturnSheetState extends State<_ReturnSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           FilledButton.icon(
             onPressed: _isSaving ? null : _submit,
             icon: _isSaving
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
@@ -3983,15 +4001,15 @@ class _ReturnSheetState extends State<_ReturnSheet> {
                       color: Colors.white,
                     ),
                   )
-                : const Icon(Icons.assignment_return_outlined, size: 18),
+                : Icon(Icons.assignment_return_outlined, size: 18),
             label: Text(
               _isSaving ? 'Menyimpan...' : 'Konfirmasi Pengembalian',
-              style: const TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(fontWeight: FontWeight.w600),
             ),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10),
               ),
@@ -4003,9 +4021,9 @@ class _ReturnSheetState extends State<_ReturnSheet> {
   );
 
   Widget _conditionRow() {
-    const opts = ['GOOD', 'DAMAGED', 'SCRAP'];
-    const labels = ['Baik', 'Rusak', 'Scrap'];
-    const colors = [
+    final opts = ['GOOD', 'DAMAGED', 'SCRAP'];
+    final labels = ['Baik', 'Rusak', 'Scrap'];
+    final colors = [
       AppColors.statusDone,
       AppColors.statusInProgress,
       AppColors.statusLocked,
@@ -4019,8 +4037,8 @@ class _ReturnSheetState extends State<_ReturnSheet> {
             child: GestureDetector(
               onTap: () => setState(() => _condition = opts[i]),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                duration: Duration(milliseconds: 150),
+                padding: EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: active
                       ? colors[i].withValues(alpha: 0.15)
@@ -4071,7 +4089,10 @@ class _ReturnSheetState extends State<_ReturnSheet> {
       }
     } catch (e) {
       if (mounted) {
-        AppNotification.showError(context, 'Gagal mengembalikan: $e');
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal mengembalikan barang'),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

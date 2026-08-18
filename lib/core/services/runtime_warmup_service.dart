@@ -45,7 +45,7 @@ class RuntimeWarmupService {
     if (_isRunning) return;
     if (_lastUserId == userId &&
         _lastRunAt != null &&
-        now.difference(_lastRunAt!) < const Duration(minutes: 2)) {
+        now.difference(_lastRunAt!) < Duration(minutes: 2)) {
       return;
     }
 

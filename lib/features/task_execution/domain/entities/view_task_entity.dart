@@ -214,7 +214,8 @@ class TaskCheckpointReviewer extends Equatable {
 
   const TaskCheckpointReviewer({required this.role, required this.name});
 
-  String get roleLabel => role.toUpperCase();
+  String get roleLabel =>
+      role.trim().toUpperCase() == 'ADV' ? 'QA' : role.toUpperCase();
 
   @override
   List<Object?> get props => [role, name];
@@ -235,7 +236,8 @@ class TaskFinalValidation extends Equatable {
     this.approved = true,
   });
 
-  String get roleLabel => role.toUpperCase();
+  String get roleLabel =>
+      role.trim().toUpperCase() == 'ADV' ? 'QA' : role.toUpperCase();
 
   @override
   List<Object?> get props => [role, name, note, time, approved];
@@ -325,7 +327,7 @@ class ViewTaskEntity extends Equatable {
 
   bool get isCheckpointFlowFinished =>
       managementCheckpointHistory.isNotEmpty &&
-      const {
+      {
         'DONE',
         'PENDING',
       }.contains(managementCheckpointHistory.last.jobStatus.toUpperCase());

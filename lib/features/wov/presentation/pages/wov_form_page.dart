@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -98,7 +99,7 @@ class _WovFormPageState extends State<WovFormPage> {
       return idMatch || nameMatch;
     }).toList();
     if (filtered.isNotEmpty) return filtered;
-    if (ownId == null && (ownName == null || ownName.isEmpty)) return const [];
+    if (ownId == null && (ownName == null || ownName.isEmpty)) return [];
     return [
       {'id': ownId ?? '', 'name': ownName ?? 'Divisi Saya'},
     ];
@@ -135,10 +136,12 @@ class _WovFormPageState extends State<WovFormPage> {
     try {
       final res = await sl<ApiClient>().get(
         '/sm/vendors',
-        options: Options(extra: {
-          'useCache': true,
-          'cacheDuration': const Duration(minutes: 15),
-        }),
+        options: Options(
+          extra: {
+            'useCache': true,
+            'cacheDuration': Duration(minutes: 15),
+          },
+        ),
       );
       final data = res.data['data'] ?? res.data;
       if (data != null && data is List && mounted) {
@@ -198,7 +201,12 @@ class _WovFormPageState extends State<WovFormPage> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) _snack('Gagal: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal menyimpan WOV'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -223,8 +231,8 @@ class _WovFormPageState extends State<WovFormPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: const BackButton(color: AppColors.textMuted),
-        title: const Text(
+        leading: BackButton(color: AppColors.textMuted),
+        title: Text(
           'Buat WO Vendor',
           style: TextStyle(
             color: AppColors.textPrimary,
@@ -234,34 +242,34 @@ class _WovFormPageState extends State<WovFormPage> {
         ),
       ),
       body: _isSubmitting
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : Column(
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
                     children: [
                       _sectionLabel('Unit Kendaraan *'),
                       _carPicker(),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _sectionLabel('Divisi'),
                       _divisionPicker(),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       Row(
                         children: [
                           _sectionLabel('Informasi Pekerjaan / Barang *'),
-                          const Spacer(),
+                          Spacer(),
                           TextButton.icon(
                             onPressed: () =>
                                 setState(() => _items.add(_WovItemRow())),
-                            icon: const Icon(
+                            icon: Icon(
                               Icons.add_rounded,
                               size: 18,
                               color: AppColors.gold,
                             ),
-                            label: const Text(
+                            label: Text(
                               'Tambah Item',
                               style: TextStyle(
                                 color: AppColors.gold,
@@ -273,29 +281,29 @@ class _WovFormPageState extends State<WovFormPage> {
                         ],
                       ),
                       ...List.generate(_items.length, _buildItemForm),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _sectionLabel('Informasi Vendor *'),
                       _vendorPicker(),
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _inputField(
                         'PIC Vendor (Kontak)',
                         _picVendorCtrl,
                         icon: Icons.person_outline_rounded,
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _sectionLabel('Target Tanggal Kembali'),
                       _datePickerField(),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _sectionLabel('Informasi Tambahan'),
                       _inputDecor(
                         TextField(
                           controller: _remarksCtrl,
                           maxLines: 3,
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 13,
                           ),
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Keterangan / Catatan',
                             hintStyle: TextStyle(
                               color: AppColors.textDisabled,
@@ -311,22 +319,22 @@ class _WovFormPageState extends State<WovFormPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
-                    border: const Border(
+                    border: Border(
                       top: BorderSide(color: AppColors.borderSubtle),
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.3),
                         blurRadius: 8,
-                        offset: const Offset(0, -4),
+                        offset: Offset(0, -4),
                       ),
                     ],
                   ),
@@ -334,8 +342,8 @@ class _WovFormPageState extends State<WovFormPage> {
                     width: double.infinity,
                     child: FilledButton.icon(
                       onPressed: _submit,
-                      icon: const Icon(Icons.send_rounded, size: 18),
-                      label: const Text(
+                      icon: Icon(Icons.send_rounded, size: 18),
+                      label: Text(
                         'Ajukan WOV',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
@@ -345,7 +353,7 @@ class _WovFormPageState extends State<WovFormPage> {
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.gold,
                         foregroundColor: AppColors.background,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        padding: EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -361,7 +369,7 @@ class _WovFormPageState extends State<WovFormPage> {
   Widget _buildItemForm(int idx) {
     final item = _items[idx];
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -370,11 +378,11 @@ class _WovFormPageState extends State<WovFormPage> {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 6, 0),
+            padding: EdgeInsets.fromLTRB(14, 10, 6, 0),
             child: Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 3,
                   ),
@@ -384,17 +392,17 @@ class _WovFormPageState extends State<WovFormPage> {
                   ),
                   child: Text(
                     'Item ${idx + 1}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                       color: AppColors.gold,
                     ),
                   ),
                 ),
-                const Spacer(),
+                Spacer(),
                 if (_items.length > 1)
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.remove_circle_outline_rounded,
                       size: 20,
                       color: AppColors.statusLocked,
@@ -408,7 +416,7 @@ class _WovFormPageState extends State<WovFormPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
+            padding: EdgeInsets.fromLTRB(14, 8, 14, 14),
             child: Column(
               children: [
                 _inputField(
@@ -416,7 +424,7 @@ class _WovFormPageState extends State<WovFormPage> {
                   item.itemNameCtrl,
                   icon: Icons.engineering_outlined,
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -424,12 +432,12 @@ class _WovFormPageState extends State<WovFormPage> {
                         'Qty',
                         item.qtyCtrl,
                         icon: Icons.numbers_rounded,
-                        keyboard: const TextInputType.numberWithOptions(
+                        keyboard: TextInputType.numberWithOptions(
                           decimal: true,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    SizedBox(width: 10),
                     Expanded(
                       child: _inputField(
                         'Satuan',
@@ -439,7 +447,7 @@ class _WovFormPageState extends State<WovFormPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _inputField(
                   'Kondisi Barang Keluar',
                   item.goodsConditionOutCtrl,
@@ -454,10 +462,10 @@ class _WovFormPageState extends State<WovFormPage> {
   }
 
   Widget _sectionLabel(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
+    padding: EdgeInsets.only(bottom: 10),
     child: Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w700,
         color: AppColors.textMuted,
@@ -475,10 +483,10 @@ class _WovFormPageState extends State<WovFormPage> {
     TextField(
       controller: ctrl,
       keyboardType: keyboard,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+      style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
       decoration: InputDecoration(
         hintText: label,
-        hintStyle: const TextStyle(color: AppColors.textDisabled, fontSize: 12),
+        hintStyle: TextStyle(color: AppColors.textDisabled, fontSize: 12),
         prefixIcon: icon != null
             ? Icon(icon, size: 16, color: AppColors.textMuted)
             : null,
@@ -503,16 +511,16 @@ class _WovFormPageState extends State<WovFormPage> {
         context: context,
         initialDate: _targetDateReturn ?? DateTime.now(),
         firstDate: DateTime.now(),
-        lastDate: DateTime.now().add(const Duration(days: 365)),
+        lastDate: DateTime.now().add(Duration(days: 365)),
         builder: (context, child) => Theme(
           data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.gold,
               onPrimary: AppColors.background,
               surface: AppColors.surfaceCard,
               onSurface: AppColors.textPrimary,
             ),
-            dialogTheme: const DialogThemeData(
+            dialogTheme: DialogThemeData(
               backgroundColor: AppColors.surfaceCard,
             ),
           ),
@@ -526,15 +534,15 @@ class _WovFormPageState extends State<WovFormPage> {
     borderRadius: BorderRadius.circular(10),
     child: _inputDecor(
       Padding(
-        padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+        padding: EdgeInsets.fromLTRB(12, 14, 14, 14),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.event_rounded,
               size: 16,
               color: AppColors.textMuted,
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Text(
                 _targetDateReturn != null
@@ -564,16 +572,16 @@ class _WovFormPageState extends State<WovFormPage> {
           value: _carId,
           hint: Text(
             _cars.isEmpty ? 'Memuat unit...' : 'Pilih Unit Kendaraan',
-            style: const TextStyle(color: AppColors.textDisabled, fontSize: 13),
+            style: TextStyle(color: AppColors.textDisabled, fontSize: 13),
           ),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-          icon: const Icon(
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          icon: Icon(
             Icons.arrow_drop_down_rounded,
             color: AppColors.textMuted,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           items: _cars
               .map(
                 (car) => DropdownMenuItem<String>(
@@ -604,18 +612,18 @@ class _WovFormPageState extends State<WovFormPage> {
           value: _divisionId,
           hint: Text(
             _divisions.isEmpty ? 'Memuat divisi...' : 'Pilih Divisi',
-            style: const TextStyle(color: AppColors.textDisabled, fontSize: 13),
+            style: TextStyle(color: AppColors.textDisabled, fontSize: 13),
           ),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
           icon: _lockDivisionToOwn
-              ? const SizedBox.shrink()
-              : const Icon(
+              ? SizedBox.shrink()
+              : Icon(
                   Icons.arrow_drop_down_rounded,
                   color: AppColors.textMuted,
                 ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           items: _divisions
               .map(
                 (division) => DropdownMenuItem<String>(
@@ -648,16 +656,16 @@ class _WovFormPageState extends State<WovFormPage> {
           value: _vendorId,
           hint: Text(
             _vendors.isEmpty ? 'Memuat vendor...' : 'Pilih Vendor',
-            style: const TextStyle(color: AppColors.textDisabled, fontSize: 13),
+            style: TextStyle(color: AppColors.textDisabled, fontSize: 13),
           ),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-          icon: const Icon(
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          icon: Icon(
             Icons.arrow_drop_down_rounded,
             color: AppColors.textMuted,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
           items: _vendors
               .map(
                 (vendor) => DropdownMenuItem<String>(

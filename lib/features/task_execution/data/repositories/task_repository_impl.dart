@@ -24,6 +24,7 @@ import 'package:dio/dio.dart';
 import 'package:fpdart/fpdart.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/network/api_client.dart';
 import '../../domain/entities/task_entity.dart';
 import '../../domain/entities/task_execution_log.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -76,7 +77,7 @@ class TaskRepositoryImpl implements TaskRepository {
   ///
   /// final repository = TaskRepositoryImpl(dataSource);
   /// ```
-  const TaskRepositoryImpl({required this.remoteDataSource});
+  TaskRepositoryImpl({required this.remoteDataSource});
 
   /// Maps exceptions to appropriate Failure objects.
   ///
@@ -101,26 +102,7 @@ class TaskRepositoryImpl implements TaskRepository {
   /// Returns: Appropriate Failure subclass for the exception
   Failure _mapExceptionToFailure(dynamic exception) {
     if (exception is DioException) {
-      switch (exception.type) {
-        case DioExceptionType.connectionTimeout:
-        case DioExceptionType.receiveTimeout:
-        case DioExceptionType.sendTimeout:
-          return TimeoutFailure(
-            message: 'Request timeout: ${exception.message}',
-          );
-        case DioExceptionType.connectionError:
-          return NetworkFailure(
-            message: 'Network connection failed: ${exception.message}',
-          );
-        case DioExceptionType.unknown:
-          return NetworkFailure(
-            message: 'Unknown network error: ${exception.message}',
-          );
-        default:
-          return NetworkFailure(
-            message: 'Network error occurred: ${exception.message}',
-          );
-      }
+      return ApiClient.mapDioError(exception);
     }
 
     if (exception is ServerException) {
@@ -133,9 +115,7 @@ class TaskRepositoryImpl implements TaskRepository {
     if (exception is ClientException) {
       /// Special handling for 423 Locked status code
       if (exception.statusCode == 423) {
-        return LockingFailure(
-          message: exception.message ?? 'Panel is locked by another worker',
-        );
+        return LockingFailure(message: exception.message);
       }
       return ClientFailure(
         message: exception.message,
@@ -148,7 +128,7 @@ class TaskRepositoryImpl implements TaskRepository {
     }
 
     /// Fallback for unmapped exceptions
-    return UnknownFailure(message: 'An unexpected error occurred: $exception');
+    return UnknownFailure();
   }
 
   @override

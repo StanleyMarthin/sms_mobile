@@ -73,8 +73,8 @@ class _TaskViewContent extends StatelessWidget {
           color: AppColors.gold,
           backgroundColor: AppColors.surfaceCard,
           onRefresh: () async {
-            context.read<TaskViewBloc>().add(const RefreshViewTasks());
-            await Future<void>.delayed(const Duration(milliseconds: 500));
+            context.read<TaskViewBloc>().add(RefreshViewTasks());
+            await Future<void>.delayed(Duration(milliseconds: 500));
           },
           child: _buildContent(context, state),
         );
@@ -98,7 +98,7 @@ class _TaskViewContent extends StatelessWidget {
       return _buildLoadedView(context, state);
     }
 
-    return const SizedBox.shrink();
+    return SizedBox.shrink();
   }
 
   // ── Loading view with filter controls ─────────────────
@@ -106,7 +106,7 @@ class _TaskViewContent extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(child: _buildFilterSection(context, filter, false)),
-        const SliverFillRemaining(
+        SliverFillRemaining(
           child: Center(
             child: CircularProgressIndicator(color: AppColors.gold),
           ),
@@ -125,17 +125,17 @@ class _TaskViewContent extends StatelessWidget {
         SliverFillRemaining(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(32),
+              padding: EdgeInsets.all(32),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
                     size: 56,
                     color: AppColors.statusLocked,
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
+                  SizedBox(height: 16),
+                  Text(
                     'Terjadi Kesalahan',
                     style: TextStyle(
                       fontSize: 18,
@@ -143,28 +143,28 @@ class _TaskViewContent extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     state.message,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       color: AppColors.textSecondary,
                       height: 1.4,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
                   OutlinedButton.icon(
                     onPressed: () => context.read<TaskViewBloc>().add(
                       LoadViewTasks(filter: state.filter),
                     ),
-                    icon: const Icon(Icons.refresh, color: AppColors.gold),
-                    label: const Text(
+                    icon: Icon(Icons.refresh, color: AppColors.gold),
+                    label: Text(
                       'Coba Lagi',
                       style: TextStyle(color: AppColors.gold),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.gold),
+                      side: BorderSide(color: AppColors.gold),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -203,20 +203,20 @@ class _TaskViewContent extends StatelessWidget {
         SliverToBoxAdapter(child: _buildSectionHeader(state)),
 
         if (tasks.isEmpty)
-          const SliverFillRemaining(child: _EmptyView())
+          SliverFillRemaining(child: _EmptyView())
         else if (skipDivision)
           _buildDirectUnitList(context, state, groupedDivisions.first.value)
         else
           _buildDivisionList(context, groupedDivisions),
 
         // Bottom padding
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        SliverToBoxAdapter(child: SizedBox(height: 24)),
       ],
     );
   }
 
   Widget _buildMonitoringSummary(List<ViewTaskEntity> tasks) {
-    if (tasks.isEmpty) return const SizedBox.shrink();
+    if (tasks.isEmpty) return SizedBox.shrink();
 
     final active = tasks
         .where((t) => t.status == 'PROSES' || t.status == 'CHECK_PROGRESS')
@@ -225,13 +225,13 @@ class _TaskViewContent extends StatelessWidget {
     final pending = tasks.length - active - done;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
           _summaryCounter('Belum', pending, AppColors.orange),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _summaryCounter('Aktif', active, AppColors.gold),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           _summaryCounter('Selesai', done, AppColors.statusDone),
         ],
       ),
@@ -241,7 +241,7 @@ class _TaskViewContent extends StatelessWidget {
   Widget _summaryCounter(String label, int count, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
@@ -426,13 +426,13 @@ class _TaskViewContent extends StatelessWidget {
     bool canFilterDivision,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 4),
+      padding: EdgeInsets.only(top: 12, bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Date filter bar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: 16),
             child: DateFilterBar(
               selectedDate: filter.date,
               onDateChanged: (date) =>
@@ -441,18 +441,18 @@ class _TaskViewContent extends StatelessWidget {
           ),
 
           if (canFilterDivision) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   if (_hasActiveFilter(filter))
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: EdgeInsets.only(right: 8),
                       child: Text(
                         _activeFilterLabel(filter),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11,
                           color: AppColors.textMuted,
                         ),
@@ -462,7 +462,7 @@ class _TaskViewContent extends StatelessWidget {
                     onTap: () => _showFilterSheet(context, filter),
                     borderRadius: BorderRadius.circular(999),
                     child: Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceCard,
                         borderRadius: BorderRadius.circular(999),
@@ -471,7 +471,7 @@ class _TaskViewContent extends StatelessWidget {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.tune_rounded,
                             size: 18,
                             color: AppColors.gold,
@@ -481,7 +481,7 @@ class _TaskViewContent extends StatelessWidget {
                               top: -6,
                               right: -6,
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
+                                padding: EdgeInsets.symmetric(
                                   horizontal: 5,
                                   vertical: 1,
                                 ),
@@ -491,7 +491,7 @@ class _TaskViewContent extends StatelessWidget {
                                 ),
                                 child: Text(
                                   '${_activeFilterCount(filter)}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.background,
@@ -533,18 +533,18 @@ class _TaskViewContent extends StatelessWidget {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
         return SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Filter Task',
                   style: TextStyle(
                     fontSize: 15,
@@ -552,38 +552,38 @@ class _TaskViewContent extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 TaskDivisionFilter(
                   selectedDivisionId: filter.divisionId,
                   onDivisionChanged: (id) => context.read<TaskViewBloc>().add(
                     ChangeTaskDivision(divisionId: id),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 TaskUnitFilter(
                   selectedUnitId: filter.unitId,
                   onUnitChanged: (id) => context.read<TaskViewBloc>().add(
                     ChangeTaskUnit(unitId: id),
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: () {
                           context.read<TaskViewBloc>().add(
-                            const ChangeTaskDivision(divisionId: null),
+                            ChangeTaskDivision(divisionId: null),
                           );
                           context.read<TaskViewBloc>().add(
-                            const ChangeTaskUnit(unitId: null),
+                            ChangeTaskUnit(unitId: null),
                           );
                         },
-                        icon: const Icon(Icons.refresh_rounded, size: 16),
-                        label: const Text('Reset'),
+                        icon: Icon(Icons.refresh_rounded, size: 16),
+                        label: Text('Reset'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       child: FilledButton(
                         onPressed: () => Navigator.pop(sheetContext),
@@ -591,7 +591,7 @@ class _TaskViewContent extends StatelessWidget {
                           backgroundColor: AppColors.gold,
                           foregroundColor: AppColors.background,
                         ),
-                        child: const Text('Tutup'),
+                        child: Text('Tutup'),
                       ),
                     ),
                   ],
@@ -607,7 +607,7 @@ class _TaskViewContent extends StatelessWidget {
   // ── Section header with context info ──────────────────
   Widget _buildSectionHeader(TaskViewLoaded state) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Row(
         children: [
           Expanded(
@@ -616,26 +616,26 @@ class _TaskViewContent extends StatelessWidget {
               children: [
                 Text(
                   'Daftar Task — ${state.filter.type.label}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
                 // Context subtitle intentionally hidden from UI.
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: AppColors.gold.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '${state.tasks.length}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.gold,
@@ -703,7 +703,7 @@ class _TaskViewContent extends StatelessWidget {
           _buildCheckpointActionPanel(context, state, task, isBusy),
         ],
         if (canFinalValidate) ...[
-          if (canInputCheckpoint) const SizedBox(height: 10),
+          if (canInputCheckpoint) SizedBox(height: 10),
           _buildFinalValidationPanel(context, state, task, isBusy),
         ],
       ],
@@ -742,7 +742,7 @@ class _TaskViewContent extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
@@ -753,16 +753,16 @@ class _TaskViewContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.play_circle_outline,
                 size: 16,
                 color: AppColors.gold,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Self execution',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
@@ -771,12 +771,12 @@ class _TaskViewContent extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Jobdesc ini ter-assign ke Anda. Gunakan flow anggota biasa agar tidak perlu input checkpoint manual.',
             style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -790,7 +790,7 @@ class _TaskViewContent extends StatelessWidget {
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
               ),
-              icon: const Icon(Icons.play_circle_outline),
+              icon: Icon(Icons.play_circle_outline),
               label: Text(ctaLabel),
             ),
           ),
@@ -824,13 +824,15 @@ class _TaskViewContent extends StatelessWidget {
     dynamic task,
     bool isBusy,
   ) {
-    final roleLabel = state.role.toUpperCase();
+    final roleLabel = state.role.trim().toUpperCase() == 'ADV'
+        ? 'QA'
+        : state.role.toUpperCase();
     final alreadyValidatedByRole = task.hasFinalValidationByRole(state.role);
     final validatorCount = task.finalValidations.length;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
@@ -841,16 +843,16 @@ class _TaskViewContent extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.verified_outlined,
                 size: 16,
                 color: AppColors.statusDone,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Validasi akhir oleh $roleLabel',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
@@ -859,25 +861,25 @@ class _TaskViewContent extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             validatorCount > 0
-                ? 'Minimal 1 role sudah validasi. KD/ADV/PM bisa lanjut tambah validasi.'
-                : 'Wajib minimal 1 validasi (KD/ADV/PM).',
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                ? 'Minimal 1 role sudah validasi. KD/QA/PM bisa lanjut tambah validasi.'
+                : 'Wajib minimal 1 validasi (KD/QA/PM).',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
           if (validatorCount > 0) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Sudah validasi: ${task.finalValidations.map((item) => item.roleLabel).join(', ')}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: AppColors.statusDone,
               ),
             ),
           ],
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -889,7 +891,7 @@ class _TaskViewContent extends StatelessWidget {
                 foregroundColor: AppColors.background,
               ),
               icon: isBusy
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
@@ -897,7 +899,7 @@ class _TaskViewContent extends StatelessWidget {
                         color: AppColors.background,
                       ),
                     )
-                  : const Icon(Icons.verified_outlined),
+                  : Icon(Icons.verified_outlined),
               label: Text(
                 isBusy
                     ? 'Memvalidasi...'
@@ -947,7 +949,7 @@ class _TaskViewContent extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppColors.background,
             borderRadius: BorderRadius.circular(10),
@@ -958,7 +960,7 @@ class _TaskViewContent extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Monitoring',
                       style: TextStyle(
@@ -970,7 +972,7 @@ class _TaskViewContent extends StatelessWidget {
                   ),
                   Text(
                     statusLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textMuted,
                     ),
@@ -979,9 +981,9 @@ class _TaskViewContent extends StatelessWidget {
               ),
               // Tampilkan info jika jobdesc belum dimulai
               if (!hasStarted) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.all(8),
+                  padding: EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: AppColors.orange.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(8),
@@ -989,7 +991,7 @@ class _TaskViewContent extends StatelessWidget {
                       color: AppColors.orange.withValues(alpha: 0.25),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     children: [
                       Icon(
                         Icons.info_outline_rounded,
@@ -1014,7 +1016,7 @@ class _TaskViewContent extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: FilledButton(
@@ -1105,7 +1107,7 @@ class _TaskViewContent extends StatelessWidget {
           ),
           title: Text(
             isEditing ? 'Edit Monitoring' : 'Monitoring Progres',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
           ),
           content: SingleChildScrollView(
             child: SizedBox(
@@ -1117,7 +1119,7 @@ class _TaskViewContent extends StatelessWidget {
                   // --- Info Unit & Job ---
                   Text(
                     task.task.namaPanel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.gold,
                       fontWeight: FontWeight.bold,
                     ),
@@ -1126,19 +1128,19 @@ class _TaskViewContent extends StatelessWidget {
                     task.task.jobDescription.isNotEmpty
                         ? task.task.jobDescription
                         : task.task.jobName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
 
                   // --- Status Report Mekanik (Informasi Utama) ---
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color: AppColors.background,
                       borderRadius: BorderRadius.circular(10),
@@ -1147,7 +1149,7 @@ class _TaskViewContent extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Progress terakhir:',
                           style: TextStyle(
                             fontSize: 12,
@@ -1156,7 +1158,7 @@ class _TaskViewContent extends StatelessWidget {
                         ),
                         Text(
                           '$currentSystemProgress%',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -1165,10 +1167,10 @@ class _TaskViewContent extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: 20),
 
                   // --- Input Progres KD ---
-                  const Text(
+                  Text(
                     'Progress pantauan (0-100)',
                     style: TextStyle(
                       fontSize: 12,
@@ -1176,12 +1178,12 @@ class _TaskViewContent extends StatelessWidget {
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   TextField(
                     controller: progressCtrl,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: AppColors.gold,
@@ -1190,7 +1192,7 @@ class _TaskViewContent extends StatelessWidget {
                       filled: true,
                       fillColor: AppColors.surfaceInput,
                       suffixText: '%',
-                      suffixStyle: const TextStyle(
+                      suffixStyle: TextStyle(
                         fontSize: 18,
                         color: AppColors.textMuted,
                       ),
@@ -1207,25 +1209,25 @@ class _TaskViewContent extends StatelessWidget {
                       }
                     },
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
 
                   // --- Jam Monitoring ---
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.access_time_rounded,
                         size: 16,
                         color: AppColors.textMuted,
                       ),
-                      const SizedBox(width: 8),
-                      const Text(
+                      SizedBox(width: 8),
+                      Text(
                         'Waktu monitoring:',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textMuted,
                         ),
                       ),
-                      const Spacer(),
+                      Spacer(),
                       InkWell(
                         onTap: () async {
                           final picked = await _pickClockTime(
@@ -1239,7 +1241,7 @@ class _TaskViewContent extends StatelessWidget {
                           }
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
+                          padding: EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
@@ -1249,22 +1251,22 @@ class _TaskViewContent extends StatelessWidget {
                           ),
                           child: Text(
                             checkpointTimeCtrl.text,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
 
                   // --- Status Pekerjaan ---
                   DropdownButtonFormField<String>(
                     initialValue: jobStatus,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Status monitoring',
                     ),
                     dropdownColor: AppColors.surfaceCard,
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: 'ON_PROGRESS',
                         child: Text('On Progress'),
@@ -1282,9 +1284,9 @@ class _TaskViewContent extends StatelessWidget {
                     },
                   ),
                   if (jobStatus == 'PENDING') ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: AppColors.orange.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -1292,7 +1294,7 @@ class _TaskViewContent extends StatelessWidget {
                           color: AppColors.orange.withValues(alpha: 0.3),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Icon(
                             Icons.warning_amber_rounded,
@@ -1317,8 +1319,8 @@ class _TaskViewContent extends StatelessWidget {
 
                   // --- Riwayat Singkat (Vertical Timeline) ---
                   if (task.managementCheckpointHistory.isNotEmpty) ...[
-                    const SizedBox(height: 24),
-                    const Text(
+                    SizedBox(height: 24),
+                    Text(
                       'Riwayat monitoring',
                       style: TextStyle(
                         fontSize: 11,
@@ -1326,12 +1328,12 @@ class _TaskViewContent extends StatelessWidget {
                         color: AppColors.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     ...task.managementCheckpointHistory.reversed
                         .take(2)
                         .map(
                           (session) => Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
+                            padding: EdgeInsets.only(bottom: 8.0),
                             child: Row(
                               children: [
                                 Container(
@@ -1339,11 +1341,11 @@ class _TaskViewContent extends StatelessWidget {
                                   height: 24,
                                   color: AppColors.gold.withValues(alpha: 0.3),
                                 ),
-                                const SizedBox(width: 10),
+                                SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     'Sesi ${task.managementCheckpointDisplayNumber(session)} • ${session.checkpointTime} • ${session.progress}% • ${session.jobStatusLabel}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 11,
                                       color: AppColors.textSecondary,
                                     ),
@@ -1361,7 +1363,7 @@ class _TaskViewContent extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text(
+              child: Text(
                 'BATAL',
                 style: TextStyle(color: AppColors.textMuted),
               ),
@@ -1422,7 +1424,7 @@ class _TaskViewContent extends StatelessWidget {
         backgroundColor: AppColors.surfaceCard,
         title: Text(
           'Monitoring ${task.managementCheckpointDisplayNumber(session)}',
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.textPrimary),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1430,33 +1432,33 @@ class _TaskViewContent extends StatelessWidget {
           children: [
             Text(
               '${task.task.namaPanel} • ${task.unit.unitName}',
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text(
               '${session.progress}% • ${session.jobStatusLabel}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Mulai ${session.startWorkTime} • selesai ${session.finishWorkTime} • cek ${session.checkpointTime} • durasi ${session.workedDurationLabel}',
-              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
             if (session.isValidated) ...[
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'Tervalidasi: ${session.reviewersLabel}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textMuted,
                 ),
               ),
             ] else ...[
-              const SizedBox(height: 8),
-              const Text(
+              SizedBox(height: 8),
+              Text(
                 'Catatan monitoring ini tidak mengubah hasil kerja anggota.',
                 style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
@@ -1466,7 +1468,7 @@ class _TaskViewContent extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Tutup'),
+            child: Text('Tutup'),
           ),
           OutlinedButton(
             onPressed: () {
@@ -1475,9 +1477,9 @@ class _TaskViewContent extends StatelessWidget {
             },
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.gold,
-              side: const BorderSide(color: AppColors.gold),
+              side: BorderSide(color: AppColors.gold),
             ),
-            child: const Text('Ubah'),
+            child: Text('Ubah'),
           ),
         ],
       ),
@@ -1582,7 +1584,7 @@ class _TaskViewContent extends StatelessWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text(
+        title: Text(
           'Validasi Final Task',
           style: TextStyle(color: AppColors.textPrimary),
         ),
@@ -1592,20 +1594,20 @@ class _TaskViewContent extends StatelessWidget {
           children: [
             Text(
               '${task.unit.unitName} • ${task.task.jobName}',
-              style: const TextStyle(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Minimal satu dari KD, ADV, atau PM harus memvalidasi pekerjaan ini. Role lain tetap bisa menambah validasi masing-masing untuk penilaian.',
+            SizedBox(height: 12),
+            Text(
+              'Minimal satu dari KD, QA, atau PM harus memvalidasi pekerjaan ini. Role lain tetap bisa menambah validasi masing-masing untuk penilaian.',
               style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextField(
               controller: noteCtrl,
               minLines: 2,
               maxLines: 3,
-              style: const TextStyle(color: AppColors.textPrimary),
-              decoration: const InputDecoration(
+              style: TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
                 labelText: 'Catatan Validasi Final',
               ),
             ),
@@ -1614,7 +1616,7 @@ class _TaskViewContent extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () {
@@ -1630,7 +1632,7 @@ class _TaskViewContent extends StatelessWidget {
               backgroundColor: AppColors.statusDone,
               foregroundColor: AppColors.background,
             ),
-            child: const Text('Validasi Final'),
+            child: Text('Validasi Final'),
           ),
         ],
       ),
@@ -1646,7 +1648,7 @@ class _EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
         padding: EdgeInsets.all(32),
         child: Column(
@@ -1704,8 +1706,8 @@ class _DrilldownTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-        padding: const EdgeInsets.all(14),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, 10),
+        padding: EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -1724,23 +1726,23 @@ class _DrilldownTile extends StatelessWidget {
               ),
               child: Icon(icon, color: AppColors.gold, size: 18),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 13,
                       color: AppColors.textMuted,
                       height: 1.35,
@@ -1749,12 +1751,12 @@ class _DrilldownTile extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
                   ),
@@ -1764,15 +1766,15 @@ class _DrilldownTile extends StatelessWidget {
                   ),
                   child: Text(
                     trailingLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppColors.gold,
                     ),
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Icon(
+                SizedBox(height: 6),
+                Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
                   color: AppColors.textMuted,
@@ -1820,7 +1822,7 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
         builder: (context, state) {
           final tasks = state is TaskViewLoaded
               ? state.tasks
-              : const <ViewTaskEntity>[];
+              : <ViewTaskEntity>[];
           final divisionTasks = tasks
               .where((task) => task.division.divisionName == divisionName)
               .toList();
@@ -1832,10 +1834,10 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
             ..sort((a, b) => a.key.compareTo(b.key));
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(12),
@@ -1843,14 +1845,14 @@ class _TaskUnitDrilldownPage extends StatelessWidget {
                 ),
                 child: Text(
                   'Divisi $divisionName memiliki ${entries.length} kendaraan.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               ...entries.map((entry) {
                 final unitTasks = List<ViewTaskEntity>.from(entry.value)
                   ..sort(
@@ -1933,7 +1935,7 @@ class _TaskJobdescPage extends StatelessWidget {
       body: BlocBuilder<TaskViewBloc, TaskViewState>(
         builder: (context, state) {
           if (state is! TaskViewLoaded) {
-            return const Center(
+            return Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             );
           }
@@ -1955,14 +1957,14 @@ class _TaskJobdescPage extends StatelessWidget {
               });
 
           if (tasks.isEmpty) {
-            return const _EmptyView();
+            return _EmptyView();
           }
 
           return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
             children: [
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(12),
@@ -1970,14 +1972,14 @@ class _TaskJobdescPage extends StatelessWidget {
                 ),
                 child: Text(
                   'Kendaraan ini memiliki ${tasks.length} pekerjaan.',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               ...tasks.map(
                 (task) => ViewTaskCard(
                   task: task,

@@ -13,7 +13,7 @@ import '../../../../core/session/session_manager.dart';
 import 'countdown_datasource.dart';
 
 class RemoteCountdownDataSource implements CountdownDataSource {
-  const RemoteCountdownDataSource({
+  RemoteCountdownDataSource({
     required this.apiClient,
     required this.sessionManager,
   });
@@ -69,6 +69,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
     required int divisionId,
     String? search,
     String? status,
+    bool plannable = false,
   }) async {
     final params = <String, dynamic>{
       'user_id': _userId,
@@ -80,6 +81,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       final st = status.toLowerCase() == 'qcready' ? 'READY_QC' : status;
       params['status'] = st;
     }
+    if (plannable) params['plannable'] = 'true';
 
     final response = await apiClient.get(
       ApiEndpoints.countdown,
@@ -111,6 +113,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
     required int panelId,
     String? search,
     String? status,
+    bool plannable = false,
   }) async {
     final params = <String, dynamic>{
       'user_id': _userId,
@@ -118,6 +121,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
       'division_id': divisionId,
       'panel_id': panelId,
     };
+    if (plannable) params['plannable'] = 'true';
 
     final response = await apiClient.get(
       ApiEndpoints.countdown,

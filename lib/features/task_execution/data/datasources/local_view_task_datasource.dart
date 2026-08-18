@@ -35,7 +35,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
   @override
   Future<List<ViewTaskModel>> getViewTasks(TaskFilter filter) async {
     // Simulate network latency
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await Future<void>.delayed(Duration(milliseconds: 600));
 
     final session = sl<SessionManager>();
     final role = session.role;
@@ -137,7 +137,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
     required String checkpointTime,
     required String jobStatus,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await Future<void>.delayed(Duration(milliseconds: 350));
 
     final rawTasks = await _loadRawTasks();
     final task = rawTasks.cast<Map<String, dynamic>?>().firstWhere(
@@ -152,7 +152,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
     final taskModel = ViewTaskModel.fromJson(task);
     final session = sl<SessionManager>();
     final history = List<Map<String, dynamic>>.from(
-      (task['checkpointHistory'] as List<dynamic>? ?? const [])
+      (task['checkpointHistory'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map((item) => Map<String, dynamic>.from(item)),
     );
@@ -175,7 +175,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
       'actorRole': session.role ?? 'kd',
       'actorName': session.fullName ?? 'SYSTEM',
       'isValidated': false,
-      'reviewers': const <Map<String, dynamic>>[],
+      'reviewers': <Map<String, dynamic>>[],
     });
     task['checkpointHistory'] = history;
 
@@ -195,7 +195,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
     required String checkpointTime,
     required String jobStatus,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await Future<void>.delayed(Duration(milliseconds: 350));
 
     final rawTasks = await _loadRawTasks();
     final task = rawTasks.cast<Map<String, dynamic>?>().firstWhere(
@@ -208,7 +208,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
 
     final normalizedProgress = progress.clamp(0, 100);
     final history = List<Map<String, dynamic>>.from(
-      (task['checkpointHistory'] as List<dynamic>? ?? const [])
+      (task['checkpointHistory'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map((item) => Map<String, dynamic>.from(item)),
     );
@@ -226,7 +226,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
       'checkpointTime': checkpointTime,
       'jobStatus': jobStatus,
       'isValidated': false,
-      'reviewers': const <Map<String, dynamic>>[],
+      'reviewers': <Map<String, dynamic>>[],
     };
     task['checkpointHistory'] = history;
 
@@ -241,7 +241,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
     required String planDailyId,
     required int sessionNumber,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await Future<void>.delayed(Duration(milliseconds: 350));
 
     final rawTasks = await _loadRawTasks();
     final task = rawTasks.cast<Map<String, dynamic>?>().firstWhere(
@@ -254,7 +254,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
 
     final session = sl<SessionManager>();
     final history = List<Map<String, dynamic>>.from(
-      (task['checkpointHistory'] as List<dynamic>? ?? const [])
+      (task['checkpointHistory'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map((item) => Map<String, dynamic>.from(item)),
     );
@@ -265,7 +265,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
 
     final current = history[sessionIndex];
     final reviewers = List<Map<String, dynamic>>.from(
-      (current['reviewers'] as List<dynamic>? ?? const [])
+      (current['reviewers'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map((item) => Map<String, dynamic>.from(item)),
     );
@@ -323,7 +323,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
     required bool approved,
     required String note,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await Future<void>.delayed(Duration(milliseconds: 350));
 
     final rawTasks = await _loadRawTasks();
     final task = rawTasks.cast<Map<String, dynamic>?>().firstWhere(
@@ -339,7 +339,7 @@ class LocalViewTaskDataSource implements ViewTaskDataSource {
     final currentName = session.fullName ?? 'SYSTEM';
     final validationTime = DateTime.now().toIso8601String();
     final validations = List<Map<String, dynamic>>.from(
-      (task['finalValidations'] as List<dynamic>? ?? const [])
+      (task['finalValidations'] as List<dynamic>? ?? [])
           .whereType<Map<String, dynamic>>()
           .map((item) => Map<String, dynamic>.from(item)),
     );

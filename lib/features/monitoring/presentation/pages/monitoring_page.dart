@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../../core/utils/snackbar_helper.dart';
 import '../../domain/entities/monitoring_entities.dart';
 import '../../domain/repositories/monitoring_repository.dart';
 
@@ -46,18 +48,27 @@ class _MonitoringPageState extends State<MonitoringPage> {
     final session = sl<SessionManager>();
     final division = session.divisionName;
     final canSeeAll = session.canViewAssignedUnits || session.canViewAllUnits;
-    final items = await _repository.getCars(
-      canSeeAll: canSeeAll,
-      division: division,
-      cancelToken: cancelToken,
-    );
-    if (!mounted || cancelToken.isCancelled) return;
+    try {
+      final items = await _repository.getCars(
+        canSeeAll: canSeeAll,
+        division: division,
+        cancelToken: cancelToken,
+      );
+      if (!mounted || cancelToken.isCancelled) return;
 
-    setState(() {
-      _items = _sortItems(items);
-      _isLoading = false;
-    });
-    _openFocusedCar();
+      setState(() {
+        _items = _sortItems(items);
+        _isLoading = false;
+      });
+      _openFocusedCar();
+    } catch (e) {
+      if (!mounted || cancelToken.isCancelled) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat monitoring'),
+      );
+    }
   }
 
   List<MonitoringCar> _sortItems(List<MonitoringCar> items) {
@@ -165,10 +176,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
             title: Text('${car.unitName} - Weekly Report'),
           ),
           body: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   border: Border.all(color: AppColors.border),
@@ -178,13 +189,13 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   children: [
                     Text(
                       '${car.unitName} • ${car.owner}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                     _summaryRow(
                       'Kategori',
                       car.isMargin ? 'Margin' : 'Non Margin',
@@ -217,7 +228,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
@@ -231,7 +242,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                     dataRowMaxHeight: 44,
                     horizontalMargin: 10,
                     columnSpacing: 16,
-                    columns: const [
+                    columns: [
                       DataColumn(label: Text('Divisi')),
                       DataColumn(label: Text('Jam Minggu Ini')),
                       DataColumn(label: Text('Sisa Jam')),
@@ -269,7 +280,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           AppColors.gold.withValues(alpha: 0.12),
                         ),
                         cells: [
-                          const DataCell(
+                          DataCell(
                             Text(
                               'TOTAL',
                               style: TextStyle(fontWeight: FontWeight.w700),
@@ -278,7 +289,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           DataCell(
                             Text(
                               '${weeklyTotal.toStringAsFixed(1)} jam',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -286,7 +297,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           DataCell(
                             Text(
                               '${remainingTotal.toStringAsFixed(1)} jam',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -294,7 +305,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           DataCell(
                             Text(
                               '${estimatedWeeks.toStringAsFixed(1)} minggu',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -302,7 +313,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           DataCell(
                             Text(
                               '${car.avgProgressPercentage}%',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -313,14 +324,14 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: () =>
                       context.push('/countdown?carId=${car.carId}'),
-                  icon: const Icon(Icons.timer_rounded, size: 16),
-                  label: const Text('Buka di Countdown'),
+                  icon: Icon(Icons.timer_rounded, size: 16),
+                  label: Text('Buka di Countdown'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.gold),
                 ),
               ),
@@ -333,7 +344,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
 
   Widget _summaryRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.only(bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -341,7 +352,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             width: 140,
             child: Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textMuted,
                 fontWeight: FontWeight.w600,
@@ -351,7 +362,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -372,10 +383,10 @@ class _MonitoringPageState extends State<MonitoringPage> {
         : 'Estimasi saat ini melewati DL, perlu tambah kapasitas/penyesuaian target.';
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: 8),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(8),
+        padding: EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
           border: Border.all(color: color.withValues(alpha: 0.28)),
@@ -417,8 +428,8 @@ class _MonitoringPageState extends State<MonitoringPage> {
     return InkWell(
       onTap: () => _openUnitReport(context, car),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: const BoxDecoration(
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.border)),
         ),
         child: Row(
@@ -431,16 +442,16 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 children: [
                   Text(
                     car.unitName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     car.owner,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textMuted,
                     ),
@@ -461,7 +472,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 _formatDate(car.deliveryDate),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textPrimary,
                 ),
@@ -481,7 +492,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 '${remainingHours.toStringAsFixed(0)} j',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w700,
@@ -491,13 +502,13 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 '${estWeeks.toStringAsFixed(1)} mg',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textPrimary,
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
               size: 16,
               color: AppColors.textMuted,
@@ -515,16 +526,16 @@ class _MonitoringPageState extends State<MonitoringPage> {
     final canSeeAll = session.canViewAssignedUnits || session.canViewAllUnits;
 
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
 
     final visible = _visibleItems;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       children: [
         Container(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             border: Border.all(color: AppColors.border),
@@ -533,14 +544,14 @@ class _MonitoringPageState extends State<MonitoringPage> {
             canSeeAll
                 ? 'Monitoring Unit - Referensi Planning PM'
                 : 'Monitoring Unit Divisi ${division ?? '-'}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -550,7 +561,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             _buildScopeChip('nonMargin', 'Non Margin'),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
@@ -560,11 +571,11 @@ class _MonitoringPageState extends State<MonitoringPage> {
             children: [
               Container(
                 color: AppColors.background,
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 8,
                 ),
-                child: const Row(
+                child: Row(
                   children: [
                     Expanded(
                       flex: 3,
@@ -626,7 +637,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                 ),
               ),
               if (visible.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(12),
                   child: Text(
                     'Tidak ada unit untuk filter ini.',

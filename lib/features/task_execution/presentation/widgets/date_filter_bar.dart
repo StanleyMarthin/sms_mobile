@@ -22,10 +22,10 @@ class DateFilterBar extends StatelessWidget {
   });
 
   // ── Indonesian day/month lookup ────────────────────────
-  static const _dayNames = [
+  static final _dayNames = [
     'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu',
   ];
-  static const _monthNames = [
+  static final _monthNames = [
     '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
   ];
@@ -47,7 +47,7 @@ class DateFilterBar extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.gold.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(10),
@@ -57,10 +57,10 @@ class DateFilterBar extends StatelessWidget {
           children: [
             // Left arrow
             _arrowButton(Icons.chevron_left, () {
-              onDateChanged(selectedDate.subtract(const Duration(days: 1)));
+              onDateChanged(selectedDate.subtract(Duration(days: 1)));
             }),
   
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
   
             // Tappable date display
             Expanded(
@@ -81,13 +81,13 @@ class DateFilterBar extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min, // Avoid overflow in nested rows
                       children: [
-                        const Icon(Icons.calendar_today_rounded,
+                        Icon(Icons.calendar_today_rounded,
                             size: 14, color: AppColors.gold),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Flexible( // Allow text to shrink if needed
                           child: Text(
                             _formatDate(selectedDate),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: AppColors.gold,
@@ -99,7 +99,7 @@ class DateFilterBar extends StatelessWidget {
                       ],
                     ),
                     if (_isToday)
-                      const Text(
+                      Text(
                         'Hari ini',
                         style: TextStyle(fontSize: 10, color: AppColors.textMuted),
                       ),
@@ -108,11 +108,11 @@ class DateFilterBar extends StatelessWidget {
               ),
             ),
   
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
   
             // Right arrow
             _arrowButton(Icons.chevron_right, () {
-              onDateChanged(selectedDate.add(const Duration(days: 1)));
+              onDateChanged(selectedDate.add(Duration(days: 1)));
             }),
           ],
         ),
@@ -125,7 +125,7 @@ class DateFilterBar extends StatelessWidget {
       borderRadius: BorderRadius.circular(6),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.all(4),
+        padding: EdgeInsets.all(4),
         child: Icon(icon, size: 22, color: AppColors.gold),
       ),
     );
@@ -140,7 +140,7 @@ class DateFilterBar extends StatelessWidget {
       builder: (ctx, child) {
         return Theme(
           data: ThemeData.dark().copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.gold,
               onPrimary: AppColors.background,
               surface: AppColors.surfaceCard,

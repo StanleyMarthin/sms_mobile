@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import '../../../countdown/presentation/utils/countdown_helper.dart';
 
 class TaskExecutionWorkedHoursBreakdown {
-  const TaskExecutionWorkedHoursBreakdown({
+  TaskExecutionWorkedHoursBreakdown({
     required this.normalHours,
     required this.overtimeHours,
     required this.totalWorkedHours,
@@ -22,7 +22,7 @@ class TaskExecutionWorkedHoursBreakdown {
 }
 
 class TaskExecutionFlowHelper {
-  const TaskExecutionFlowHelper._();
+  TaskExecutionFlowHelper._();
 
   static DateTime buildTaskDateTime({
     required String taskDate,
@@ -94,7 +94,7 @@ class TaskExecutionFlowHelper {
     final startDt = buildTaskDateTime(taskDate: taskDate, time: startTime);
     var finishDt = buildTaskDateTime(taskDate: taskDate, time: finishTime);
     if (!finishDt.isAfter(startDt)) {
-      finishDt = finishDt.add(const Duration(days: 1));
+      finishDt = finishDt.add(Duration(days: 1));
     }
 
     final totalWorkedHours = computeSessionHours(
@@ -103,7 +103,7 @@ class TaskExecutionFlowHelper {
       breakDurationMinutes: breakDurationMinutes,
     );
     if (totalWorkedHours <= 0) {
-      return const TaskExecutionWorkedHoursBreakdown(
+      return TaskExecutionWorkedHoursBreakdown(
         normalHours: 0,
         overtimeHours: 0,
         totalWorkedHours: 0,

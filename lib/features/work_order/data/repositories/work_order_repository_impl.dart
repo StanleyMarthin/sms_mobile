@@ -9,6 +9,7 @@ import 'package:fpdart/fpdart.dart';
 import 'package:dio/dio.dart';
 
 import '../../../../core/errors/failures.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/session/session_manager.dart';
 import '../datasources/work_order_datasource.dart';
@@ -16,7 +17,7 @@ import '../../domain/entities/work_order.dart';
 import '../../domain/repositories/work_order_repository.dart';
 
 class WorkOrderRepositoryImpl implements WorkOrderRepository {
-  const WorkOrderRepositoryImpl({
+  WorkOrderRepositoryImpl({
     required this.dataSource,
     required this.sessionManager,
   });
@@ -34,7 +35,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     if (error is FormatException) {
       return Left(DataParsingFailure(message: error.message));
     }
-    return Left(UnknownFailure(message: error.toString()));
+    return Left(UnknownFailure(message: friendlyMessage(error)));
   }
 
   @override
@@ -143,7 +144,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
   }) async {
     try {
       await dataSource.rejectWorkOrder(woId: woId, rejectReason: rejectReason);
-      return const Right(null);
+      return Right(null);
     } catch (e, s) {
       return _handle(e, s);
     }
@@ -161,7 +162,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
         newDeadline: newDeadline,
         reason: reason,
       );
-      return const Right(null);
+      return Right(null);
     } catch (e, s) {
       return _handle(e, s);
     }
@@ -179,7 +180,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
         approve: approve,
         note: note,
       );
-      return const Right(null);
+      return Right(null);
     } catch (e, s) {
       return _handle(e, s);
     }
@@ -197,7 +198,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
         hours: requestedHours,
         reason: reason,
       );
-      return const Right(null);
+      return Right(null);
     } catch (e, s) {
       return _handle(e, s);
     }
@@ -210,7 +211,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
   }) async {
     try {
       await dataSource.respondHourExtension(woId: woId, approve: approve);
-      return const Right(null);
+      return Right(null);
     } catch (e, s) {
       return _handle(e, s);
     }

@@ -8,7 +8,7 @@ import '../../../../core/session/session_manager.dart';
 import 'monitoring_datasource.dart';
 
 class RemoteMonitoringDataSource implements MonitoringDataSource {
-  const RemoteMonitoringDataSource({
+  RemoteMonitoringDataSource({
     required this.apiClient,
     required this.sessionManager,
   });

@@ -18,6 +18,7 @@ abstract class WarehouseDataSource {
   Future<List<Map<String, dynamic>>> searchItems({
     required String query,
     String? category,
+    String? carId,
   });
 
   Future<void> createTransaction({

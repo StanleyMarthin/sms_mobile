@@ -211,7 +211,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
     final currentProgress = task.progressPercent;
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: Duration(milliseconds: 250),
       margin: widget.margin,
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
@@ -231,7 +231,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                 widget.onTap?.call();
               },
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                padding: EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -244,13 +244,13 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                               task.employee.employeeName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.gold,
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                           ],
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,45 +258,45 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                               Expanded(
                                 child: Text(
                                   task.task.namaPanel,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              SizedBox(width: 8),
                               _statusPill(currentProgress),
                             ],
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             _jobTitle(task),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: AppColors.textSecondary,
                               height: 1.35,
                             ),
                           ),
                           if (task.task.note.isNotEmpty) ...[
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
                               task.task.note,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
                                 color: AppColors.gold,
                                 fontStyle: FontStyle.italic,
                               ),
                             ),
                           ],
-                          const SizedBox(height: 5),
+                          SizedBox(height: 5),
                           Text(
                             _summaryLine(task, lastMonitorTime),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textMuted,
                             ),
@@ -306,7 +306,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Icon(
                       _isExpanded
                           ? Icons.keyboard_arrow_up_rounded
@@ -318,31 +318,31 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
               ),
             ),
             if (_isExpanded) ...[
-              const Divider(height: 1, color: AppColors.border),
+              Divider(height: 1, color: AppColors.border),
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                padding: EdgeInsets.fromLTRB(12, 10, 12, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Progress $currentProgress% • ${task.task.startTime} - ${task.task.targetFinishTime} • ${managementHistory.length}/${task.maxCheckpointSessions} sesi',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     _buildProgressSection(currentProgress),
                     if (managementHistory.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _buildMonitoringHistory(),
                     ],
                     if (task.finalValidations.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       _buildFinalValidationSummary(),
                     ],
                     if (widget.actionArea != null) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       widget.actionArea!,
                     ],
                   ],
@@ -381,7 +381,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -405,7 +405,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Progress',
               style: TextStyle(
                 fontSize: 11,
@@ -423,7 +423,7 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
@@ -440,12 +440,12 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
   Widget _buildMonitoringHistory() {
     final managementLogs = widget.task.managementCheckpointHistory;
 
-    if (managementLogs.isEmpty) return const SizedBox.shrink();
+    if (managementLogs.isEmpty) return SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Monitoring',
           style: TextStyle(
             fontSize: 11,
@@ -453,20 +453,20 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
             color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         ...managementLogs.map((session) {
           return InkWell(
             onTap: widget.onCheckpointTap != null
                 ? () => widget.onCheckpointTap!(session)
                 : null,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
+              padding: EdgeInsets.symmetric(vertical: 5),
               child: Row(
                 children: [
                   Expanded(
                     child: Text(
                       'Sesi ${widget.task.managementCheckpointDisplayNumber(session)} • ${session.checkpointTime}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary,
@@ -475,23 +475,23 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
                   ),
                   Text(
                     '${session.progress}%',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       color: AppColors.gold,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
                     session.jobStatusLabel,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textMuted,
                     ),
                   ),
                   if (widget.onCheckpointTap != null) ...[
-                    const SizedBox(width: 4),
-                    const Icon(
+                    SizedBox(width: 4),
+                    Icon(
                       Icons.chevron_right_rounded,
                       size: 14,
                       color: AppColors.textDisabled,
@@ -509,16 +509,16 @@ class _ViewTaskCardState extends State<ViewTaskCard> {
   Widget _buildFinalValidationSummary() {
     return Row(
       children: [
-        const Icon(
+        Icon(
           Icons.verified_user_rounded,
           size: 14,
           color: AppColors.statusDone,
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Expanded(
           child: Text(
             'Final: ${widget.task.finalValidations.map((v) => v.roleLabel).join(', ')}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
               color: AppColors.statusDone,

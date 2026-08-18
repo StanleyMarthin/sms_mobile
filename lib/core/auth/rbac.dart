@@ -88,7 +88,7 @@ enum Permission {
   dashboardMechanic,
 }
 
-const Map<String, Set<Permission>> rolePermissions = {
+Map<String, Set<Permission>> rolePermissions = {
   'pm': {
     Permission.jobPlanCreate,
     Permission.jobPlanReview,
@@ -198,7 +198,7 @@ const Map<String, Set<Permission>> rolePermissions = {
   },
 };
 
-const Map<Permission, List<String>> _permissionCodeMap = {
+Map<Permission, List<String>> _permissionCodeMap = {
   Permission.jobPlanCreate: [Perms.jobPlanCreate],
   Permission.jobPlanReview: [Perms.jobPlanReview],
   Permission.jobPlanUpdate: [Perms.jobPlanUpdate],
@@ -312,35 +312,35 @@ bool _sessionHasPermission(SessionManager session, Permission permission) {
               session.isWarehouseAccess);
     case Permission.woApproveAdvisor:
       return session.isAdvisorAccess &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.woApprovePm:
       return (session.isKpAccess || session.isGlobalAccess) &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.woCreate:
       return session.isKdAccess &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.woExtensionRequest:
       return session.isKdAccess &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.woExtensionApprove:
       return (session.isKpAccess || session.isGlobalAccess) &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.countdownSubmitApproval:
       return (session.isKpAccess || session.isGlobalAccess) &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.countdownMarkQcReady:
     case Permission.countdownRequestRevision:
       return session.isKdAccess &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.prApprove:
     case Permission.prReject:
       return !session.isFieldExecution &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     case Permission.wovApprove:
     case Permission.wovReject:
     case Permission.wovUpdate:
       return !session.isFieldExecution &&
-          session.hasAnyPerm(_permissionCodeMap[permission] ?? const []);
+          session.hasAnyPerm(_permissionCodeMap[permission] ?? []);
     default:
       final codes = _permissionCodeMap[permission];
       if (codes == null || codes.isEmpty) return false;

@@ -6,7 +6,7 @@ class DeviceInitModel {
   final String? message;
   final String? downloadUrl;
 
-  const DeviceInitModel({
+  DeviceInitModel({
     required this.versionStatus,
     this.tempToken,
     this.message,

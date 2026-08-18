@@ -4,7 +4,7 @@ import 'auth_datasource.dart';
 
 /// Guard implementation to prevent auth fallback outside the real API.
 class LocalAuthDataSource implements AuthDataSource {
-  const LocalAuthDataSource();
+  LocalAuthDataSource();
 
   @override
   Future<DeviceInitModel> deviceInit(Map<String, dynamic> deviceInfo) async {

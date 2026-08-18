@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-05-08
+- Last verified: 2026-06-25
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -36,7 +36,9 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 - Product name in UI: `Stanley Marthin System`
 - Package/project identifiers: folder `sm_workshop`, pub package `sm_system`
 - Platform: Flutter mobile (Android + iOS)
-- App style: dark luxury workshop UI with gold accents
+- App style: dark luxury workshop UI (gold accents) + light mode ala web SM-MIS
+  (paper #f9f7f6, ink #261910, accent #f97316); toggle di app bar shell,
+  persist di SharedPreferences (`theme_mode`)
 - Architecture:
   - Feature-first folder structure `lib/features/*`
   - Layered split per feature: `data -> domain -> presentation`
@@ -62,6 +64,8 @@ sm_workshop/
 ├── pubspec.yaml
 ├── docs/
 │   └── mobile_api_contract (1).md
+├── test/
+│   └── core/network/api_endpoints_test.dart
 ├── assets/images/
 ├── android/
 ├── ios/
@@ -73,14 +77,14 @@ sm_workshop/
     │   ├── constants/
     │   ├── data/           # dummy_data.dart, shared data models
     │   ├── di/             # injection.dart
-    │   ├── errors/
+    │   ├── errors/         # failures.dart, error_message.dart (friendlyMessage)
     │   ├── network/        # api_client.dart (Dio), api_endpoints.dart
     │   ├── presentation/   # feature_shell_page.dart
     │   ├── router/         # app_router.dart
     │   ├── security/       # device_signing_service.dart, app_secure_storage.dart
     │   ├── services/       # fcm_service, notification_inbox, upload, alarm_timer
     │   ├── session/        # session_manager.dart
-    │   ├── theme/          # app_theme.dart
+    │   ├── theme/          # app_theme.dart, theme_controller.dart
     │   ├── utils/
     │   └── widgets/        # in_app_camera_page.dart
     └── features/
@@ -157,7 +161,7 @@ Files touched:
 | `/login` | `LoginPage` | — | Login setelah temp token tersedia |
 | `/home` | `HomePage` | — | Landing page utama pasca-login |
 | `/dashboard` | redirect → `/home` | — | Legacy alias; `DashboardPage` tidak diroute |
-| `/tasks` | `FeatureShellPage → TaskSectionPage(kind: tasks)` | `taskId`, `date` | Operator → `MechanicTaskPage`; management → `TaskViewPage` |
+| `/tasks` | `FeatureShellPage → TaskSectionPage(kind: tasks)` | `taskId`, `date` | Anggota → langsung `MechanicTaskPage`; KD → tab Monitoring/PIC Saya; management lain → `TaskViewPage` |
 | `/overtime` | `FeatureShellPage → TaskSectionPage(kind: overtime)` | `taskId`, `date` | Sama dengan tasks |
 | `/plans` | `FeatureShellPage → TaskSectionPage(kind: plan)` | `date`, `source`, `sourceRefId`, `autoOpenCreate` | Membuka `JobPlanPage` |
 | `/countdown` | `FeatureShellPage → CountdownPage` | `carId` | PM/KP mendapat tab revision approval tambahan |
@@ -357,29 +361,32 @@ Source: `lib/core/network/api_endpoints.dart`
 ### Base host
 
 - `AppConfig.baseUrl` dari `--dart-define=BASE_URL`
-- Default fallback: `http://108.136.189.225`
-- Format: `scheme://host:port`
+- Default fallback: `https://api.stanleymarthin.com`
+- Format default gateway: `https://api.stanleymarthin.com/<path>`
+- Format legacy eksplisit: `--dart-define=BASE_URL=http://108.136.189.225` → `scheme://host:port/<path>`
+- `AppConfig.serviceOrigin()` hanya menambahkan port untuk origin non-gateway atau origin HTTPS yang sudah memakai port eksplisit.
 
 ### Active service map
 
-| Service | Port | Base path (mobile) | Dikonsumsi oleh |
-|---|---:|---|---|
-| Device init / splash auth | `8080` | `/sm/auth/device-init` | Splash/auth bootstrap |
-| Identity/session/profile | `8085` | `/api/v1/auth/*`, `/api/v1/notifications`, `/api/v1/users/profile` | Login, refresh, remote notif, profile |
-| Job plan | `8083` | `/sm/job-plans*` | Job plan, WO dropdown reuse, PR car picker |
-| Tasks | `8086` | `/sm/tasks*` | Operator task execution, management task monitoring, upload ticket |
-| QC | `8088` | `/sm/qc*`, `/sm/qc/monitoring*` | QC queue/submit; QC monitoring data |
-| Countdown | `8090` | `/sm/countdown*`, `/sm/countdown/action`, `/sm/countdown/revision` | Countdown, revision, monitoring synthesis |
-| Warehouse | `8091` | `/sm/warehouse*` | Request/approval/storage/logs/upload |
-| Work order | `8093` | `/sm/wo*`, `/sm/wo/extensions` | WO list/detail/create/approve/reject/extensions |
-| Monitoring (via QC) | `8088` | `/sm/qc/monitoring*` | Monitoring unit & weekly report |
-| Notifications (FCM Send) | `8084` | `/sm/notify/send` | Trigger remote push notifications |
-| PR + WOV | `8096` | `/sm/pr*`, `/sm/wov*` | PR page, WOV helper page |
+| Service | Gateway path | Legacy port | Dikonsumsi oleh |
+|---|---|---:|---|
+| Device init / splash auth | `/sm/auth/device-init` | `8080` | Splash/auth bootstrap |
+| Identity/session/profile | `/api/v1/auth/*`, `/api/v1/notifications`, `/api/v1/users/profile` | `8085` | Login, refresh, remote notif, profile |
+| Job plan | `/sm/job-plans*` | `8083` | Job plan, WO dropdown reuse, PR car picker |
+| Tasks | `/sm/tasks*` | `8086` | Operator task execution, management task monitoring, upload ticket |
+| QC | `/sm/qc*`, `/sm/qc/monitoring*` | `8088` | QC queue/submit; QC monitoring data |
+| Countdown | `/sm/countdown*`, `/sm/countdown/action`, `/sm/countdown/revision` | `8090` | Countdown, revision, monitoring synthesis |
+| Warehouse | `/sm/warehouse*` | `8091` | Request/approval/storage/logs/upload |
+| Work order | `/sm/wo*`, `/sm/wo/extensions` | `8093` | WO list/detail/create/approve/reject/extensions |
+| Monitoring (via QC) | `/sm/qc/monitoring*` | `8088` | Monitoring unit & weekly report |
+| Notifications (FCM Send) | `/sm/notify/send` | `8085` | Trigger remote push notifications |
+| PR + WOV | `/sm/pr*`, `/sm/wov*` | `8096` | PR page, WOV helper page |
 
 ### Catatan penting endpoint
 
 - Auth/profile/notifications menggunakan path style `/api/v1/...`; feature lain menggunakan `/sm/...`
-- Monitoring di runtime **tidak** pakai endpoint monitoring khusus — `RemoteMonitoringDataSource` mensintesis data dari repeated countdown calls ke port 8090.
+- Gateway production sudah mem-proxy endpoint mobile melalui `https://api.stanleymarthin.com`; port langsung hanya mode legacy eksplisit.
+- Monitoring list memakai endpoint QC `/sm/qc/monitoring`; drilldown tertentu masih bisa mensintesis data dari repeated countdown calls via `ApiEndpoints.countdown`.
 - `docs/mobile_api_contract (1).md` menggambarkan style `/api/v1` yang lebih lama dan beberapa shape endpoint yang sudah tidak aktual. Gunakan `ApiEndpoints` + remote datasource sebagai kebenaran saat ini.
 
 ---
@@ -439,14 +446,14 @@ Format tracing: `Trigger/Entry → Page/State → Repository → Datasource → 
 main.dart → /splash → SplashPage
 -> kumpulkan: Android ID, install-scoped device ID, appVersion=1.0.1, lokasi kasar, Ed25519 signature
 -> AuthBloc(DeviceInitRequested) → DeviceInitUseCase → RemoteAuthDataSource.deviceInit()
--> POST 8080 /sm/auth/device-init
+-> POST https://api.stanleymarthin.com/sm/auth/device-init
 -> SessionManager.setDeviceAttestation(tempToken, deviceId)
 -> /login
 
 LoginPage
 -> kumpulkan: employeeId, password, optional FCM token
 -> AuthBloc(LoginRequested) → LoginUseCase → RemoteAuthDataSource.login()
--> POST 8085 /api/v1/auth/login
+-> POST https://api.stanleymarthin.com/api/v1/auth/login
 -> SessionManager.login(...)
 -> /home
 ```
@@ -542,6 +549,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 
 **Self-execution flow (ownership-first):**
 - Management buka `MechanicTaskPage(forceOwnOnly: true)` dari `TaskViewPage`
+- Kepala Divisi juga dapat membuka mode `PIC Saya` langsung dari tab di `TaskSectionPage`; anggota langsung masuk halaman PIC tanpa pemilih mode.
 - Remote query menambahkan `scope=self` di `ApiTaskDataSource.getTodaysTasks()`
 
 ### 10.5 Job plan
@@ -645,11 +653,11 @@ PM/KP mendapat tab revision approval tambahan; role lain hanya melihat countdown
 /monitoring → MonitoringPage
 -> MonitoringRepository.getCars(canSeeAll, division)
 -> RemoteMonitoringDataSource.getCars()
--> GET 8088 /sm/qc/monitoring?userId=...
+-> GET https://api.stanleymarthin.com/sm/qc/monitoring?userId=...
 ```
 
 **Runtime reality:** 
-Monitoring data sekarang dikonsumsi dari port 8088 (QC service) melalui endpoint `/sm/qc/monitoring`. Namun, drilldown detail tertentu masih mungkin mensintesis data dari repeated countdown calls (8090) jika endpoint monitoring belum menyediakan depth yang cukup.
+Monitoring data sekarang dikonsumsi dari gateway melalui endpoint `/sm/qc/monitoring`. Namun, drilldown detail tertentu masih mungkin mensintesis data dari repeated countdown calls ke `/sm/countdown` jika endpoint monitoring belum menyediakan depth yang cukup.
 
 Output: unit list sorted by delivery urgency, weekly report drilldown per unit/division, margin/non-margin filter.
 
@@ -685,8 +693,8 @@ Recovery: QC page simpan pending recovery data di `SharedPreferences` (`pending_
 ```
 
 **Tab behavior:**
-- Approver: `Perlu Persetujuan`, `Semua Aktivitas`
-- Requester: `Berjalan`, `Barang Saya`, `Riwayat`
+- Approver: `Perlu Persetujuan`, `Semua Aktivitas` (Aktivitas memakai `DateFilterBar` per tanggal)
+- Requester: `Pengajuan` (tanpa filter tanggal), `Sedang Dipakai`, `Riwayat` (memakai `DateFilterBar` per tanggal)
 
 **Read flows:**
 ```text
@@ -735,7 +743,7 @@ FCM foreground/background payload
 
 ```text
 /profile → ProfilePage
--> ProfileRepository.getProfile() → GET 8085 /api/v1/users/profile
+-> ProfileRepository.getProfile() → GET https://api.stanleymarthin.com/api/v1/users/profile
 -> fallback ke session values jika endpoint gagal
 ```
 
@@ -892,20 +900,20 @@ main.dart → SplashPage → AuthBloc → RemoteAuthDataSource → ApiEndpoints.
 ```text
 app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|TaskViewPage
 → TaskBloc|TaskViewBloc → TaskRepository|ViewTaskRepository
-→ ApiTaskDataSource|ApiViewTaskDataSource → ApiEndpoints.tasks (port 8086)
+→ ApiTaskDataSource|ApiViewTaskDataSource → ApiEndpoints.tasks (/sm/tasks via gateway; legacy port 8086)
 ```
 
 ### Job plan issue
 ```text
 /plans → TaskSectionPage(kind:plan) → JobPlanPage
-→ JobPlanRepositoryImpl → RemoteJobPlanDataSource → ApiEndpoints.jobPlans* (port 8083)
+→ JobPlanRepositoryImpl → RemoteJobPlanDataSource → ApiEndpoints.jobPlans* (/sm/job-plans via gateway; legacy port 8083)
 ```
 
 ### Work order issue
 ```text
 /work-orders → WorkOrderPage|WoDetailPage|WoCreatePage → WorkOrderBloc
 → WorkOrderRepositoryImpl → WorkOrderRemoteDataSource
-→ ApiEndpoints.workOrders|workOrderExtensions (port 8093)
+→ ApiEndpoints.workOrders|workOrderExtensions (/sm/wo via gateway; legacy port 8093)
 ```
 
 ### Countdown / monitoring issue
@@ -913,13 +921,13 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 /countdown|/monitoring → CountdownPage|MonitoringPage
 → CountdownRepositoryImpl|MonitoringRepositoryImpl
 → RemoteCountdownDataSource|RemoteMonitoringDataSource
-→ ApiEndpoints.countdown* (port 8090)
+→ ApiEndpoints.countdown* (/sm/countdown via gateway; legacy port 8090)
 ```
 
 ### Warehouse issue
 ```text
 /warehouse → WarehouseRequestPage → WarehouseRepositoryImpl
-→ RemoteWarehouseDataSource → ApiEndpoints.warehouse* (port 8091)
+→ RemoteWarehouseDataSource → ApiEndpoints.warehouse* (/sm/warehouse via gateway; legacy port 8091)
 ```
 
 ### Scope filter divisi bug
@@ -942,7 +950,7 @@ Jika tidak → anggota sub-team (Mechanic team, dst) tidak ter-include
 | 5 | **Query divisi tanpa traversal `parent_id`** | Sub-team Mechanic (dan divisi lain dengan child) tidak ter-include di scope filter | Selalu `WHERE d.id = :id OR d.parent_id = :id` |
 | 6 | **Tanpa ORM (backend)** | Query hardcoded string `cursor.execute()`. Relasi tabel hanya terbaca dari file `.sql` | Dokumentasikan skema relasi; gunakan ORM di service baru |
 | 7 | **Fragmentasi `.env-dev`** | Tiap microservice punya file `.env-dev` sendiri; sinkronisasi manual | Gunakan `.env` shared atau secret manager |
-| 8 | **Port langsung tanpa gateway** | Flutter request ke port 8080–8096+ langsung. Tidak ada NGINX/API gateway | Pasang NGINX reverse proxy. Peta port di `API_CONTRACT.md` |
+| 8 | **Legacy port mode masih tersedia** | Build dengan `BASE_URL=http://108.136.189.225` tetap request ke port 8080–8096 langsung dan lebih rapuh dari gateway HTTPS | Production build harus memakai default `https://api.stanleymarthin.com`; legacy hanya untuk emergency/debug |
 | 9 | **Redis tanpa persistensi** | Restart container Redis menghapus semua session aktif | Aktifkan `appendonly yes` atau set TTL |
 | 10 | **File placeholder kosong** | `deadline_alarm_service.dart`, `permission_service.dart` — bisa menyesatkan saat tracing | Hapus atau isi implementasi |
 | 11 | **`job_plan_page.dart` 6422 baris** | File monolitik, mixed responsibilities, rawan cross-feature coupling | Pecah ke sub-widget/page bertahap |

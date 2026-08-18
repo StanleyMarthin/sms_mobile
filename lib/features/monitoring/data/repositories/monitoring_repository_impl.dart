@@ -7,7 +7,7 @@ import '../../domain/repositories/monitoring_repository.dart';
 import '../datasources/monitoring_datasource.dart';
 
 class MonitoringRepositoryImpl implements MonitoringRepository {
-  const MonitoringRepositoryImpl({required this.dataSource});
+  MonitoringRepositoryImpl({required this.dataSource});
 
   final MonitoringDataSource dataSource;
 

@@ -89,13 +89,13 @@ class _DurationInputState extends State<DurationInput> {
         if (widget.labelText != null) ...[
           Text(
             widget.labelText!,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textMuted,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ],
         Row(
           children: [
@@ -109,7 +109,7 @@ class _DurationInputState extends State<DurationInput> {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(widget.isTripleHours ? 3 : 2),
                 ],
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -117,27 +117,27 @@ class _DurationInputState extends State<DurationInput> {
                 decoration: InputDecoration(
                   hintText: widget.isTripleHours ? '000' : '00',
                   suffixText: 'j',
-                  suffixStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  suffixStyle: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   filled: true,
                   fillColor: AppColors.surfaceInput,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.gold),
+                    borderSide: BorderSide(color: AppColors.gold),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  contentPadding: EdgeInsets.symmetric(vertical: 12),
                 ),
                 onChanged: (_) => _notify(),
               ),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
               child: Text(
                 ':',
@@ -158,7 +158,7 @@ class _DurationInputState extends State<DurationInput> {
                   FilteringTextInputFormatter.digitsOnly,
                   LengthLimitingTextInputFormatter(2),
                 ],
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -166,22 +166,22 @@ class _DurationInputState extends State<DurationInput> {
                 decoration: InputDecoration(
                   hintText: '00',
                   suffixText: 'm',
-                  suffixStyle: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  suffixStyle: TextStyle(color: AppColors.textMuted, fontSize: 12),
                   filled: true,
                   fillColor: AppColors.surfaceInput,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: AppColors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: AppColors.gold),
+                    borderSide: BorderSide(color: AppColors.gold),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  contentPadding: EdgeInsets.symmetric(vertical: 12),
                 ),
                 onChanged: (v) {
                   final val = int.tryParse(v) ?? 0;

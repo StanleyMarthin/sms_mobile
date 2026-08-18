@@ -120,7 +120,7 @@ class UploadService {
             },
             body: bytes,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(Duration(seconds: 60));
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         return true;
@@ -150,7 +150,7 @@ class UploadService {
         );
 
     final streamedResponse =
-        await request.send().timeout(const Duration(seconds: 60));
+        await request.send().timeout(Duration(seconds: 60));
 
     if (streamedResponse.statusCode == 200 ||
         streamedResponse.statusCode == 204) {

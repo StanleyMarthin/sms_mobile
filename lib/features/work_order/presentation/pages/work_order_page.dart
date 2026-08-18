@@ -38,7 +38,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
-    _bloc = sl<WorkOrderBloc>()..add(const LoadWorkOrders(view: 'ACTIVE'));
+    _bloc = sl<WorkOrderBloc>()..add(LoadWorkOrders(view: 'ACTIVE'));
     _tabCtrl.addListener(() {
       if (!_tabCtrl.indexIsChanging) {
         setState(() {});
@@ -67,7 +67,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
         appBar: AppBar(
           backgroundColor: AppColors.background,
           elevation: 0,
-          title: const Text(
+          title: Text(
             'Work Order',
             style: TextStyle(
               color: AppColors.textPrimary,
@@ -77,11 +77,11 @@ class _WorkOrderPageState extends State<WorkOrderPage>
           ),
           actions: [
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.refresh_rounded,
                 color: AppColors.textMuted,
               ),
-              onPressed: () => _bloc.add(const RefreshWorkOrders()),
+              onPressed: () => _bloc.add(RefreshWorkOrders()),
             ),
           ],
           bottom: TabBar(
@@ -90,7 +90,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
             unselectedLabelColor: AppColors.textMuted,
             indicatorColor: AppColors.gold,
             indicatorWeight: 2.5,
-            tabs: const [
+            tabs: [
               Tab(text: 'Aktif'),
               Tab(text: 'Selesai'),
             ],
@@ -119,14 +119,14 @@ class _WorkOrderPageState extends State<WorkOrderPage>
           },
           builder: (ctx, state) {
             if (state is WorkOrderLoading || state is WorkOrderInitial) {
-              return const Center(
+              return Center(
                 child: CircularProgressIndicator(color: AppColors.gold),
               );
             }
             if (state is WorkOrderError) {
               return _ErrorView(
                 message: state.message,
-                onRetry: () => _bloc.add(const RefreshWorkOrders()),
+                onRetry: () => _bloc.add(RefreshWorkOrders()),
               );
             }
 
@@ -142,7 +142,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
                 children: [
                   if (_tabCtrl.index == 1)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                      padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
                       child: DateFilterBar(
                         selectedDate: _historyDate,
                         onDateChanged: (date) =>
@@ -162,12 +162,12 @@ class _WorkOrderPageState extends State<WorkOrderPage>
 
             return RefreshIndicator(
               color: AppColors.gold,
-              onRefresh: () async => _bloc.add(const RefreshWorkOrders()),
+              onRefresh: () async => _bloc.add(RefreshWorkOrders()),
               child: Column(
                 children: [
                   if (_tabCtrl.index == 1)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+                      padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
                       child: DateFilterBar(
                         selectedDate: _historyDate,
                         onDateChanged: (date) =>
@@ -177,9 +177,9 @@ class _WorkOrderPageState extends State<WorkOrderPage>
                     ),
                   Expanded(
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 96),
                       itemCount: wos.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, __) => SizedBox(height: 8),
                       itemBuilder: (_, i) {
                         final wo = wos[i];
                         return WoCard(
@@ -201,8 +201,8 @@ class _WorkOrderPageState extends State<WorkOrderPage>
                 onPressed: () => _openCreate(context),
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
-                icon: const Icon(Icons.add_rounded),
-                label: const Text(
+                icon: Icon(Icons.add_rounded),
+                label: Text(
                   'Buat WO',
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
@@ -229,7 +229,7 @@ class _WorkOrderPageState extends State<WorkOrderPage>
       context,
       MaterialPageRoute(
         builder: (_) =>
-            BlocProvider.value(value: _bloc, child: const WoCreatePage()),
+            BlocProvider.value(value: _bloc, child: WoCreatePage()),
       ),
     );
   }
@@ -265,25 +265,25 @@ class _ErrorView extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(
+        Icon(
           Icons.error_outline,
           size: 48,
           color: AppColors.statusLocked,
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         Text(
           message,
-          style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+          style: TextStyle(color: AppColors.textMuted, fontSize: 13),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: onRetry,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Coba Lagi'),
+          icon: Icon(Icons.refresh),
+          label: Text('Coba Lagi'),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.gold,
-            side: const BorderSide(color: AppColors.gold),
+            side: BorderSide(color: AppColors.gold),
           ),
         ),
       ],
@@ -302,19 +302,19 @@ class _EmptyView extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.gold.withValues(alpha: 0.08),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.assignment_outlined,
             size: 56,
             color: AppColors.gold,
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
+        SizedBox(height: 16),
+        Text(
           'Belum ada Work Order',
           style: TextStyle(
             fontSize: 15,
@@ -323,8 +323,8 @@ class _EmptyView extends StatelessWidget {
           ),
         ),
         if (canCreate) ...[
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'Tekan tombol di bawah untuk membuat WO baru',
             style: TextStyle(fontSize: 12, color: AppColors.textDisabled),
             textAlign: TextAlign.center,

@@ -56,13 +56,13 @@ class _TaskDivisionFilterState extends State<TaskDivisionFilter> {
     if (_isLoading) {
       return Container(
         height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: AppColors.surfaceInput,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
-        child: const Center(
+        child: Center(
           child: SizedBox(
             width: 20, height: 20,
             child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)
@@ -71,7 +71,7 @@ class _TaskDivisionFilterState extends State<TaskDivisionFilter> {
       );
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(10),
@@ -80,17 +80,17 @@ class _TaskDivisionFilterState extends State<TaskDivisionFilter> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
           value: widget.selectedDivisionId,
-          hint: const Text(
+          hint: Text(
             'Semua Divisi',
             style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
-          icon: const Icon(Icons.arrow_drop_down,
+          icon: Icon(Icons.arrow_drop_down,
               color: AppColors.gold, size: 20),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
           items: [
-            const DropdownMenuItem<String?>(
+            DropdownMenuItem<String?>(
               value: null,
               child: Text('Semua Divisi',
                   style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
@@ -101,7 +101,7 @@ class _TaskDivisionFilterState extends State<TaskDivisionFilter> {
               return DropdownMenuItem<String?>(
                 value: id,
                 child: Text(name,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13, color: AppColors.textPrimary)),
               );
             }),
@@ -163,13 +163,13 @@ class _TaskUnitFilterState extends State<TaskUnitFilter> {
     if (_isLoading) {
       return Container(
         height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: AppColors.surfaceInput,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: AppColors.border),
         ),
-        child: const Center(
+        child: Center(
           child: SizedBox(
             width: 20, height: 20,
             child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.gold)
@@ -178,7 +178,7 @@ class _TaskUnitFilterState extends State<TaskUnitFilter> {
       );
     }
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(10),
@@ -187,17 +187,17 @@ class _TaskUnitFilterState extends State<TaskUnitFilter> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String?>(
           value: widget.selectedUnitId,
-          hint: const Text(
+          hint: Text(
             'Semua Unit',
             style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
-          icon: const Icon(Icons.arrow_drop_down,
+          icon: Icon(Icons.arrow_drop_down,
               color: AppColors.gold, size: 20),
           isExpanded: true,
           dropdownColor: AppColors.surfaceCard,
-          style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+          style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
           items: [
-            const DropdownMenuItem<String?>(
+            DropdownMenuItem<String?>(
               value: null,
               child: Text('Semua Unit',
                   style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
@@ -208,7 +208,7 @@ class _TaskUnitFilterState extends State<TaskUnitFilter> {
               return DropdownMenuItem<String?>(
                 value: id,
                 child: Text(name,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13, color: AppColors.textPrimary)),
               );
             }),

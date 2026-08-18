@@ -225,26 +225,26 @@ class TaskCard extends StatelessWidget {
             InkWell(
               onTap: () => _showDetail(context),
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildHeader(),
                     if (isHighlighted) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       _buildFocusBadge(),
                     ],
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     _buildDescription(),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     _buildSummaryRow(),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     _buildBadgeRow(),
                     if (task.isPanelLocked && !task.isInProgress) ...[
-                      const SizedBox(height: 10),
+                      SizedBox(height: 10),
                       _buildLockWarning(),
                     ],
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     if (task.isInProgress || hasDraft)
                       _RealtimeProgressBar(task: task)
                     else
@@ -253,9 +253,9 @@ class TaskCard extends StatelessWidget {
                 ),
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: AppColors.border),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
               child: _buildActionButton(),
             ),
           ],
@@ -266,12 +266,12 @@ class TaskCard extends StatelessWidget {
 
   Widget _buildFocusBadge() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: const Text(
+      child: Text(
         'Notifikasi',
         style: TextStyle(
           fontSize: 11,
@@ -292,7 +292,7 @@ class TaskCard extends StatelessWidget {
             children: [
               Text(
                 task.panelName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -300,10 +300,10 @@ class TaskCard extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 task.unitName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
                   color: AppColors.textMuted,
                 ),
@@ -341,7 +341,7 @@ class TaskCard extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
         ),
-        const SizedBox(width: 6),
+        SizedBox(width: 6),
         Text(
           label,
           style: TextStyle(
@@ -360,7 +360,7 @@ class TaskCard extends StatelessWidget {
       children: [
         Text(
           task.jobDescription,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             color: AppColors.textSecondary,
             height: 1.4,
@@ -369,10 +369,10 @@ class TaskCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         if (task.instruction != null && task.instruction!.isNotEmpty) ...[
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             task.instruction!,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.gold,
               fontStyle: FontStyle.italic,
@@ -416,7 +416,7 @@ class TaskCard extends StatelessWidget {
 
   Widget _metaPill(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(999),
@@ -427,11 +427,11 @@ class TaskCard extends StatelessWidget {
           children: [
             TextSpan(
               text: '$label: ',
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 10, color: AppColors.textMuted),
             ),
             TextSpan(
               text: value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
@@ -445,7 +445,7 @@ class TaskCard extends StatelessWidget {
 
   Widget _badge(String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
@@ -492,7 +492,7 @@ class TaskCard extends StatelessWidget {
   Widget _buildLockWarning() {
     final lockerName = task.lockedByName ?? 'mekanik lain';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.statusLocked.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
@@ -502,16 +502,16 @@ class TaskCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             Icons.lock_rounded,
             size: 14,
             color: AppColors.statusLocked,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               'Panel dikunci oleh $lockerName',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.statusLocked,
                 fontWeight: FontWeight.w500,
@@ -544,7 +544,7 @@ class TaskCard extends StatelessWidget {
           children: [
             Text(
               '${_formatDuration(runningTime)} / ${_formatDuration(target)}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -552,7 +552,7 @@ class TaskCard extends StatelessWidget {
             ),
             Text(
               '${progressPercent.toStringAsFixed(0)}%',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: AppColors.gold,
@@ -560,7 +560,7 @@ class TaskCard extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
@@ -578,12 +578,12 @@ class TaskCard extends StatelessWidget {
     if (task.isCompleted) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.statusDone.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.check_circle, size: 16, color: AppColors.statusDone),
@@ -604,12 +604,12 @@ class TaskCard extends StatelessWidget {
     if (task.isMonitoringLocked) {
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.gold.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.visibility_outlined, size: 16, color: AppColors.gold),
@@ -633,7 +633,7 @@ class TaskCard extends StatelessWidget {
         child: FilledButton.icon(
           onPressed: isActionLoading ? null : onFinishPressed,
           icon: isActionLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -641,7 +641,7 @@ class TaskCard extends StatelessWidget {
                     color: AppColors.background,
                   ),
                 )
-              : const Icon(Icons.edit_note_rounded, size: 18),
+              : Icon(Icons.edit_note_rounded, size: 18),
           label: Text(isActionLoading ? 'Menyimpan...' : 'Selesaikan'),
           style: FilledButton.styleFrom(
             backgroundColor: AppColors.orange,
@@ -649,7 +649,7 @@ class TaskCard extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
             ),
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: EdgeInsets.symmetric(vertical: 12),
           ),
         ),
       );
@@ -661,7 +661,7 @@ class TaskCard extends StatelessWidget {
       child: FilledButton.icon(
         onPressed: canAct ? onStartPressed : null,
         icon: isActionLoading
-            ? const SizedBox(
+            ? SizedBox(
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
@@ -669,7 +669,7 @@ class TaskCard extends StatelessWidget {
                   color: AppColors.background,
                 ),
               )
-            : const Icon(Icons.play_circle_outline, size: 18),
+            : Icon(Icons.play_circle_outline, size: 18),
         label: Text(isActionLoading ? 'Memulai...' : 'Mulai Kerjakan'),
         style: FilledButton.styleFrom(
           backgroundColor: canAct ? AppColors.gold : AppColors.border,
@@ -679,7 +679,7 @@ class TaskCard extends StatelessWidget {
           disabledBackgroundColor: AppColors.border,
           disabledForegroundColor: AppColors.textDisabled,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
@@ -705,7 +705,7 @@ class _RealtimeProgressBarState extends State<_RealtimeProgressBar> {
   }
 
   void _startTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(Duration(seconds: 1), (timer) {
       if (mounted) {
         setState(() {});
         _checkAlarms();
@@ -830,7 +830,7 @@ class _RealtimeProgressBarState extends State<_RealtimeProgressBar> {
           children: [
             Text(
               '${_formatDuration(runningTime)} / ${_formatDuration(totalTarget)}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
@@ -838,7 +838,7 @@ class _RealtimeProgressBarState extends State<_RealtimeProgressBar> {
             ),
             Text(
               '${(progress * 100).toStringAsFixed(0)}%',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: AppColors.gold,
@@ -846,7 +846,7 @@ class _RealtimeProgressBarState extends State<_RealtimeProgressBar> {
             ),
           ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(

@@ -8,7 +8,7 @@ import '../widgets/countdown_shared.dart';
 
 /// Visual representation of a countdown status.
 class CountdownStatusVisual {
-  const CountdownStatusVisual({
+  CountdownStatusVisual({
     required this.color,
     required this.icon,
     required this.shortLabel,
@@ -54,7 +54,7 @@ class CountdownHelper {
   static CountdownStatusVisual statusVisual(String status) {
     switch (status.toUpperCase()) {
       case 'DONE':
-        return const CountdownStatusVisual(
+        return CountdownStatusVisual(
           color: AppColors.statusDone,
           icon: Icons.check_circle_rounded,
           shortLabel: 'Done',
@@ -64,21 +64,21 @@ class CountdownHelper {
       case 'QCREADY':
       case 'QC_READY':
       case 'READY_QC':
-        return const CountdownStatusVisual(
+        return CountdownStatusVisual(
           color: AppColors.gold,
           icon: Icons.verified_rounded,
           shortLabel: 'QC Ready',
           longLabel: 'Menunggu QC',
         );
       case 'PROSES':
-        return const CountdownStatusVisual(
+        return CountdownStatusVisual(
           color: AppColors.statusInProgress,
           icon: Icons.timelapse_rounded,
           shortLabel: 'Proses',
           longLabel: 'Sedang Proses',
         );
       case 'PLAN':
-        return const CountdownStatusVisual(
+        return CountdownStatusVisual(
           color: AppColors.textMuted,
           icon: Icons.schedule_rounded,
           shortLabel: 'Plan',
@@ -215,7 +215,7 @@ class CountdownHelper {
   }
 
   static String _formatDateParts(String year, String month, String day) {
-    const months = [
+    final months = [
       '',
       'Jan',
       'Feb',
@@ -313,9 +313,9 @@ class CountdownHelper {
   /// Sat: 14:00
   static TimeOfDay normalThresholdForDate(DateTime date) {
     if (date.weekday == DateTime.saturday) {
-      return const TimeOfDay(hour: 14, minute: 0);
+      return TimeOfDay(hour: 14, minute: 0);
     }
-    return const TimeOfDay(hour: 17, minute: 0);
+    return TimeOfDay(hour: 17, minute: 0);
   }
 
   /// Calculates finish time given start time and work duration.
@@ -333,7 +333,7 @@ class CountdownHelper {
     var extra = 0;
     final refDate = date ?? DateTime.now();
     final breakStart = breakStartMinutesForDate(refDate);
-    const breakEnd = 13 * 60; // always 13:00
+    final breakEnd = 13 * 60; // always 13:00
     final breakDuration = breakMinutesForDate(refDate);
     if (breakDuration > 0 &&
         startMins < breakEnd &&

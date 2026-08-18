@@ -49,15 +49,15 @@ GoRouter createRouter() {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const SplashPage(),
+        builder: (context, state) => SplashPage(),
       ),
       GoRoute(
         path: '/login',
-        builder: (context, state) => const LoginPage(),
+        builder: (context, state) => LoginPage(),
       ),
       GoRoute(
         path: '/home',
-        builder: (context, state) => const HomePage(),
+        builder: (context, state) => HomePage(),
       ),
       GoRoute(
         path: '/dashboard',
@@ -137,7 +137,7 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/warehouse',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => FeatureShellPage(
           title: 'Warehouse',
           child: WarehouseRequestPage(),
         ),
@@ -162,14 +162,14 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/notifications',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => FeatureShellPage(
           title: 'Notifikasi',
           child: NotificationsPage(),
         ),
       ),
       GoRoute(
         path: '/profile',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => FeatureShellPage(
           title: 'Profil',
           child: ProfilePage(),
         ),

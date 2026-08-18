@@ -46,16 +46,16 @@ class HomePage extends StatelessWidget {
               // ── Body ───────────────────────────────────────
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Greeting
                       _buildGreeting(session),
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24),
 
                       // Menu Utama label
-                      const Text(
+                      Text(
                         'Menu Utama',
                         style: TextStyle(
                           fontSize: 15,
@@ -63,7 +63,7 @@ class HomePage extends StatelessWidget {
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
 
                       // 3-column menu grid
                       _buildGrid(context, menus),
@@ -85,20 +85,20 @@ class HomePage extends StatelessWidget {
         backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: AppColors.border),
         ),
-        title: const Text(
+        title: Text(
           'Keluar Aplikasi?',
           style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
         ),
-        content: const Text(
+        content: Text(
           'Apakah Anda yakin ingin keluar?',
           style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () {
@@ -110,7 +110,7 @@ class HomePage extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.statusLocked,
             ),
-            child: const Text(
+            child: Text(
               'Keluar',
               style: TextStyle(color: AppColors.textPrimary),
             ),
@@ -124,10 +124,12 @@ class HomePage extends StatelessWidget {
   Widget _buildHeader(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: const BoxDecoration(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF1A1608), Color(0xFF131008)],
+          colors: AppColors.isLight
+              ? [Color(0xFFF6EDE3), Color(0xFFFBF7F2)]
+              : [Color(0xFF1A1608), Color(0xFF131008)],
         ),
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -142,8 +144,8 @@ class HomePage extends StatelessWidget {
               fit: BoxFit.cover,
             ),
           ),
-          const SizedBox(width: 10),
-          const Expanded(
+          SizedBox(width: 10),
+          Expanded(
             child: Text(
               'Stanley Marthin System',
               style: TextStyle(
@@ -154,7 +156,7 @@ class HomePage extends StatelessWidget {
               ),
             ),
           ),
-          const _NotificationBell(),
+          _NotificationBell(),
         ],
       ),
     );
@@ -168,7 +170,7 @@ class HomePage extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -199,7 +201,7 @@ class HomePage extends StatelessWidget {
                           fit: BoxFit.cover,
                           width: 46,
                           height: 46,
-                          placeholder: (context, url) => const Center(
+                          placeholder: (context, url) => Center(
                             child: SizedBox(
                               width: 16,
                               height: 16,
@@ -212,7 +214,7 @@ class HomePage extends StatelessWidget {
                           errorWidget: (context, url, error) => Center(
                             child: Text(
                               initials,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.gold,
@@ -223,7 +225,7 @@ class HomePage extends StatelessWidget {
                       : Center(
                           child: Text(
                             initials,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
                               color: AppColors.gold,
@@ -234,26 +236,26 @@ class HomePage extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Selamat datang, $name',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 _roleBadge(role),
                 if (div.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
                   Text(
                     div,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textMuted,
                     ),
@@ -271,7 +273,7 @@ class HomePage extends StatelessWidget {
               },
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 6,
                 ),
@@ -281,7 +283,7 @@ class HomePage extends StatelessWidget {
                     color: AppColors.statusLocked.withValues(alpha: 0.4),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'Logout',
                   style: TextStyle(
                     fontSize: 12,
@@ -299,7 +301,7 @@ class HomePage extends StatelessWidget {
 
   Widget _roleBadge(String role) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
@@ -307,7 +309,7 @@ class HomePage extends StatelessWidget {
       ),
       child: Text(
         role,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
           color: AppColors.gold,
@@ -320,8 +322,8 @@ class HomePage extends StatelessWidget {
   Widget _buildGrid(BuildContext context, List<_MenuItem> menus) {
     return GridView.builder(
       shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      physics: NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
@@ -383,7 +385,7 @@ class _NotificationBellState extends State<_NotificationBell>
           icon: Stack(
             clipBehavior: Clip.none,
             children: [
-              const Icon(
+              Icon(
                 Icons.notifications_outlined,
                 color: AppColors.gold,
                 size: 22,
@@ -393,7 +395,7 @@ class _NotificationBellState extends State<_NotificationBell>
                   right: -6,
                   top: -6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: 5,
                       vertical: 2,
                     ),
@@ -405,11 +407,11 @@ class _NotificationBellState extends State<_NotificationBell>
                         width: 1.2,
                       ),
                     ),
-                    constraints: const BoxConstraints(minWidth: 18),
+                    constraints: BoxConstraints(minWidth: 18),
                     child: Text(
                       unreadCount > 99 ? '99+' : '$unreadCount',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 9,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -420,7 +422,7 @@ class _NotificationBellState extends State<_NotificationBell>
             ],
           ),
           padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+          constraints: BoxConstraints(minWidth: 36, minHeight: 36),
           style: IconButton.styleFrom(
             backgroundColor: AppColors.gold.withValues(alpha: 0.1),
             shape: RoundedRectangleBorder(
@@ -456,7 +458,7 @@ class _MenuTile extends StatelessWidget {
                 content: Text('${item.label} — Coming soon'),
                 backgroundColor: AppColors.surfaceCard,
                 behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 1),
+                duration: Duration(seconds: 1),
               ),
             );
           }
@@ -476,22 +478,30 @@ class _MenuTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: item.color.withValues(alpha: 0.1),
+                  color: (item.color ?? AppColors.gold).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: item.color.withValues(alpha: 0.25)),
+                  border: Border.all(
+                    color: (item.color ?? AppColors.gold).withValues(
+                      alpha: 0.25,
+                    ),
+                  ),
                 ),
-                child: Icon(item.icon, size: 22, color: item.color),
+                child: Icon(
+                  item.icon,
+                  size: 22,
+                  color: item.color ?? AppColors.gold,
+                ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               // Label
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
+                padding: EdgeInsets.symmetric(horizontal: 4),
                 child: Text(
                   item.label,
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
@@ -514,13 +524,13 @@ class _MenuItem {
   final IconData icon;
   final String label;
   final String? route;
-  final Color color;
+  final Color? color;
 
-  const _MenuItem({
+  _MenuItem({
     required this.icon,
     required this.label,
     this.route,
-    this.color = AppColors.gold,
+    this.color,
   });
 }
 

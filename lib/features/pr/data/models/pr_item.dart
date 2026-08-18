@@ -20,7 +20,7 @@ class PRItem {
   final DateTime? arrivalDate;
   final DateTime? createdAt;
 
-  const PRItem({
+  PRItem({
     required this.id,
     required this.prId,
     this.itemName,

@@ -125,7 +125,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   Map<String, dynamic> _normalizeDraftPayloadMap(Map<String, dynamic> payload) {
-    final items = (payload['items'] as List<dynamic>? ?? const <dynamic>[])
+    final items = (payload['items'] as List<dynamic>? ?? <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .map(Map<String, dynamic>.from)
         .toList();
@@ -160,7 +160,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     );
     // ApiClient._parseResponse already unwraps data['data']
     final payload = response.data;
-    List<dynamic> items = const [];
+    List<dynamic> items = [];
     if (payload is Map<String, dynamic>) {
       items = payload['items'] as List<dynamic>? ?? [];
     } else if (payload is List<dynamic>) {
@@ -213,7 +213,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         ? (payload['items'] as List<dynamic>? ?? [])
         : payload is List<dynamic>
         ? payload
-        : const <dynamic>[];
+        : <dynamic>[];
 
     final items = rawItems.whereType<Map<String, dynamic>>().map((item) {
       if (item.containsKey('planId')) return _normalizePlan(item);
@@ -281,7 +281,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
           .whereType<Map<String, dynamic>>()
           .toList();
     }
-    return const <Map<String, dynamic>>[];
+    return <Map<String, dynamic>>[];
   }
 
   // ─── GET /sm/job-plans/dropdowns ───────────────────────────────
@@ -306,10 +306,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
         if ((carId ?? '').trim().isNotEmpty) 'carId': carId,
       },
-      options: Options(extra: {
-        'useCache': true,
-        'cacheDuration': const Duration(minutes: 5),
-      }),
+      options: Options(
+        extra: {'useCache': true, 'cacheDuration': Duration(minutes: 5)},
+      ),
     );
     // response.data is already inner payload: { divisions, panels, units, users, jobTypes }
     final payload = response.data as Map<String, dynamic>? ?? {};
@@ -342,10 +341,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       queryParameters: {
         if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
       },
-      options: Options(extra: {
-        'useCache': true,
-        'cacheDuration': const Duration(minutes: 5),
-      }),
+      options: Options(
+        extra: {'useCache': true, 'cacheDuration': Duration(minutes: 5)},
+      ),
     );
     final payload = response.data as Map<String, dynamic>? ?? {};
     return {
@@ -373,10 +371,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final response = await apiClient.get(
       ApiEndpoints.jobPlanDropdowns,
       queryParameters: {'divisionId': resolvedDivId ?? divisionId},
-      options: Options(extra: {
-        'useCache': true,
-        'cacheDuration': const Duration(minutes: 5),
-      }),
+      options: Options(
+        extra: {'useCache': true, 'cacheDuration': Duration(minutes: 5)},
+      ),
     );
     final payload = response.data as Map<String, dynamic>? ?? {};
     return _asMapList(payload['users']).map(_normalizeDropdownUser).toList();
@@ -480,7 +477,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       },
     );
     final payload = response.data;
-    List<dynamic> ids = const [];
+    List<dynamic> ids = [];
     if (payload is Map<String, dynamic>) {
       ids = payload['createdIds'] as List<dynamic>? ?? [];
     }
@@ -511,6 +508,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     required String startTime,
     required String finishTime,
     required bool isOvertime,
+    bool isNonTechnicalJob = false,
     required String note,
   }) async {
     final divisionId = await _resolveDivisionId(assignedDivision);
@@ -539,6 +537,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       if ((startDate ?? '').trim().isNotEmpty) 'startDate': startDate,
       if ((deadlineDate ?? '').trim().isNotEmpty) 'deadlineDate': deadlineDate,
       'isOvertime': isOvertime,
+      'isNonTechnicalJob': isNonTechnicalJob,
       'jobDescription': description,
     };
 
@@ -555,7 +554,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     );
 
     final payload = response.data;
-    List<dynamic> createdIds = const [];
+    List<dynamic> createdIds = [];
     if (payload is Map<String, dynamic>) {
       createdIds = payload['createdIds'] as List<dynamic>? ?? [];
     }
@@ -852,7 +851,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     try {
       _dropdownCache = await getDropdowns();
     } catch (_) {
-      _dropdownCache = const {};
+      _dropdownCache = {};
     }
     return _dropdownCache!;
   }
@@ -989,7 +988,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   List<Map<String, dynamic>> _asMapList(Object? value) {
-    if (value is! List) return const <Map<String, dynamic>>[];
+    if (value is! List) return <Map<String, dynamic>>[];
     return value
         .whereType<Map<String, dynamic>>()
         .map(Map<String, dynamic>.from)

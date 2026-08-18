@@ -5,7 +5,7 @@ import '../../domain/repositories/qc_repository.dart';
 import '../datasources/qc_datasource.dart';
 
 class QcRepositoryImpl implements QcRepository {
-  const QcRepositoryImpl({required this.dataSource});
+  QcRepositoryImpl({required this.dataSource});
 
   final QcDataSource dataSource;
 

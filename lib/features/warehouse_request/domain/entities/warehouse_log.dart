@@ -1,7 +1,7 @@
 library;
 
 class WarehouseLog {
-  const WarehouseLog({
+  WarehouseLog({
     required this.id,
     required this.transactionType,
     required this.itemCategory,
@@ -118,7 +118,7 @@ class WarehouseLog {
 }
 
 class WarehouseApprovalStep {
-  const WarehouseApprovalStep({
+  WarehouseApprovalStep({
     required this.stage,
     required this.action,
     this.userId,

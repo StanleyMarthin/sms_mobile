@@ -21,7 +21,7 @@ class LoginModel {
   final List<int> managedDivisionIds;
   final List<String> managedUnitIds;
 
-  const LoginModel({
+  LoginModel({
     required this.token,
     required this.refreshToken,
     required this.userId,
@@ -80,14 +80,14 @@ class LoginModel {
               ?.map((e) => int.tryParse('$e'))
               .whereType<int>()
               .toList() ??
-          const [],
+          [],
       managedUnitIds:
           (scope['unitIds'] as List<dynamic>? ??
                   user['managedUnits'] as List<dynamic>?)
               ?.map((e) => '$e')
               .where((e) => e.trim().isNotEmpty)
               .toList() ??
-          const [],
+          [],
     );
   }
 

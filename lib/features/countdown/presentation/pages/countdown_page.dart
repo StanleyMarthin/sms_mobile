@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../../core/utils/snackbar_helper.dart';
 
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
@@ -80,8 +82,13 @@ class _CountdownPageState extends State<CountdownPage> {
           _unitStatuses = unitStatuses;
           _isLoading = false;
         });
-      } catch (_) {
-        if (mounted) setState(() => _isLoading = false);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal memuat data countdown'),
+        );
       }
     }
   }
@@ -89,7 +96,7 @@ class _CountdownPageState extends State<CountdownPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
 
     final session = sl<SessionManager>();
@@ -107,13 +114,13 @@ class _CountdownPageState extends State<CountdownPage> {
       child: Column(
         children: [
           Container(
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 0),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
-            child: const TabBar(
+            child: TabBar(
               labelColor: AppColors.gold,
               unselectedLabelColor: AppColors.textMuted,
               indicatorColor: AppColors.gold,
@@ -142,7 +149,7 @@ class _CountdownPageState extends State<CountdownPage> {
       backgroundColor: AppColors.surfaceCard,
       onRefresh: _loadUnits,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 24),
         children: [
           // Instructional summary card intentionally hidden from UI.
           if (_units.isEmpty)
@@ -166,8 +173,8 @@ class _CountdownPageState extends State<CountdownPage> {
           ? _showPmUnitMonitoring(context, unit)
           : _showVehicleCountdown(context, unit),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
+        margin: EdgeInsets.only(bottom: 10),
+        padding: EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -181,13 +188,13 @@ class _CountdownPageState extends State<CountdownPage> {
           children: [
             if (isFocused)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                margin: const EdgeInsets.only(bottom: 8),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                margin: EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
-                child: const Text(
+                child: Text(
                   'Fokus',
                   style: TextStyle(
                     fontSize: 10,
@@ -201,7 +208,7 @@ class _CountdownPageState extends State<CountdownPage> {
                 Expanded(
                   child: Text(
                     unit.unitName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -210,16 +217,16 @@ class _CountdownPageState extends State<CountdownPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'DL: ${unit.deliveryDate ?? '-'}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
                 color: AppColors.textMuted,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -230,10 +237,10 @@ class _CountdownPageState extends State<CountdownPage> {
                     color: AppColors.gold,
                   ),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Text(
                   '${unit.progress}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -249,7 +256,7 @@ class _CountdownPageState extends State<CountdownPage> {
 
   Widget _buildEmptyMessage(String message) {
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -257,7 +264,7 @@ class _CountdownPageState extends State<CountdownPage> {
       ),
       child: Text(
         message,
-        style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+        style: TextStyle(fontSize: 12, color: AppColors.textMuted),
       ),
     );
   }
@@ -268,10 +275,10 @@ class _CountdownPageState extends State<CountdownPage> {
       future: _loadPendingRevisionRequests(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator());
         }
 
-        final requests = snapshot.data ?? const <CountdownJobdesc>[];
+        final requests = snapshot.data ?? <CountdownJobdesc>[];
         if (requests.isEmpty) {
           return RefreshIndicator(
             color: AppColors.gold,
@@ -281,8 +288,8 @@ class _CountdownPageState extends State<CountdownPage> {
               if (mounted) setState(() {});
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              children: const [
+              padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
+              children: [
                 _RevisionSectionHeader(
                   title: 'Approval Revisi Countdown',
                   subtitle: 'Belum ada pengajuan revisi yang menunggu ACC PM.',
@@ -320,18 +327,18 @@ class _CountdownPageState extends State<CountdownPage> {
             if (mounted) setState(() {});
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
             children: [
-              const _RevisionSectionHeader(
+              _RevisionSectionHeader(
                 title: 'Approval Revisi Countdown',
                 subtitle:
                     'List divisi dan pengajuan revisi yang menunggu ACC PM.',
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               ...divisions.map((division) {
                 final divisionRequests = grouped[division]!;
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
+                  margin: EdgeInsets.only(bottom: 10),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
                     borderRadius: BorderRadius.circular(12),
@@ -342,7 +349,7 @@ class _CountdownPageState extends State<CountdownPage> {
                     iconColor: AppColors.gold,
                     title: Text(
                       division,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -350,12 +357,12 @@ class _CountdownPageState extends State<CountdownPage> {
                     ),
                     subtitle: Text(
                       '${divisionRequests.length} pengajuan',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                       ),
                     ),
-                    childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    childrenPadding: EdgeInsets.fromLTRB(12, 0, 12, 12),
                     children: divisionRequests.map((request) {
                       final fallbackUnit = CountdownUnit(
                         carId: request.carId,
@@ -385,8 +392,8 @@ class _CountdownPageState extends State<CountdownPage> {
 
   Widget _buildRevisionRequestCard(CountdownJobdesc request, String unitName) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(10),
@@ -397,48 +404,48 @@ class _CountdownPageState extends State<CountdownPage> {
         children: [
           Text(
             '$unitName • ${request.panelName}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             request.jobdesc,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             'Pengaju: ${request.requestedRevisionByName ?? '-'} • ${request.requestedRevisionAt?.toString().split(' ')[0] ?? '-'}',
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             'Jam diajukan: ${(request.requestedRevisionHours ?? 0).toStringAsFixed(1)} jam',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               color: AppColors.orange,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             'Deadline saat ini ${request.deadlineDate} -> usulan ${request.requestedRevisionDeadline ?? '-'}',
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             'Alasan: ${request.requestedRevisionReason ?? '-'}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -450,7 +457,7 @@ class _CountdownPageState extends State<CountdownPage> {
                       _revisionListVersion++;
                     });
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
+                      SnackBar(
                         content: Text('Pengajuan revisi ditolak.'),
                       ),
                     );
@@ -458,12 +465,12 @@ class _CountdownPageState extends State<CountdownPage> {
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.statusLocked,
-                    side: const BorderSide(color: AppColors.statusLocked),
+                    side: BorderSide(color: AppColors.statusLocked),
                   ),
-                  child: const Text('Tolak'),
+                  child: Text('Tolak'),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: FilledButton(
                   onPressed: () => _showApproveRevisionDialog(request),
@@ -471,7 +478,7 @@ class _CountdownPageState extends State<CountdownPage> {
                     backgroundColor: AppColors.statusDone,
                     foregroundColor: AppColors.background,
                   ),
-                  child: const Text('ACC'),
+                  child: Text('ACC'),
                 ),
               ),
             ],
@@ -508,7 +515,7 @@ class _CountdownPageState extends State<CountdownPage> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surfaceCard,
-          title: const Text(
+          title: Text(
             'ACC Revisi Countdown',
             style: TextStyle(color: AppColors.textPrimary),
           ),
@@ -522,43 +529,43 @@ class _CountdownPageState extends State<CountdownPage> {
                     (u) => u.carId == request.carId,
                     orElse: () => CountdownUnit(carId: request.carId, unitName: "-", owner: "", progress: 0, status: "", division: ""),
                   ).unitName} • ${request.panelName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   request.jobdesc,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 TextField(
                   controller: approvedHoursCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(
+                  keyboardType: TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Jam Disetujui',
                     helperText: 'PM bisa edit jam sebelum ACC.',
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text(
+                  title: Text(
                     'Deadline Disetujui',
                     style: TextStyle(color: AppColors.textPrimary),
                   ),
                   subtitle: Text(
                     _formatDate(approvedDeadline),
-                    style: const TextStyle(color: AppColors.textMuted),
+                    style: TextStyle(color: AppColors.textMuted),
                   ),
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.calendar_today_rounded,
                     color: AppColors.gold,
                     size: 18,
@@ -581,7 +588,7 @@ class _CountdownPageState extends State<CountdownPage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal'),
+              child: Text('Batal'),
             ),
             FilledButton(
               onPressed: () async {
@@ -590,7 +597,7 @@ class _CountdownPageState extends State<CountdownPage> {
                 );
                 if (approvedHours == null || approvedHours < 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Jam disetujui tidak valid.')),
+                    SnackBar(content: Text('Jam disetujui tidak valid.')),
                   );
                   return;
                 }
@@ -606,7 +613,7 @@ class _CountdownPageState extends State<CountdownPage> {
                 backgroundColor: AppColors.statusDone,
                 foregroundColor: AppColors.background,
               ),
-              child: const Text('ACC'),
+              child: Text('ACC'),
             ),
           ],
         ),
@@ -618,7 +625,7 @@ class _CountdownPageState extends State<CountdownPage> {
         _revisionListVersion++;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pengajuan revisi berhasil di-ACC.')),
+        SnackBar(content: Text('Pengajuan revisi berhasil di-ACC.')),
       );
       await _loadUnits();
     }
@@ -703,7 +710,7 @@ class _RevisionSectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -714,16 +721,16 @@ class _RevisionSectionHeader extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
         ],
       ),

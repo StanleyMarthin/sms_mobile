@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/time_parser.dart';
 import '../../../../core/widgets/duration_input.dart';
@@ -84,11 +85,11 @@ class _QcTabState extends State<QcTab> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(child: CircularProgressIndicator());
     }
 
     if (_divisions.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -108,9 +109,9 @@ class _QcTabState extends State<QcTab> {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       itemCount: _divisions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, __) => SizedBox(height: 12),
       itemBuilder: (context, i) {
         final div = _divisions[i];
         return InkWell(
@@ -127,7 +128,7 @@ class _QcTabState extends State<QcTab> {
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -141,18 +142,18 @@ class _QcTabState extends State<QcTab> {
                     children: [
                       Text(
                         div.divisionName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         div.totalItem > 0
                             ? '${div.totalItem} antrian pekerjaan'
                             : 'Ketuk untuk memuat antrian QC',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           color: AppColors.textMuted,
                         ),
@@ -284,9 +285,9 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
         backgroundColor: AppColors.surfaceCard,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(child: CircularProgressIndicator())
           : _unitGroups.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'Tidak ada unit menunggu QC.',
                 style: TextStyle(color: AppColors.textMuted),
@@ -294,9 +295,9 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
             )
           : ListView.separated(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(16),
               itemCount: _unitGroups.length + (_hasMore ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, __) => SizedBox(height: 12),
               itemBuilder: (ctx, i) {
                 if (i == _unitGroups.length) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -304,7 +305,7 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
                       _loadMoreUnits();
                     }
                   });
-                  return const Padding(
+                  return Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Center(
                       child: SizedBox(
@@ -335,7 +336,7 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
                   },
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding: const EdgeInsets.all(16),
+                    padding: EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceCard,
                       borderRadius: BorderRadius.circular(12),
@@ -349,14 +350,14 @@ class _QcUnitsPageState extends State<QcUnitsPage> {
                             children: [
                               Text(
                                 unit.unitName,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
                                   color: AppColors.textPrimary,
                                 ),
                               ),
-                              const SizedBox(height: 4),
-                              const Text(
+                              SizedBox(height: 4),
+                              Text(
                                 'Ketuk untuk memuat jobdesc QC',
                                 style: TextStyle(
                                   fontSize: 12,
@@ -425,7 +426,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
+    _debounce = Timer(Duration(milliseconds: 500), () {
       if (query.isNotEmpty && query.length >= 3) {
         _loadItems(search: query);
       } else if (query.isEmpty) {
@@ -530,10 +531,10 @@ class _QcItemsPageState extends State<QcItemsPage> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.unitName, style: const TextStyle(fontSize: 16)),
+            Text(widget.unitName, style: TextStyle(fontSize: 16)),
             Text(
               'Divisi ${widget.divisionName}',
-              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
           ],
         ),
@@ -542,15 +543,15 @@ class _QcItemsPageState extends State<QcItemsPage> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
               children: [
                 TextField(
                   controller: _searchCtrl,
-                  style: const TextStyle(color: AppColors.textPrimary),
+                  style: TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Cari panel/section/pekerjaan...',
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       Icons.search,
                       color: AppColors.textMuted,
                     ),
@@ -558,7 +559,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
                         ? null
                         : IconButton(
                             tooltip: 'Bersihkan pencarian',
-                            icon: const Icon(Icons.close_rounded, size: 18),
+                            icon: Icon(Icons.close_rounded, size: 18),
                             color: AppColors.textMuted,
                             onPressed: () {
                               _searchCtrl.clear();
@@ -571,21 +572,21 @@ class _QcItemsPageState extends State<QcItemsPage> {
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    contentPadding: EdgeInsets.symmetric(vertical: 0),
                   ),
                   onChanged: (value) {
                     setState(() {});
                     _onSearchChanged(value);
                   },
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _buildCompactFilters(activeFilterCount),
               ],
             ),
           ),
           Expanded(
             child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
+                ? Center(child: CircularProgressIndicator())
                 : _buildList(_visibleItems, canSubmit),
           ),
         ],
@@ -608,7 +609,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
                   selected: true,
                   onTap: () {},
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 PopupMenuButton<String>(
                   tooltip: 'Filter panel',
                   onSelected: (value) => setState(() => _selectedPanel = value),
@@ -627,11 +628,11 @@ class _QcItemsPageState extends State<QcItemsPage> {
                     onTap: null,
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 PopupMenuButton<String>(
                   tooltip: 'Urutkan',
                   onSelected: (value) => setState(() => _sortMode = value),
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(value: 'panel_asc', child: Text('Panel A-Z')),
                     PopupMenuItem(value: 'job_asc', child: Text('Job A-Z')),
                     PopupMenuItem(
@@ -654,7 +655,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         IconButton(
           tooltip: activeFilterCount > 0 ? 'Reset filter' : 'Refresh data',
           onPressed: activeFilterCount > 0 ? _resetFilters : () => _loadItems(),
@@ -665,7 +666,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
             size: 20,
           ),
           color: activeFilterCount > 0 ? AppColors.gold : AppColors.textMuted,
-          constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+          constraints: BoxConstraints.tightFor(width: 40, height: 40),
           padding: EdgeInsets.zero,
         ),
       ],
@@ -674,7 +675,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
 
   Widget _buildList(List<QcItem> items, bool canSubmit) {
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           'Tidak ada data.',
           style: TextStyle(color: AppColors.textMuted),
@@ -682,7 +683,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: EdgeInsets.symmetric(horizontal: 16),
       itemCount: items.length,
       itemBuilder: (ctx, i) {
         final item = items[i];
@@ -730,8 +731,8 @@ class _MiniFilterButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(20),
       child: Container(
         height: 36,
-        constraints: const BoxConstraints(maxWidth: 132),
-        padding: const EdgeInsets.symmetric(horizontal: 10),
+        constraints: BoxConstraints(maxWidth: 132),
+        padding: EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: selected
               ? AppColors.gold.withValues(alpha: 0.12)
@@ -747,7 +748,7 @@ class _MiniFilterButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: 16, color: color),
-            const SizedBox(width: 6),
+            SizedBox(width: 6),
             Flexible(
               child: Text(
                 label,
@@ -954,7 +955,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
             },
             body: bytes,
           )
-          .timeout(const Duration(seconds: 60));
+          .timeout(Duration(seconds: 60));
 
       if (response.statusCode == 200 || response.statusCode == 204) {
         return publicUrl;
@@ -1060,9 +1061,9 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
       });
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Gagal: $e'),
+          content: Text(friendlyMessage(e, fallback: 'Gagal upload foto')),
           backgroundColor: AppColors.statusLocked,
-          duration: const Duration(seconds: 4),
+          duration: Duration(seconds: 4),
         ),
       );
     }
@@ -1076,7 +1077,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
           _selectedUserId == null ||
           (_reworkHours == null || _reworkHours == 0)) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Tanggal, pekerja, dan jam rework wajib diisi.'),
           ),
         );
@@ -1129,7 +1130,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Gagal submit: $e'),
+          content: Text(friendlyMessage(e, fallback: 'Gagal submit QC')),
           backgroundColor: AppColors.statusLocked,
         ),
       );
@@ -1146,14 +1147,14 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
         backgroundColor: AppColors.surfaceCard,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header Pekerjaan
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: widget.passed
                     ? AppColors.statusDone.withValues(alpha: 0.1)
@@ -1170,12 +1171,12 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 children: [
                   Text(
                     widget.item.panelName,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     widget.item.jobName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
@@ -1183,14 +1184,14 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 ],
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
 
             // Form
             TextField(
               controller: _notesCtrl,
               minLines: 2,
               maxLines: 4,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 labelText: 'Catatan QC',
                 filled: true,
@@ -1201,7 +1202,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
 
             TextField(
               controller: _durationCtrl,
@@ -1210,7 +1211,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(4),
               ],
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 labelText: 'Durasi QC (menit)',
                 filled: true,
@@ -1221,17 +1222,17 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
 
             // Foto
-            const Text(
+            Text(
               'Dokumentasi Foto',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppColors.textSecondary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
 
             _PhotoPickerRow(
               label: 'Foto QC 1 ',
@@ -1240,7 +1241,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               isUploading: _isUploadingBefore,
               onPick: () => _pickAndUpload(true),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             _PhotoPickerRow(
               label: 'Foto QC 2 ',
               url: _evidencePhotoUrl,
@@ -1250,20 +1251,20 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
             ),
 
             if (!widget.passed && _needsDirectReworkPlan) ...[
-              const SizedBox(height: 24),
-              const Text(
+              SizedBox(height: 24),
+              Text(
                 'Jadwal Pengerjaan Ulang',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: AppColors.statusLocked,
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               InkWell(
                 onTap: () async {
                   final picked = await showDatePicker(
                     context: context,
-                    initialDate: DateTime.now().add(const Duration(days: 1)),
+                    initialDate: DateTime.now().add(Duration(days: 1)),
                     firstDate: DateTime(2025),
                     lastDate: DateTime(2028),
                   );
@@ -1293,7 +1294,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _selectedUserId,
                 decoration: InputDecoration(
@@ -1313,19 +1314,19 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                     value: id.isNotEmpty ? id : null,
                     child: Text(
                       name,
-                      style: const TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(color: AppColors.textPrimary),
                     ),
                   );
                 }).toList(),
                 onChanged: (val) {
                   setState(() => _selectedUserId = val);
                 },
-                hint: const Text(
+                hint: Text(
                   'Pilih anggota',
                   style: TextStyle(color: AppColors.textMuted),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               DurationInput(
                 initialHours: _reworkHours,
                 isTripleHours: false,
@@ -1336,10 +1337,10 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
               ),
             ],
             if (!widget.passed && !_needsDirectReworkPlan) ...[
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.statusLocked.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(8),
@@ -1347,14 +1348,14 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                     color: AppColors.statusLocked.withValues(alpha: 0.2),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'Reject pada level ini hanya mengirim pemberitahuan ke KD. Jobdesc penyempurnaan dan penjadwalan tindak lanjut dibuat oleh KD.',
                   style: TextStyle(color: AppColors.textSecondary, height: 1.4),
                 ),
               ),
             ],
 
-            const SizedBox(height: 40),
+            SizedBox(height: 40),
 
             SizedBox(
               width: double.infinity,
@@ -1375,7 +1376,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                   ),
                 ),
                 child: _isSubmitting
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 24,
                         height: 24,
                         child: CircularProgressIndicator(
@@ -1383,7 +1384,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
+                    : Text(
                         'Kirim Hasil QC',
                         style: TextStyle(
                           fontSize: 15,
@@ -1392,7 +1393,7 @@ class _QcSubmitPageState extends State<QcSubmitPage> {
                       ),
               ),
             ),
-            const SizedBox(height: 20),
+            SizedBox(height: 20),
           ],
         ),
       ),
@@ -1423,7 +1424,7 @@ class _PhotoPickerRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(8),
@@ -1443,7 +1444,7 @@ class _PhotoPickerRow extends StatelessWidget {
                 ),
               ),
               if (isUploading)
-                const SizedBox(
+                SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2),
@@ -1451,7 +1452,7 @@ class _PhotoPickerRow extends StatelessWidget {
               else if (url == null)
                 InkWell(
                   onTap: onPick,
-                  child: const Icon(
+                  child: Icon(
                     Icons.camera_alt_outlined,
                     color: AppColors.gold,
                     size: 24,
@@ -1460,7 +1461,7 @@ class _PhotoPickerRow extends StatelessWidget {
               else
                 InkWell(
                   onTap: onPick,
-                  child: const Icon(
+                  child: Icon(
                     Icons.refresh_rounded,
                     color: AppColors.textMuted,
                     size: 24,
@@ -1470,7 +1471,7 @@ class _PhotoPickerRow extends StatelessWidget {
           ),
         ),
         if (url != null && localFile != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: Image.file(
@@ -1485,7 +1486,7 @@ class _PhotoPickerRow extends StatelessWidget {
                 height: 180,
                 color: AppColors.background,
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.broken_image,
                   color: AppColors.textMuted,
                   size: 32,
@@ -1539,7 +1540,7 @@ class _QcCard extends StatelessWidget {
     final canAct = canSubmit && isAntrian;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -1549,13 +1550,13 @@ class _QcCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+            padding: EdgeInsets.fromLTRB(14, 14, 14, 8),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     item.panelName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -1565,7 +1566,7 @@ class _QcCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 3,
                   ),
@@ -1586,35 +1587,35 @@ class _QcCard extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            padding: EdgeInsets.symmetric(horizontal: 14),
             child: Text(
               item.jobName,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textSecondary,
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             child: Text(
               'Sisa Jam: ${(item.remainingHours ?? 0).toStringAsFixed(1)} h',
-              style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
           ),
           if (item.qcNotes != null && item.qcNotes!.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+              padding: EdgeInsets.fromLTRB(14, 0, 14, 8),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceInput,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   'Catatan Pengecekan: ${item.qcNotes}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textPrimary,
                     fontStyle: FontStyle.italic,
@@ -1624,23 +1625,23 @@ class _QcCard extends StatelessWidget {
             ),
           if (canAct)
             Padding(
-              padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
+              padding: EdgeInsets.fromLTRB(14, 4, 14, 14),
               child: Row(
                 children: [
                   Expanded(
                     child: OutlinedButton(
                       onPressed: () => onAction(false),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.statusLocked),
+                        side: BorderSide(color: AppColors.statusLocked),
                         foregroundColor: AppColors.statusLocked,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text('Tidak Lolos'),
+                      child: Text('Tidak Lolos'),
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: FilledButton(
                       onPressed: () => onAction(true),
@@ -1650,13 +1651,13 @@ class _QcCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: const Text('Lolos'),
+                      child: Text('Lolos'),
                     ),
                   ),
                 ],
               ),
             ),
-          if (!canAct) const SizedBox(height: 6),
+          if (!canAct) SizedBox(height: 6),
         ],
       ),
     );

@@ -108,7 +108,7 @@ class TaskCheckpointReviewerModel {
   final String role;
   final String name;
 
-  const TaskCheckpointReviewerModel({required this.role, required this.name});
+  TaskCheckpointReviewerModel({required this.role, required this.name});
 
   factory TaskCheckpointReviewerModel.fromJson(Map<String, dynamic> json) {
     return TaskCheckpointReviewerModel(
@@ -134,7 +134,7 @@ class TaskCheckpointSessionModel {
   final String actorName;
   final List<TaskCheckpointReviewerModel> reviewers;
 
-  const TaskCheckpointSessionModel({
+  TaskCheckpointSessionModel({
     required this.sessionNumber,
     required this.startWorkTime,
     required this.finishWorkTime,
@@ -202,7 +202,7 @@ class TaskCheckpointSessionModel {
           ? reviewerItems
           : (legacyValidated && legacyRole != null && legacyName != null)
           ? [TaskCheckpointReviewerModel(role: legacyRole, name: legacyName)]
-          : const [],
+          : [],
     );
   }
 
@@ -239,7 +239,7 @@ class TaskFinalValidationModel {
   final String time;
   final bool approved;
 
-  const TaskFinalValidationModel({
+  TaskFinalValidationModel({
     required this.role,
     required this.name,
     required this.note,
@@ -279,7 +279,7 @@ class TaskDivisionModel {
   final String divisionId;
   final String divisionName;
 
-  const TaskDivisionModel({
+  TaskDivisionModel({
     required this.divisionId,
     required this.divisionName,
   });
@@ -305,7 +305,7 @@ class TaskUnitModel {
   final String unitId;
   final String unitName;
 
-  const TaskUnitModel({required this.unitId, required this.unitName});
+  TaskUnitModel({required this.unitId, required this.unitName});
 
   factory TaskUnitModel.fromJson(Map<String, dynamic> json) {
     return TaskUnitModel(
@@ -324,7 +324,7 @@ class TaskEmployeeModel {
   final String employeeId;
   final String employeeName;
 
-  const TaskEmployeeModel({
+  TaskEmployeeModel({
     required this.employeeId,
     required this.employeeName,
   });
@@ -360,7 +360,7 @@ class TaskDetailModel {
   final double totalActualHours;
   final String note;
 
-  const TaskDetailModel({
+  TaskDetailModel({
     required this.namaPanel,
     required this.jobName,
     required this.jobDescription,
@@ -382,7 +382,7 @@ class TaskDetailModel {
     String? topLevelFinish,
     Map<String, dynamic>? cumulativeJson,
   }) {
-    final cumulative = cumulativeJson ?? const <String, dynamic>{};
+    final cumulative = cumulativeJson ?? <String, dynamic>{};
     final targetHours =
         _pickHours([
           json['targetHours'],
@@ -523,7 +523,7 @@ class ViewTaskModel {
   final List<String> photosProcess;
   final List<String> photosAfter;
 
-  const ViewTaskModel({
+  ViewTaskModel({
     required this.planDailyId,
     required this.division,
     required this.unit,
@@ -541,9 +541,9 @@ class ViewTaskModel {
   factory ViewTaskModel.fromJson(Map<String, dynamic> json) {
     final taskJson = json['task'] as Map<String, dynamic>? ?? {};
     final planDailyJson =
-        json['planDaily'] as Map<String, dynamic>? ?? const {};
+        json['planDaily'] as Map<String, dynamic>? ?? {};
     final cumulativeJson =
-        json['countdownCumulative'] as Map<String, dynamic>? ?? const {};
+        json['countdownCumulative'] as Map<String, dynamic>? ?? {};
     final checkpointItems =
         (json['checkpointHistory'] as List<dynamic>? ?? [])
             .whereType<Map<String, dynamic>>()
@@ -650,7 +650,7 @@ class ViewTaskModel {
                 approved: true,
               ),
             ]
-          : const [],
+          : [],
       maxCheckpointSessions: _asInt(json['maxCheckpointSessions'], fallback: 3),
       photosBefore: pBefore,
       photosProcess: pProcess,

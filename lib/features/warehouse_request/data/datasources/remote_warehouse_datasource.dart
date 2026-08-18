@@ -9,7 +9,7 @@ import '../../../../core/session/session_manager.dart';
 import 'warehouse_request_datasource.dart';
 
 class RemoteWarehouseDataSource implements WarehouseDataSource {
-  const RemoteWarehouseDataSource({
+  RemoteWarehouseDataSource({
     required this.apiClient,
     required this.sessionManager,
   });
@@ -97,15 +97,17 @@ class RemoteWarehouseDataSource implements WarehouseDataSource {
   Future<List<Map<String, dynamic>>> searchItems({
     required String query,
     String? category,
+    String? carId,
   }) async {
     final uid = _userId;
-    if (uid.isEmpty || query.trim().isEmpty) return [];
+    if (uid.isEmpty || (query.trim().isEmpty && carId == null)) return [];
     final res = await apiClient.get(
       ApiEndpoints.warehouseItemsSearch,
       queryParameters: {
         'userId': uid,
         'q': query.trim(),
         if (category != null && category.isNotEmpty) 'category': category,
+        if (carId != null && carId.isNotEmpty) 'carId': carId,
       },
     );
     final data = (res.data as Map<String, dynamic>?) ?? {};

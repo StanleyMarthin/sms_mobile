@@ -6,6 +6,8 @@ import '../../../job_plan/domain/repositories/job_plan_repository.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
+import '../../../../core/utils/snackbar_helper.dart';
 import '../utils/countdown_helper.dart';
 import '../widgets/countdown_shared.dart';
 import '../widgets/countdown_detail_sheet.dart';
@@ -47,12 +49,21 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
 
   Future<void> _loadData() async {
     // Level 2: hanya tarik list divisi
-    final data = await widget.repository.getDivisions(widget.unit.carId);
-    if (!mounted) return;
-    setState(() {
-      _divisions = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await widget.repository.getDivisions(widget.unit.carId);
+      if (!mounted) return;
+      setState(() {
+        _divisions = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat data'),
+      );
+    }
   }
 
   @override
@@ -65,7 +76,7 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
           backgroundColor: AppColors.surfaceCard,
           foregroundColor: AppColors.textPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -88,8 +99,8 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -100,19 +111,19 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
               children: [
                 Text(
                   widget.unit.unitName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
                     if (widget.unit.contractDeliveryDate != null)
                       Container(
-                        padding: const EdgeInsets.symmetric(
+                        padding: EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 5,
                         ),
@@ -125,7 +136,7 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
                         ),
                         child: Text(
                           'DL ${widget.unit.contractDeliveryDate}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                             color: AppColors.orange,
@@ -135,7 +146,7 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
                     CountdownStatusChip(status: widget.effectiveUnitStatus),
                   ],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -146,10 +157,10 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${(overallProgress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -157,10 +168,10 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '${_divisions.length} divisi',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -168,7 +179,7 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
               ],
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Text(
               'Pilih divisi untuk lanjut ke Section',
@@ -177,7 +188,7 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: _divisions.length,
               itemBuilder: (_, index) {
                 final div = _divisions[index];
@@ -278,17 +289,26 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
 
   Future<void> _loadSections() async {
     // Level 3: hanya tarik list section untuk divisi ini
-    final data = await widget.repository.getSections(
-      carId: widget.unit.carId,
-      divisionId: widget.division.divisionId,
-      search: _searchQuery,
-      status: _selectedStatus,
-    );
-    if (!mounted) return;
-    setState(() {
-      _sections = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await widget.repository.getSections(
+        carId: widget.unit.carId,
+        divisionId: widget.division.divisionId,
+        search: _searchQuery,
+        status: _selectedStatus,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sections = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat data'),
+      );
+    }
   }
 
   @override
@@ -301,7 +321,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
           backgroundColor: AppColors.surfaceCard,
           foregroundColor: AppColors.textPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -326,8 +346,8 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -338,13 +358,13 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
               children: [
                 Text(
                   '${widget.unit.unitName} • ${widget.division.divisionName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -355,20 +375,20 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${(progress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemainingHours)} sisa',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -378,23 +398,23 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
           ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
             child: Row(
               children: [
                 _buildFilterChip('Semua', 'all'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Plan', 'plan'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Proses', 'proses'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Menunggu QC', 'qcready'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Selesai', 'done'),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(
+            padding: EdgeInsets.symmetric(
               horizontal: 16.0,
               vertical: 8.0,
             ),
@@ -408,7 +428,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                   return;
                 }
                 if (value.length < 3) return;
-                _debounce = Timer(const Duration(milliseconds: 600), () {
+                _debounce = Timer(Duration(milliseconds: 600), () {
                   setState(() => _searchQuery = value);
                   _loadSections();
                 });
@@ -416,18 +436,18 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Cari nama panel/part...',
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   color: AppColors.textMuted,
                   fontSize: 13,
                 ),
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
                   color: AppColors.textMuted,
                   size: 20,
                 ),
                 suffixIcon: _searchCtrl.text.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.clear,
                           size: 18,
                           color: AppColors.textMuted,
@@ -441,29 +461,29 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                     : null,
                 filled: true,
                 fillColor: AppColors.surfaceInput,
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding: EdgeInsets.symmetric(
                   vertical: 0,
                   horizontal: 16,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: AppColors.gold),
+                  borderSide: BorderSide(color: AppColors.gold),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: _sections.length,
               itemBuilder: (_, index) {
                 final sec = _sections[index];
@@ -532,16 +552,25 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
 
   Future<void> _loadJobdescs() async {
     // Level 4: tarik jobdesc per panel_id
-    final data = await widget.repository.getJobdescs(
-      carId: widget.unit.carId,
-      divisionId: widget.division.divisionId,
-      panelId: widget.section.panelId,
-    );
-    if (!mounted) return;
-    setState(() {
-      _items = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await widget.repository.getJobdescs(
+        carId: widget.unit.carId,
+        divisionId: widget.division.divisionId,
+        panelId: widget.section.panelId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _items = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat data'),
+      );
+    }
   }
 
   @override
@@ -554,7 +583,7 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
           backgroundColor: AppColors.surfaceCard,
           foregroundColor: AppColors.textPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -595,8 +624,8 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -607,21 +636,21 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
               children: [
                 Text(
                   '${widget.unit.unitName} • ${widget.division.divisionName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   widget.section.sectionName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -632,20 +661,20 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${(progress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '$doneCount/$totalItems jobdesc selesai',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -653,10 +682,10 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: filteredItems.length,
               itemBuilder: (_, index) {
                 final item = filteredItems[index];
@@ -744,7 +773,7 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Aktual (Countdown Detail)'),
+        title: Text('Aktual (Countdown Detail)'),
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
       ),
@@ -753,8 +782,8 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -765,24 +794,24 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
               children: [
                 Text(
                   '${widget.item.panelName} • ${widget.item.jobdesc}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   'Status: $status • DL ${widget.item.deadlineDate}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '${widget.item.progress}% • ${widget.item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(widget.item.remainingHours)} sisa',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -795,12 +824,12 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
               future: _detailsFuture,
               builder: (_, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(child: CircularProgressIndicator());
                 }
 
-                final details = snapshot.data ?? const <CountdownDetailItem>[];
+                final details = snapshot.data ?? <CountdownDetailItem>[];
                 if (details.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Text(
                       'Belum ada aktual (countdown detail) untuk jobdesc ini.',
                       style: TextStyle(
@@ -812,13 +841,13 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                   itemCount: details.length,
                   itemBuilder: (_, index) {
                     final detail = details[index];
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(10),
+                      margin: EdgeInsets.only(bottom: 8),
+                      padding: EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceCard,
                         borderRadius: BorderRadius.circular(10),
@@ -829,24 +858,24 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
                         children: [
                           Text(
                             detail.employeeName,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             '${detail.job} • ${detail.detailJob}',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          SizedBox(height: 3),
                           Text(
                             '${detail.workDate} ${detail.startTime}-${detail.finishTime} • ${detail.durationHours.toStringAsFixed(1)} jam • ${detail.percentage.toStringAsFixed(0)}%',
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10,
                               color: AppColors.textMuted,
                             ),
@@ -897,12 +926,21 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
 
   Future<void> _loadData() async {
     // Level 2: list divisi saja
-    final data = await widget.repository.getDivisions(widget.unit.carId);
-    if (!mounted) return;
-    setState(() {
-      _divisions = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await widget.repository.getDivisions(widget.unit.carId);
+      if (!mounted) return;
+      setState(() {
+        _divisions = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat data'),
+      );
+    }
   }
 
   @override
@@ -915,7 +953,7 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
           backgroundColor: AppColors.surfaceCard,
           foregroundColor: AppColors.textPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -937,8 +975,8 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -949,12 +987,12 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
               children: [
                 Text(
                   widget.unit.unitName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
@@ -965,10 +1003,10 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${(overallProgress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
@@ -976,10 +1014,10 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '${_divisions.length} divisi',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -989,7 +1027,7 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: _divisions.length,
               itemBuilder: (_, index) {
                 final div = _divisions[index];
@@ -1056,15 +1094,24 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
   }
 
   Future<void> _loadSections() async {
-    final data = await widget.repository.getSections(
-      carId: widget.unit.carId,
-      divisionId: widget.division.divisionId,
-    );
-    if (!mounted) return;
-    setState(() {
-      _sections = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await widget.repository.getSections(
+        carId: widget.unit.carId,
+        divisionId: widget.division.divisionId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sections = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat data'),
+      );
+    }
   }
 
   @override
@@ -1077,7 +1124,7 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
           backgroundColor: AppColors.surfaceCard,
           foregroundColor: AppColors.textPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -1107,8 +1154,8 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -1119,13 +1166,13 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
               children: [
                 Text(
                   '${widget.unit.unitName} • ${widget.division.divisionName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -1136,20 +1183,20 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${(progress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemaining)} sisa',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -1158,15 +1205,15 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Cari Panel/Part',
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   fontSize: 13,
                   color: AppColors.textMuted,
                 ),
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
                   color: AppColors.textMuted,
                   size: 20,
@@ -1174,34 +1221,34 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding: EdgeInsets.symmetric(
                   vertical: 10,
                   horizontal: 16,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.gold),
+                  borderSide: BorderSide(color: AppColors.gold),
                 ),
               ),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textPrimary,
               ),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: filteredSections.length,
               itemBuilder: (_, index) {
                 final sec = filteredSections[index];
@@ -1272,16 +1319,25 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
 
   Future<void> _loadJobdescs() async {
     // Level 4: list jobdesc per panel
-    final data = await widget.repository.getJobdescs(
-      carId: widget.unit.carId,
-      divisionId: widget.division.divisionId,
-      panelId: widget.section.panelId,
-    );
-    if (!mounted) return;
-    setState(() {
-      _items = data;
-      _isLoading = false;
-    });
+    try {
+      final data = await widget.repository.getJobdescs(
+        carId: widget.unit.carId,
+        divisionId: widget.division.divisionId,
+        panelId: widget.section.panelId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _items = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat data'),
+      );
+    }
   }
 
   @override
@@ -1294,7 +1350,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
           backgroundColor: AppColors.surfaceCard,
           foregroundColor: AppColors.textPrimary,
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -1349,8 +1405,8 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
         children: [
           Container(
             width: double.infinity,
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: const EdgeInsets.all(12),
+            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.circular(12),
@@ -1361,21 +1417,21 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
               children: [
                 Text(
                   widget.unit.unitName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   widget.section.sectionName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -1386,20 +1442,20 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${(progress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '$doneCount/$totalItems jobdesc selesai',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -1409,31 +1465,31 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
           ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
             child: Row(
               children: [
                 _buildFilterChip('Semua', 'all'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Plan', 'plan'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Proses', 'proses'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Menunggu QC', 'qcready'),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 _buildFilterChip('Selesai', 'done'),
               ],
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Cari jobdesc...',
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                   fontSize: 13,
                   color: AppColors.textMuted,
                 ),
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.search,
                   color: AppColors.textMuted,
                   size: 20,
@@ -1441,24 +1497,24 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                 filled: true,
                 fillColor: AppColors.surfaceInput,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
+                contentPadding: EdgeInsets.symmetric(
                   vertical: 10,
                   horizontal: 16,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border),
+                  borderSide: BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.gold),
+                  borderSide: BorderSide(color: AppColors.gold),
                 ),
               ),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 color: AppColors.textPrimary,
               ),
@@ -1467,7 +1523,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
           ),
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: filteredItems.length,
               itemBuilder: (_, index) {
                 final item = filteredItems[index];
@@ -1550,8 +1606,8 @@ class _CountdownJobdescListCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(12),
+        margin: EdgeInsets.only(bottom: 8),
+        padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(10),
@@ -1565,32 +1621,32 @@ class _CountdownJobdescListCard extends StatelessWidget {
                 children: [
                   Text(
                     panelName,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  SizedBox(height: 3),
                   Text(
                     jobdesc,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       color: AppColors.textSecondary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       CountdownStatusChip(status: statusStr),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           subtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
                             color: AppColors.textMuted,
                           ),
@@ -1601,8 +1657,8 @@ class _CountdownJobdescListCard extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+            SizedBox(width: 8),
+            Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
           ],
         ),
       ),

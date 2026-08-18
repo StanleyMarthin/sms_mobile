@@ -16,7 +16,7 @@ class RemoteWovDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  const RemoteWovDataSource({
+  RemoteWovDataSource({
     required this.apiClient,
     required this.sessionManager,
   });

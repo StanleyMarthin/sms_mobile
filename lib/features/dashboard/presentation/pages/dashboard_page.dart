@@ -119,25 +119,25 @@ class _DashboardPageState extends State<DashboardPage>
         icon: Icons.dashboard_outlined,
         activeIcon: Icons.dashboard,
         label: 'Dashboard',
-        builder: () => const OperatorDashboardOverviewPage(),
+        builder: () => OperatorDashboardOverviewPage(),
       ),
       _DashTab(
         icon: Icons.assignment_outlined,
         activeIcon: Icons.assignment,
         label: 'Tugas',
-        builder: () => const TasksPage(),
+        builder: () => TasksPage(),
       ),
       _DashTab(
         icon: Icons.inventory_2_outlined,
         activeIcon: Icons.inventory_2,
         label: 'Gudang',
-        builder: () => const WarehouseRequestPage(),
+        builder: () => WarehouseRequestPage(),
       ),
       _DashTab(
         icon: Icons.person_outline_rounded,
         activeIcon: Icons.person_rounded,
         label: 'Profil',
-        builder: () => const ProfilePage(),
+        builder: () => ProfilePage(),
       ),
     ];
   }
@@ -152,7 +152,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.dashboard_outlined,
           activeIcon: Icons.dashboard,
           label: 'Dashboard',
-          builder: () => const MonitoringPage(),
+          builder: () => MonitoringPage(),
         ),
       );
     }
@@ -164,7 +164,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.directions_car_outlined,
           activeIcon: Icons.directions_car,
           label: 'Units',
-          builder: () => const CountdownPage(),
+          builder: () => CountdownPage(),
         ),
       );
     }
@@ -175,7 +175,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.checklist_outlined,
           activeIcon: Icons.checklist,
           label: 'Tasks',
-          builder: () => const TasksPage(),
+          builder: () => TasksPage(),
         ),
       );
     }
@@ -188,7 +188,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.event_note_outlined,
           activeIcon: Icons.event_note,
           label: 'Job Plan',
-          builder: () => const JobPlanPage(),
+          builder: () => JobPlanPage(),
         ),
       );
     }
@@ -201,7 +201,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.verified_outlined,
           activeIcon: Icons.verified,
           label: 'QC',
-          builder: () => const QcTab(),
+          builder: () => QcTab(),
         ),
       );
     }
@@ -213,7 +213,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.assignment_outlined,
           activeIcon: Icons.assignment,
           label: 'WO',
-          builder: () => const WorkOrderPage(),
+          builder: () => WorkOrderPage(),
         ),
       );
     }
@@ -224,7 +224,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.shopping_cart_outlined,
           activeIcon: Icons.shopping_cart,
           label: 'PR',
-          builder: () => const PrPage(),
+          builder: () => PrPage(),
         ),
       );
     }
@@ -235,7 +235,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.store_mall_directory_outlined,
           activeIcon: Icons.store_mall_directory,
           label: 'WO Vendor',
-          builder: () => const WovPage(),
+          builder: () => WovPage(),
         ),
       );
     }
@@ -248,7 +248,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.inventory_2_outlined,
           activeIcon: Icons.inventory_2,
           label: 'Warehouse',
-          builder: () => const WarehouseRequestPage(),
+          builder: () => WarehouseRequestPage(),
         ),
       );
     }
@@ -260,7 +260,7 @@ class _DashboardPageState extends State<DashboardPage>
           icon: Icons.person_outline_rounded,
           activeIcon: Icons.person_rounded,
           label: 'Profil',
-          builder: () => const ProfilePage(),
+          builder: () => ProfilePage(),
         ),
       );
     }
@@ -288,7 +288,7 @@ class _DashboardPageState extends State<DashboardPage>
         children: [
           Text(
             _session.fullName ?? roleName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.gold,
@@ -296,17 +296,17 @@ class _DashboardPageState extends State<DashboardPage>
           ),
           Text(
             roleName,
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
           Text(
             _session.divisionName ?? '',
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
         ],
       ),
       centerTitle: true,
       leading: IconButton(
-        icon: const Icon(
+        icon: Icon(
           Icons.arrow_back_ios_new_rounded,
           size: 20,
           color: AppColors.gold,
@@ -316,7 +316,7 @@ class _DashboardPageState extends State<DashboardPage>
       ),
       actions: [
         IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.logout_rounded,
             color: AppColors.textSecondary,
             size: 22,
@@ -334,7 +334,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   PreferredSizeWidget _buildTabBar() {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(49),
+      preferredSize: Size.fromHeight(49),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -346,11 +346,11 @@ class _DashboardPageState extends State<DashboardPage>
             indicatorWeight: 2,
             labelColor: AppColors.gold,
             unselectedLabelColor: AppColors.textDisabled,
-            labelStyle: const TextStyle(
+            labelStyle: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
-            unselectedLabelStyle: const TextStyle(
+            unselectedLabelStyle: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.normal,
             ),
@@ -363,7 +363,7 @@ class _DashboardPageState extends State<DashboardPage>
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(t.icon, size: 16),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(t.label),
                       ],
                     ),
@@ -378,7 +378,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   PreferredSizeWidget _buildDivider() {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(1),
+      preferredSize: Size.fromHeight(1),
       child: Container(height: 1, color: AppColors.border),
     );
   }
@@ -386,7 +386,7 @@ class _DashboardPageState extends State<DashboardPage>
   // ── Top Tab Body (KD/Advisor/PM) ─────────────────────────
   Widget _buildTopTabBody() {
     return TabBarView(
-      key: const PageStorageKey("dashboardTab"),
+      key: PageStorageKey("dashboardTab"),
       controller: _tabController,
       children: _tabs.map((t) => t.builder()).toList(),
     );
@@ -402,13 +402,13 @@ class _DashboardPageState extends State<DashboardPage>
 
   Widget _buildBottomNav() {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surfaceNav,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: EdgeInsets.symmetric(vertical: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(_tabs.length, (i) => _navItem(i, _tabs[i])),
@@ -424,7 +424,7 @@ class _DashboardPageState extends State<DashboardPage>
       onTap: () => setState(() => _currentIndex = index),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -433,7 +433,7 @@ class _DashboardPageState extends State<DashboardPage>
               size: 24,
               color: isActive ? AppColors.gold : AppColors.textDisabled,
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(
               tab.label,
               style: TextStyle(
@@ -457,7 +457,7 @@ class _DashTab {
   final String label;
   final Widget Function() builder;
 
-  const _DashTab({
+  _DashTab({
     required this.icon,
     required this.activeIcon,
     required this.label,

@@ -80,9 +80,9 @@ class _WoCreatePageState extends State<WoCreatePage> {
   Map<String, dynamic>? _selectedDiv;
   final List<_WoCreateItemDraft> _items = [_WoCreateItemDraft()];
 
-  DateTime _targetDate = DateTime.now().add(const Duration(days: 3));
+  DateTime _targetDate = DateTime.now().add(Duration(days: 3));
 
-  static const _categories = [
+  static final _categories = [
     'ENGINE',
     'UNDERCARRIAGE',
     'ELECTRICAL',
@@ -219,7 +219,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surfaceCard,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => StatefulBuilder(
@@ -235,7 +235,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
               heightFactor: 0.85,
               child: Column(
                 children: [
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Container(
                     height: 4,
                     width: 40,
@@ -244,31 +244,31 @@ class _WoCreatePageState extends State<WoCreatePage> {
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.symmetric(horizontal: 16),
                     child: Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: EdgeInsets.symmetric(horizontal: 16),
                     child: TextField(
                       autofocus: true,
                       onChanged: (v) => ss(() => query = v),
-                      style: const TextStyle(color: AppColors.textPrimary),
+                      style: TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Cari...',
-                        hintStyle: const TextStyle(
+                        hintStyle: TextStyle(
                           color: AppColors.textDisabled,
                         ),
-                        prefixIcon: const Icon(
+                        prefixIcon: Icon(
                           Icons.search_rounded,
                           color: AppColors.textMuted,
                         ),
@@ -276,42 +276,42 @@ class _WoCreatePageState extends State<WoCreatePage> {
                         fillColor: AppColors.surfaceInput,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderSide: BorderSide(color: AppColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.border),
+                          borderSide: BorderSide(color: AppColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(
+                          borderSide: BorderSide(
                             color: AppColors.gold,
                             width: 1.5,
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
+                        contentPadding: EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 12,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Expanded(
                     child: filtered.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
                               'Tidak ada hasil',
                               style: TextStyle(color: AppColors.textMuted),
                             ),
                           )
                         : ListView.separated(
-                            padding: const EdgeInsets.symmetric(
+                            padding: EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 4,
                             ),
                             itemCount: filtered.length,
-                            separatorBuilder: (_, __) => const Divider(
+                            separatorBuilder: (_, __) => Divider(
                               height: 1,
                               color: AppColors.border,
                             ),
@@ -321,14 +321,14 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                 contentPadding: EdgeInsets.zero,
                                 title: Text(
                                   label(item),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
                                 subtitle: sublabel != null
                                     ? Text(
                                         sublabel(item),
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
                                           color: AppColors.textMuted,
                                         ),
@@ -356,7 +356,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
       appBar: AppBar(
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
-        title: const Text(
+        title: Text(
           'Buat Work Order',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
@@ -364,15 +364,15 @@ class _WoCreatePageState extends State<WoCreatePage> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-            icon: const Icon(Icons.close_rounded),
+            icon: Icon(Icons.close_rounded),
             onPressed: () => Navigator.pop(context),
           ),
         ],
         elevation: 0,
-        shape: const Border(bottom: BorderSide(color: AppColors.border)),
+        shape: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       body: (_loading || _isSubmitting)
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : BlocListener<WorkOrderBloc, WorkOrderState>(
@@ -385,7 +385,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                 children: [
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                      padding: EdgeInsets.fromLTRB(16, 16, 16, 24),
                       children: [
                         // ── Unit ──────────────────────────────────────
                         _SectionCard(
@@ -419,7 +419,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                             },
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         // ── Divisi Tujuan ──────────────────────────────
                         _SectionCard(
@@ -440,11 +440,11 @@ class _WoCreatePageState extends State<WoCreatePage> {
                             },
                           ),
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
 
                         Row(
                           children: [
-                            const Text(
+                            Text(
                               'Daftar Pekerjaan',
                               style: TextStyle(
                                 fontSize: 11,
@@ -453,17 +453,17 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                 letterSpacing: 0.5,
                               ),
                             ),
-                            const Spacer(),
+                            Spacer(),
                             TextButton.icon(
                               onPressed: () => setState(
                                 () => _items.add(_WoCreateItemDraft()),
                               ),
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.add_rounded,
                                 size: 18,
                                 color: AppColors.gold,
                               ),
-                              label: const Text(
+                              label: Text(
                                 'Tambah Item',
                                 style: TextStyle(
                                   color: AppColors.gold,
@@ -487,14 +487,14 @@ class _WoCreatePageState extends State<WoCreatePage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
+                              Text(
                                 'PIC dan jam kerja akan ditentukan KD tujuan pada tahap approval WO.',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textMuted,
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              SizedBox(height: 12),
                               _TapField(
                                 icon: Icons.calendar_today_rounded,
                                 value:
@@ -508,11 +508,11 @@ class _WoCreatePageState extends State<WoCreatePage> {
                                     initialDate: _targetDate,
                                     firstDate: DateTime.now(),
                                     lastDate: DateTime.now().add(
-                                      const Duration(days: 365),
+                                      Duration(days: 365),
                                     ),
                                     builder: (ctx, child) => Theme(
                                       data: Theme.of(ctx).copyWith(
-                                        colorScheme: const ColorScheme.dark(
+                                        colorScheme: ColorScheme.dark(
                                           primary: AppColors.gold,
                                         ),
                                       ),
@@ -527,15 +527,15 @@ class _WoCreatePageState extends State<WoCreatePage> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: 24),
                       ],
                     ),
                   ),
 
                   // ── Submit bar ─────────────────────────────────────
                   Container(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                    decoration: const BoxDecoration(
+                    padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+                    decoration: BoxDecoration(
                       color: AppColors.surfaceCard,
                       border: Border(top: BorderSide(color: AppColors.border)),
                     ),
@@ -545,8 +545,8 @@ class _WoCreatePageState extends State<WoCreatePage> {
                         width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: _submit,
-                          icon: const Icon(Icons.send_rounded),
-                          label: const Text(
+                          icon: Icon(Icons.send_rounded),
+                          label: Text(
                             'Kirim Work Order',
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
@@ -556,7 +556,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.gold,
                             foregroundColor: AppColors.background,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -573,22 +573,22 @@ class _WoCreatePageState extends State<WoCreatePage> {
 
   InputDecoration _inputDeco(String hint) => InputDecoration(
     hintText: hint,
-    hintStyle: const TextStyle(color: AppColors.textDisabled),
+    hintStyle: TextStyle(color: AppColors.textDisabled),
     filled: true,
     fillColor: AppColors.surfaceInput,
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppColors.border),
+      borderSide: BorderSide(color: AppColors.border),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppColors.border),
+      borderSide: BorderSide(color: AppColors.border),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+      borderSide: BorderSide(color: AppColors.gold, width: 1.5),
     ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
   );
 
   Widget _buildWorkItemSection(int index, _WoCreateItemDraft item) {
@@ -596,28 +596,28 @@ class _WoCreatePageState extends State<WoCreatePage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: AppColors.gold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   'Item ${index + 1}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: AppColors.gold,
                   ),
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               if (_items.length > 1)
                 IconButton(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.remove_circle_outline_rounded,
                     size: 20,
                     color: AppColors.statusLocked,
@@ -631,9 +631,9 @@ class _WoCreatePageState extends State<WoCreatePage> {
           ),
         ),
         _buildPanelSectionCard(item),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
         _buildDetailCard(item),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
       ],
     );
   }
@@ -663,7 +663,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                 }
               },
             ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           CheckboxListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             dense: true,
@@ -676,7 +676,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                 item.sectionNameCtrl.clear();
               }
             }),
-            title: const Text(
+            title: Text(
               'Panel tidak ada di daftar (isi manual)',
               style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
@@ -684,15 +684,15 @@ class _WoCreatePageState extends State<WoCreatePage> {
           if (item.useFreeTextPanel) ...[
             TextField(
               controller: item.sectionNameCtrl,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
               decoration: _inputDeco('Nama Panel / Section'),
             ),
-            const SizedBox(height: 10),
-            const Text(
+            SizedBox(height: 10),
+            Text(
               'Panel manual akan otomatis ditambahkan ke master sesuai unit terpilih.',
               style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: item.selectedCategory,
               isExpanded: true,
@@ -708,7 +708,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                   .toList(),
               onChanged: (value) =>
                   setState(() => item.selectedCategory = value),
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           ],
         ],
@@ -725,14 +725,14 @@ class _WoCreatePageState extends State<WoCreatePage> {
           TextField(
             controller: item.jobDetailCtrl,
             maxLines: 4,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: AppColors.textPrimary),
             decoration: _inputDeco('Deskripsikan pekerjaan yang diperlukan...'),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           TextField(
             controller: item.quomCtrl,
             maxLines: 2,
-            style: const TextStyle(color: AppColors.textPrimary),
+            style: TextStyle(color: AppColors.textPrimary),
             decoration: _inputDeco('QUOM (opsional, akan masuk catatan)'),
           ),
         ],
@@ -761,17 +761,17 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(icon, size: 15, color: AppColors.gold),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: AppColors.gold,
@@ -780,7 +780,7 @@ class _SectionCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           child,
         ],
       ),
@@ -806,7 +806,7 @@ class _TapField extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: AppColors.surfaceInput,
           borderRadius: BorderRadius.circular(10),

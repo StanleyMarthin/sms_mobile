@@ -6,7 +6,7 @@ Main Functions: normalizeJobTypeNames, loadAdditionalJobTypeNames.
 Side Effects: Tidak ada; seluruh fungsi hanya transformasi data in-memory.
 */
 class JobPlanJobTypeHelper {
-  const JobPlanJobTypeHelper._();
+  JobPlanJobTypeHelper._();
 
   static String? _pickJobTypeName(Map<String, dynamic> item) {
     final raw =
@@ -47,6 +47,6 @@ class JobPlanJobTypeHelper {
     final dropdowns = await loadDropdowns(
       divisionId: normalizedDivisionId.isEmpty ? null : normalizedDivisionId,
     );
-    return normalizeJobTypeNames(dropdowns['jobTypes'] as List? ?? const []);
+    return normalizeJobTypeNames(dropdowns['jobTypes'] as List? ?? []);
   }
 }

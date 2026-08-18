@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 
 class TaskHierarchyLevel<T> {
-  const TaskHierarchyLevel({
+  TaskHierarchyLevel({
     required this.keyOf,
     required this.labelOf,
     required this.icon,
@@ -40,7 +40,7 @@ class ExpandableTaskHierarchy<T> extends StatelessWidget {
       return entries
           .map(
             (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: 8),
               child: itemBuilder(context, entry),
             ),
           )
@@ -62,7 +62,7 @@ class ExpandableTaskHierarchy<T> extends StatelessWidget {
       final countText = level.countLabel?.call(groupItems) ?? '${groupItems.length}';
 
       return Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
         decoration: BoxDecoration(
           color: levelIndex == 0 ? AppColors.surfaceCard : AppColors.background,
           borderRadius: BorderRadius.circular(16),
@@ -75,12 +75,12 @@ class ExpandableTaskHierarchy<T> extends StatelessWidget {
           child: ExpansionTile(
             collapsedIconColor: AppColors.textMuted,
             iconColor: AppColors.gold,
-            tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            childrenPadding: const EdgeInsets.only(bottom: 8),
+            tilePadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            childrenPadding: EdgeInsets.only(bottom: 8),
             leading: Icon(level.icon, color: AppColors.gold, size: 18),
             title: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,
@@ -90,8 +90,8 @@ class ExpandableTaskHierarchy<T> extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 _HierarchyCountBadge(value: countText),
-                const SizedBox(width: 4),
-                const Icon(Icons.expand_more_rounded),
+                SizedBox(width: 4),
+                Icon(Icons.expand_more_rounded),
               ],
             ),
             children: _buildGroups(context, groupItems, levelIndex + 1),
@@ -110,14 +110,14 @@ class _HierarchyCountBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: AppColors.gold.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         value,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
           color: AppColors.gold,

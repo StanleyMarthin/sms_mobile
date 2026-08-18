@@ -53,12 +53,12 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
       future: _requestsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator());
         }
 
         final requests = snapshot.data ?? [];
         if (requests.isEmpty) {
-          return const Center(
+          return Center(
             child: Padding(
               padding: EdgeInsets.all(24),
               child: CountdownEmptyMessage(
@@ -72,15 +72,15 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
         final history = requests.where((r) => r.revisionRequestStatus?.toUpperCase() != 'REQUESTED').toList();
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           children: [
-            const RevisionSectionHeader(
+            RevisionSectionHeader(
               title: 'Menunggu Persetujuan',
               subtitle: 'Pengajuan revisi yang butuh review PM',
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             if (pending.isEmpty)
-              const CountdownEmptyMessage(message: 'Tidak ada pengajuan yang menunggu.')
+              CountdownEmptyMessage(message: 'Tidak ada pengajuan yang menunggu.')
             else
               ...pending.map((item) => RevisionRequestCard(
                     item: item,
@@ -97,14 +97,14 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                       'REJECTED',
                     ),
                   )),
-            const SizedBox(height: 24),
-            const RevisionSectionHeader(
+            SizedBox(height: 24),
+            RevisionSectionHeader(
               title: 'Riwayat Pengajuan',
               subtitle: 'Pengajuan yang sudah diproses',
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             if (history.isEmpty)
-              const CountdownEmptyMessage(message: 'Belum ada riwayat pengajuan.')
+              CountdownEmptyMessage(message: 'Belum ada riwayat pengajuan.')
             else
               ...history.map((item) {
                 final isApproved = item.revisionRequestStatus?.toUpperCase() == 'APPROVED';
@@ -113,11 +113,11 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                   backgroundColor: AppColors.surfaceCard,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: AppColors.border),
+                    side: BorderSide(color: AppColors.border),
                   ),
                   collapsedShape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
-                    side: const BorderSide(color: AppColors.border),
+                    side: BorderSide(color: AppColors.border),
                   ),
                   leading: Icon(
                     isApproved ? Icons.check_circle_rounded : Icons.cancel_rounded,
@@ -125,7 +125,7 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                   ),
                   title: Text(
                     '${item.panelName} • ${item.jobdesc}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                   ),
                   subtitle: Text(
                     isApproved ? 'Disetujui' : 'Ditolak',
@@ -136,7 +136,7 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                   ),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -149,7 +149,7 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                           _detailRow('Alasan', item.requestedRevisionReason ?? '-'),
                           _detailRow('Usulan Tambahan', '${item.requestedRevisionHours?.toStringAsFixed(1) ?? '0.0'} jam'),
                           _detailRow('Usulan Deadline', item.requestedRevisionDeadline ?? '-'),
-                          const Divider(height: 16),
+                          Divider(height: 16),
                           if (isApproved) ...[
                             _detailRow('Disetujui Oleh', item.approvedRevisionByName ?? '-'),
                             _detailRow('Waktu ACC',
@@ -205,17 +205,17 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
 
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 100,
-            child: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            child: Text(label, style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+            child: Text(value, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
           ),
         ],
       ),
@@ -275,7 +275,7 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(12),
@@ -285,7 +285,7 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -298,48 +298,48 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                         children: [
                           Text(
                             widget.item.panelName,
-                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                           ),
-                          const SizedBox(height: 2),
-                          Text(widget.item.jobdesc, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          SizedBox(height: 2),
+                          Text(widget.item.jobdesc, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.orange.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text('New Request', style: TextStyle(fontSize: 10, color: AppColors.orange, fontWeight: FontWeight.w700)),
+                      child: Text('New Request', style: TextStyle(fontSize: 10, color: AppColors.orange, fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 _detailRow('Pengaju', widget.item.requestedRevisionByName ?? '-'),
                 _detailRow('Waktu Pengajuan', widget.item.requestedRevisionAt != null ? _formatDateTime(widget.item.requestedRevisionAt!) : '-'),
                 _detailRow('Alasan Revisi', widget.item.requestedRevisionReason ?? '-'),
                 _detailRow('Target Saat Ini', '${widget.item.targetHoursRevised.toStringAsFixed(1)} jam'),
                 _detailRow('Deadline Saat Ini', widget.item.deadlineDate),
-                const Divider(),
-                const Text('Persetujuan (Bisa disesuaikan PM)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-                const SizedBox(height: 8),
+                Divider(),
+                Text('Persetujuan (Bisa disesuaikan PM)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
                       flex: 2,
                       child: TextField(
                         controller: _hoursCtrl,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                        decoration: const InputDecoration(
+                        keyboardType: TextInputType.numberWithOptions(decimal: true),
+                        style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                        decoration: InputDecoration(
                           labelText: 'ACC Tambahan Jam',
                           isDense: true,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       flex: 3,
                       child: GestureDetector(
@@ -360,8 +360,8 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                         child: AbsorbPointer(
                           child: TextField(
                             controller: _deadlineCtrl,
-                            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-                            decoration: const InputDecoration(
+                            style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                            decoration: InputDecoration(
                               labelText: 'ACC Deadline Baru',
                               isDense: true,
                               suffixIcon: Icon(Icons.calendar_today_rounded, size: 16),
@@ -383,11 +383,11 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.statusLocked.withValues(alpha: 0.1),
                     foregroundColor: AppColors.statusLocked,
-                    shape: const RoundedRectangleBorder(
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12)),
                     ),
                   ),
-                  child: const Text('Tolak'),
+                  child: Text('Tolak'),
                 ),
               ),
               Expanded(
@@ -400,11 +400,11 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.statusDone,
                     foregroundColor: AppColors.background,
-                    shape: const RoundedRectangleBorder(
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.only(bottomRight: Radius.circular(12)),
                     ),
                   ),
-                  child: const Text('ACC Revisi'),
+                  child: Text('ACC Revisi'),
                 ),
               ),
             ],
@@ -416,17 +416,17 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
 
   Widget _detailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 110,
-            child: Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            child: Text(label, style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+            child: Text(value, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
           ),
         ],
       ),

@@ -1,7 +1,7 @@
 library;
 
 class WarehouseItemSuggestion {
-  const WarehouseItemSuggestion({
+  WarehouseItemSuggestion({
     required this.id,
     required this.itemName,
     required this.itemCode,

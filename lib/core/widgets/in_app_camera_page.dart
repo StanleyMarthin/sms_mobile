@@ -209,7 +209,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
     if (!mounted) return;
     setState(() => _focusPoint = details.localPosition);
 
-    Future.delayed(const Duration(milliseconds: 1200), () {
+    Future.delayed(Duration(milliseconds: 1200), () {
       if (mounted) setState(() => _focusPoint = null);
     });
   }
@@ -225,7 +225,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
       await ctrl.setFocusMode(FocusMode.auto);
       await ctrl.setExposureMode(ExposureMode.auto);
 
-      await Future.delayed(const Duration(milliseconds: 250));
+      await Future.delayed(Duration(milliseconds: 250));
 
       final xfile = await ctrl.takePicture();
 
@@ -351,7 +351,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
     }
 
     if (!_isInitialized || _controller == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -436,26 +436,26 @@ class _InAppCameraPageState extends State<InAppCameraPage>
     final isPermanent = _initErrorMessage!.contains('ditolak permanen');
 
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(24),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.camera_alt_outlined,
               size: 48,
               color: AppColors.textMuted,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               _initErrorMessage!,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 14,
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             FilledButton(
               onPressed: isPermanent
                   ? openAppSettings
@@ -465,10 +465,10 @@ class _InAppCameraPageState extends State<InAppCameraPage>
                     },
               child: Text(isPermanent ? 'Buka Pengaturan' : 'Coba Lagi'),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Tutup'),
+              child: Text('Tutup'),
             ),
           ],
         ),
@@ -479,19 +479,19 @@ class _InAppCameraPageState extends State<InAppCameraPage>
   Widget _buildHeader() {
     return Container(
       color: Colors.black,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
             child:
-                const Icon(Icons.close_rounded, color: Colors.white, size: 26),
+                Icon(Icons.close_rounded, color: Colors.white, size: 26),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Text(
               widget.label,
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.white,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -502,7 +502,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
           GestureDetector(
             onTap: _cycleFlash,
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: EdgeInsets.all(8),
               child: Icon(_flashIcon, color: _flashColor, size: 26),
             ),
           ),
@@ -514,7 +514,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
   Widget _buildControls() {
     return Container(
       color: Colors.black,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 32),
+      padding: EdgeInsets.symmetric(vertical: 24, horizontal: 32),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -522,7 +522,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
           GestureDetector(
             onTap: _isTakingPhoto ? null : _takePhoto,
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
+              duration: Duration(milliseconds: 150),
               width: 72,
               height: 72,
               decoration: BoxDecoration(
@@ -534,7 +534,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
               ),
               child: Center(
                 child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
+                  duration: Duration(milliseconds: 150),
                   width: _isTakingPhoto ? 40 : 56,
                   height: _isTakingPhoto ? 40 : 56,
                   decoration: BoxDecoration(
@@ -557,8 +557,8 @@ class _InAppCameraPageState extends State<InAppCameraPage>
         // Preview header
         Container(
           color: Colors.black,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: const Row(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
             children: [
               Icon(Icons.check_circle_outline, color: AppColors.gold, size: 22),
               SizedBox(width: 10),
@@ -585,7 +585,7 @@ class _InAppCameraPageState extends State<InAppCameraPage>
         // Action buttons
         Container(
           color: Colors.black,
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(20),
           child: Row(
             children: [
               // Retake
@@ -593,17 +593,17 @@ class _InAppCameraPageState extends State<InAppCameraPage>
                 child: OutlinedButton.icon(
                   onPressed: _retake,
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white54),
+                    side: BorderSide(color: Colors.white54),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('Ulangi'),
+                  icon: Icon(Icons.refresh_rounded, size: 18),
+                  label: Text('Ulangi'),
                 ),
               ),
-              const SizedBox(width: 16),
+              SizedBox(width: 16),
               // Confirm
               Expanded(
                 child: FilledButton.icon(
@@ -611,12 +611,12 @@ class _InAppCameraPageState extends State<InAppCameraPage>
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.gold,
                     foregroundColor: AppColors.background,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10)),
                   ),
-                  icon: const Icon(Icons.check_rounded, size: 18),
-                  label: const Text(
+                  icon: Icon(Icons.check_rounded, size: 18),
+                  label: Text(
                     'Gunakan Foto',
                     style: TextStyle(fontWeight: FontWeight.w700),
                   ),
@@ -649,7 +649,7 @@ class _ExposureSlider extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.wb_sunny_rounded, color: Colors.white70, size: 18),
+        Icon(Icons.wb_sunny_rounded, color: Colors.white70, size: 18),
         Expanded(
           child: RotatedBox(
             quarterTurns: 3,
@@ -663,7 +663,7 @@ class _ExposureSlider extends StatelessWidget {
             ),
           ),
         ),
-        const Icon(Icons.brightness_3_rounded, color: Colors.white30, size: 16),
+        Icon(Icons.brightness_3_rounded, color: Colors.white30, size: 16),
       ],
     );
   }
@@ -718,7 +718,7 @@ class _FocusSquareState extends State<_FocusSquare>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 300))
+        vsync: this, duration: Duration(milliseconds: 300))
       ..forward()
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) {

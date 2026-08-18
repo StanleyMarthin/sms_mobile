@@ -4,7 +4,7 @@ import 'warehouse_request_datasource.dart';
 
 /// Dummy datasource — hanya untuk keperluan testing offline.
 class LocalWarehouseDataSource implements WarehouseDataSource {
-  const LocalWarehouseDataSource();
+  LocalWarehouseDataSource();
 
   @override
   Future<List<Map<String, dynamic>>> getLogs({
@@ -47,6 +47,7 @@ class LocalWarehouseDataSource implements WarehouseDataSource {
   Future<List<Map<String, dynamic>>> searchItems({
     required String query,
     String? category,
+    String? carId,
   }) async => [];
 
   @override

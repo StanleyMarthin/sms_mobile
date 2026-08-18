@@ -1,4 +1,10 @@
-import 'dart:io';
+/*
+Tujuan: Entry point aplikasi mobile SM Workshop dan inisialisasi runtime global.
+Caller: Android/iOS Flutter runner.
+Dependensi: DI, router, SessionManager, FCMService, NotificationInboxService, AppTheme.
+Main Functions: main(), SmWorkshopApp.
+Side Effects: Init session lokal, FCM permission/token, notification inbox, wakelock, runApp.
+*/
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,28 +12,22 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'core/di/injection.dart';
+import 'core/constants/app_colors.dart';
 import 'core/router/app_router.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/notification_inbox_service.dart';
 import 'core/session/session_manager.dart';
 import 'core/theme/app_theme.dart';
-
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
-  }
-}
+import 'core/theme/theme_controller.dart';
 
 void main() async {
-  HttpOverrides.global = MyHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID', null);
   initDependencies();
   await sl<SessionManager>().init();
+  await ThemeController.load();
   await sl<NotificationInboxService>().init();
-  
+
   try {
     // Wajib dipanggil sebelum runApp agar getToken() tersedia saat login
     // Jika izin notifikasi ditolak, init() akan melempar error
@@ -41,7 +41,7 @@ void main() async {
   }
 
   WakelockPlus.enable();
-  runApp(const SmWorkshopApp());
+  runApp(SmWorkshopApp());
 }
 
 class SmWorkshopApp extends StatelessWidget {
@@ -49,11 +49,21 @@ class SmWorkshopApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Stanley Marthin System',
-      debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(),
-      routerConfig: createRouter(),
+    return ValueListenableBuilder<String>(
+      valueListenable: ThemeController.mode,
+      builder: (context, _, __) {
+        final brightness =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        AppColors.isLight = ThemeController.effectiveIsLight(brightness);
+        return MaterialApp.router(
+          title: 'Stanley Marthin System',
+          debugShowCheckedModeBanner: false,
+          theme: buildAppTheme(),
+          darkTheme: buildAppTheme(),
+          themeMode: ThemeController.themeMode,
+          routerConfig: createRouter(),
+        );
+      },
     );
   }
 }

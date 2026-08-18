@@ -8,6 +8,7 @@ abstract class CountdownDataSource {
     required int divisionId,
     String? search,
     String? status,
+    bool plannable = false,
   });
 
   Future<List<Map<String, dynamic>>> getJobdescs({
@@ -16,6 +17,7 @@ abstract class CountdownDataSource {
     required int panelId,
     String? search,
     String? status,
+    bool plannable = false,
   });
 
   Future<List<Map<String, dynamic>>> getDetails(String countdownId);

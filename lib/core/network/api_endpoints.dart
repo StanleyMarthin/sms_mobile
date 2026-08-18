@@ -1,9 +1,13 @@
+/*
+Tujuan: Definisi terpusat endpoint API mobile untuk gateway HTTPS dan legacy port mode.
+Caller: ApiClient dan seluruh remote datasource feature.
+Dependensi: AppConfig.
+Main Functions: ApiEndpoints URL getters per service.
+Side Effects: Tidak ada.
+*/
+
 import '../config/app_config.dart';
 
-/// Centralized API endpoint definitions matching the Mobile API Contract.
-///
-/// `BASE_URL` from `--dart-define` controls the host/scheme portion.
-/// Service ports remain fixed until the backend is consolidated.
 abstract class ApiEndpoints {
   // ── Service Base URLs ──────────────────────────────────────
   static final String _splashBase = AppConfig.serviceOrigin(8080);

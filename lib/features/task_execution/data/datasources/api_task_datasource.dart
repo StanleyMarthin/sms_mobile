@@ -23,7 +23,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  const ApiTaskDataSource({
+  ApiTaskDataSource({
     required this.apiClient,
     required this.sessionManager,
   });

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -18,7 +19,7 @@ class ActiveJobPicker extends StatefulWidget {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => const ActiveJobPicker._(),
+        builder: (_) => ActiveJobPicker._(),
       );
 
   @override
@@ -85,7 +86,7 @@ class _ActiveJobPickerState extends State<ActiveJobPicker> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = '$e';
+          _error = friendlyMessage(e, fallback: 'Gagal memuat tugas aktif');
           _isLoading = false;
         });
       }
@@ -109,226 +110,272 @@ class _ActiveJobPickerState extends State<ActiveJobPicker> {
 
   @override
   Widget build(BuildContext context) => Container(
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 12),
-              // ── Handle ──────────────────────────────────────────
-              Center(
-                  child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: AppColors.border,
-                    borderRadius: BorderRadius.circular(2)),
-              )),
-              const SizedBox(height: 16),
-
-              // ── Header ──────────────────────────────────────────
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Row(children: [
-                  Icon(Icons.link_rounded, color: AppColors.gold, size: 20),
-                  SizedBox(width: 8),
-                  Text('Pilih Pekerjaan',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                ]),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceCard,
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    child: SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: 12),
+          // ── Handle ──────────────────────────────────────────
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(height: 12),
-
-              // ── Date + Overtime controls ─────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(children: [
-                  // Prev day
-                  _iconBtn(Icons.chevron_left_rounded, () => _shift(-1)),
-                  const SizedBox(width: 6),
-                  // Date chip
-                  GestureDetector(
-                    onTap: _pickDate,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: AppColors.background,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.calendar_today_outlined,
-                            size: 14, color: AppColors.gold),
-                        const SizedBox(width: 6),
-                        Text(_dateLabel(),
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textPrimary)),
-                      ]),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  // Next day
-                  _iconBtn(Icons.chevron_right_rounded, () => _shift(1)),
-                  const Spacer(),
-                  // Overtime toggle
-                  GestureDetector(
-                    onTap: () {
-                      setState(() => _overtimeOnly = !_overtimeOnly);
-                      _load();
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: _overtimeOnly
-                            ? AppColors.statusInProgress.withValues(alpha: 0.12)
-                            : AppColors.background,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: _overtimeOnly
-                                ? AppColors.statusInProgress
-                                : AppColors.border),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.nightlight_round,
-                            size: 13,
-                            color: _overtimeOnly
-                                ? AppColors.statusInProgress
-                                : AppColors.textMuted),
-                        const SizedBox(width: 5),
-                        Text('Lembur',
-                            style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: _overtimeOnly
-                                    ? AppColors.statusInProgress
-                                    : AppColors.textMuted)),
-                      ]),
-                    ),
-                  ),
-                ]),
-              ),
-              const SizedBox(height: 12),
-
-              // ── Task list ────────────────────────────────────────
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 28),
-                  child: Center(
-                      child: CircularProgressIndicator(
-                          color: AppColors.gold, strokeWidth: 2.5)),
-                )
-              else if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                  child: Text('Gagal memuat: $_error',
-                      style: const TextStyle(
-                          color: AppColors.statusLocked, fontSize: 12)),
-                )
-              else if (_tasks.isEmpty)
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-                  child: Column(children: [
-                    const Icon(Icons.inbox_outlined,
-                        size: 36, color: AppColors.textMuted),
-                    const SizedBox(height: 8),
-                    Text(
-                      _overtimeOnly
-                          ? 'Tidak ada task lembur untuk ${_dateLabel()}.'
-                          : 'Tidak ada pekerjaan untuk ${_dateLabel()}.',
-                      style: const TextStyle(
-                          color: AppColors.textMuted, fontSize: 13),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Anda tetap bisa lanjut tanpa memilih pekerjaan.',
-                      style:
-                          TextStyle(color: AppColors.textMuted, fontSize: 11),
-                      textAlign: TextAlign.center,
-                    ),
-                  ]),
-                )
-              else
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                      maxHeight: MediaQuery.of(context).size.height * 0.45),
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    itemCount: _tasks.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (_, i) => _TaskTile(
-                      task: _tasks[i],
-                      isOvertime: _overtimeOnly,
-                      onTap: () => Navigator.of(context).pop(
-                          _tasks[i].toJobContext(targetDate: _selectedDate)),
-                    ),
-                  ),
-                ),
-
-              // ── Skip ────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: OutlinedButton.icon(
-                  onPressed: () => Navigator.of(context).pop(null),
-                  icon: const Icon(Icons.do_not_disturb_alt_outlined, size: 15),
-                  label: const Text('Lanjut tanpa memilih pekerjaan'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textMuted,
-                    side: const BorderSide(color: AppColors.border),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    textStyle: const TextStyle(fontSize: 12),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      );
+          SizedBox(height: 16),
+
+          // ── Header ──────────────────────────────────────────
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                Icon(Icons.link_rounded, color: AppColors.gold, size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'Pilih Pekerjaan',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 12),
+
+          // ── Date + Overtime controls ─────────────────────────
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                // Prev day
+                _iconBtn(Icons.chevron_left_rounded, () => _shift(-1)),
+                SizedBox(width: 6),
+                // Date chip
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
+                          color: AppColors.gold,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          _dateLabel(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SizedBox(width: 6),
+                // Next day
+                _iconBtn(Icons.chevron_right_rounded, () => _shift(1)),
+                Spacer(),
+                // Overtime toggle
+                GestureDetector(
+                  onTap: () {
+                    setState(() => _overtimeOnly = !_overtimeOnly);
+                    _load();
+                  },
+                  child: AnimatedContainer(
+                    duration: Duration(milliseconds: 150),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _overtimeOnly
+                          ? AppColors.statusInProgress.withValues(alpha: 0.12)
+                          : AppColors.background,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _overtimeOnly
+                            ? AppColors.statusInProgress
+                            : AppColors.border,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.nightlight_round,
+                          size: 13,
+                          color: _overtimeOnly
+                              ? AppColors.statusInProgress
+                              : AppColors.textMuted,
+                        ),
+                        SizedBox(width: 5),
+                        Text(
+                          'Lembur',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _overtimeOnly
+                                ? AppColors.statusInProgress
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 12),
+
+          // ── Task list ────────────────────────────────────────
+          if (_isLoading)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.gold,
+                  strokeWidth: 2.5,
+                ),
+              ),
+            )
+          else if (_error != null)
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 16),
+              child: Text(
+                'Gagal memuat: $_error',
+                style: TextStyle(
+                  color: AppColors.statusLocked,
+                  fontSize: 12,
+                ),
+              ),
+            )
+          else if (_tasks.isEmpty)
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.inbox_outlined,
+                    size: 36,
+                    color: AppColors.textMuted,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    _overtimeOnly
+                        ? 'Tidak ada task lembur untuk ${_dateLabel()}.'
+                        : 'Tidak ada pekerjaan untuk ${_dateLabel()}.',
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Anda tetap bisa lanjut tanpa memilih pekerjaan.',
+                    style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            )
+          else
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.45,
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                itemCount: _tasks.length,
+                separatorBuilder: (_, __) => SizedBox(height: 8),
+                itemBuilder: (_, i) => _TaskTile(
+                  task: _tasks[i],
+                  isOvertime: _tasks[i].isOvertime,
+                  onTap: () => Navigator.of(
+                    context,
+                  ).pop(_tasks[i].toJobContext(targetDate: _selectedDate)),
+                ),
+              ),
+            ),
+
+          // ── Skip ────────────────────────────────────────────
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).pop(null),
+              icon: Icon(Icons.do_not_disturb_alt_outlined, size: 15),
+              label: Text('Lanjut tanpa memilih pekerjaan'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textMuted,
+                side: BorderSide(color: AppColors.border),
+                padding: EdgeInsets.symmetric(vertical: 11),
+                textStyle: TextStyle(fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   // ── helpers ────────────────────────────────────────────────
   String _dateLabel() {
     if (_isToday) return 'Hari ini';
     if (_isTomorrow) return 'Besok';
-    final yesterday = _today().subtract(const Duration(days: 1));
+    final yesterday = _today().subtract(Duration(days: 1));
     if (_selectedDate == yesterday) return 'Kemarin';
     return _df.format(_selectedDate);
   }
 
   Widget _iconBtn(IconData icon, VoidCallback onTap) => InkWell(
-        onTap: onTap,
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(8),
+    child: Container(
+      padding: EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.border)),
-          child: Icon(icon, size: 18, color: AppColors.textMuted),
-        ),
-      );
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Icon(icon, size: 18, color: AppColors.textMuted),
+    ),
+  );
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-      lastDate: DateTime.now().add(const Duration(days: 7)),
+      firstDate: DateTime.now().subtract(Duration(days: 30)),
+      lastDate: DateTime.now().add(Duration(days: 7)),
       builder: (ctx, child) => Theme(
         data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.dark(
+          colorScheme: ColorScheme.dark(
             primary: AppColors.gold,
             surface: AppColors.surfaceCard,
           ),
@@ -345,79 +392,99 @@ class _ActiveJobPickerState extends State<ActiveJobPicker> {
 
 // ── Tile ──────────────────────────────────────────────────────────
 class _TaskTile extends StatelessWidget {
-  const _TaskTile(
-      {required this.task, required this.isOvertime, required this.onTap});
+  const _TaskTile({
+    required this.task,
+    required this.isOvertime,
+    required this.onTap,
+  });
   final _TaskItem task;
   final bool isOvertime;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: Container(
+      padding: EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color:
-                    (isOvertime ? AppColors.statusInProgress : AppColors.gold)
-                        .withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                isOvertime
-                    ? Icons.nightlight_round
-                    : Icons.directions_car_outlined,
-                size: 18,
-                color: isOvertime ? AppColors.statusInProgress : AppColors.gold,
-              ),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (isOvertime ? AppColors.statusInProgress : AppColors.gold)
+                  .withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-                child: Column(
+            child: Icon(
+              isOvertime
+                  ? Icons.nightlight_round
+                  : Icons.directions_car_outlined,
+              size: 18,
+              color: isOvertime ? AppColors.statusInProgress : AppColors.gold,
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(task.unitName,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary)),
-                const SizedBox(height: 2),
-                Text('${task.panelName}  ·  ${task.jobName}',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.textSecondary),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
+                Text(
+                  task.unitName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  '${task.panelName}  ·  ${task.jobName}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 if (task.status.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: _statusColor(task.status).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(_statusLabel(task.status),
-                        style: TextStyle(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: _statusColor(task.status))),
+                    child: Text(
+                      _statusLabel(task.status),
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: _statusColor(task.status),
+                      ),
+                    ),
                   ),
                 ],
               ],
-            )),
-            const Icon(Icons.chevron_right_rounded,
-                size: 18, color: AppColors.textMuted),
-          ]),
-        ),
-      );
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 18,
+            color: AppColors.textMuted,
+          ),
+        ],
+      ),
+    ),
+  );
 
   Color _statusColor(String s) {
     switch (s) {
@@ -450,7 +517,7 @@ class _TaskTile extends StatelessWidget {
 
 // ── Data class ────────────────────────────────────────────────────
 class _TaskItem {
-  const _TaskItem({
+  _TaskItem({
     required this.planDailyId,
     required this.coreId,
     required this.carId,
@@ -458,6 +525,7 @@ class _TaskItem {
     required this.panelName,
     required this.jobName,
     required this.status,
+    this.isOvertime = false,
     this.deadlineDate,
   });
 
@@ -468,6 +536,7 @@ class _TaskItem {
   final String panelName;
   final String jobName;
   final String status;
+  final bool isOvertime;
   final DateTime? deadlineDate;
 
   factory _TaskItem.fromJson(Map<String, dynamic> j) {
@@ -476,6 +545,7 @@ class _TaskItem {
     String unitName = '';
     String panel = '';
     String job = '';
+    var isOvertime = _b(j['isOvertime']) || _b(j['is_overtime']);
 
     // Nested format (ViewTaskModel)
     if (j['unit'] is Map) {
@@ -487,6 +557,8 @@ class _TaskItem {
       final t = j['task'] as Map;
       panel = _s(t['namaPanel']) ?? _s(t['panel_name']) ?? '';
       job = _s(t['jobName']) ?? _s(t['job_name']) ?? '';
+      isOvertime =
+          isOvertime || _b(t['isOvertime']) || _b(t['is_overtime']);
       // coreId mungkin ada di level task
       if (coreId.isEmpty) coreId = _s(t['coreId']) ?? _s(t['core_id']) ?? '';
     }
@@ -527,6 +599,7 @@ class _TaskItem {
       panelName: panel,
       jobName: job,
       status: (_s(j['status']) ?? 'PLAN').toUpperCase(),
+      isOvertime: isOvertime,
       deadlineDate: deadline,
     );
   }
@@ -535,6 +608,13 @@ class _TaskItem {
     if (v == null) return null;
     final s = '$v'.trim();
     return s.isEmpty ? null : s;
+  }
+
+  static bool _b(dynamic v) {
+    if (v == null) return false;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    return '$v'.trim().toUpperCase() == 'TRUE' || '$v'.trim() == '1';
   }
 
   WarehouseJobContext toJobContext({DateTime? targetDate}) =>
@@ -546,5 +626,6 @@ class _TaskItem {
         jobName: jobName,
         targetSearchDate: targetDate,
         deadlineDate: deadlineDate,
+        isOvertime: isOvertime,
       );
 }

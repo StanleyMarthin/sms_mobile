@@ -9,7 +9,7 @@ abstract class ProfileDataSource {
 }
 
 class LocalProfileDataSource implements ProfileDataSource {
-  const LocalProfileDataSource({
+  LocalProfileDataSource({
     required this.sessionManager,
     required this.taskDraftStorage,
   });

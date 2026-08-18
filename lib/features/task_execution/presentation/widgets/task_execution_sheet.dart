@@ -22,6 +22,7 @@ import '../utils/task_execution_flow_helper.dart';
 class TaskExecutionSheet extends StatefulWidget {
   final TaskEntity task;
   final TaskDraft? draft;
+  final List<TaskEntity> otherTasks;
   final void Function(TaskExecutionLog log) onSubmit;
   final void Function(TaskDraft draft)? onDraftSave;
 
@@ -29,6 +30,7 @@ class TaskExecutionSheet extends StatefulWidget {
     super.key,
     required this.task,
     this.draft,
+    this.otherTasks = const [],
     required this.onSubmit,
     this.onDraftSave,
   });
@@ -38,6 +40,7 @@ class TaskExecutionSheet extends StatefulWidget {
     required BuildContext context,
     required TaskEntity task,
     TaskDraft? draft,
+    List<TaskEntity> otherTasks = const [],
     required void Function(TaskExecutionLog log) onSubmit,
     void Function(TaskDraft draft)? onDraftSave,
   }) {
@@ -48,6 +51,7 @@ class TaskExecutionSheet extends StatefulWidget {
       builder: (_) => TaskExecutionSheet(
         task: task,
         draft: draft,
+        otherTasks: otherTasks,
         onSubmit: onSubmit,
         onDraftSave: onDraftSave,
       ),
@@ -65,6 +69,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
   double _progressPercent = 0;
   String _status = 'pending';
   bool _hasManualProgressOverride = false;
+  bool _followSystemProgress = true;
 
   final _notesController = TextEditingController();
   final _breakController = TextEditingController();
@@ -104,6 +109,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
 
       if (draft.progressPercent != null) {
         _hasManualProgressOverride = true;
+        _followSystemProgress = false;
         _progressPercent = draft.progressPercent!.clamp(0.0, 100.0);
       } else {
         _progressPercent = _computeRealtimeProgressPercent();
@@ -247,7 +253,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text(
+        title: Text(
           'Input Jam Istirahat',
           style: TextStyle(color: AppColors.textPrimary),
         ),
@@ -255,12 +261,12 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           controller: controller,
           keyboardType: TextInputType.number,
           autofocus: true,
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.textPrimary),
           inputFormatters: [
             FilteringTextInputFormatter.digitsOnly,
             LengthLimitingTextInputFormatter(3),
           ],
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Menit',
             labelStyle: TextStyle(color: AppColors.textMuted),
           ),
@@ -268,7 +274,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () {
@@ -278,7 +284,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
             ),
-            child: const Text('Simpan'),
+            child: Text('Simpan'),
           ),
         ],
       ),
@@ -328,58 +334,58 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       maxChildSize: 0.95,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             border: Border(top: BorderSide(color: AppColors.gold, width: 2)),
           ),
           child: ListView(
             controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
               _dragHandle(),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               _header(),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Section 1: Informasi Task
               _sectionLabel('Informasi Task', Icons.info_outline),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _taskInfoCard(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // Section 2: Waktu Kerja
               _sectionLabel('Waktu Kerja', Icons.schedule),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _timeAndBreakRow(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // Section 3: Progress Pekerjaan
               _sectionLabel('Progress Pekerjaan', Icons.trending_up),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _progressAndStatusRow(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // Section 4: Dokumentasi
               _sectionLabel('Dokumentasi', Icons.camera_alt_outlined),
-              const SizedBox(height: 4),
-              const Text(
+              SizedBox(height: 4),
+              Text(
                 'Foto progress dipakai saat onprogres. Foto after dipakai saat done.',
                 style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _photoRow(),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
 
               // Section 5: Catatan
               _sectionLabel('Catatan', Icons.note_alt_outlined),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _notesField(),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Submit
               _submitButton(),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
             ],
           ),
         );
@@ -413,11 +419,11 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           color: AppColors.gold,
           size: 24,
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Text(
             'Selesaikan',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
@@ -426,9 +432,9 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         ),
         IconButton(
           onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.close, color: AppColors.textMuted, size: 22),
+          icon: Icon(Icons.close, color: AppColors.textMuted, size: 22),
           padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
+          constraints: BoxConstraints(),
         ),
       ],
     );
@@ -438,10 +444,10 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     return Row(
       children: [
         Icon(icon, size: 16, color: AppColors.gold),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
@@ -460,23 +466,23 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 18, color: AppColors.textMuted),
-        const SizedBox(width: 12),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textPrimary,
@@ -495,7 +501,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
 
   Widget _taskInfoCard() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(12),
@@ -509,7 +515,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
             title: 'Job',
             value: widget.task.jobName,
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           _infoTile(
             icon: Icons.assignment_outlined,
             title: 'Instruksi / SPOK',
@@ -543,7 +549,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                 onTapIcon: () => _pickTime(isStart: true),
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Expanded(
               child: ClockTimeInput(
                 labelText: 'Jam Selesai',
@@ -559,7 +565,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         _breakRowFull(),
       ],
     );
@@ -567,7 +573,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
 
   Widget _breakRowFull() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(10),
@@ -576,8 +582,8 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       child: PopupMenuButton<String>(
         onSelected: _handleBreakSelection,
         color: AppColors.surfaceCard,
-        offset: const Offset(0, 40),
-        itemBuilder: (context) => const [
+        offset: Offset(0, 40),
+        itemBuilder: (context) => [
           PopupMenuItem(value: '0', child: Text('Tanpa Break')),
           PopupMenuItem(value: '1:00', child: Text('60 menit')),
           PopupMenuItem(value: '1:30', child: Text('90 menit')),
@@ -585,27 +591,27 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         ],
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.coffee_outlined,
               size: 16,
               color: AppColors.textMuted,
             ),
-            const SizedBox(width: 10),
-            const Text(
+            SizedBox(width: 10),
+            Text(
               'Istirahat',
               style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
-            const Spacer(),
+            Spacer(),
             Text(
               _breakLabel,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(width: 6),
-            const Icon(
+            SizedBox(width: 6),
+            Icon(
               Icons.expand_more_rounded,
               size: 18,
               color: AppColors.gold,
@@ -623,7 +629,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.gold,
               onPrimary: AppColors.background,
               surface: AppColors.surfaceCard,
@@ -663,7 +669,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
 
   Widget _progressAndStatusRow() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceInput,
         borderRadius: BorderRadius.circular(12),
@@ -674,15 +680,42 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         children: [
           Row(
             children: [
-              const Text(
+              _progressModeChip(
+                label: 'Otomatis',
+                active: _followSystemProgress,
+                onTap: () {
+                  setState(() {
+                    _followSystemProgress = true;
+                    _hasManualProgressOverride = false;
+                    _refreshProgressFromRealtime();
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              _progressModeChip(
+                label: 'Isi Manual',
+                active: !_followSystemProgress,
+                onTap: () {
+                  setState(() {
+                    _followSystemProgress = false;
+                    _hasManualProgressOverride = true;
+                  });
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
                 'Persentase selesai',
                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
-              const Spacer(),
+              Spacer(),
               _compactProgressInput(),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(3),
             child: LinearProgressIndicator(
@@ -694,13 +727,13 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
           Row(
             children: [
               _statusChip('pending', 'Pending'),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _statusChip('on_progress', 'On Progress'),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _statusChip('done', 'Selesai'),
             ],
           ),
@@ -724,14 +757,14 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(3),
             ],
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
             decoration: InputDecoration(
               isDense: true,
-              contentPadding: const EdgeInsets.symmetric(
+              contentPadding: EdgeInsets.symmetric(
                 horizontal: 6,
                 vertical: 8,
               ),
@@ -739,20 +772,21 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
               fillColor: AppColors.background,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppColors.border),
+                borderSide: BorderSide(color: AppColors.border),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppColors.gold),
+                borderSide: BorderSide(color: AppColors.gold),
               ),
             ),
             onChanged: (v) {
               final parsed = int.tryParse(v) ?? 0;
               setState(() {
+                _followSystemProgress = false;
                 _hasManualProgressOverride = true;
                 _progressPercent = parsed.clamp(0, 100).toDouble();
                 if (_progressPercent >= 100) {
@@ -764,8 +798,8 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
             },
           ),
         ),
-        const SizedBox(width: 4),
-        const Text(
+        SizedBox(width: 4),
+        Text(
           '%',
           style: TextStyle(fontSize: 13, color: AppColors.textMuted),
         ),
@@ -782,18 +816,32 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     if (isActive) {
       switch (value) {
         case 'pending':
-          bgColor = const Color(0xFF1A1A2E);
-          borderColor = const Color(0xFF3A3A5C);
-          textColor = AppColors.textSecondary;
+          bgColor = AppColors.isLight
+              ? Color(0xFFECEFF4)
+              : Color(0xFF1A1A2E);
+          borderColor = AppColors.isLight
+              ? Color(0xFFB9C2D0)
+              : Color(0xFF3A3A5C);
+          textColor = AppColors.isLight
+              ? Color(0xFF35688D)
+              : AppColors.textSecondary;
           break;
         case 'on_progress':
-          bgColor = const Color(0xFF2A1F00);
-          borderColor = const Color(0xFF7A5C00);
+          bgColor = AppColors.isLight
+              ? Color(0xFFFFF3E6)
+              : Color(0xFF2A1F00);
+          borderColor = AppColors.isLight
+              ? Color(0xFFF5C79B)
+              : Color(0xFF7A5C00);
           textColor = AppColors.gold;
           break;
         case 'done':
-          bgColor = const Color(0xFF0F2A0F);
-          borderColor = const Color(0xFF1F5C1F);
+          bgColor = AppColors.isLight
+              ? Color(0xFFE7F2EA)
+              : Color(0xFF0F2A0F);
+          borderColor = AppColors.isLight
+              ? Color(0xFFA8D3B6)
+              : Color(0xFF1F5C1F);
           textColor = AppColors.statusDone;
           break;
       }
@@ -803,6 +851,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       child: GestureDetector(
         onTap: () {
           setState(() {
+            _followSystemProgress = false;
             _hasManualProgressOverride = true;
             _status = value;
             if (value == 'done' && _progressPercent < 100) {
@@ -815,8 +864,8 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           });
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          duration: Duration(milliseconds: 150),
+          padding: EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(8),
@@ -836,6 +885,46 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     );
   }
 
+  Widget _progressModeChip({
+    required String label,
+    required bool active,
+    required VoidCallback onTap,
+  }) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: active
+            ? AppColors.gold.withValues(alpha: 0.15)
+            : AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: active ? AppColors.gold : AppColors.border,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            active ? Icons.auto_awesome : Icons.edit_outlined,
+            size: 13,
+            color: active ? AppColors.gold : AppColors.textMuted,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: active ? AppColors.gold : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
   // ─────────────────────────────────────────────────────
   // SECTION 4: DOKUMENTASI
   // ─────────────────────────────────────────────────────
@@ -852,7 +941,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
             onRemove: () => setState(() => _photoProcessPath = null),
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: _PhotoSlot(
             label: 'After',
@@ -907,25 +996,25 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
     return TextFormField(
       controller: _notesController,
       maxLines: 3,
-      style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+      style: TextStyle(fontSize: 14, color: AppColors.textPrimary),
       decoration: InputDecoration(
         hintText: 'Tulis catatan harian (opsional)...',
-        hintStyle: const TextStyle(color: AppColors.textDisabled),
+        hintStyle: TextStyle(color: AppColors.textDisabled),
         filled: true,
         fillColor: AppColors.surfaceInput,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.gold),
+          borderSide: BorderSide(color: AppColors.gold),
         ),
-        contentPadding: const EdgeInsets.all(14),
+        contentPadding: EdgeInsets.all(14),
       ),
     );
   }
@@ -947,12 +1036,28 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       return 'Finish time harus lebih dari start time';
     }
 
+    for (final other in widget.otherTasks) {
+      final otherStart = TimeParser.parseTimeOfDay(other.startTime);
+      final otherFinish = TimeParser.parseTimeOfDay(other.targetFinishTime);
+      if (otherStart == null || otherFinish == null) continue;
+      final os = otherStart.hour * 60 + otherStart.minute;
+      final of = otherFinish.hour * 60 + otherFinish.minute;
+      if (startMin < of && finishMin > os) {
+        final label = other.jobDescription.isNotEmpty
+            ? other.jobDescription
+            : other.jobName;
+        return 'Jam kerja bentrok dengan "$label" '
+            '(${other.startTime} - ${other.targetFinishTime}). '
+            'Pilih jam yang tidak tumpang tindih.';
+      }
+    }
+
     if (isDone && !hasAfterPhoto) {
-      return 'Status selesai wajib melampirkan foto after.';
+      return 'Foto After belum diambil. Wajib diisi saat status selesai.';
     }
 
     if (!hasProcessPhoto && !hasAfterPhoto) {
-      return 'Wajib melampirkan minimal 1 foto process atau after.';
+      return 'Foto belum diambil. Isi minimal Foto Process atau Foto After.';
     }
 
     return null;
@@ -965,7 +1070,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
       child: FilledButton.icon(
         onPressed: _isSubmitting ? null : _showConfirmation,
         icon: _isSubmitting
-            ? const SizedBox(
+            ? SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(
@@ -973,17 +1078,17 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
                   color: AppColors.background,
                 ),
               )
-            : const Icon(Icons.send, size: 20),
+            : Icon(Icons.send, size: 20),
         label: Text(
           _isSubmitting
               ? 'Mengirim...'
               : (isDone ? 'Submit Selesai' : 'Simpan & Lanjut Besok'),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         style: FilledButton.styleFrom(
           backgroundColor: isDone ? AppColors.statusDone : AppColors.gold,
           foregroundColor: AppColors.background,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -1022,9 +1127,9 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: AppColors.border),
         ),
-        title: const Text(
+        title: Text(
           'Konfirmasi Submit',
           style: TextStyle(
             color: AppColors.textPrimary,
@@ -1038,7 +1143,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
           children: [
             Text(
               'Waktu: $startStr — $finishStr',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),
@@ -1046,27 +1151,27 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
             if (_breakMinutes > 0)
               Text(
                 'Break: $_breakMinutes menit',
-                style: const TextStyle(
+                style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
               ),
             Text(
               'Progress: ${_progressPercent.toInt()}%  •  Status: ${_statusLabel(effectiveStatus)}',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),
             ),
             Text(
               'Jam kerja: ${breakdown.totalWorkedHours.toStringAsFixed(2)}j  •  Normal ${breakdown.normalHours.toStringAsFixed(2)}j  •  OT ${breakdown.overtimeHours.toStringAsFixed(2)}j',
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.textSecondary,
                 fontSize: 13,
               ),
             ),
-            const SizedBox(height: 12),
-            const Text(
+            SizedBox(height: 12),
+            Text(
               'Yakin data sudah benar?',
               style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
             ),
@@ -1075,7 +1180,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
+            child: Text(
               'Batal',
               style: TextStyle(color: AppColors.textMuted),
             ),
@@ -1089,7 +1194,7 @@ class _TaskExecutionSheetState extends State<TaskExecutionSheet> {
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
             ),
-            child: const Text('Submit'),
+            child: Text('Submit'),
           ),
         ],
       ),
@@ -1191,14 +1296,14 @@ class _PhotoSlot extends StatelessWidget {
                         child: GestureDetector(
                           onTap: onRemove,
                           child: Container(
-                            padding: const EdgeInsets.all(4),
+                            padding: EdgeInsets.all(4),
                             decoration: BoxDecoration(
                               color: AppColors.background.withValues(
                                 alpha: 0.7,
                               ),
                               shape: BoxShape.circle,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.close,
                               size: 14,
                               color: AppColors.textPrimary,
@@ -1218,7 +1323,7 @@ class _PhotoSlot extends StatelessWidget {
                             ? AppColors.statusLocked.withValues(alpha: 0.7)
                             : AppColors.textDisabled,
                       ),
-                      const SizedBox(height: 4),
+                      SizedBox(height: 4),
                       Text(
                         isRequired ? 'Wajib' : 'Opsional',
                         style: TextStyle(
@@ -1232,21 +1337,21 @@ class _PhotoSlot extends StatelessWidget {
                   ),
           ),
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: 6),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
               ),
             ),
             if (isRequired) ...[
-              const SizedBox(width: 2),
-              const Text(
+              SizedBox(width: 2),
+              Text(
                 '*',
                 style: TextStyle(fontSize: 11, color: AppColors.statusLocked),
               ),

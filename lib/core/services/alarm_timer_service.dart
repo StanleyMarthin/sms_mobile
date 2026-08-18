@@ -43,7 +43,7 @@ class AlarmTimerService {
         );
         if (i < times - 1) {
           // Tunggu sebentar agar suara notifikasi selesai
-          await Future.delayed(const Duration(milliseconds: 2500));
+          await Future.delayed(Duration(milliseconds: 2500));
         }
       }
     } catch (e) {
@@ -113,7 +113,7 @@ class AlarmTimerService {
         content: Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
         ),
         actions: [
           SizedBox(
@@ -128,7 +128,7 @@ class AlarmTimerService {
                 backgroundColor: isCritical ? AppColors.statusLocked : AppColors.gold,
                 foregroundColor: AppColors.background,
               ),
-              child: const Text('SAYA MENGERTI'),
+              child: Text('SAYA MENGERTI'),
             ),
           ),
         ],

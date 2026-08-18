@@ -5,17 +5,17 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../domain/entities/warehouse_item_suggestion.dart';
 import '../../domain/repositories/warehouse_repository.dart';
+import 'active_job_picker.dart';
 
 /// Job context yang di-pass dari halaman task aktif.
 class WarehouseJobContext {
-  const WarehouseJobContext({
+  WarehouseJobContext({
     required this.carId,
     required this.coreId,
     required this.unitName,
@@ -23,6 +23,7 @@ class WarehouseJobContext {
     required this.jobName,
     this.targetSearchDate,
     this.deadlineDate,
+    this.isOvertime,
   });
   final String carId;
   final String coreId;
@@ -31,10 +32,11 @@ class WarehouseJobContext {
   final String jobName;
   final DateTime? targetSearchDate;
   final DateTime? deadlineDate;
+  final bool? isOvertime;
 }
 
 class _WarehouseDraftItem {
-  const _WarehouseDraftItem({
+  _WarehouseDraftItem({
     required this.itemName,
     required this.qty,
     required this.uom,
@@ -48,7 +50,7 @@ class _WarehouseDraftItem {
 }
 
 class _PendingWarehouseSubmitItem {
-  const _PendingWarehouseSubmitItem({
+  _PendingWarehouseSubmitItem({
     required this.item,
     this.fromForm = false,
   });
@@ -60,18 +62,26 @@ class _PendingWarehouseSubmitItem {
 /// Sheet request barang gudang (PEMINJAMAN / PENGAMBILAN).
 /// Untuk PENYIMPANAN gunakan [WarehouseStorageSheet].
 class WarehouseRequestSheet extends StatefulWidget {
-  const WarehouseRequestSheet._({this.jobContext});
+  const WarehouseRequestSheet._({
+    this.jobContext,
+    this.transactionType = 'PEMINJAMAN',
+  });
   final WarehouseJobContext? jobContext;
+  final String transactionType;
 
   static Future<bool> show({
     required BuildContext context,
     WarehouseJobContext? jobContext,
+    String transactionType = 'PEMINJAMAN',
   }) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => WarehouseRequestSheet._(jobContext: jobContext),
+      builder: (_) => WarehouseRequestSheet._(
+        jobContext: jobContext,
+        transactionType: transactionType,
+      ),
     );
     return result == true;
   }
@@ -93,26 +103,32 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   WarehouseItemSuggestion? _selectedItem;
 
   String _itemCategory = 'SPARE_PART';
-  String _transactionType = 'PEMINJAMAN';
+  late String _transactionType;
   bool _installToUnit = false;
   bool _isSaving = false;
 
   String? _selectedCarId;
   String? _selectedUnitName;
-  List<Map<String, dynamic>> _apiCars = [];
-  bool _isLoadingCars = true;
+  WarehouseJobContext? _selectedJobContext;
+  bool _bahanForJobdesc = true;
+  List<WarehouseItemSuggestion> _unitSpareparts = [];
+  bool _isLoadingUnitItems = false;
 
-  bool get _isLinked => widget.jobContext != null;
+  bool get _isLinked => widget.jobContext != null || _selectedJobContext != null;
+
+  WarehouseJobContext? get _jobContext =>
+      widget.jobContext ?? _selectedJobContext;
 
   @override
   void initState() {
     super.initState();
+    _transactionType = widget.transactionType;
     _syncTrxType();
-    if (!_isLinked) {
-      _fetchCars();
-    } else {
-      _isLoadingCars = false;
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _itemCategory == 'SPARE_PART' && !_isLinked) {
+        _pickJob();
+      }
+    });
   }
 
   @override
@@ -124,35 +140,41 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     super.dispose();
   }
 
-  Future<void> _fetchCars() async {
-    try {
-      final res = await sl<ApiClient>().get(ApiEndpoints.jobPlanDropdowns);
-      final data = res.data['data'] ?? res.data;
-      if (!mounted) return;
-      if (data != null && data['cars'] is List) {
-        setState(() {
-          _apiCars = (data['cars'] as List)
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
-          _isLoadingCars = false;
-        });
-      } else {
-        setState(() => _isLoadingCars = false);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingCars = false);
-    }
-  }
-
   void _syncTrxType() {
-    if (_itemCategory == 'BAHAN') {
-      _transactionType = 'PENGAMBILAN';
-      _installToUnit = false;
-    } else if (_itemCategory == 'TOOLS') {
-      _transactionType = 'PEMINJAMAN';
+    if (_itemCategory == 'TOOLS') {
       _installToUnit = false;
       _selectedCarId = null;
       _selectedUnitName = null;
+    }
+  }
+
+  Future<void> _pickJob() async {
+    final ctx = await ActiveJobPicker.show(context);
+    if (!mounted || ctx == null) return;
+    setState(() {
+      _selectedJobContext = ctx;
+      _selectedCarId = null;
+      _selectedUnitName = null;
+    });
+    if (_itemCategory == 'SPARE_PART') {
+      await _loadUnitSpareparts(ctx.carId);
+    }
+  }
+
+  Future<void> _loadUnitSpareparts(String carId) async {
+    setState(() => _isLoadingUnitItems = true);
+    try {
+      final items = await sl<WarehouseRepository>().searchItems(
+        query: '',
+        category: 'SPARE_PART',
+        carId: carId,
+      );
+      if (!mounted) return;
+      setState(() => _unitSpareparts = items);
+    } catch (_) {
+      if (mounted) setState(() => _unitSpareparts = []);
+    } finally {
+      if (mounted) setState(() => _isLoadingUnitItems = false);
     }
   }
 
@@ -180,21 +202,10 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     }
     setState(() {
       _itemCategory = value;
+      _selectedItem = null;
+      _unitSpareparts = [];
+      if (value == 'TOOLS') _selectedJobContext = null;
       _syncTrxType();
-    });
-  }
-
-  void _handleTransactionChange(String value) {
-    if (_draftItems.isNotEmpty) {
-      AppNotification.showWarning(
-        context,
-        'Kirim atau hapus daftar dulu untuk ganti tipe.',
-      );
-      return;
-    }
-    setState(() {
-      _transactionType = value;
-      if (_transactionType != 'PENGAMBILAN') _installToUnit = false;
     });
   }
 
@@ -205,46 +216,79 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _handle(),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _title(),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 if (_isLinked) ...[
                   _jobBanner(),
-                  const SizedBox(height: 16),
-                ] else if (_itemCategory != 'TOOLS') ...[
-                  _label('Unit / Kendaraan'),
-                  const SizedBox(height: 8),
-                  _unitDropdown(),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
+                ] else if (_itemCategory == 'SPARE_PART') ...[
+                  _jobPickerTile(required: true),
+                  SizedBox(height: 16),
+                ] else if (_itemCategory == 'BAHAN') ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _bahanModeButton(
+                          active: _bahanForJobdesc,
+                          label: 'Untuk Jobdesc',
+                          icon: Icons.link_rounded,
+                          onTap: () => setState(() => _bahanForJobdesc = true),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _bahanModeButton(
+                          active: !_bahanForJobdesc,
+                          label: 'Workshop',
+                          icon: Icons.factory_outlined,
+                          onTap: () => setState(() {
+                            _bahanForJobdesc = false;
+                            _selectedJobContext = null;
+                          }),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (_bahanForJobdesc)
+                    _jobPickerTile(required: true)
+                  else
+                    _infoBox(
+                      'Bahan default untuk workshop (bukan unit/jobdesc).',
+                    ),
+                  SizedBox(height: 16),
                 ],
                 _label('Kategori Barang'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _categoryRow(),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 if (_itemCategory == 'SPARE_PART') ...[
-                  _label('Tipe Transaksi'),
-                  const SizedBox(height: 8),
-                  _txTypeRow(),
-                  const SizedBox(height: 14),
+                  _infoBox(
+                    _transactionType == 'PEMINJAMAN'
+                        ? 'Tipe: Peminjaman.'
+                        : 'Tipe: Pengambilan.',
+                  ),
+                  SizedBox(height: 14),
                   if (_transactionType == 'PENGAMBILAN') ...[
                     SwitchListTile.adaptive(
                       value: _installToUnit,
                       activeThumbColor: AppColors.gold,
                       activeTrackColor: AppColors.gold.withValues(alpha: 0.35),
                       contentPadding: EdgeInsets.zero,
-                      title: const Text(
+                      title: Text(
                         'Langsung dipasang ke unit',
                         style: TextStyle(
                           color: AppColors.textPrimary,
@@ -252,7 +296,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      subtitle: const Text(
+                      subtitle: Text(
                         'Gunakan bila barang langsung terpasang.',
                         style: TextStyle(
                           color: AppColors.textMuted,
@@ -261,7 +305,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                       ),
                       onChanged: (v) => setState(() => _installToUnit = v),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
                   ],
                 ] else ...[
                   _infoBox(
@@ -269,21 +313,29 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                         ? 'ACC: Ketua Divisi → Kepala Gudang → PPIC.'
                         : 'Tools langsung ke admin gudang.',
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                 ],
                 _label('Nama Barang'),
-                const SizedBox(height: 8),
-                WarehouseItemSearchField(
-                  controller: _nameCtrl,
-                  category: _itemCategory,
-                  hintText: _hintName,
-                  onSelected: _onItemSelected,
-                ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
+                if (_itemCategory == 'SPARE_PART' && _jobContext != null)
+                  _unitSparepartPicker()
+                else
+                  WarehouseItemSearchField(
+                    controller: _nameCtrl,
+                    category: _itemCategory,
+                    hintText: _hintName,
+                    onSelected: _onItemSelected,
+                    carId: _itemCategory == 'SPARE_PART'
+                        ? _jobContext?.carId
+                        : null,
+                  ),
+                SizedBox(height: 8),
                 _infoBox(
-                  'Pilih dari stok gudang bila ada. Kalau belum tahu nama pastinya, tulis saja nama lapangan. Nama bisa dikoreksi saat approval atau saat gudang menyiapkan barang.',
+                  _itemCategory == 'SPARE_PART'
+                      ? 'Wajib pilih sparepart dari daftar stok gudang.'
+                      : 'Pilih dari stok gudang bila ada. Kalau belum tahu nama pastinya, tulis saja nama lapangan. Nama bisa dikoreksi saat approval atau saat gudang menyiapkan barang.',
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
@@ -292,16 +344,16 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label('Jumlah'),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           TextField(
                             controller: _qtyCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(
+                            keyboardType: TextInputType.numberWithOptions(
                               decimal: true,
                             ),
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
                             ),
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               prefixIcon: Icon(
                                 Icons.numbers_outlined,
                                 color: AppColors.textMuted,
@@ -313,48 +365,50 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Expanded(
                       flex: 2,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _label('Satuan'),
-                          const SizedBox(height: 8),
+                          SizedBox(height: 8),
                           TextField(
                             controller: _uomCtrl,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: AppColors.textPrimary,
                             ),
-                            decoration: const InputDecoration(hintText: 'PCS'),
+                            decoration: InputDecoration(hintText: 'PCS'),
                           ),
                         ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 _addItemButton(),
                 if (_draftItems.isNotEmpty) ...[
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   _draftList(),
                 ],
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 _label(
-                  _draftItems.length > 1
+                  _itemCategory == 'BAHAN' && !_bahanForJobdesc
+                      ? 'Catatan (wajib)'
+                      : _draftItems.length > 1
                       ? 'Catatan (semua item)'
                       : 'Catatan (opsional)',
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 TextField(
                   controller: _notesCtrl,
                   minLines: 2,
                   maxLines: 3,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Catatan tambahan bila diperlukan',
                     prefixIcon: Icon(
                       Icons.notes_outlined,
@@ -363,7 +417,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 _submitButton(),
               ],
             ),
@@ -387,11 +441,11 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
 
   Widget _title() => Row(
     children: [
-      const Icon(Icons.warehouse_outlined, color: AppColors.gold, size: 20),
-      const SizedBox(width: 8),
+      Icon(Icons.warehouse_outlined, color: AppColors.gold, size: 20),
+      SizedBox(width: 8),
       Text(
         _isLinked ? 'Ajukan Barang untuk Pekerjaan' : 'Ajukan Barang',
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
@@ -402,7 +456,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
 
   Widget _label(String t) => Text(
     t,
-    style: const TextStyle(
+    style: TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w600,
       color: AppColors.textMuted,
@@ -411,7 +465,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   );
 
   Widget _infoBox(String msg) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     decoration: BoxDecoration(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(8),
@@ -419,12 +473,12 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     ),
     child: Row(
       children: [
-        const Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
-        const SizedBox(width: 8),
+        Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
+        SizedBox(width: 8),
         Expanded(
           child: Text(
             msg,
-            style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
         ),
       ],
@@ -432,7 +486,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   );
 
   Widget _jobBanner() {
-    final ctx = widget.jobContext!;
+    final ctx = _jobContext!;
     final today = DateTime.now();
     final todayD = DateTime(today.year, today.month, today.day);
     final isToday =
@@ -456,13 +510,13 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
         : isTomorrow
         ? 'Besok'
         : '${ctx.targetSearchDate!.day}/${ctx.targetSearchDate!.month}/${ctx.targetSearchDate!.year}';
-    final isOvertime = !isToday;
+    final isOvertime = ctx.isOvertime ?? !isToday;
 
     final accentColor = isOvertime
         ? AppColors.statusInProgress
         : AppColors.gold;
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: accentColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
@@ -478,7 +532,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                 size: 13,
                 color: accentColor,
               ),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 isOvertime
                     ? 'Task lembur${dateLabel != null ? " ($dateLabel)" : ""}'
@@ -490,9 +544,9 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                 ),
               ),
               if (dateLabel != null && !isOvertime) ...[
-                const Spacer(),
+                Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 6,
                     vertical: 2,
                   ),
@@ -512,10 +566,10 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
               ],
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             ctx.unitName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
@@ -523,7 +577,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
           ),
           Text(
             '${ctx.panelName}  ·  ${ctx.jobName}',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textSecondary,
             ),
@@ -533,8 +587,158 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     );
   }
 
+  Widget _jobPickerTile({required bool required}) {
+    final ctx = _jobContext;
+    return InkWell(
+      onTap: _pickJob,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.link_rounded,
+              size: 16,
+              color: AppColors.gold,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    required
+                        ? 'Pilih Pekerjaan (wajib)'
+                        : 'Pilih Pekerjaan (opsional)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    ctx == null
+                        ? (required ? 'Wajib pilih jobdesc' : 'Opsional pilih jobdesc')
+                        : '${ctx.unitName} · ${ctx.panelName} · ${ctx.jobName}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bahanModeButton({
+    required bool active,
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        color: active
+            ? AppColors.gold.withValues(alpha: 0.15)
+            : AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: active ? AppColors.gold : AppColors.border,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 18, color: active ? AppColors.gold : AppColors.textMuted),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: active ? AppColors.gold : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _unitSparepartPicker() {
+    if (_isLoadingUnitItems) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            color: AppColors.gold,
+          ),
+        ),
+      );
+    }
+    if (_unitSpareparts.length <= 3 && _unitSpareparts.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<WarehouseItemSuggestion>(
+            initialValue: _unitSpareparts.contains(_selectedItem)
+                ? _selectedItem
+                : null,
+            dropdownColor: AppColors.surfaceCard,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+            ),
+            isExpanded: true,
+            decoration: const InputDecoration(
+              hintText: 'Pilih sparepart unit',
+            ),
+            items: _unitSpareparts
+                .map(
+                  (item) => DropdownMenuItem(
+                    value: item,
+                    child: Text(item.itemName),
+                  ),
+                )
+                .toList(),
+            onChanged: (item) {
+              if (item != null) _onItemSelected(item);
+            },
+          ),
+          if (_selectedItem != null) ...[
+            const SizedBox(height: 8),
+            _SelectedItemPreview(item: _selectedItem!),
+          ],
+        ],
+      );
+    }
+    return WarehouseItemSearchField(
+      controller: _nameCtrl,
+      category: 'SPARE_PART',
+      hintText: _hintName,
+      onSelected: _onItemSelected,
+      carId: _jobContext?.carId,
+    );
+  }
+
   Widget _categoryRow() {
-    const items = [
+    final items = [
       ('SPARE_PART', 'Sparepart', Icons.settings_outlined),
       ('BAHAN', 'Bahan', Icons.science_outlined),
       ('TOOLS', 'Tools', Icons.build_outlined),
@@ -548,8 +752,8 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
             child: GestureDetector(
               onTap: () => _handleCategoryChange(e.$1),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 9),
+                duration: Duration(milliseconds: 150),
+                padding: EdgeInsets.symmetric(vertical: 9),
                 decoration: BoxDecoration(
                   color: active
                       ? AppColors.gold.withValues(alpha: 0.15)
@@ -568,7 +772,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                       size: 18,
                       color: active ? AppColors.gold : AppColors.textMuted,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       e.$2,
                       style: TextStyle(
@@ -587,117 +791,25 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     );
   }
 
-  Widget _txTypeRow() {
-    const items = [
-      ('PEMINJAMAN', 'Pinjam', Icons.swap_horiz_rounded),
-      ('PENGAMBILAN', 'Ambil', Icons.exit_to_app_rounded),
-    ];
-    return Row(
-      children: items.map((e) {
-        final active = _transactionType == e.$1;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: e.$1 == 'PEMINJAMAN' ? 8 : 0),
-            child: GestureDetector(
-              onTap: () => _handleTransactionChange(e.$1),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 9),
-                decoration: BoxDecoration(
-                  color: active
-                      ? AppColors.gold.withValues(alpha: 0.15)
-                      : AppColors.background,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: active
-                        ? AppColors.gold.withValues(alpha: 0.7)
-                        : AppColors.border,
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      e.$3,
-                      size: 16,
-                      color: active ? AppColors.gold : AppColors.textMuted,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      e.$2,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: active ? AppColors.gold : AppColors.textMuted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _unitDropdown() {
-    if (_isLoadingCars) {
-      return const SizedBox(
-        height: 48,
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: AppColors.gold,
-          ),
-        ),
-      );
-    }
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedCarId,
-      dropdownColor: AppColors.surfaceCard,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-      iconEnabledColor: AppColors.textMuted,
-      isExpanded: true,
-      decoration: const InputDecoration(hintText: 'Pilih Unit / Kendaraan'),
-      items: _apiCars
-          .map(
-            (car) => DropdownMenuItem(
-              value: car['id'] as String,
-              child: Text('${car['unit_name']} - ${car['customer_name']}'),
-            ),
-          )
-          .toList(),
-      onChanged: (v) {
-        if (v == null) return;
-        final car = _apiCars.firstWhere((c) => c['id'] == v);
-        setState(() {
-          _selectedCarId = v;
-          _selectedUnitName = car['unit_name'] as String?;
-        });
-      },
-    );
-  }
-
   Widget _addItemButton() => Align(
     alignment: Alignment.centerLeft,
     child: OutlinedButton.icon(
       onPressed: _isSaving ? null : _addItem,
-      icon: const Icon(Icons.add_rounded, size: 18),
-      label: const Text(
+      icon: Icon(Icons.add_rounded, size: 18),
+      label: Text(
         'Tambah ke Daftar',
         style: TextStyle(fontWeight: FontWeight.w700),
       ),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.gold,
         side: BorderSide(color: AppColors.gold.withValues(alpha: 0.5)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       ),
     ),
   );
 
   Widget _draftList() => Container(
-    padding: const EdgeInsets.all(12),
+    padding: EdgeInsets.all(12),
     decoration: BoxDecoration(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(12),
@@ -708,7 +820,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               'Daftar Item',
               style: TextStyle(
                 fontSize: 13,
@@ -716,16 +828,16 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                 color: AppColors.textPrimary,
               ),
             ),
-            const Spacer(),
+            Spacer(),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.gold.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 '${_draftItems.length} item',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: AppColors.gold,
@@ -734,15 +846,15 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         ..._draftItems.map(_draftItemTile),
       ],
     ),
   );
 
   Widget _draftItemTile(_WarehouseDraftItem item) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.fromLTRB(10, 10, 8, 10),
+    margin: EdgeInsets.only(bottom: 8),
+    padding: EdgeInsets.fromLTRB(10, 10, 8, 10),
     decoration: BoxDecoration(
       color: AppColors.surfaceCard,
       borderRadius: BorderRadius.circular(10),
@@ -758,36 +870,36 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,
-          child: const Icon(
+          child: Icon(
             Icons.inventory_2_outlined,
             size: 16,
             color: AppColors.gold,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 item.itemName,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 '${_formatQty(item.qty)} ${item.uom}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   color: AppColors.textMuted,
                 ),
               ),
               if (item.itemMasterId != null) ...[
-                const SizedBox(height: 3),
-                const Text(
+                SizedBox(height: 3),
+                Text(
                   'Tersambung ke stok gudang',
                   style: TextStyle(
                     fontSize: 10,
@@ -804,7 +916,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
               ? null
               : () => setState(() => _draftItems.remove(item)),
           visualDensity: VisualDensity.compact,
-          icon: const Icon(
+          icon: Icon(
             Icons.close_rounded,
             color: AppColors.textMuted,
             size: 18,
@@ -817,7 +929,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   Widget _submitButton() => FilledButton.icon(
     onPressed: _isSaving ? null : _submit,
     icon: _isSaving
-        ? const SizedBox(
+        ? SizedBox(
             width: 16,
             height: 16,
             child: CircularProgressIndicator(
@@ -825,19 +937,19 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
               color: Colors.white,
             ),
           )
-        : const Icon(Icons.send_rounded, size: 18),
+        : Icon(Icons.send_rounded, size: 18),
     label: Text(
       _isSaving
           ? 'Mengirim...'
           : _draftItems.isEmpty
           ? 'Ajukan'
           : 'Ajukan ${_draftItems.length} Item',
-      style: const TextStyle(fontWeight: FontWeight.w600),
+      style: TextStyle(fontWeight: FontWeight.w600),
     ),
     style: FilledButton.styleFrom(
       backgroundColor: AppColors.gold,
       foregroundColor: AppColors.background,
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: EdgeInsets.symmetric(vertical: 14),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
   );
@@ -858,6 +970,15 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     if (name.isEmpty) {
       if (showError) {
         AppNotification.showError(context, 'Nama barang tidak boleh kosong.');
+      }
+      return null;
+    }
+    if (_itemCategory == 'SPARE_PART' && _selectedItem == null) {
+      if (showError) {
+        AppNotification.showError(
+          context,
+          'Sparepart wajib dipilih dari daftar stok gudang.',
+        );
       }
       return null;
     }
@@ -899,14 +1020,14 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
 
     if (_draftItems.isEmpty) {
       final current = _buildDraftItem(showError: true);
-      if (current == null) return const [];
+      if (current == null) return [];
       items.add(_PendingWarehouseSubmitItem(item: current, fromForm: true));
       return items;
     }
 
     if (_hasPendingFormInput) {
       final current = _buildDraftItem(showError: true);
-      if (current == null) return const [];
+      if (current == null) return [];
       items.add(_PendingWarehouseSubmitItem(item: current, fromForm: true));
     }
 
@@ -914,23 +1035,22 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
   }
 
   Future<void> _submit() async {
-    final needsJobReference =
-        _itemCategory == 'BAHAN' || _itemCategory == 'SPARE_PART';
-    if (!_isLinked && needsJobReference) {
+    final effectiveJob = _jobContext;
+    final bahanWorkshop = _itemCategory == 'BAHAN' && !_bahanForJobdesc;
+    if (_itemCategory != 'TOOLS' && !bahanWorkshop && effectiveJob == null) {
       AppNotification.showError(
         context,
-        'Peminjaman atau pengambilan bahan/sparepart harus dari pekerjaan aktif.',
+        'Pilih pekerjaan/jobdesc terlebih dahulu.',
       );
       return;
     }
-    if (!_isLinked && _itemCategory != 'TOOLS' && _selectedCarId == null) {
+    if (bahanWorkshop && _notesCtrl.text.trim().isEmpty) {
       AppNotification.showError(
         context,
-        'Pilih unit/kendaraan terlebih dahulu.',
+        'Catatan wajib diisi untuk bahan workshop.',
       );
       return;
     }
-
     final submitItems = _collectSubmitItems();
     if (submitItems.isEmpty) return;
 
@@ -938,10 +1058,13 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
     try {
       final session = sl<SessionManager>();
       final repo = sl<WarehouseRepository>();
-      final ctx = widget.jobContext;
+      final ctx = effectiveJob;
       final submittedDraftItems = <_WarehouseDraftItem>[];
       var submittedFormItem = false;
       var submittedCount = 0;
+      final notesValue = _notesCtrl.text.trim().isNotEmpty
+          ? _notesCtrl.text.trim()
+          : null;
 
       for (final entry in submitItems) {
         try {
@@ -957,16 +1080,15 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
             employeeId: session.userId ?? '-',
             carId: ctx?.carId ?? _selectedCarId,
             coreId: ctx?.coreId,
-            unitName: ctx?.unitName ?? _selectedUnitName,
+            unitName: ctx?.unitName ??
+                (bahanWorkshop ? 'WORKSHOP' : _selectedUnitName),
             panelName: ctx?.panelName,
             jobdesc: ctx?.jobName,
             itemMasterId: entry.item.itemMasterId,
             installToUnit: _installToUnit,
-            targetSearchDate: DateTime.now().add(const Duration(days: 4)),
+            targetSearchDate: DateTime.now().add(Duration(days: 4)),
             deadlineDate: ctx?.deadlineDate,
-            notes: _notesCtrl.text.trim().isNotEmpty
-                ? _notesCtrl.text.trim()
-                : null,
+            notes: notesValue,
           );
           submittedCount += 1;
           if (entry.fromForm) {
@@ -987,7 +1109,7 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
                 : '';
             AppNotification.showError(
               context,
-              '${prefix}Gagal di ${entry.item.itemName}: $e',
+              '$prefix${friendlyMessage(e, fallback: 'Gagal di ${entry.item.itemName}')}',
             );
           }
           return;
@@ -1012,7 +1134,12 @@ class _WarehouseRequestSheetState extends State<WarehouseRequestSheet> {
         }
       });
     } catch (e) {
-      if (mounted) AppNotification.showError(context, 'Gagal: $e');
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal mengajukan barang'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -1030,7 +1157,7 @@ class WarehouseStorageSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => const WarehouseStorageSheet._(),
+      builder: (_) => WarehouseStorageSheet._(),
     );
     return result == true;
   }
@@ -1044,19 +1171,15 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
   final _notesCtrl = TextEditingController();
 
   String _condition = 'GOOD';
-  String? _selectedCarId;
-  String? _selectedUnitName;
-  List<Map<String, dynamic>> _apiCars = [];
+  WarehouseJobContext? _jobContext;
   final List<String> _photoPaths = [];
   final List<String> _photoUrls = [];
-  bool _isLoadingCars = true;
   bool _isUploadingPhoto = false;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchCars();
   }
 
   @override
@@ -1074,24 +1197,10 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
     });
   }
 
-  Future<void> _fetchCars() async {
-    try {
-      final res = await sl<ApiClient>().get(ApiEndpoints.jobPlanDropdowns);
-      final data = res.data['data'] ?? res.data;
-      if (!mounted) return;
-      if (data != null && data['cars'] is List) {
-        setState(() {
-          _apiCars = (data['cars'] as List)
-              .map((e) => Map<String, dynamic>.from(e))
-              .toList();
-          _isLoadingCars = false;
-        });
-      } else {
-        setState(() => _isLoadingCars = false);
-      }
-    } catch (_) {
-      if (mounted) setState(() => _isLoadingCars = false);
-    }
+  Future<void> _pickJob() async {
+    final ctx = await ActiveJobPicker.show(context);
+    if (!mounted || ctx == null) return;
+    setState(() => _jobContext = ctx);
   }
 
   @override
@@ -1101,13 +1210,13 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            padding: EdgeInsets.fromLTRB(20, 16, 20, 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1123,9 +1232,9 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
                 // Title
-                const Row(
+                Row(
                   children: [
                     Icon(
                       Icons.archive_outlined,
@@ -1143,53 +1252,54 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
-                const Text(
+                SizedBox(height: 4),
+                Text(
                   'Simpan barang yang sudah dilepas ke gudang.',
                   style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: 16),
 
-                // Unit
-                _label('Unit / Kendaraan'),
-                const SizedBox(height: 8),
-                _unitDropdown(),
-                const SizedBox(height: 14),
+                // Jobdesc
+                _label('Pekerjaan / Unit'),
+                SizedBox(height: 8),
+                _storageJobPickerTile(),
+                SizedBox(height: 14),
 
                 // Nama Part
                 _label('Nama Part / Barang'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 WarehouseItemSearchField(
                   controller: _nameCtrl,
                   category: 'SPARE_PART',
                   hintText: 'cth: Pintu Kanan, Bumper Depan',
                   onSelected: _onItemSelected,
+                  carId: _jobContext?.carId,
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
 
                 // Kondisi
                 _label('Kondisi Barang'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _conditionRow(),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
 
                 _label('Foto Barang'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 _photoPicker(),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
 
                 // Catatan
                 _label('Catatan (opsional)'),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 TextField(
                   controller: _notesCtrl,
                   minLines: 2,
                   maxLines: 3,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Catatan tambahan bila diperlukan',
                     prefixIcon: Icon(
                       Icons.notes_outlined,
@@ -1198,12 +1308,12 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
 
                 FilledButton.icon(
                   onPressed: _isSaving ? null : _submit,
                   icon: _isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(
@@ -1211,15 +1321,15 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                             color: Colors.white,
                           ),
                         )
-                      : const Icon(Icons.archive_rounded, size: 18),
+                      : Icon(Icons.archive_rounded, size: 18),
                   label: Text(
                     _isSaving ? 'Mengirim...' : 'Ajukan Penyimpanan',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF5B8EFF),
+                    backgroundColor: Color(0xFF5B8EFF),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -1235,7 +1345,7 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
 
   Widget _label(String t) => Text(
     t,
-    style: const TextStyle(
+    style: TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w600,
       color: AppColors.textMuted,
@@ -1243,48 +1353,65 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
     ),
   );
 
-  Widget _unitDropdown() {
-    if (_isLoadingCars) {
-      return const SizedBox(
-        height: 48,
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Color(0xFF5B8EFF),
-          ),
+  Widget _storageJobPickerTile() {
+    final ctx = _jobContext;
+    return InkWell(
+      onTap: _pickJob,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.border),
+          borderRadius: BorderRadius.circular(10),
         ),
-      );
-    }
-    return DropdownButtonFormField<String>(
-      initialValue: _selectedCarId,
-      dropdownColor: AppColors.surfaceCard,
-      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-      iconEnabledColor: AppColors.textMuted,
-      isExpanded: true,
-      decoration: const InputDecoration(hintText: 'Pilih Unit / Kendaraan'),
-      items: _apiCars
-          .map(
-            (car) => DropdownMenuItem(
-              value: car['id'] as String,
-              child: Text('${car['unit_name']} - ${car['customer_name']}'),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.link_rounded,
+              size: 16,
+              color: Color(0xFF5B8EFF),
             ),
-          )
-          .toList(),
-      onChanged: (v) {
-        if (v == null) return;
-        final car = _apiCars.firstWhere((c) => c['id'] == v);
-        setState(() {
-          _selectedCarId = v;
-          _selectedUnitName = car['unit_name'] as String?;
-        });
-      },
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pilih Pekerjaan (wajib)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    ctx == null
+                        ? 'Wajib pilih jobdesc'
+                        : '${ctx.unitName} · ${ctx.panelName} · ${ctx.jobName}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              size: 18,
+              color: AppColors.textMuted,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _conditionRow() {
-    const opts = ['GOOD', 'DAMAGED', 'SCRAP'];
-    const labels = ['Baik', 'Rusak', 'Scrap'];
-    const colors = [
+    final opts = ['GOOD', 'DAMAGED', 'SCRAP'];
+    final labels = ['Baik', 'Rusak', 'Scrap'];
+    final colors = [
       AppColors.statusDone,
       AppColors.statusInProgress,
       AppColors.statusLocked,
@@ -1298,8 +1425,8 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
             child: GestureDetector(
               onTap: () => setState(() => _condition = opts[i]),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(vertical: 10),
+                duration: Duration(milliseconds: 150),
+                padding: EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
                   color: active
                       ? colors[i].withValues(alpha: 0.15)
@@ -1333,7 +1460,7 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
         OutlinedButton.icon(
           onPressed: _isUploadingPhoto ? null : _captureAndUploadPhoto,
           icon: _isUploadingPhoto
-              ? const SizedBox(
+              ? SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
@@ -1341,25 +1468,25 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                     color: AppColors.textPrimary,
                   ),
                 )
-              : const Icon(Icons.camera_alt_outlined, size: 18),
+              : Icon(Icons.camera_alt_outlined, size: 18),
           label: Text(
             _isUploadingPhoto ? 'Mengupload...' : 'Ambil Foto',
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: TextStyle(fontWeight: FontWeight.w600),
           ),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.textPrimary,
-            side: const BorderSide(color: AppColors.border),
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            side: BorderSide(color: AppColors.border),
+            padding: EdgeInsets.symmetric(vertical: 12),
           ),
         ),
         if (_photoPaths.isNotEmpty) ...[
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           SizedBox(
             height: 84,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _photoPaths.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
+              separatorBuilder: (context, index) => SizedBox(width: 8),
               itemBuilder: (_, index) => Stack(
                 children: [
                   ClipRRect(
@@ -1386,8 +1513,8 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
                           color: AppColors.background.withValues(alpha: 0.7),
                           shape: BoxShape.circle,
                         ),
-                        padding: const EdgeInsets.all(4),
-                        child: const Icon(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
                           Icons.close,
                           size: 14,
                           color: AppColors.textPrimary,
@@ -1400,7 +1527,7 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
             ),
           ),
         ] else
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 6),
             child: Text(
               'Foto bersifat opsional.',
@@ -1414,7 +1541,7 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
   Future<void> _captureAndUploadPhoto() async {
     final path = await Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => const InAppCameraPage(
+        builder: (_) => InAppCameraPage(
           slot: 'warehouse_storage',
           label: 'Foto Barang Gudang',
         ),
@@ -1440,7 +1567,12 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
         _photoUrls.add(photoUrl);
       });
     } catch (e) {
-      if (mounted) AppNotification.showError(context, 'Upload foto gagal: $e');
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Upload foto gagal'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isUploadingPhoto = false);
     }
@@ -1452,8 +1584,12 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
       AppNotification.showError(context, 'Nama barang wajib diisi.');
       return;
     }
-    if (_selectedCarId == null) {
-      AppNotification.showError(context, 'Pilih unit terlebih dahulu.');
+    final ctx = _jobContext;
+    if (ctx == null) {
+      AppNotification.showError(
+        context,
+        'Pilih pekerjaan/jobdesc terlebih dahulu.',
+      );
       return;
     }
 
@@ -1471,8 +1607,11 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
         division: session.divisionName ?? '-',
         divisionId: session.divisionId ?? 0,
         employeeId: session.userId ?? '-',
-        carId: _selectedCarId,
-        unitName: _selectedUnitName,
+        carId: ctx.carId,
+        coreId: ctx.coreId,
+        unitName: ctx.unitName,
+        panelName: ctx.panelName,
+        jobdesc: ctx.jobName,
         itemCondition: _condition,
         photoUrls: _photoUrls.isEmpty ? null : _photoUrls,
         notes: _notesCtrl.text.trim().isNotEmpty
@@ -1487,7 +1626,12 @@ class _WarehouseStorageSheetState extends State<WarehouseStorageSheet> {
         }
       });
     } catch (e) {
-      if (mounted) AppNotification.showError(context, 'Gagal: $e');
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal mengajukan barang'),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -1501,12 +1645,14 @@ class WarehouseItemSearchField extends StatefulWidget {
     required this.category,
     required this.hintText,
     required this.onSelected,
+    this.carId,
   });
 
   final TextEditingController controller;
   final String category;
   final String hintText;
   final ValueChanged<WarehouseItemSuggestion?> onSelected;
+  final String? carId;
 
   @override
   State<WarehouseItemSearchField> createState() =>
@@ -1515,7 +1661,7 @@ class WarehouseItemSearchField extends StatefulWidget {
 
 class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
   Timer? _debounce;
-  List<WarehouseItemSuggestion> _items = const [];
+  List<WarehouseItemSuggestion> _items = [];
   WarehouseItemSuggestion? _selected;
   bool _isLoading = false;
 
@@ -1551,23 +1697,24 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
 
     _debounce?.cancel();
     if (query.length < 2) {
-      setState(() => _items = const []);
+      setState(() => _items = []);
       return;
     }
 
-    _debounce = Timer(const Duration(milliseconds: 350), () async {
+    _debounce = Timer(Duration(milliseconds: 350), () async {
       setState(() => _isLoading = true);
       try {
         final repo = sl<WarehouseRepository>();
         final items = await repo.searchItems(
           query: query,
           category: widget.category,
+          carId: widget.carId,
         );
         if (!mounted) return;
         setState(() => _items = _sortSuggestions(items));
       } catch (_) {
         if (!mounted) return;
-        setState(() => _items = const []);
+        setState(() => _items = []);
       } finally {
         if (mounted) setState(() => _isLoading = false);
       }
@@ -1581,7 +1728,7 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
     );
     setState(() {
       _selected = item;
-      _items = const [];
+      _items = [];
     });
     widget.onSelected(item);
   }
@@ -1593,18 +1740,18 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
       children: [
         TextField(
           controller: widget.controller,
-          style: const TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(color: AppColors.textPrimary),
           textCapitalization: TextCapitalization.words,
           onChanged: _onChanged,
           decoration: InputDecoration(
             hintText: widget.hintText,
-            prefixIcon: const Icon(
+            prefixIcon: Icon(
               Icons.inventory_2_outlined,
               color: AppColors.textMuted,
               size: 20,
             ),
             suffixIcon: _isLoading
-                ? const Padding(
+                ? Padding(
                     padding: EdgeInsets.all(12),
                     child: SizedBox(
                       width: 16,
@@ -1619,11 +1766,11 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
           ),
         ),
         if (_selected != null) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           _SelectedItemPreview(item: _selected!),
         ],
         if (_items.isNotEmpty) ...[
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Container(
             decoration: BoxDecoration(
               color: AppColors.background,
@@ -1636,40 +1783,40 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
                 return InkWell(
                   onTap: () => _pick(item),
                   child: Padding(
-                    padding: const EdgeInsets.all(10),
+                    padding: EdgeInsets.all(10),
                     child: Opacity(
                       opacity: hasStock ? 1 : 0.62,
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _SuggestionPhoto(photoUrls: item.photoUrls),
-                          const SizedBox(width: 10),
+                          SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   item.itemName,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
+                                SizedBox(height: 2),
                                 Text(
                                   '${item.itemCategory} · ${item.uom}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 11,
                                     color: AppColors.textMuted,
                                   ),
                                 ),
                                 if (item.lastLocation?.isNotEmpty ?? false)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 4),
+                                    padding: EdgeInsets.only(top: 4),
                                     child: Text(
                                       'Lokasi: ${item.lastLocation}',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 11,
                                         color: Color(0xFF5B8EFF),
                                       ),
@@ -1677,10 +1824,10 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
                                   ),
                                 if (item.matchedAlias?.isNotEmpty ?? false)
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 4),
+                                    padding: EdgeInsets.only(top: 4),
                                     child: Text(
                                       'Alias: ${item.matchedAlias}',
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 10,
                                         color: AppColors.textMuted,
                                       ),
@@ -1689,7 +1836,7 @@ class _WarehouseItemSearchFieldState extends State<WarehouseItemSearchField> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           _StockQtyBadge(
                             stockQty: item.stockQty,
                             uom: item.uom,
@@ -1720,7 +1867,7 @@ class _SelectedItemPreview extends StatelessWidget {
         ? item.stockQty.toInt().toString()
         : item.stockQty.toString();
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(10),
@@ -1729,33 +1876,33 @@ class _SelectedItemPreview extends StatelessWidget {
       child: Row(
         children: [
           _SuggestionPhoto(photoUrls: item.photoUrls),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   item.itemName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   '${item.itemCode} · ${item.uom}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
                 ),
                 if (item.lastLocation?.isNotEmpty ?? false)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                    padding: EdgeInsets.only(top: 4),
                     child: Text(
                       item.lastLocation!,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: Color(0xFF5B8EFF),
                       ),
@@ -1764,9 +1911,9 @@ class _SelectedItemPreview extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: hasStock
                   ? AppColors.statusDone.withValues(alpha: 0.12)
@@ -1825,7 +1972,7 @@ class _SuggestionPhoto extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         alignment: Alignment.center,
-        child: const Icon(
+        child: Icon(
           Icons.image_not_supported_outlined,
           size: 18,
           color: AppColors.textMuted,
@@ -1845,7 +1992,7 @@ class _SuggestionPhoto extends StatelessWidget {
           height: 48,
           color: AppColors.surfaceInput,
           alignment: Alignment.center,
-          child: const Icon(
+          child: Icon(
             Icons.broken_image_outlined,
             size: 18,
             color: AppColors.textMuted,
@@ -1869,7 +2016,7 @@ class _StockQtyBadge extends StatelessWidget {
         ? stockQty.toInt().toString()
         : stockQty.toString();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: hasStock
             ? AppColors.statusDone.withValues(alpha: 0.12)

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/theme/theme_controller.dart';
 import '../../domain/entities/profile_data.dart';
 import '../../domain/repositories/profile_repository.dart';
 
@@ -22,17 +23,17 @@ class ProfilePage extends StatelessWidget {
       future: repository.getProfile(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator());
         }
 
         final profile = snapshot.data!;
 
         return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+          padding: EdgeInsets.fromLTRB(16, 20, 16, 32),
           child: Column(
             children: [
               _buildProfileHeader(profile),
-              const SizedBox(height: 24),
+              SizedBox(height: 24),
               _buildInfoCard(
                 icon: Icons.badge_outlined,
                 label: 'Employee ID',
@@ -48,19 +49,21 @@ class ProfilePage extends StatelessWidget {
                 label: 'Jabatan',
                 value: profile.grade,
               ),
+              const SizedBox(height: 24),
+              _buildThemeCard(),
               // Role card intentionally hidden from UI.
               // Permissions section intentionally hidden from UI.
-              const SizedBox(height: 32),
+              SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => _confirmLogout(context, repository),
-                  icon: const Icon(Icons.logout_rounded, size: 18),
-                  label: const Text('Logout'),
+                  icon: Icon(Icons.logout_rounded, size: 18),
+                  label: Text('Logout'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.statusLocked,
-                    side: const BorderSide(color: AppColors.statusLocked),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: AppColors.statusLocked),
+                    padding: EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -102,7 +105,7 @@ class ProfilePage extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: 88,
                     height: 88,
-                    placeholder: (context, url) => const Center(
+                    placeholder: (context, url) => Center(
                       child: SizedBox(
                         width: 24,
                         height: 24,
@@ -120,24 +123,91 @@ class ProfilePage extends StatelessWidget {
                 : _buildInitialsAvatar(initials),
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Text(
           profile.fullName,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(height: 4),
+        SizedBox(height: 4),
         Text(
           '${profile.grade} — ${profile.division}',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             color: AppColors.textMuted,
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildThemeCard() {
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ValueListenableBuilder<String>(
+        valueListenable: ThemeController.mode,
+        builder: (context, mode, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.palette_outlined,
+                  size: 20,
+                  color: AppColors.gold,
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  'Mode Tampilan',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ikuti Sistem: mengikuti mode gelap/terang HP.',
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: 'system',
+                  label: Text('Sistem'),
+                  icon: Icon(Icons.brightness_auto_outlined),
+                ),
+                ButtonSegment(
+                  value: 'light',
+                  label: Text('Terang'),
+                  icon: Icon(Icons.light_mode_outlined),
+                ),
+                ButtonSegment(
+                  value: 'dark',
+                  label: Text('Gelap'),
+                  icon: Icon(Icons.dark_mode_outlined),
+                ),
+              ],
+              selected: {mode},
+              onSelectionChanged: (selection) =>
+                  ThemeController.setMode(selection.first),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -148,7 +218,7 @@ class ProfilePage extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initials,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.bold,
           color: AppColors.gold,
@@ -164,8 +234,8 @@ class ProfilePage extends StatelessWidget {
   }) {
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      margin: EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(10),
@@ -174,22 +244,22 @@ class ProfilePage extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, size: 20, color: AppColors.gold),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   value,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                     color: AppColors.textPrimary,
@@ -212,16 +282,16 @@ class ProfilePage extends StatelessWidget {
         backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.border),
+          side: BorderSide(color: AppColors.border),
         ),
-        title: const Text('Logout?',
+        title: Text('Logout?',
             style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: const Text('Anda akan keluar dari akun ini.',
+        content: Text('Anda akan keluar dari akun ini.',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () async {
@@ -233,7 +303,7 @@ class ProfilePage extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.statusLocked,
             ),
-            child: const Text('Logout',
+            child: Text('Logout',
                 style: TextStyle(color: AppColors.textPrimary)),
           ),
         ],

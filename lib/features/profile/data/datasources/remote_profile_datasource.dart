@@ -1,4 +1,10 @@
-library;
+/*
+Tujuan: Remote datasource untuk mengambil profil user dan fallback session lokal.
+Caller: ProfileRepositoryImpl/ProfilePage.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, TaskDraftStorage.
+Main Functions: RemoteProfileDataSource.getProfile(), clearLocalDrafts().
+Side Effects: HTTP GET profile, clear draft task lokal.
+*/
 
 import 'package:flutter/foundation.dart';
 import '../../../../core/network/api_client.dart';
@@ -8,7 +14,7 @@ import '../../../task_execution/data/datasources/task_draft_storage.dart';
 import 'profile_datasource.dart';
 
 class RemoteProfileDataSource implements ProfileDataSource {
-  const RemoteProfileDataSource({
+  RemoteProfileDataSource({
     required this.apiClient,
     required this.sessionManager,
     required this.taskDraftStorage,
@@ -31,19 +37,22 @@ class RemoteProfileDataSource implements ProfileDataSource {
             : data;
 
         // Coba beberapa alias field foto yang mungkin dipakai backend
-        final rawPhoto = user['photoUrl'] ??
+        final rawPhoto =
+            user['photoUrl'] ??
             user['photo_url'] ??
             user['profilePhoto'] ??
             user['avatar_url'] ??
             user['avatarUrl'];
-        String? photoUrl =
-            (rawPhoto is String && rawPhoto.trim().isNotEmpty) ? rawPhoto.trim() : null;
+        String? photoUrl = (rawPhoto is String && rawPhoto.trim().isNotEmpty)
+            ? rawPhoto.trim()
+            : null;
 
         // Wrap dengan proxy backend untuk menghindari blokir .r2.dev dari ISP lokal
         if (photoUrl != null && photoUrl.contains('.r2.dev')) {
           final encodedUrl = Uri.encodeComponent(photoUrl);
-          // ApiEndpoints.baseUrl mengarah ke sm_login (port 8085)
-          photoUrl = '${ApiEndpoints.baseUrl}/api/v1/proxy/image?url=$encodedUrl';
+          // ApiEndpoints.baseUrl mengarah ke auth/gateway origin.
+          photoUrl =
+              '${ApiEndpoints.baseUrl}/api/v1/proxy/image?url=$encodedUrl';
         }
 
         debugPrint('--- PROFILE DATASOURCE PARSED PHOTO URL: $photoUrl ---');

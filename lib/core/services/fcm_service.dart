@@ -32,7 +32,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 // Channel Android
-const AndroidNotificationChannel _channel = AndroidNotificationChannel(
+AndroidNotificationChannel _channel = AndroidNotificationChannel(
   'sm_system_channel',
   'SM System Notifications',
   description: 'Notifikasi sistem Stanley Marthin Workshop',
@@ -41,7 +41,7 @@ const AndroidNotificationChannel _channel = AndroidNotificationChannel(
   enableVibration: true,
 );
 
-const AndroidNotificationChannel _alarmChannel = AndroidNotificationChannel(
+AndroidNotificationChannel _alarmChannel = AndroidNotificationChannel(
   'task_alarm_channel',
   'Alarm Pekerjaan',
   description: 'Waktu Pengerjaan Hampir Habis',
@@ -101,7 +101,7 @@ class FCMService {
       }
 
       await _localNotif.initialize(
-        const InitializationSettings(
+        InitializationSettings(
           android: AndroidInitializationSettings('@drawable/ic_notification'),
           iOS: DarwinInitializationSettings(),
         ),
@@ -137,7 +137,7 @@ class FCMService {
                 icon: '@drawable/ic_notification',
                 importance: Importance.max,
                 priority: Priority.high,
-                color: const Color(0xFFFFCF40),
+                color: Color(0xFFFFCF40),
               ),
             ),
             payload: _buildPayload(message.data),
@@ -169,7 +169,7 @@ class FCMService {
           );
         }
         // Delay sedikit agar router sudah siap
-        Future<void>.delayed(const Duration(milliseconds: 600), () {
+        Future<void>.delayed(Duration(milliseconds: 600), () {
           _navigateFromMessage(initialMessage);
         });
       }
@@ -197,18 +197,18 @@ class FCMService {
     showDialog(
       context: ctx,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
+        backgroundColor: Color(0xFF1E1E1E),
         title: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.notifications_active_outlined,
               color: Color(0xFFFFCF40),
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -219,13 +219,13 @@ class FCMService {
         ),
         content: Text(
           body,
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
+          style: TextStyle(color: Colors.white70, fontSize: 14),
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Tutup', style: TextStyle(color: Colors.white54)),
+            child: Text('Tutup', style: TextStyle(color: Colors.white54)),
           ),
           FilledButton(
             onPressed: () {
@@ -233,10 +233,10 @@ class FCMService {
               _navigateFromMessage(message);
             },
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFFFCF40),
+              backgroundColor: Color(0xFFFFCF40),
               foregroundColor: Colors.black,
             ),
-            child: const Text(
+            child: Text(
               'Lihat Detail',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
@@ -290,7 +290,7 @@ class FCMService {
           priority: Priority.high,
           fullScreenIntent: isAlarm,
           category: isAlarm ? AndroidNotificationCategory.alarm : null,
-          color: const Color(0xFFFFCF40),
+          color: Color(0xFFFFCF40),
           enableVibration: true,
           vibrationPattern: isAlarm
               ? Int64List.fromList([0, 500, 200, 500])
@@ -366,7 +366,7 @@ class FCMService {
       id: taskId.hashCode + 10,
       title: 'Reminder Selesai (10 Menit)',
       body: 'Pekerjaan $unitName tersisa 10 menit lagi.',
-      scheduledDate: targetTime.subtract(const Duration(minutes: 10)),
+      scheduledDate: targetTime.subtract(Duration(minutes: 10)),
       now: now,
     );
 
@@ -375,7 +375,7 @@ class FCMService {
       id: taskId.hashCode + 5,
       title: 'Reminder Selesai (5 Menit)',
       body: 'Pekerjaan $unitName tersisa 5 menit lagi.',
-      scheduledDate: targetTime.subtract(const Duration(minutes: 5)),
+      scheduledDate: targetTime.subtract(Duration(minutes: 5)),
       now: now,
     );
 
@@ -415,8 +415,8 @@ class FCMService {
           category: AndroidNotificationCategory.alarm,
           ticker: 'ALARM WORKSHOP',
           ongoing: false,
-          color: const Color(0xFFFFCF40),
-          sound: const RawResourceAndroidNotificationSound('notification'),
+          color: Color(0xFFFFCF40),
+          sound: RawResourceAndroidNotificationSound('notification'),
           enableVibration: true,
           vibrationPattern: Int64List.fromList([0, 500, 200, 500, 200, 1000]),
         ),

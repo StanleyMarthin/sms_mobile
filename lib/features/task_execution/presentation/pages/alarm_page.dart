@@ -26,7 +26,7 @@ class _AlarmPageState extends State<AlarmPage> with SingleTickerProviderStateMix
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1000),
+      duration: Duration(milliseconds: 1000),
       vsync: this,
     )..repeat(reverse: true);
     _animation = Tween<double>(begin: 1.0, end: 1.2).animate(_controller);
@@ -46,7 +46,7 @@ class _AlarmPageState extends State<AlarmPage> with SingleTickerProviderStateMix
       backgroundColor: AppColors.background,
       body: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: EdgeInsets.symmetric(horizontal: 32),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
@@ -68,7 +68,7 @@ class _AlarmPageState extends State<AlarmPage> with SingleTickerProviderStateMix
                 size: 100,
               ),
             ),
-            const SizedBox(height: 48),
+            SizedBox(height: 48),
             Text(
               widget.title,
               style: TextStyle(
@@ -78,16 +78,16 @@ class _AlarmPageState extends State<AlarmPage> with SingleTickerProviderStateMix
               ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               widget.message,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 color: AppColors.textPrimary,
               ),
               textAlign: TextAlign.center,
             ),
-            const Spacer(),
+            Spacer(),
             SizedBox(
               width: double.infinity,
               height: 60,
@@ -103,13 +103,13 @@ class _AlarmPageState extends State<AlarmPage> with SingleTickerProviderStateMix
                     borderRadius: BorderRadius.circular(30),
                   ),
                 ),
-                child: const Text(
+                child: Text(
                   'ABAIKAN PENGINGAT',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-            const SizedBox(height: 64),
+            SizedBox(height: 64),
           ],
         ),
       ),

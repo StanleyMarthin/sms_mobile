@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../data/datasources/remote_wov_datasource.dart';
@@ -63,7 +64,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal memuat WOV: $e'),
+            content: Text(friendlyMessage(e, fallback: 'Gagal memuat WOV')),
             backgroundColor: AppColors.statusLocked,
             behavior: SnackBarBehavior.floating,
           ),
@@ -84,7 +85,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
   void _openForm() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const WovFormPage()),
+      MaterialPageRoute(builder: (_) => WovFormPage()),
     ).then((result) {
       if (result == true) _fetch();
     });
@@ -102,7 +103,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        title: const Text(
+        title: Text(
           'Work Order Vendor',
           style: TextStyle(
             color: AppColors.textPrimary,
@@ -112,7 +113,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textMuted),
+            icon: Icon(Icons.refresh_rounded, color: AppColors.textMuted),
             onPressed: _fetch,
           ),
         ],
@@ -122,7 +123,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.gold,
           indicatorWeight: 2.5,
-          tabs: const [
+          tabs: [
             Tab(text: 'Approval'),
             Tab(text: 'Proses'),
             Tab(text: 'Selesai'),
@@ -130,7 +131,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
         ),
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : visibleWovs.isEmpty
@@ -148,9 +149,9 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
                   if (_tabCtrl.index == 2) _dateFilterBar(),
                   Expanded(
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 32),
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 32),
                       itemCount: visibleWovs.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      separatorBuilder: (_, __) => SizedBox(height: 8),
                       itemBuilder: (_, i) => _WovCard(
                         wov: visibleWovs[i],
                         isHighlighted:
@@ -168,8 +169,8 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
               onPressed: _openForm,
               backgroundColor: AppColors.gold,
               foregroundColor: AppColors.background,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text(
+              icon: Icon(Icons.add_rounded),
+              label: Text(
                 'Buat WOV',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
@@ -201,7 +202,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
 
   Widget _dateFilterBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      padding: EdgeInsets.fromLTRB(12, 10, 12, 4),
       child: DateFilterBar(
         selectedDate: _selectedDate,
         onDateChanged: (date) => setState(() => _selectedDate = date),
@@ -211,7 +212,7 @@ class _WovPageState extends State<WovPage> with SingleTickerProviderStateMixin {
   }
 
   bool _isTerminalWov(WOVOrder wov) {
-    const terminalStatuses = {
+    final terminalStatuses = {
       'RECEIVED',
       'DONE',
       'CLOSED',
@@ -246,19 +247,19 @@ class _EmptyView extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.gold.withValues(alpha: 0.08),
             shape: BoxShape.circle,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.local_shipping_outlined,
             size: 56,
             color: AppColors.gold,
           ),
         ),
-        const SizedBox(height: 16),
-        const Text(
+        SizedBox(height: 16),
+        Text(
           'Belum ada Work Order Vendor',
           style: TextStyle(
             fontSize: 15,
@@ -291,7 +292,7 @@ class _WovCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -303,20 +304,20 @@ class _WovCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          padding: EdgeInsets.fromLTRB(12, 10, 10, 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 3,
                 height: 52,
-                margin: const EdgeInsets.only(top: 2),
+                margin: EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,31 +330,31 @@ class _WovCard extends StatelessWidget {
                             wov.wovNumber ?? wov.reqId,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _Badge(label: label, color: color),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
                       '${wov.itemName ?? '-'} • ${wov.vendorName ?? '-'}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
                       '${wov.carName ?? '-'} • ${_fmtDate(wov.createdAt)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
                         color: AppColors.textDisabled,
                       ),
@@ -361,8 +362,8 @@ class _WovCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
-              const Padding(
+              SizedBox(width: 6),
+              Padding(
                 padding: EdgeInsets.only(top: 18),
                 child: Icon(
                   Icons.chevron_right_rounded,
@@ -395,11 +396,11 @@ class _WovCard extends StatelessWidget {
     if (terminal != null) return terminal;
 
     return switch (acc) {
-      'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
+      'PENDING_ADV' => ('MENUNGGU QA', AppColors.orange),
       'PENDING_KP' => ('MENUNGGU KP', AppColors.gold),
-      'PENDING_PM' => ('MENUNGGU PM', const Color(0xFF9C27B0)),
+      'PENDING_PM' => ('MENUNGGU PM', Color(0xFF9C27B0)),
       'APPROVED' => switch (normalizedStatus) {
-        'SENT' => ('TERKIRIM', const Color(0xFF2196F3)),
+        'SENT' => ('TERKIRIM', Color(0xFF2196F3)),
         'PROSES_VENDOR' => ('DI VENDOR', AppColors.orange),
         'DONE_VENDOR' => ('SELESAI VENDOR', AppColors.statusDone),
         'REWORK_VENDOR' => ('REWORK', AppColors.statusLocked),
@@ -417,7 +418,7 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(999),

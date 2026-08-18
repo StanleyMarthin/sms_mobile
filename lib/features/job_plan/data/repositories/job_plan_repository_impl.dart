@@ -2,12 +2,13 @@ library;
 
 import 'package:fpdart/fpdart.dart' as fp;
 import 'package:sm_system/core/errors/failures.dart';
+import 'package:sm_system/core/errors/error_message.dart';
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
 import '../datasources/job_plan_datasource.dart';
 
 class JobPlanRepositoryImpl implements JobPlanRepository {
-  const JobPlanRepositoryImpl({required this.dataSource});
+  JobPlanRepositoryImpl({required this.dataSource});
 
   final JobPlanDataSource dataSource;
 
@@ -35,7 +36,11 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       );
       return fp.Right(results.map(_mapPlan).toList());
     } catch (e) {
-      return fp.Left(ServerFailure(message: e.toString()));
+      return fp.Left(
+        ServerFailure(
+          message: friendlyMessage(e, fallback: 'Gagal memuat data'),
+        ),
+      );
     }
   }
 
@@ -57,7 +62,11 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       );
       return fp.Right(raw);
     } catch (e) {
-      return fp.Left(ServerFailure(message: e.toString()));
+      return fp.Left(
+        ServerFailure(
+          message: friendlyMessage(e, fallback: 'Gagal memuat data'),
+        ),
+      );
     }
   }
 
@@ -109,7 +118,11 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       );
       return fp.Right(maps.map(_mapPlan).toList());
     } catch (e) {
-      return fp.Left(ServerFailure(message: e.toString()));
+      return fp.Left(
+        ServerFailure(
+          message: friendlyMessage(e, fallback: 'Gagal memuat data'),
+        ),
+      );
     }
   }
 
@@ -172,7 +185,14 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       );
       return fp.Right(_mapPlan(result));
     } catch (e) {
-      return fp.Left(ServerFailure(message: e.toString()));
+      return fp.Left(
+        ServerFailure(
+          message: friendlyMessage(
+            e,
+            fallback: 'Gagal menyetujui rencana kerja',
+          ),
+        ),
+      );
     }
   }
 
@@ -235,6 +255,7 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     required String startTime,
     required String finishTime,
     required bool isOvertime,
+    bool isNonTechnicalJob = false,
     required String note,
   }) async {
     return _mapPlan(
@@ -260,6 +281,7 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
         startTime: startTime,
         finishTime: finishTime,
         isOvertime: isOvertime,
+        isNonTechnicalJob: isNonTechnicalJob,
         note: note,
       ),
     );

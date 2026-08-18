@@ -12,7 +12,7 @@ import '../../domain/entities/work_order.dart';
 import '../../../job_plan/domain/repositories/job_plan_repository.dart';
 
 class WorkOrderRemoteDataSource {
-  const WorkOrderRemoteDataSource({
+  WorkOrderRemoteDataSource({
     required this.apiClient,
     required this.sessionManager,
     required this.jobPlanRepository,

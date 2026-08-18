@@ -22,6 +22,7 @@ abstract class WarehouseRepository {
   Future<List<WarehouseItemSuggestion>> searchItems({
     required String query,
     String? category,
+    String? carId,
   });
 
   // ── Create ─────────────────────────────────────────────────

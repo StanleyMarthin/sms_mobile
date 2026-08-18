@@ -34,7 +34,7 @@ class FeatureShellPage extends StatelessWidget {
         appBar: AppBar(
           backgroundColor: AppColors.surfaceCard,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+            icon: Icon(Icons.arrow_back_ios_new_rounded,
                 size: 20, color: AppColors.gold),
             onPressed: () => _handleBack(context),
           ),
@@ -42,7 +42,7 @@ class FeatureShellPage extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: AppColors.gold,
@@ -51,7 +51,7 @@ class FeatureShellPage extends StatelessWidget {
               if (subtitle.isNotEmpty)
                 Text(
                   subtitle,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     color: AppColors.textMuted,
                   ),
@@ -61,7 +61,7 @@ class FeatureShellPage extends StatelessWidget {
           centerTitle: true,
           actions: [
             IconButton(
-              icon: const Icon(Icons.logout_rounded,
+              icon: Icon(Icons.logout_rounded,
                   color: AppColors.textSecondary, size: 22),
               onPressed: () {
                 session.logout();

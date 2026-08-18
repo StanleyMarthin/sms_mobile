@@ -6,7 +6,7 @@ import '../../../../core/session/session_manager.dart';
 import 'qc_datasource.dart';
 
 class RemoteQcDataSource implements QcDataSource {
-  const RemoteQcDataSource({
+  RemoteQcDataSource({
     required this.apiClient,
     required this.sessionManager,
   });

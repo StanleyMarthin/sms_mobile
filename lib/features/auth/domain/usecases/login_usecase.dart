@@ -9,7 +9,7 @@ class LoginParams {
   final String password;
   final String? fcmToken;
 
-  const LoginParams({
+  LoginParams({
     required this.employeeId,
     required this.password,
     this.fcmToken,
@@ -18,7 +18,7 @@ class LoginParams {
 
 class LoginUseCase {
   final AuthRepository repository;
-  const LoginUseCase({required this.repository});
+  LoginUseCase({required this.repository});
 
   Future<Either<Failure, LoginResult>> call(LoginParams params) {
     return repository.login(

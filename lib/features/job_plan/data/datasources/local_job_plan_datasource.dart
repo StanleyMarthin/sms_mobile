@@ -64,8 +64,8 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     required bool replaceItems,
     String? note,
   }) {
-    final base = Map<String, dynamic>.from(existingDraft ?? const {});
-    final existingItems = (base['items'] as List<dynamic>? ?? const <dynamic>[])
+    final base = Map<String, dynamic>.from(existingDraft ?? {});
+    final existingItems = (base['items'] as List<dynamic>? ?? <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .map(Map<String, dynamic>.from)
         .toList();
@@ -193,7 +193,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
   }
 
   Map<String, dynamic> _normalizeDraftPayload(Map<String, dynamic> payload) {
-    final items = (payload['items'] as List<dynamic>? ?? const <dynamic>[])
+    final items = (payload['items'] as List<dynamic>? ?? <dynamic>[])
         .whereType<Map<String, dynamic>>()
         .map(Map<String, dynamic>.from)
         .toList();
@@ -535,6 +535,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     required String startTime,
     required String finishTime,
     required bool isOvertime,
+    bool isNonTechnicalJob = false,
     required String note,
   }) async {
     final plans = await _loadPlans();
@@ -563,6 +564,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
       'startTime': startTime,
       'finishTime': finishTime,
       'isOvertime': isOvertime,
+      'isNonTechnicalJob': isNonTechnicalJob,
       if ((startDate ?? '').trim().isNotEmpty) 'startDate': startDate,
       if ((deadlineDate ?? '').trim().isNotEmpty) 'deadlineDate': deadlineDate,
       'deadline': deadlineDate ?? workDate,

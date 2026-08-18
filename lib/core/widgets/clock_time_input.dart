@@ -68,13 +68,13 @@ class _ClockTimeInputState extends State<ClockTimeInput> {
         if (widget.labelText != null) ...[
           Text(
             widget.labelText!,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               color: AppColors.textMuted,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
         ],
         Row(
           children: [
@@ -96,12 +96,12 @@ class _ClockTimeInputState extends State<ClockTimeInput> {
                           FilteringTextInputFormatter.digitsOnly,
                           LengthLimitingTextInputFormatter(2),
                         ],
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'HH',
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 12),
@@ -117,7 +117,7 @@ class _ClockTimeInputState extends State<ClockTimeInput> {
                         },
                       ),
                     ),
-                    const Text(
+                    Text(
                       ':',
                       style: TextStyle(
                         color: AppColors.gold,
@@ -133,12 +133,12 @@ class _ClockTimeInputState extends State<ClockTimeInput> {
                           FilteringTextInputFormatter.digitsOnly,
                           LengthLimitingTextInputFormatter(2),
                         ],
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'mm',
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 12),
@@ -161,9 +161,9 @@ class _ClockTimeInputState extends State<ClockTimeInput> {
             if (widget.onTapIcon != null)
               IconButton(
                 onPressed: widget.onTapIcon,
-                icon: const Icon(Icons.schedule_rounded, color: AppColors.gold, size: 20),
-                padding: const EdgeInsets.only(left: 4),
-                constraints: const BoxConstraints(),
+                icon: Icon(Icons.schedule_rounded, color: AppColors.gold, size: 20),
+                padding: EdgeInsets.only(left: 4),
+                constraints: BoxConstraints(),
               ),
           ],
         ),

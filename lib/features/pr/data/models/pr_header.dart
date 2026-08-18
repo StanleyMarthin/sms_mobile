@@ -26,7 +26,7 @@ class PRHeader {
   final int cancelledItems;
   final List<PRItem> items;
 
-  const PRHeader({
+  PRHeader({
     required this.reqId,
     this.prNumber,
     this.carName,

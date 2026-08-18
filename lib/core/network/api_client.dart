@@ -20,7 +20,7 @@ class ApiResponse<T> {
   final String message;
   final T? data;
 
-  const ApiResponse({required this.success, required this.message, this.data});
+  ApiResponse({required this.success, required this.message, this.data});
 }
 
 class _CacheEntry {
@@ -40,8 +40,8 @@ class ApiClient {
     : _sessionManager = sessionManager,
       _dio = dio ?? Dio() {
     _dio.options
-      ..connectTimeout = const Duration(seconds: 10)
-      ..receiveTimeout = const Duration(seconds: 30)
+      ..connectTimeout = Duration(seconds: 10)
+      ..receiveTimeout = Duration(seconds: 30)
       ..headers = {'Content-Type': 'application/json'};
 
     _dio.interceptors.add(_authInterceptor());
@@ -78,25 +78,66 @@ class ApiClient {
   Interceptor _cacheInterceptor() {
     return InterceptorsWrapper(
       onRequest: (options, handler) {
-        if (options.method == 'GET' && options.extra['useCache'] == true) {
-          final cacheKey = '${options.uri}';
-          final entry = _cache[cacheKey];
-          if (entry != null && DateTime.now().isBefore(entry.expiry)) {
+        if (options.method != 'GET' || options.extra['useCache'] != true) {
+          handler.next(options);
+          return;
+        }
+
+        final cacheKey = _generateCacheKey(options);
+        final entry = _cache[cacheKey];
+        if (entry != null) {
+          if (DateTime.now().isBefore(entry.expiry)) {
+            if (kDebugMode) debugPrint('CACHE HIT: $cacheKey');
             handler.resolve(entry.response);
             return;
+          } else {
+            if (kDebugMode) debugPrint('CACHE EXPIRED: $cacheKey');
+            _cache.remove(cacheKey);
           }
+        } else {
+          if (kDebugMode) debugPrint('CACHE MISS: $cacheKey');
         }
         handler.next(options);
       },
       onResponse: (response, handler) {
-        if (response.requestOptions.method == 'GET' && response.requestOptions.extra['useCache'] == true) {
-          final cacheKey = '${response.requestOptions.uri}';
-          final duration = response.requestOptions.extra['cacheDuration'] as Duration? ?? const Duration(minutes: 5);
-          _cache[cacheKey] = _CacheEntry(response, DateTime.now().add(duration));
+        if (response.requestOptions.method == 'GET' &&
+            response.requestOptions.extra['useCache'] == true) {
+          final data = response.data;
+          bool isSuccess = response.statusCode == 200;
+          if (data is Map<String, dynamic>) {
+            isSuccess = isSuccess && (data['success'] as bool? ?? true);
+          }
+
+          if (isSuccess) {
+            final cacheKey = _generateCacheKey(response.requestOptions);
+            final duration =
+                response.requestOptions.extra['cacheDuration'] as Duration? ??
+                Duration(minutes: 5);
+            _cache[cacheKey] = _CacheEntry(
+              response,
+              DateTime.now().add(duration),
+            );
+          }
         }
         handler.next(response);
       },
     );
+  }
+
+  String _generateCacheKey(RequestOptions options) {
+    final uri = options.uri.toString();
+    final body = options.data != null ? options.data.toString() : '';
+    return '${options.method}_${uri}_$body';
+  }
+
+  void clearAllCache() {
+    if (kDebugMode) debugPrint('CACHE CLEAR: All');
+    _cache.clear();
+  }
+
+  void clearCacheByPath(String path) {
+    if (kDebugMode) debugPrint('CACHE CLEAR: By path $path');
+    _cache.removeWhere((key, _) => key.contains(path));
   }
 
   /// Parses standard API response format.
@@ -113,7 +154,9 @@ class ApiClient {
                 (data['errorCode'] as String?) ??
                 (data['error'] as String?) ??
                 '';
-            final message = data['message'] as String? ?? 'Terjadi kesalahan';
+            final message =
+                data['message'] as String? ??
+                'Mohon maaf, terjadi kendala. Silakan coba lagi.';
             final failure = ApiErrorCode.fromCode(errorCode, message);
             handler.reject(
               DioException(
@@ -145,6 +188,7 @@ class ApiClient {
         }
 
         if (isAuthError) {
+          clearAllCache();
           await _sessionManager.logout();
         }
 
@@ -249,8 +293,8 @@ class ApiClient {
 
       final refreshDio = Dio(
         BaseOptions(
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 30),
+          connectTimeout: Duration(seconds: 10),
+          receiveTimeout: Duration(seconds: 30),
           headers: {'Content-Type': 'application/json'},
         ),
       );
@@ -322,7 +366,7 @@ class ApiClient {
                 ?.map((e) => int.tryParse('$e'))
                 .whereType<int>()
                 .toList()) ??
-            const [],
+            [],
         managedUnitIds:
             (((user['scope'] as Map<String, dynamic>?)?['unitIds']
                         as List<dynamic>? ??
@@ -330,7 +374,7 @@ class ApiClient {
                 ?.map((e) => '$e')
                 .where((e) => e.trim().isNotEmpty)
                 .toList()) ??
-            const [],
+            [],
       );
 
       completer.complete(true);
@@ -338,6 +382,7 @@ class ApiClient {
     } on DioException catch (exc) {
       final statusCode = exc.response?.statusCode ?? 0;
       if (statusCode == 401 || statusCode == 403) {
+        clearAllCache();
         await _sessionManager.logout();
       }
       if (kDebugMode) {
@@ -465,9 +510,9 @@ class ApiClient {
       case DioExceptionType.connectionTimeout:
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
-        return const TimeoutFailure();
+        return TimeoutFailure();
       case DioExceptionType.connectionError:
-        return const NetworkFailure();
+        return NetworkFailure();
       case DioExceptionType.badResponse:
         final statusCode = e.response?.statusCode ?? 0;
         final body = e.response?.data;
@@ -482,10 +527,7 @@ class ApiClient {
           return ApiErrorCode.fromCode(errorCode, message);
         }
         if (statusCode >= 500) {
-          return ServerFailure(
-            message: message ?? 'Server error',
-            statusCode: statusCode,
-          );
+          return ServerFailure(message: message, statusCode: statusCode);
         }
         if (statusCode == 401) {
           return UnauthorizedFailure(message: message);
@@ -493,14 +535,11 @@ class ApiClient {
         if (statusCode == 403) {
           return ForbiddenFailure(message: message);
         }
-        return ClientFailure(
-          message: message ?? 'Request gagal',
-          statusCode: statusCode,
-        );
+        return ClientFailure(message: message, statusCode: statusCode);
       case DioExceptionType.cancel:
-        return const ClientFailure(message: 'Request dibatalkan');
+        return ClientFailure(message: 'Yah, prosesnya dibatalkan 😌');
       default:
-        return const NetworkFailure();
+        return NetworkFailure();
     }
   }
 }

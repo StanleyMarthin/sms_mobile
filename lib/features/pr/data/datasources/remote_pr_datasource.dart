@@ -15,7 +15,7 @@ class RemotePrDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  const RemotePrDataSource({
+  RemotePrDataSource({
     required this.apiClient,
     required this.sessionManager,
   });

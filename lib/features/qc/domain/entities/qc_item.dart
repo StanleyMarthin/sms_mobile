@@ -5,7 +5,7 @@ class QcDivision {
   final String divisionName;
   final int totalItem;
 
-  const QcDivision({
+  QcDivision({
     required this.divisionId,
     required this.divisionName,
     required this.totalItem,
@@ -13,7 +13,7 @@ class QcDivision {
 }
 
 class QcItem {
-  const QcItem({
+  QcItem({
     required this.qcId,
     required this.coreId,
     required this.unitId,
@@ -97,7 +97,7 @@ class QcItem {
 }
 
 class QcUnitGroup {
-  const QcUnitGroup({
+  QcUnitGroup({
     required this.unitId,
     required this.unitName,
     required this.jobdescs,
@@ -114,7 +114,7 @@ class QcPagedResponse {
   final int page;
   final int total;
 
-  const QcPagedResponse({
+  QcPagedResponse({
     required this.groups,
     required this.hasMore,
     required this.page,

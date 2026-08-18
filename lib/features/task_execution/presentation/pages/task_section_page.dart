@@ -17,6 +17,17 @@ import 'task_view_page.dart';
 
 enum TaskSectionKind { tasks, overtime, plan }
 
+enum TaskSectionPresentation { pic, kdModes, monitoring }
+
+TaskSectionPresentation resolveTaskSectionPresentation({
+  required bool isOperator,
+  required bool isKd,
+}) {
+  if (isKd) return TaskSectionPresentation.kdModes;
+  if (isOperator) return TaskSectionPresentation.pic;
+  return TaskSectionPresentation.monitoring;
+}
+
 class TaskSectionPage extends StatelessWidget {
   const TaskSectionPage({
     super.key,
@@ -42,13 +53,24 @@ class TaskSectionPage extends StatelessWidget {
     final isOperator =
         session.isFieldExecution &&
         hasPermission(role, Permission.dashboardMechanic);
+    final presentation = resolveTaskSectionPresentation(
+      isOperator: isOperator,
+      isKd: UserRole.fromSession(session) == UserRole.kd,
+    );
 
     switch (kind) {
       case TaskSectionKind.tasks:
-        if (isOperator) {
+        if (presentation == TaskSectionPresentation.pic) {
           return MechanicTaskPage(
             isOvertime: false,
             title: 'Task',
+            focusTaskId: focusTaskId,
+            initialDate: initialDate,
+          );
+        }
+        if (presentation == TaskSectionPresentation.kdModes) {
+          return _KdTaskModePage(
+            isOvertime: false,
             focusTaskId: focusTaskId,
             initialDate: initialDate,
           );
@@ -59,10 +81,17 @@ class TaskSectionPage extends StatelessWidget {
           initialDate: initialDate,
         );
       case TaskSectionKind.overtime:
-        if (isOperator) {
+        if (presentation == TaskSectionPresentation.pic) {
           return MechanicTaskPage(
             isOvertime: true,
             title: 'Lembur',
+            focusTaskId: focusTaskId,
+            initialDate: initialDate,
+          );
+        }
+        if (presentation == TaskSectionPresentation.kdModes) {
+          return _KdTaskModePage(
+            isOvertime: true,
             focusTaskId: focusTaskId,
             initialDate: initialDate,
           );
@@ -80,5 +109,55 @@ class TaskSectionPage extends StatelessWidget {
           autoOpenCreate: planAutoOpenCreate,
         );
     }
+  }
+}
+
+class _KdTaskModePage extends StatelessWidget {
+  const _KdTaskModePage({
+    required this.isOvertime,
+    this.focusTaskId,
+    this.initialDate,
+  });
+
+  final bool isOvertime;
+  final String? focusTaskId;
+  final DateTime? initialDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final taskType = isOvertime ? TaskType.overtime : TaskType.daily;
+    final picTitle = isOvertime ? 'Lembur Saya' : 'Task Saya';
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          TabBar(
+            tabs: [
+              Tab(text: 'Monitoring'),
+              Tab(text: 'PIC Saya'),
+            ],
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                TaskViewPage(
+                  taskType: taskType,
+                  focusTaskId: focusTaskId,
+                  initialDate: initialDate,
+                ),
+                MechanicTaskPage(
+                  isOvertime: isOvertime,
+                  title: picTitle,
+                  focusTaskId: focusTaskId,
+                  initialDate: initialDate,
+                  forceOwnOnly: true,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

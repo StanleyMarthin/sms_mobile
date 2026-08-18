@@ -8,7 +8,7 @@ Main Functions: CountdownUnit, CountdownJobdesc, CountdownDetailItem constructor
 Side Effects: Tidak ada; hanya representasi data in-memory.
 */
 class CountdownUnit {
-  const CountdownUnit({
+  CountdownUnit({
     required this.carId,
     required this.unitName,
     required this.owner,
@@ -33,7 +33,7 @@ class CountdownUnit {
 
 /// Level 2 response: list divisi per unit.
 class CountdownDivision {
-  const CountdownDivision({
+  CountdownDivision({
     required this.divisionId,
     required this.divisionName,
     required this.code,
@@ -47,7 +47,7 @@ class CountdownDivision {
 
 /// Level 3 response: list section/panel per divisi.
 class CountdownSection {
-  const CountdownSection({
+  CountdownSection({
     required this.panelId,
     required this.sectionName,
     required this.section,
@@ -72,7 +72,7 @@ class CountdownSection {
 }
 
 class CountdownJobdesc {
-  const CountdownJobdesc({
+  CountdownJobdesc({
     required this.id,
     required this.carId,
     required this.divisionId,
@@ -160,7 +160,7 @@ class CountdownJobdesc {
 }
 
 class CountdownDetailItem {
-  const CountdownDetailItem({
+  CountdownDetailItem({
     required this.id,
     required this.countdownId,
     required this.employeeName,

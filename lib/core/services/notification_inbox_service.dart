@@ -14,7 +14,7 @@ class NotificationInboxService extends ChangeNotifier {
   static const String _storagePrefix = 'notification_inbox_';
   final dynamic storage;
 
-  List<NotificationItem> _items = const [];
+  List<NotificationItem> _items = [];
   String? _activeStorageKey;
 
   List<NotificationItem> get items => List.unmodifiable(_items);
@@ -68,7 +68,7 @@ class NotificationInboxService extends ChangeNotifier {
 
   Future<void> clearAll() async {
     await ensureLoaded();
-    _items = const [];
+    _items = [];
     await _persistCurrent();
     notifyListeners();
   }
@@ -109,10 +109,10 @@ class NotificationInboxService extends ChangeNotifier {
 
   static String resolveRoute(Map<String, dynamic> data) {
     final module = '${data['module'] ?? data['type'] ?? ''}'.toLowerCase();
-    final woId = _pickFirst(data, const ['reqId', 'woId']);
-    final taskId = _pickFirst(data, const ['plandailyId', 'taskId']);
-    final qcId = _pickFirst(data, const ['coreId', 'qcId']);
-    final carId = _pickFirst(data, const ['carId', 'unitId']);
+    final woId = _pickFirst(data, ['reqId', 'woId']);
+    final taskId = _pickFirst(data, ['plandailyId', 'taskId']);
+    final qcId = _pickFirst(data, ['coreId', 'qcId']);
+    final carId = _pickFirst(data, ['carId', 'unitId']);
 
     if (module.contains('warehouse')) {
       return '/warehouse';
@@ -139,11 +139,11 @@ class NotificationInboxService extends ChangeNotifier {
           : '/countdown?carId=${Uri.encodeComponent(carId)}';
     }
     if (module.contains('pr')) {
-      final reqId = _pickFirst(data, const ['reqId']);
+      final reqId = _pickFirst(data, ['reqId']);
       return reqId == null ? '/pr' : '/pr?reqId=${Uri.encodeComponent(reqId)}';
     }
     if (module.contains('wov')) {
-      final reqId = _pickFirst(data, const ['reqId']);
+      final reqId = _pickFirst(data, ['reqId']);
       return reqId == null ? '/wov' : '/wov?reqId=${Uri.encodeComponent(reqId)}';
     }
     return '/notifications';
@@ -235,7 +235,7 @@ class NotificationInboxService extends ChangeNotifier {
     }
     final primaryId = _pickFirst(
       data,
-      const [
+      [
         'id',
         'reqId',
         'logId',

@@ -20,7 +20,7 @@ class JobPlanAllocationTarget {
 }
 
 class JobPlanAllocationResult {
-  const JobPlanAllocationResult({
+  JobPlanAllocationResult({
     required this.jobId,
     required this.allocatedHours,
     required this.startTime,
@@ -36,7 +36,22 @@ class JobPlanAllocationResult {
 }
 
 class JobPlanAllocationHelper {
-  const JobPlanAllocationHelper._();
+  JobPlanAllocationHelper._();
+
+  /// Sisa jam kerja harian yang boleh dipakai operator.
+  /// Normal: maksimal 8 jam. Lembur: 8 jam normal + kuota lembur (5/7 jam).
+  static double allowedDayHours({
+    required double usedNormal,
+    required double usedOt,
+    required bool isOvertime,
+    required bool isSunday,
+  }) {
+    final normalLeft = (8 - usedNormal).clamp(0.0, 9999.0).toDouble();
+    if (!isOvertime) return normalLeft;
+    final maxOt = isSunday ? 7 : 5;
+    final otLeft = (maxOt - usedOt).clamp(0.0, 9999.0).toDouble();
+    return normalLeft + otLeft;
+  }
 
   static List<JobPlanAllocationResult> allocateSequential({
     required DateTime taskDate,

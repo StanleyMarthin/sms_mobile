@@ -7,6 +7,8 @@ library;
 
 import 'package:equatable/equatable.dart';
 
+import '../utils/app_messages.dart';
+
 /// Base failure class that all specific failures should extend.
 /// This allows for pattern matching and centralized error handling.
 abstract class Failure extends Equatable {
@@ -24,7 +26,7 @@ abstract class Failure extends Equatable {
 
 class ServerFailure extends Failure {
   const ServerFailure({
-    super.message = 'Server error occurred',
+    super.message = AppMessages.http500,
     super.statusCode,
     super.errorCode,
   });
@@ -32,7 +34,7 @@ class ServerFailure extends Failure {
 
 class ClientFailure extends Failure {
   const ClientFailure({
-    super.message = 'Client error occurred',
+    super.message = AppMessages.http500,
     super.statusCode,
     super.errorCode,
   });
@@ -40,27 +42,42 @@ class ClientFailure extends Failure {
 
 class NetworkFailure extends Failure {
   const NetworkFailure({String? message})
-    : super(message: message ?? 'Network connection failed');
+    : super(
+        message: message ?? AppMessages.net001,
+      );
 }
 
 class TimeoutFailure extends Failure {
   const TimeoutFailure({String? message})
-    : super(message: message ?? 'Request timeout');
+    : super(
+        message: message ?? AppMessages.http408,
+      );
 }
 
 class DataParsingFailure extends Failure {
   const DataParsingFailure({String? message})
-    : super(message: message ?? 'Failed to parse data');
+    : super(
+        message:
+            message ??
+            'Mohon maaf, data belum bisa ditampilkan. Kemungkinan server '
+                'belum siap. Silakan coba lagi nanti.',
+      );
 }
 
 class LockingFailure extends Failure {
   const LockingFailure({String? message})
-    : super(message: message ?? 'Panel is locked and cannot be modified');
+    : super(
+        message:
+            message ??
+            'Data ini sedang dipakai pekerja lain, jadi belum bisa diubah.',
+      );
 }
 
 class UnknownFailure extends Failure {
   const UnknownFailure({String? message})
-    : super(message: message ?? 'An unknown error occurred');
+    : super(
+        message: message ?? AppMessages.http500,
+      );
 }
 
 // ─── API business-logic failures (mapped from error codes) ──
@@ -68,7 +85,7 @@ class UnknownFailure extends Failure {
 class UnauthorizedFailure extends Failure {
   const UnauthorizedFailure({String? message})
     : super(
-        message: message ?? 'Sesi telah berakhir, silakan login kembali',
+        message: message ?? AppMessages.http401,
         errorCode: ApiErrorCode.unauthorized,
       );
 }
@@ -132,7 +149,7 @@ class QcAlreadyValidatedFailure extends Failure {
 class DataNotFoundFailure extends Failure {
   const DataNotFoundFailure({String? message})
     : super(
-        message: message ?? 'Data tidak ditemukan',
+        message: message ?? AppMessages.http404,
         errorCode: ApiErrorCode.dataNotFound,
       );
 }
@@ -140,7 +157,7 @@ class DataNotFoundFailure extends Failure {
 class DuplicateEntryFailure extends Failure {
   const DuplicateEntryFailure({String? message})
     : super(
-        message: message ?? 'Data sudah ada',
+        message: message ?? AppMessages.http409,
         errorCode: ApiErrorCode.duplicateEntry,
       );
 }
@@ -148,7 +165,7 @@ class DuplicateEntryFailure extends Failure {
 class ForbiddenFailure extends Failure {
   const ForbiddenFailure({String? message})
     : super(
-        message: message ?? 'Anda tidak memiliki akses',
+        message: message ?? AppMessages.http403,
         errorCode: ApiErrorCode.forbidden,
       );
 }
@@ -185,7 +202,7 @@ abstract class ApiErrorCode {
       duplicateEntry => DuplicateEntryFailure(message: message),
       forbidden => ForbiddenFailure(message: message),
       _ => ClientFailure(
-        message: message ?? 'Terjadi kesalahan',
+        message: message ?? AppMessages.http500,
         errorCode: code,
       ),
     };

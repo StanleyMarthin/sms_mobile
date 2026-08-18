@@ -8,7 +8,7 @@ import '../../../../core/session/session_manager.dart';
 import 'notifications_datasource.dart';
 
 class RemoteNotificationsDataSource implements NotificationsDataSource {
-  const RemoteNotificationsDataSource({
+  RemoteNotificationsDataSource({
     required this.apiClient,
     required this.sessionManager,
   });
@@ -96,11 +96,11 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
         final decoded = jsonDecode(payload);
         if (decoded is Map<String, dynamic>) return decoded;
       } catch (_) {
-        return const <String, dynamic>{};
+        return <String, dynamic>{};
       }
     }
 
-    return const <String, dynamic>{};
+    return <String, dynamic>{};
   }
 
   String _resolveTargetRoute(String module) {

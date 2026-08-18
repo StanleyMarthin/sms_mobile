@@ -1,3 +1,11 @@
+<!--
+Tujuan: Ringkasan produk, arsitektur, dan runtime mobile SM-MIS Workshop.
+Caller: Developer, reviewer, dan stakeholder teknis/non-teknis.
+Dependensi: Flutter app, FastAPI microservices, gateway API production, MySQL, Redis.
+Main Functions: Dokumentasi high-level fitur, arsitektur, workflow, dan konfigurasi runtime.
+Side Effects: Tidak ada.
+-->
+
 # 🚀 Executive Summary & System Report: SM-MIS Workshop Mobile
 
 Dokumen ini disusun sebagai laporan representasi arsitektur, fitur bisnis, dan capaian dari aplikasi **SM-MIS Workshop Mobile** beserta integrasi sistem *backend*-nya, ditujukan untuk evaluasi dan presentasi kepada jajaran Manajemen.
@@ -17,6 +25,18 @@ Sistem menggunakan pendekatan **Modern Microservices** untuk skalabilitas tinggi
 1. **Frontend (Mobile App):** Dibangun dengan **Flutter**, menjamin performa mulus di Android & iOS dengan antarmuka (UI) yang telah terstandardisasi penuh.
 2. **Backend (API Services):** Dibangun dengan **Python (FastAPI)**, dibagi menjadi beberapa *microservices* mandiri (`sm_tasks`, `sm_job_plan`, `sm_warehouse`, dll).
 3. **Database & Cache:** Memanfaatkan **MySQL** untuk penyimpanan permanen (RDBMS) dan **Redis** untuk *State Management* super cepat (seperti *Draft Plan*, *Shared Time Pool*, dan *Role Approval State*).
+
+### Runtime Mobile API
+
+- Default production `BASE_URL`: `https://api.stanleymarthin.com`
+- Endpoint mobile aktif melalui gateway publik:
+  - `/sm/auth/device-init`
+  - `/api/v1/auth/login`
+  - `/sm/tasks`
+  - `/sm/job-plans`
+  - `/sm/warehouse`
+- Mode legacy raw IP/port masih bisa dipakai eksplisit untuk debugging dengan `--dart-define=BASE_URL=http://108.136.189.225`, tetapi bukan default production.
+- Aplikasi tidak lagi mematikan verifikasi sertifikat TLS secara global; HTTPS production memakai validasi sertifikat platform.
 
 ---
 

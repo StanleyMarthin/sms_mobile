@@ -5,7 +5,7 @@ import '../../domain/repositories/profile_repository.dart';
 import '../datasources/profile_datasource.dart';
 
 class ProfileRepositoryImpl implements ProfileRepository {
-  const ProfileRepositoryImpl({required this.dataSource});
+  ProfileRepositoryImpl({required this.dataSource});
 
   final ProfileDataSource dataSource;
 

@@ -5,7 +5,7 @@ import '../../domain/repositories/notifications_repository.dart';
 import '../datasources/notifications_datasource.dart';
 
 class NotificationsRepositoryImpl implements NotificationsRepository {
-  const NotificationsRepositoryImpl({required this.dataSource});
+  NotificationsRepositoryImpl({required this.dataSource});
 
   final NotificationsDataSource dataSource;
 

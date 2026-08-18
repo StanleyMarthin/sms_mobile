@@ -8,6 +8,7 @@ Side Effects: Tidak ada; hanya assertion unit test.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/features/task_execution/data/models/task_model.dart';
 import 'package:sm_system/features/task_execution/data/models/view_task_model.dart';
+import 'package:sm_system/features/task_execution/domain/entities/view_task_entity.dart';
 import 'package:sm_system/features/task_execution/domain/entities/task_entity.dart';
 
 TaskEntity _buildTaskEntity({
@@ -70,6 +71,20 @@ void main() {
 
       expect(entity.isCompleted, isTrue);
       expect(entity.canStart, isFalse);
+    });
+  });
+
+  group('TaskFinalValidation display labels', () {
+    test('shows QA for technical ADV role', () {
+      const validation = TaskFinalValidation(
+        role: 'ADV',
+        name: 'Quality Assurance',
+        note: '',
+        time: '2026-08-10T08:00:00+07:00',
+      );
+
+      expect(validation.role, 'ADV');
+      expect(validation.roleLabel, 'QA');
     });
   });
 

@@ -13,7 +13,7 @@ import '../../domain/repositories/countdown_repository.dart';
 import '../datasources/countdown_datasource.dart';
 
 class CountdownRepositoryImpl implements CountdownRepository {
-  const CountdownRepositoryImpl({required this.dataSource, this.qcDataSource});
+  CountdownRepositoryImpl({required this.dataSource, this.qcDataSource});
 
   final CountdownDataSource dataSource;
   final QcDataSource? qcDataSource;
@@ -76,12 +76,14 @@ class CountdownRepositoryImpl implements CountdownRepository {
     required int divisionId,
     String? search,
     String? status,
+    bool plannable = false,
   }) async {
     final rows = await dataSource.getSections(
       carId: carId,
       divisionId: divisionId,
       search: search,
       status: status,
+      plannable: plannable,
     );
     return rows
         .map(
@@ -112,6 +114,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
     required int panelId,
     String? search,
     String? status,
+    bool plannable = false,
   }) async {
     final rows = await dataSource.getJobdescs(
       carId: carId,
@@ -119,6 +122,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
       panelId: panelId,
       search: search,
       status: status,
+      plannable: plannable,
     );
     return Future.wait(
       rows.map((item) async {

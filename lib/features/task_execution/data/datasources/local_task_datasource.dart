@@ -46,7 +46,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     bool forceOwnOnly = false,
   }) async {
     // Simulate network latency.
-    await Future<void>.delayed(const Duration(milliseconds: 800));
+    await Future<void>.delayed(Duration(milliseconds: 800));
     final tasks = await _loadTasks();
     final dateStr =
         '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -73,7 +73,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
 
   @override
   Future<TaskModel> getTaskById(String plandailyId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await Future<void>.delayed(Duration(milliseconds: 300));
     final tasks = await _loadTasks();
     final task = tasks.cast<Map<String, dynamic>?>().firstWhere(
       (item) => item?['plandailyId'] == plandailyId,
@@ -91,7 +91,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     String? photoBefore1Path,
     String? photoBefore2Path,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await Future<void>.delayed(Duration(milliseconds: 600));
     final tasks = await _loadTasks();
     final index = tasks.indexWhere((t) => t['plandailyId'] == plandailyId);
     if (index == -1) {
@@ -130,7 +130,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     String plandailyId, {
     int breakDurationMinutes = 60,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await Future<void>.delayed(Duration(milliseconds: 600));
     final tasks = await _loadTasks();
     final index = tasks.indexWhere((t) => t['plandailyId'] == plandailyId);
     if (index == -1) {
@@ -165,7 +165,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
 
   @override
   Future<TaskModel> submitTaskExecution(TaskExecutionLog executionLog) async {
-    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await Future<void>.delayed(Duration(milliseconds: 600));
     final tasks = await _loadTasks();
     final index = tasks.indexWhere(
       (t) => t['plandailyId'] == executionLog.plandailyId,
@@ -250,7 +250,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     String plandailyId, {
     required int breakDurationMinutes,
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await Future<void>.delayed(Duration(milliseconds: 250));
     return getTaskById(plandailyId);
   }
 
@@ -260,13 +260,13 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     required String photoUrl,
     String photoType = 'progress',
   }) async {
-    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await Future<void>.delayed(Duration(milliseconds: 250));
     return getTaskById(plandailyId);
   }
 
   @override
   Future<String> getUploadTicket({required String filename}) async {
-    await Future<void>.delayed(const Duration(milliseconds: 120));
+    await Future<void>.delayed(Duration(milliseconds: 120));
     return 'https://example.local/upload/$filename';
   }
 
@@ -388,7 +388,7 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
       value: details,
     );
 
-    _recalculateUnit(units, carId, countdowns[carId] ?? const []);
+    _recalculateUnit(units, carId, countdowns[carId] ?? []);
     await store.writeList(
       key: LocalMockApiStore.countdownUnitsKey,
       value: units,

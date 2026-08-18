@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../data/datasources/remote_pr_datasource.dart';
 import '../../data/models/pr_header.dart';
@@ -37,7 +38,9 @@ class _PrDetailPageState extends State<PrDetailPage> {
       final d = await _ds.getPrDetail(widget.reqId);
       if (mounted) setState(() => _header = d);
     } catch (e) {
-      if (mounted) _snack('Gagal memuat PR: $e', isError: true);
+      if (mounted) {
+        _snack(friendlyMessage(e, fallback: 'Gagal memuat PR'), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -62,8 +65,7 @@ class _PrDetailPageState extends State<PrDetailPage> {
     return switch (acc) {
       'PENDING_ADV' =>
         session.isAdvisorAccess && session.hasPerm(Perms.prApprove),
-      'PENDING_KP' =>
-        session.isKpAccess && session.hasPerm(Perms.prApprove),
+      'PENDING_KP' => session.isKpAccess && session.hasPerm(Perms.prApprove),
       'PENDING_MP' =>
         session.isGlobalAccess && session.hasPerm(Perms.prApprove),
       'PENDING_PUR' =>
@@ -80,7 +82,9 @@ class _PrDetailPageState extends State<PrDetailPage> {
       if (mounted) _snack('PR berhasil di-approve');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal approve: $e', isError: true);
+      if (mounted) {
+        _snack(friendlyMessage(e, fallback: 'Gagal approve PR'), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -95,7 +99,9 @@ class _PrDetailPageState extends State<PrDetailPage> {
       if (mounted) _snack('PR ditolak');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal reject: $e', isError: true);
+      if (mounted) {
+        _snack(friendlyMessage(e, fallback: 'Gagal menolak PR'), isError: true);
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -114,7 +120,12 @@ class _PrDetailPageState extends State<PrDetailPage> {
       if (mounted) _snack('"${item.itemName}" berhasil difinalisasi');
       _load();
     } catch (e) {
-      if (mounted) _snack('Gagal finalize: $e', isError: true);
+      if (mounted) {
+        _snack(
+          friendlyMessage(e, fallback: 'Gagal finalisasi item'),
+          isError: true,
+        );
+      }
     } finally {
       if (mounted) setState(() => _isActing = false);
     }
@@ -129,12 +140,12 @@ class _PrDetailPageState extends State<PrDetailPage> {
           backgroundColor: AppColors.surfaceCard,
           title: Text(
             msg,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text(
+              child: Text(
                 'Batal',
                 style: TextStyle(color: AppColors.textMuted),
               ),
@@ -142,7 +153,7 @@ class _PrDetailPageState extends State<PrDetailPage> {
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: AppColors.gold),
               onPressed: () => Navigator.pop(c, true),
-              child: const Text(
+              child: Text(
                 'Ya, Setujui',
                 style: TextStyle(
                   color: AppColors.background,
@@ -163,35 +174,35 @@ class _PrDetailPageState extends State<PrDetailPage> {
         backgroundColor: AppColors.surfaceCard,
         title: Text(
           title,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
         ),
         content: TextField(
           controller: ctrl,
           maxLines: 3,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
           decoration: InputDecoration(
             hintText: 'Tulis alasan penolakan...',
-            hintStyle: const TextStyle(color: AppColors.textDisabled),
+            hintStyle: TextStyle(color: AppColors.textDisabled),
             filled: true,
             fillColor: AppColors.surfaceInput,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.border),
+              borderSide: BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: AppColors.statusLocked),
+              borderSide: BorderSide(color: AppColors.statusLocked),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text(
+            child: Text(
               'Batal',
               style: TextStyle(color: AppColors.textMuted),
             ),
@@ -201,7 +212,7 @@ class _PrDetailPageState extends State<PrDetailPage> {
               backgroundColor: AppColors.statusLocked,
             ),
             onPressed: () => Navigator.pop(c, ctrl.text.trim()),
-            child: const Text(
+            child: Text(
               'Tolak PR',
               style: TextStyle(
                 color: Colors.white,
@@ -218,11 +229,11 @@ class _PrDetailPageState extends State<PrDetailPage> {
     context: context,
     builder: (c) => AlertDialog(
       backgroundColor: AppColors.surfaceCard,
-      title: const Text(
+      title: Text(
         'Finalisasi Item',
         style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
       ),
-      content: const Text(
+      content: Text(
         'Kirim barang ini ke mana setelah tiba?',
         style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
       ),
@@ -230,7 +241,7 @@ class _PrDetailPageState extends State<PrDetailPage> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(c),
-          child: const Text(
+          child: Text(
             'Batal',
             style: TextStyle(color: AppColors.textMuted),
           ),
@@ -238,11 +249,11 @@ class _PrDetailPageState extends State<PrDetailPage> {
         OutlinedButton.icon(
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.gold,
-            side: const BorderSide(color: AppColors.gold),
+            side: BorderSide(color: AppColors.gold),
           ),
           onPressed: () => Navigator.pop(c, 'TO_JOBDESC'),
-          icon: const Icon(Icons.engineering_outlined, size: 16),
-          label: const Text('Job Desc'),
+          icon: Icon(Icons.engineering_outlined, size: 16),
+          label: Text('Job Desc'),
         ),
         FilledButton.icon(
           style: FilledButton.styleFrom(
@@ -250,8 +261,8 @@ class _PrDetailPageState extends State<PrDetailPage> {
             foregroundColor: AppColors.background,
           ),
           onPressed: () => Navigator.pop(c, 'TO_WAREHOUSE'),
-          icon: const Icon(Icons.warehouse_outlined, size: 16),
-          label: const Text('Warehouse'),
+          icon: Icon(Icons.warehouse_outlined, size: 16),
+          label: Text('Warehouse'),
         ),
       ],
     ),
@@ -266,10 +277,10 @@ class _PrDetailPageState extends State<PrDetailPage> {
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
-        leading: const BackButton(color: AppColors.textMuted),
+        leading: BackButton(color: AppColors.textMuted),
         title: Text(
           _header?.prNumber ?? 'Detail PR',
-          style: const TextStyle(
+          style: TextStyle(
             color: AppColors.gold,
             fontWeight: FontWeight.w700,
             fontSize: 15,
@@ -278,7 +289,7 @@ class _PrDetailPageState extends State<PrDetailPage> {
         actions: [
           if (_header != null)
             IconButton(
-              icon: const Icon(
+              icon: Icon(
                 Icons.refresh_rounded,
                 color: AppColors.textMuted,
               ),
@@ -287,11 +298,11 @@ class _PrDetailPageState extends State<PrDetailPage> {
         ],
       ),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.gold),
             )
           : _header == null
-          ? const Center(
+          ? Center(
               child: Text(
                 'PR tidak ditemukan',
                 style: TextStyle(color: AppColors.textMuted),
@@ -303,18 +314,18 @@ class _PrDetailPageState extends State<PrDetailPage> {
                   onRefresh: _load,
                   color: AppColors.gold,
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 110),
                     children: [
                       _ApprovalStatusBar(accTracking: _header!.accTracking),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _HeaderCard(header: _header!),
-                      const SizedBox(height: 16),
+                      SizedBox(height: 16),
                       _ItemsSection(
                         header: _header!,
                         isActing: _isActing,
                         onFinalize: _finalizeItem,
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -327,7 +338,7 @@ class _PrDetailPageState extends State<PrDetailPage> {
                 if (_isActing)
                   Container(
                     color: Colors.black54,
-                    child: const Center(
+                    child: Center(
                       child: CircularProgressIndicator(color: AppColors.gold),
                     ),
                   ),
@@ -343,7 +354,7 @@ class _ApprovalStatusBar extends StatelessWidget {
   const _ApprovalStatusBar({required this.accTracking});
   final String? accTracking;
 
-  static const _steps = [
+  static final _steps = [
     ('ADV', 'PENDING_ADV'),
     ('KP', 'PENDING_KP'),
     ('MP', 'PENDING_MP'),
@@ -356,7 +367,7 @@ class _ApprovalStatusBar extends StatelessWidget {
     final curIdx = _steps.indexWhere((s) => s.$2 == accTracking);
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      padding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -394,14 +405,14 @@ class _ApprovalStatusBar extends StatelessWidget {
                           ),
                         ),
                         child: isDone
-                            ? const Icon(
+                            ? Icon(
                                 Icons.check,
                                 size: 8,
                                 color: Colors.white,
                               )
                             : null,
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       Text(
                         _steps[i].$1,
                         textAlign: TextAlign.center,
@@ -418,7 +429,7 @@ class _ApprovalStatusBar extends StatelessWidget {
                   Expanded(
                     child: Container(
                       height: 2,
-                      margin: const EdgeInsets.only(bottom: 16),
+                      margin: EdgeInsets.only(bottom: 16),
                       color: isDone ? AppColors.statusDone : AppColors.border,
                     ),
                   ),
@@ -445,7 +456,7 @@ class _HeaderCard extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -462,16 +473,16 @@ class _HeaderCard extends StatelessWidget {
                   children: [
                     Text(
                       header.carName ?? '-',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: AppColors.gold,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       header.divisionName ?? '-',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                       ),
@@ -482,7 +493,7 @@ class _HeaderCard extends StatelessWidget {
               _StageBadge(label: stageLabel, color: stageColor),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 6,
@@ -504,7 +515,7 @@ class _HeaderCard extends StatelessWidget {
                 ),
               if (header.priority == 'URGENT')
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding: EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 6,
                   ),
@@ -515,7 +526,7 @@ class _HeaderCard extends StatelessWidget {
                       color: AppColors.orange.withValues(alpha: 0.5),
                     ),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
@@ -538,22 +549,22 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           if (header.notes != null && header.notes!.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const Divider(color: AppColors.borderSubtle, height: 1),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
+            Divider(color: AppColors.borderSubtle, height: 1),
+            SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
+                Icon(
                   Icons.sticky_note_2_outlined,
                   size: 14,
                   color: AppColors.textMuted,
                 ),
-                const SizedBox(width: 6),
+                SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     header.notes!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                       fontStyle: FontStyle.italic,
@@ -569,7 +580,7 @@ class _HeaderCard extends StatelessWidget {
   }
 
   Widget _chip(IconData icon, String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(999),
@@ -579,10 +590,10 @@ class _HeaderCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 12, color: AppColors.textMuted),
-        const SizedBox(width: 5),
+        SizedBox(width: 5),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
             color: AppColors.textSecondary,
@@ -593,10 +604,10 @@ class _HeaderCard extends StatelessWidget {
   );
 
   (String, Color) _stageInfo(String? acc, String? status) => switch (acc) {
-    'PENDING_ADV' => ('MENUNGGU ADV', AppColors.orange),
+    'PENDING_ADV' => ('MENUNGGU QA', AppColors.orange),
     'PENDING_KP' => ('MENUNGGU KP', AppColors.gold),
-    'PENDING_MP' => ('MENUNGGU MP', const Color(0xFF9C27B0)),
-    'PENDING_PUR' => ('MENUNGGU PUR', const Color(0xFF2196F3)),
+    'PENDING_MP' => ('MENUNGGU MP', Color(0xFF9C27B0)),
+    'PENDING_PUR' => ('MENUNGGU PUR', Color(0xFF2196F3)),
     'APPROVED' => switch (status) {
       'DONE' => ('SELESAI', AppColors.statusDone),
       'REJECTED' => ('DITOLAK', AppColors.statusLocked),
@@ -622,13 +633,13 @@ class _ItemsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     if (header.items.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.borderSubtle),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             'Belum ada item',
             style: TextStyle(color: AppColors.textDisabled),
@@ -641,10 +652,10 @@ class _ItemsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 2, bottom: 10),
+          padding: EdgeInsets.only(left: 2, bottom: 10),
           child: Row(
             children: [
-              const Text(
+              Text(
                 'Daftar Item',
                 style: TextStyle(
                   fontSize: 13,
@@ -652,7 +663,7 @@ class _ItemsSection extends StatelessWidget {
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               if (header.arrivedItems > 0)
                 _mini('${header.arrivedItems}✓', AppColors.statusDone),
               if (header.huntingItems > 0)
@@ -691,7 +702,7 @@ class _ItemCard extends StatelessWidget {
     final (statusLabel, statusColor) = _itemStatus(item.status);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(12),
@@ -700,7 +711,7 @@ class _ItemCard extends StatelessWidget {
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            padding: EdgeInsets.fromLTRB(12, 10, 12, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -709,29 +720,29 @@ class _ItemCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         item.itemName ?? '-',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textPrimary,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _StageBadge(label: statusLabel, color: statusColor),
                   ],
                 ),
                 if (item.description != null &&
                     item.description!.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     item.description!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
                   ),
                 ],
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Wrap(
                   spacing: 8,
                   runSpacing: 4,
@@ -749,7 +760,7 @@ class _ItemCard extends StatelessWidget {
                   ],
                 ),
                 if (item.photoUrl != null && item.photoUrl!.isNotEmpty) ...[
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   InkWell(
                     onTap: () => _showPhoto(context, item.photoUrl!),
                     child: Container(
@@ -774,28 +785,28 @@ class _ItemCard extends StatelessWidget {
           if (item.status == 'ARRIVED')
             InkWell(
               onTap: isActing ? null : () => onFinalize(item),
-              borderRadius: const BorderRadius.vertical(
+              borderRadius: BorderRadius.vertical(
                 bottom: Radius.circular(12),
               ),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
                   color: AppColors.statusDone.withValues(alpha: 0.12),
-                  borderRadius: const BorderRadius.vertical(
+                  borderRadius: BorderRadius.vertical(
                     bottom: Radius.circular(12),
                   ),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.check_circle_outline_rounded,
                       size: 14,
                       color: AppColors.statusDone,
                     ),
-                    const SizedBox(width: 6),
-                    const Text(
+                    SizedBox(width: 6),
+                    Text(
                       'Finalisasi Item',
                       style: TextStyle(
                         fontSize: 12,
@@ -817,7 +828,7 @@ class _ItemCard extends StatelessWidget {
       context: context,
       builder: (c) => Dialog(
         backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(16),
+        insetPadding: EdgeInsets.all(16),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: Image.network(url, fit: BoxFit.contain),
@@ -831,7 +842,7 @@ class _ItemCard extends StatelessWidget {
       : v.toStringAsFixed(0);
 
   Widget _chip(String text) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     decoration: BoxDecoration(
       color: AppColors.background,
       borderRadius: BorderRadius.circular(999),
@@ -839,7 +850,7 @@ class _ItemCard extends StatelessWidget {
     ),
     child: Text(
       text,
-      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+      style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
     ),
   );
 
@@ -871,15 +882,15 @@ class _ActionArea extends StatelessWidget {
     right: 0,
     bottom: 0,
     child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 20),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard.withValues(alpha: 0.97),
-        border: const Border(top: BorderSide(color: AppColors.borderSubtle)),
+        border: Border(top: BorderSide(color: AppColors.borderSubtle)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 12,
-            offset: const Offset(0, -4),
+            offset: Offset(0, -4),
           ),
         ],
       ),
@@ -888,35 +899,35 @@ class _ActionArea extends StatelessWidget {
           Expanded(
             child: OutlinedButton.icon(
               onPressed: isActing ? null : onReject,
-              icon: const Icon(Icons.close_rounded, size: 16),
-              label: const Text(
+              icon: Icon(Icons.close_rounded, size: 16),
+              label: Text(
                 'Tolak',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.statusLocked,
-                side: const BorderSide(color: AppColors.statusLocked),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: AppColors.statusLocked),
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             flex: 2,
             child: FilledButton.icon(
               onPressed: isActing ? null : onApprove,
-              icon: const Icon(Icons.check_rounded, size: 16),
-              label: const Text(
+              icon: Icon(Icons.check_rounded, size: 16),
+              label: Text(
                 'Setujui',
                 style: TextStyle(fontWeight: FontWeight.w700),
               ),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
@@ -938,7 +949,7 @@ class _StageBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(999),

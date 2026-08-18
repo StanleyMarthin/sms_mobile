@@ -7,17 +7,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocalMockApiStore {
   LocalMockApiStore();
 
-  static const jobPlansKey = 'mock_api_job_plans';
-  static const taskExecutionKey = 'mock_api_task_execution';
-  static const taskViewKey = 'mock_api_task_view';
-  static const qcItemsKey = 'mock_api_qc_items';
-  static const warehouseLogsKey = 'mock_api_warehouse_logs';
-  static const workOrdersKey = 'mock_api_work_orders';
-  static const countdownUnitsKey = 'mock_api_countdown_units';
-  static const countdownItemsKey = 'mock_api_countdown_items';
-  static const countdownDetailsKey = 'mock_api_countdown_details';
-  static const notificationsKey = 'mock_api_notifications';
-  static const monitoringCarsKey = 'mock_api_monitoring_cars';
+  static final jobPlansKey = 'mock_api_job_plans';
+  static final taskExecutionKey = 'mock_api_task_execution';
+  static final taskViewKey = 'mock_api_task_view';
+  static final qcItemsKey = 'mock_api_qc_items';
+  static final warehouseLogsKey = 'mock_api_warehouse_logs';
+  static final workOrdersKey = 'mock_api_work_orders';
+  static final countdownUnitsKey = 'mock_api_countdown_units';
+  static final countdownItemsKey = 'mock_api_countdown_items';
+  static final countdownDetailsKey = 'mock_api_countdown_details';
+  static final notificationsKey = 'mock_api_notifications';
+  static final monitoringCarsKey = 'mock_api_monitoring_cars';
 
   Future<List<Map<String, dynamic>>> readList({
     required String key,

@@ -1,7 +1,7 @@
 library;
 
 class ProfileData {
-  const ProfileData({
+  ProfileData({
     required this.employeeId,
     required this.fullName,
     required this.email,

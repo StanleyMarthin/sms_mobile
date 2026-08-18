@@ -8,7 +8,7 @@ Side Effects: HTTP call, upload foto, simpan draft lokal, alarm/notifikasi.
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/services/alarm_timer_service.dart';
 import '../../../../core/services/fcm_service.dart';
 import '../../../../core/services/upload_service.dart';
@@ -47,7 +47,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     required this.startJobUseCase,
     required this.taskDraftStorage,
     required this.uploadService,
-  }) : super(const TaskInitial()) {
+  }) : super(TaskInitial()) {
     on<LoadTodaysTasksEvent>(_onLoadTodaysTasks);
     on<RefreshTasksEvent>(_onRefreshTasks);
     on<StartJobEvent>(_onStartJob);
@@ -59,7 +59,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     // Mulai background polling untuk alarm (Cek setiap 15 detik)
     _jobTimer = Timer.periodic(
-      const Duration(seconds: 15),
+      Duration(seconds: 15),
       (_) => _checkAlarms(),
     );
   }
@@ -190,7 +190,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     _selectedDate = event.date;
     _isOvertime = event.isOvertime;
     _forceOwnOnly = event.forceOwnOnly;
-    emit(const TaskLoading());
+    emit(TaskLoading());
 
     final results = await Future.wait([
       taskRepository.getTodaysTasks(
@@ -276,7 +276,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         TaskActionError(
           tasks: currentTasks,
           drafts: currentDrafts,
-          message: 'Gagal menyimpan draft: $e',
+          message: friendlyMessage(e, fallback: 'Gagal menyimpan draft'),
         ),
       );
     }
@@ -486,7 +486,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         TaskActionError(
           tasks: currentTasks,
           drafts: currentDrafts,
-          message: 'Terjadi kesalahan sistem saat memulai pekerjaan: $e',
+          message: friendlyMessage(
+            e,
+            fallback: 'Mohon maaf, terjadi kendala saat memulai pekerjaan',
+          ),
         ),
       );
     }
@@ -700,7 +703,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         TaskActionError(
           tasks: currentTasks,
           drafts: currentDrafts,
-          message: 'Gagal menyiapkan data submit: $e',
+          message: friendlyMessage(e, fallback: 'Gagal menyiapkan data submit'),
         ),
       );
     }

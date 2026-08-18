@@ -17,10 +17,10 @@ class OperatorDashboardOverviewPage extends StatelessWidget {
     ];
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(16),
       children: [
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
@@ -36,24 +36,24 @@ class OperatorDashboardOverviewPage extends StatelessWidget {
             children: [
               Text(
                 'Dashboard ${session.divisionName ?? 'Workshop'}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: AppColors.gold,
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text(
+              SizedBox(height: 6),
+              Text(
                 'Ringkasan aktivitas operator untuk hari ini.',
                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
         ...stats.map((item) => Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(14),
+              margin: EdgeInsets.only(bottom: 10),
+              padding: EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppColors.surfaceCard,
                 borderRadius: BorderRadius.circular(12),
@@ -70,11 +70,11 @@ class OperatorDashboardOverviewPage extends StatelessWidget {
                     ),
                     child: Icon(item['icon'] as IconData, color: item['color'] as Color),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       item['label'] as String,
-                      style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                      style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
                     ),
                   ),
                   Text(
@@ -88,15 +88,15 @@ class OperatorDashboardOverviewPage extends StatelessWidget {
                 ],
               ),
             )),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: AppColors.border),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -126,15 +126,15 @@ class _OverviewBullet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline, size: 16, color: AppColors.gold),
-          const SizedBox(width: 8),
+          Icon(Icons.check_circle_outline, size: 16, color: AppColors.gold),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ),
         ],

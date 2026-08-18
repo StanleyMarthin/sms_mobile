@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
+import '../../../../core/utils/snackbar_helper.dart';
 import '../../../countdown/domain/repositories/countdown_repository.dart';
 import '../../../warehouse_request/domain/repositories/warehouse_repository.dart';
 import '../../../work_order/domain/repositories/work_order_repository.dart';
@@ -31,25 +33,44 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
   }
 
   Future<_ApprovalSummary> _loadSummary() async {
-    final revisionRequests = await _countdownRepository.getRevisionRequests();
-    final revisionPending = revisionRequests
-        .where((item) => (item.revisionRequestStatus ?? '').toUpperCase() == 'REQUESTED')
-        .length;
+    try {
+      final revisionRequests = await _countdownRepository.getRevisionRequests();
+      final revisionPending = revisionRequests
+          .where(
+            (item) =>
+                (item.revisionRequestStatus ?? '').toUpperCase() == 'REQUESTED',
+          )
+          .length;
 
-    final warehouseLogs = await _warehouseRepository.getLogs();
-    final warehousePending = warehouseLogs.where((log) => log.isAnyPending).length;
+      final warehouseLogs = await _warehouseRepository.getLogs();
+      final warehousePending = warehouseLogs
+          .where((log) => log.isAnyPending)
+          .length;
 
-    final woEither = await _workOrderRepository.getWorkOrders(view: 'ACTIVE');
-    final woPending = woEither.fold(
-      (_) => 0,
-      (items) => items.where((wo) => wo.isActive).length,
-    );
+      final woEither = await _workOrderRepository.getWorkOrders(view: 'ACTIVE');
+      final woPending = woEither.fold(
+        (_) => 0,
+        (items) => items.where((wo) => wo.isActive).length,
+      );
 
-    return _ApprovalSummary(
-      countdownRevisionPending: revisionPending,
-      warehousePending: warehousePending,
-      workOrderPending: woPending,
-    );
+      return _ApprovalSummary(
+        countdownRevisionPending: revisionPending,
+        warehousePending: warehousePending,
+        workOrderPending: woPending,
+      );
+    } catch (e) {
+      if (mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal memuat data approval'),
+        );
+      }
+      return _ApprovalSummary(
+        countdownRevisionPending: 0,
+        warehousePending: 0,
+        workOrderPending: 0,
+      );
+    }
   }
 
   @override
@@ -58,7 +79,7 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
       future: _summaryFuture,
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(
+          return Center(
             child: CircularProgressIndicator(color: AppColors.gold),
           );
         }
@@ -72,9 +93,9 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
             await _summaryFuture;
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+            padding: EdgeInsets.fromLTRB(16, 14, 16, 24),
             children: [
-              const Text(
+              Text(
                 'Approval Center',
                 style: TextStyle(
                   fontSize: 16,
@@ -82,12 +103,12 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 6),
-              const Text(
+              SizedBox(height: 6),
+              Text(
                 'Pantau antrean approval lintas modul dan buka halaman detailnya.',
                 style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
               _ApprovalCard(
                 title: 'Revisi Countdown',
                 subtitle: 'Permintaan tambahan jam/deadline dari KD',
@@ -95,7 +116,7 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
                 icon: Icons.timer_outlined,
                 onTap: () => context.push('/countdown'),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _ApprovalCard(
                 title: 'Work Order',
                 subtitle: 'WO yang menunggu tahap approval',
@@ -103,7 +124,7 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
                 icon: Icons.assignment_outlined,
                 onTap: () => context.push('/work-orders'),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _ApprovalCard(
                 title: 'Warehouse',
                 subtitle: 'Pengajuan barang/alat menunggu persetujuan',
@@ -120,7 +141,7 @@ class _ApprovalsPageState extends State<ApprovalsPage> {
 }
 
 class _ApprovalSummary {
-  const _ApprovalSummary({
+  _ApprovalSummary({
     required this.countdownRevisionPending,
     required this.warehousePending,
     required this.workOrderPending,
@@ -155,7 +176,7 @@ class _ApprovalCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -172,30 +193,33 @@ class _ApprovalCard extends StatelessWidget {
               ),
               child: Icon(icon, color: AppColors.gold),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: badgeColor.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(20),

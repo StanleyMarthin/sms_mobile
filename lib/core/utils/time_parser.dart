@@ -173,7 +173,7 @@ class HHHMMFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) return const TextEditingValue(text: '');
+    if (digits.isEmpty) return TextEditingValue(text: '');
     final formatted = TimeParser.formatDurationDigits(digits);
 
     return TextEditingValue(
@@ -191,7 +191,7 @@ class HHMMFormatter extends TextInputFormatter {
   TextEditingValue formatEditUpdate(
       TextEditingValue oldValue, TextEditingValue newValue) {
     final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (digits.isEmpty) return const TextEditingValue(text: '');
+    if (digits.isEmpty) return TextEditingValue(text: '');
 
     final String formatted;
     if (digits.length <= 2) {

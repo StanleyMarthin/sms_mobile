@@ -10,7 +10,7 @@ import 'auth_datasource.dart';
 class RemoteAuthDataSource implements AuthDataSource {
   final ApiClient apiClient;
 
-  const RemoteAuthDataSource({required this.apiClient});
+  RemoteAuthDataSource({required this.apiClient});
 
   /// POST /auth/device-init
   @override

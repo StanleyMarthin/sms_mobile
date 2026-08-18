@@ -25,10 +25,10 @@ class TasksPage extends StatelessWidget {
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
+          preferredSize: Size.fromHeight(60),
           child: Container(
             color: AppColors.background,
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Container(
               decoration: BoxDecoration(
                 color: AppColors.surfaceCard,
@@ -43,11 +43,11 @@ class TasksPage extends StatelessWidget {
                 labelColor: AppColors.gold,
                 unselectedLabelColor: AppColors.textMuted,
                 dividerHeight: 0,
-                labelStyle: const TextStyle(
+                labelStyle: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
-                tabs: const [
+                tabs: [
                   Tab(text: 'Harian'),
                   Tab(text: 'Lembur'),
                 ],
@@ -57,11 +57,11 @@ class TasksPage extends StatelessWidget {
         ),
         body: TabBarView(
           children: isOperator
-              ? const [
+              ? [
                   MechanicTaskPage(isOvertime: false, title: 'Task'),
                   MechanicTaskPage(isOvertime: true, title: 'Lembur'),
                 ]
-              : const [
+              : [
                   TaskViewPage(taskType: TaskType.daily),
                   TaskViewPage(taskType: TaskType.overtime),
                 ],

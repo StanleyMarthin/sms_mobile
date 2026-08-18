@@ -16,7 +16,7 @@ import 'task_view_state.dart';
 class TaskViewBloc extends Bloc<TaskViewEvent, TaskViewState> {
   final ViewTaskRepository repository;
 
-  TaskViewBloc({required this.repository}) : super(const TaskViewInitial()) {
+  TaskViewBloc({required this.repository}) : super(TaskViewInitial()) {
     on<LoadViewTasks>(_onLoadViewTasks);
     on<ChangeTaskType>(_onChangeTaskType);
     on<ChangeTaskDate>(_onChangeTaskDate);

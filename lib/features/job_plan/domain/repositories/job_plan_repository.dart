@@ -120,6 +120,7 @@ abstract class JobPlanRepository {
     required String startTime,
     required String finishTime,
     required bool isOvertime,
+    bool isNonTechnicalJob = false,
     required String note,
   });
 }

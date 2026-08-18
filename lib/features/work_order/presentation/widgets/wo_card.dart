@@ -31,7 +31,7 @@ class WoCard extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: Duration(milliseconds: 180),
         decoration: BoxDecoration(
           color: AppColors.surfaceCard,
           borderRadius: BorderRadius.circular(12),
@@ -45,20 +45,20 @@ class WoCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+          padding: EdgeInsets.fromLTRB(12, 10, 10, 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 3,
                 height: 52,
-                margin: const EdgeInsets.only(top: 2),
+                margin: EdgeInsets.only(top: 2),
                 decoration: BoxDecoration(
                   color: stageColor.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -71,43 +71,43 @@ class WoCard extends StatelessWidget {
                             _primaryLabel(),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         _Badge(label: stageLabel, color: stageColor),
                       ],
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
                       wo.jobDetail,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    SizedBox(height: 3),
                     Text(
                       '${wo.unitName} • ${wo.ownerName}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
                         color: AppColors.textMuted,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       _metaLine(),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
                         color: AppColors.textDisabled,
                         height: 1.35,
@@ -116,8 +116,8 @@ class WoCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
-              const Padding(
+              SizedBox(width: 6),
+              Padding(
                 padding: EdgeInsets.only(top: 18),
                 child: Icon(
                   Icons.chevron_right_rounded,
@@ -178,9 +178,9 @@ class WoCard extends StatelessWidget {
 
   (String, Color) _stageInfo(String stage) => switch (stage) {
     'PENDING_KD_TARGET' => ('MENUNGGU KD', AppColors.gold),
-    'PENDING_ADVISOR' => ('MENUNGGU ADV', const Color(0xFFFF9800)),
-    'PENDING_KP' => ('MENUNGGU KP', const Color(0xFF2196F3)),
-    'PENDING_MP' => ('MENUNGGU MP', const Color(0xFF9C27B0)),
+    'PENDING_ADVISOR' => ('MENUNGGU QA', Color(0xFFFF9800)),
+    'PENDING_KP' => ('MENUNGGU KP', Color(0xFF2196F3)),
+    'PENDING_MP' => ('MENUNGGU MP', Color(0xFF9C27B0)),
     'COUNTDOWN_CREATED' => ('SIAP JOBDESC', AppColors.statusDone),
     'APPROVED' => ('APPROVED', AppColors.statusDone),
     'ON_PROGRESS' => ('PROSES', Colors.blueAccent),
@@ -199,7 +199,7 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(999),

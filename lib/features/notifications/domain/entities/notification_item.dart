@@ -1,7 +1,7 @@
 library;
 
 class NotificationItem {
-  const NotificationItem({
+  NotificationItem({
     required this.id,
     required this.title,
     required this.body,

@@ -10,6 +10,7 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../job_plan/domain/repositories/job_plan_repository.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
@@ -97,7 +98,7 @@ class CountdownDetailSheet extends StatelessWidget {
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.88,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -105,7 +106,7 @@ class CountdownDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // ── Handle ──
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Container(
             width: 40,
             height: 4,
@@ -114,59 +115,59 @@ class CountdownDetailSheet extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 14),
+          SizedBox(height: 14),
 
           // ── Header ──
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '${item.panelName} • ${item.sectionName}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   item.jobdesc,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Row(
                   children: [
                     CountdownStatusChip(status: effectiveStatus),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Text(
                       '${item.progress}% • DL ${item.deadlineDate}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textMuted,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 if (revisionBanner != null) ...[
                   RevisionStatusBanner(banner: revisionBanner),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                 ],
               ],
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
-          const SizedBox(height: 4),
+          Divider(height: 1, color: AppColors.border),
+          SizedBox(height: 4),
 
           // ── Info rows ──
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              padding: EdgeInsets.fromLTRB(20, 8, 20, 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -192,9 +193,9 @@ class CountdownDetailSheet extends StatelessWidget {
                   if (item.qcLastStatus != null)
                     _infoRow('QC Status', item.qcLastStatus!),
 
-                  const SizedBox(height: 16),
-                  const Divider(color: AppColors.border),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 16),
+                  Divider(color: AppColors.border),
+                  SizedBox(height: 12),
 
                   // ── Actions ──
                   if (!isPm) ...[
@@ -221,16 +222,16 @@ class CountdownDetailSheet extends StatelessWidget {
                             onPlanCreated();
                           }
                         },
-                        icon: const Icon(Icons.add_task_rounded),
-                        label: const Text('Buat Job Plan'),
+                        icon: Icon(Icons.add_task_rounded),
+                        label: Text('Buat Job Plan'),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
                           foregroundColor: AppColors.background,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
 
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
 
                     // Declare complete button
                     if (!isDone)
@@ -247,7 +248,7 @@ class CountdownDetailSheet extends StatelessWidget {
                               if (context.mounted) {
                                 Navigator.pop(context);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
+                                  SnackBar(
                                     content: Text(
                                       'Status berhasil diubah ke Menunggu QC.',
                                     ),
@@ -259,23 +260,28 @@ class CountdownDetailSheet extends StatelessWidget {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Gagal menyelesaikan: $e'),
+                                    content: Text(
+                                      friendlyMessage(
+                                        e,
+                                        fallback: 'Gagal menyelesaikan item',
+                                      ),
+                                    ),
                                   ),
                                 );
                               }
                             }
                           }
                         },
-                        icon: const Icon(Icons.verified_outlined),
-                        label: const Text('Nyatakan Selesai (QC Ready)'),
+                        icon: Icon(Icons.verified_outlined),
+                        label: Text('Nyatakan Selesai (QC Ready)'),
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.statusDone,
                           foregroundColor: AppColors.background,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
 
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
 
                     // Revision request button
                     if (!isDone && !hasActiveRevision)
@@ -291,17 +297,17 @@ class CountdownDetailSheet extends StatelessWidget {
                             onRevisionRequested();
                           }
                         },
-                        icon: const Icon(Icons.update_rounded),
-                        label: const Text('Ajukan Revisi Countdown'),
+                        icon: Icon(Icons.update_rounded),
+                        label: Text('Ajukan Revisi Countdown'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.orange,
                           side: BorderSide(
                             color: AppColors.orange.withValues(alpha: 0.5),
                           ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: 8),
 
                     // View History button
                     OutlinedButton.icon(
@@ -316,19 +322,19 @@ class CountdownDetailSheet extends StatelessWidget {
                           ),
                         );
                       },
-                      icon: const Icon(Icons.history_rounded),
-                      label: const Text('Lihat Riwayat Pekerjaan'),
+                      icon: Icon(Icons.history_rounded),
+                      label: Text('Lihat Riwayat Pekerjaan'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.textPrimary,
                         side: BorderSide(
                           color: AppColors.textPrimary.withValues(alpha: 0.3),
                         ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        padding: EdgeInsets.symmetric(vertical: 12),
                       ),
                     ),
                   ],
                   if (isPm) ...[
-                    const Text(
+                    Text(
                       'Mode PM: Anda dapat melihat detail aktual pada halaman countdown.',
                       style: TextStyle(
                         fontSize: 12,
@@ -348,21 +354,21 @@ class CountdownDetailSheet extends StatelessWidget {
 
   Widget _infoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.only(bottom: 6),
       child: Row(
         children: [
           SizedBox(
             width: 110,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
               ),

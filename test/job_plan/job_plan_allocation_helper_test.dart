@@ -11,6 +11,36 @@ import 'package:sm_system/features/job_plan/presentation/utils/job_plan_allocati
 
 void main() {
   group('JobPlanAllocationHelper', () {
+    test('caps normal hours at 8 and keeps overtime quota', () {
+      expect(
+        JobPlanAllocationHelper.allowedDayHours(
+          usedNormal: 3,
+          usedOt: 0,
+          isOvertime: false,
+          isSunday: false,
+        ),
+        5,
+      );
+      expect(
+        JobPlanAllocationHelper.allowedDayHours(
+          usedNormal: 3,
+          usedOt: 2,
+          isOvertime: true,
+          isSunday: false,
+        ),
+        8,
+      );
+      expect(
+        JobPlanAllocationHelper.allowedDayHours(
+          usedNormal: 8,
+          usedOt: 0,
+          isOvertime: false,
+          isSunday: false,
+        ),
+        0,
+      );
+    });
+
     test(
       'allocates session hours sequentially based on available plan hours',
       () {

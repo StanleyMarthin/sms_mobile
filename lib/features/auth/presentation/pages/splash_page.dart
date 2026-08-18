@@ -54,7 +54,7 @@ class _SplashPageState extends State<SplashPage>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: Duration(milliseconds: 1500),
     );
 
     _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
@@ -67,7 +67,7 @@ class _SplashPageState extends State<SplashPage>
     _controller.forward();
 
     // Start device attestation after animation settles
-    Future.delayed(const Duration(milliseconds: 800), _startDeviceInit);
+    Future.delayed(Duration(milliseconds: 800), _startDeviceInit);
   }
 
   @override
@@ -115,7 +115,7 @@ class _SplashPageState extends State<SplashPage>
         );
         await DeviceSigningService().markRegistered();
         setState(() => _statusMessage = 'Perangkat terverifikasi ✓');
-        Future.delayed(const Duration(milliseconds: 500), () {
+        Future.delayed(Duration(milliseconds: 500), () {
           if (!mounted) return;
           this.context.go('/login');
         });
@@ -154,11 +154,11 @@ class _SplashPageState extends State<SplashPage>
 
   /// Collects device information.
   Future<Map<String, dynamic>> _collectDeviceInfo() async {
-    const androidIdPlugin = AndroidId();
+    final androidIdPlugin = AndroidId();
     final signingService = DeviceSigningService();
     final nowUtc = DateTime.now().toUtc();
     final timestamp = nowUtc.toIso8601String();
-    const appVersion = '1.0.1';
+    final appVersion = '1.0.1';
 
     String? androidId;
     if (Platform.isAndroid) {
@@ -190,7 +190,7 @@ class _SplashPageState extends State<SplashPage>
         if (permission == LocationPermission.whileInUse ||
             permission == LocationPermission.always) {
           final pos = await Geolocator.getCurrentPosition(
-            locationSettings: const LocationSettings(
+            locationSettings: LocationSettings(
               accuracy: LocationAccuracy.low,
               timeLimit: Duration(seconds: 3),
             ),
@@ -222,13 +222,13 @@ class _SplashPageState extends State<SplashPage>
         body: Container(
           width: double.infinity,
           height: double.infinity,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             gradient: AppColors.backgroundGradient,
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Spacer(flex: 3),
+              Spacer(flex: 3),
 
               // ── Animated Logo ────────────────────────────────
               FadeTransition(
@@ -261,12 +261,12 @@ class _SplashPageState extends State<SplashPage>
                 ),
               ),
 
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // ── Company Name ─────────────────────────────────
               FadeTransition(
                 opacity: _fadeAnimation,
-                child: const Column(
+                child: Column(
                   children: [
                     Text(
                       'Stanley Marthin System',
@@ -290,7 +290,7 @@ class _SplashPageState extends State<SplashPage>
                 ),
               ),
 
-              const Spacer(flex: 2),
+              Spacer(flex: 2),
 
               // ── Status / Loading ─────────────────────────────
               FadeTransition(
@@ -298,12 +298,12 @@ class _SplashPageState extends State<SplashPage>
                 child: _hasError ? _buildErrorState() : _buildLoadingState(),
               ),
 
-              const Spacer(flex: 1),
+              Spacer(flex: 1),
 
               // ── Footer ───────────────────────────────────────
               FadeTransition(
                 opacity: _fadeAnimation,
-                child: const Padding(
+                child: Padding(
                   padding: EdgeInsets.only(bottom: 32),
                   child: Text(
                     'v1.0.1',
@@ -325,7 +325,7 @@ class _SplashPageState extends State<SplashPage>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(
+        SizedBox(
           width: 28,
           height: 28,
           child: CircularProgressIndicator(
@@ -333,10 +333,10 @@ class _SplashPageState extends State<SplashPage>
             valueColor: AlwaysStoppedAnimation<Color>(AppColors.gold),
           ),
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Text(
           _statusMessage,
-          style: const TextStyle(fontSize: 12, color: AppColors.textMuted),
+          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
         ),
       ],
     );
@@ -344,7 +344,7 @@ class _SplashPageState extends State<SplashPage>
 
   Widget _buildErrorState() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: EdgeInsets.symmetric(horizontal: 40),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -355,31 +355,31 @@ class _SplashPageState extends State<SplashPage>
             size: 36,
             color: AppColors.gold,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Text(
             _errorTitle ?? 'Error',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             _statusMessage,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 13, color: AppColors.textMuted),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           if (_downloadUrl != null)
             FilledButton.icon(
               onPressed: _openStore,
-              icon: const Icon(Icons.download_rounded, size: 18),
-              label: const Text('Update Sekarang'),
+              icon: Icon(Icons.download_rounded, size: 18),
+              label: Text('Update Sekarang'),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.background,
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: 24,
                   vertical: 12,
                 ),
@@ -395,10 +395,10 @@ class _SplashPageState extends State<SplashPage>
                 _startDeviceInit();
               },
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.gold),
+                side: BorderSide(color: AppColors.gold),
                 foregroundColor: AppColors.gold,
               ),
-              child: const Text('Coba Lagi'),
+              child: Text('Coba Lagi'),
             ),
         ],
       ),

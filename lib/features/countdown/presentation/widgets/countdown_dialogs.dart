@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/errors/error_message.dart';
 import '../utils/countdown_helper.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../../../job_plan/domain/repositories/job_plan_repository.dart';
@@ -94,7 +95,7 @@ class CountdownDialogs {
         : item.targetHoursRevised;
     final descriptionCtrl = TextEditingController();
     DateTime selectedDate = initialDate ?? DateTime.now();
-    TimeOfDay startTime = const TimeOfDay(hour: 8, minute: 0);
+    TimeOfDay startTime = TimeOfDay(hour: 8, minute: 0);
     TimeOfDay finishTime = CountdownHelper.calculateFinishTime(
       startTime: startTime,
       durationHours: availablePlanHours > 0
@@ -117,7 +118,7 @@ class CountdownDialogs {
               context: ctx,
               isScrollControlled: true,
               backgroundColor: AppColors.surfaceCard,
-              shape: const RoundedRectangleBorder(
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
               builder: (bsCtx) => StatefulBuilder(
@@ -147,8 +148,8 @@ class CountdownDialogs {
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                            const SizedBox(height: 14),
-                            const Text(
+                            SizedBox(height: 14),
+                            Text(
                               'Pilih Pelaksana',
                               style: TextStyle(
                                 fontSize: 16,
@@ -156,20 +157,20 @@ class CountdownDialogs {
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            SizedBox(height: 12),
                             TextField(
                               autofocus: true,
                               onChanged: (v) => setBs(() => q = v),
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Cari nama...',
                                 prefixIcon: Icon(Icons.search_rounded),
                               ),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Expanded(
                               child: ListView.separated(
                                 itemCount: filtered.length,
-                                separatorBuilder: (_, __) => const Divider(
+                                separatorBuilder: (_, __) => Divider(
                                   height: 1,
                                   color: AppColors.border,
                                 ),
@@ -211,14 +212,14 @@ class CountdownDialogs {
                                     subtitle: grade.isNotEmpty
                                         ? Text(
                                             grade,
-                                            style: const TextStyle(
+                                            style: TextStyle(
                                               fontSize: 12,
                                               color: AppColors.textMuted,
                                             ),
                                           )
                                         : null,
                                     trailing: isSel
-                                        ? const Icon(
+                                        ? Icon(
                                             Icons.check_circle_rounded,
                                             color: AppColors.gold,
                                           )
@@ -247,8 +248,8 @@ class CountdownDialogs {
           Widget sectionCard({required String title, required Widget child}) {
             return Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              margin: EdgeInsets.only(bottom: 12),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
               decoration: BoxDecoration(
                 color: AppColors.surfaceInput,
                 borderRadius: BorderRadius.circular(14),
@@ -259,14 +260,14 @@ class CountdownDialogs {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textMuted,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   child,
                 ],
               ),
@@ -283,7 +284,7 @@ class CountdownDialogs {
               onTap: onTap,
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: const EdgeInsets.symmetric(
+                padding: EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 12,
                 ),
@@ -295,22 +296,22 @@ class CountdownDialogs {
                 child: Row(
                   children: [
                     Icon(icon, size: 16, color: AppColors.gold),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             label,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 10,
                               color: AppColors.textMuted,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          SizedBox(height: 2),
                           Text(
                             value,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary,
@@ -329,13 +330,13 @@ class CountdownDialogs {
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(ctx).size.height * 0.94,
             ),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.surfaceCard,
               borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
             ),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Container(
                   width: 40,
                   height: 4,
@@ -344,11 +345,11 @@ class CountdownDialogs {
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const SizedBox(height: 14),
+                SizedBox(height: 14),
 
                 // Header
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -356,17 +357,17 @@ class CountdownDialogs {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'Buat Job Plan',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.textMuted,
                               ),
                             ),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
                               item.jobdesc,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textPrimary,
@@ -374,19 +375,19 @@ class CountdownDialogs {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.directions_car_rounded,
                                   size: 14,
                                   color: AppColors.textMuted,
                                 ),
-                                const SizedBox(width: 4),
+                                SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     '${unit.unitName} • ${item.panelName} • ${item.sectionName}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
                                       color: AppColors.textMuted,
                                     ),
@@ -395,9 +396,9 @@ class CountdownDialogs {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(
+                              padding: EdgeInsets.symmetric(
                                 horizontal: 10,
                                 vertical: 4,
                               ),
@@ -407,7 +408,7 @@ class CountdownDialogs {
                               ),
                               child: Text(
                                 'Sisa: ${TimeParser.formatDecimalToHHmm(availablePlanHours)} jam',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.gold,
@@ -418,7 +419,7 @@ class CountdownDialogs {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.close_rounded,
                           color: AppColors.textMuted,
                         ),
@@ -427,13 +428,13 @@ class CountdownDialogs {
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: AppColors.border),
+                SizedBox(height: 12),
+                Divider(height: 1, color: AppColors.border),
 
                 // Form
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
                     children: [
                       // Pelaksana
                       sectionCard(
@@ -442,7 +443,7 @@ class CountdownDialogs {
                           onTap: openEmployeePicker,
                           borderRadius: BorderRadius.circular(10),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
+                            padding: EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 14,
                             ),
@@ -473,7 +474,7 @@ class CountdownDialogs {
                                         : AppColors.textMuted,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
+                                SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -490,7 +491,7 @@ class CountdownDialogs {
                                               : AppColors.textMuted,
                                         ),
                                       ),
-                                      const SizedBox(height: 2),
+                                      SizedBox(height: 2),
                                       Text(
                                         selectedEmployeeName ??
                                             'Pilih Pelaksana *',
@@ -505,7 +506,7 @@ class CountdownDialogs {
                                     ],
                                   ),
                                 ),
-                                const Icon(
+                                Icon(
                                   Icons.chevron_right_rounded,
                                   color: AppColors.textMuted,
                                 ),
@@ -583,7 +584,7 @@ class CountdownDialogs {
                                 }
                               },
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             Row(
                               children: [
                                 Expanded(
@@ -621,7 +622,7 @@ class CountdownDialogs {
                                     },
                                   ),
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: 8),
                                 Expanded(
                                   child: tapPill(
                                     label: 'Jam Selesai',
@@ -649,13 +650,13 @@ class CountdownDialogs {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             InkWell(
                               onTap: () =>
                                   setSheet(() => isOvertime = !isOvertime),
                               borderRadius: BorderRadius.circular(10),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
+                                padding: EdgeInsets.symmetric(
                                   horizontal: 14,
                                   vertical: 12,
                                 ),
@@ -681,7 +682,7 @@ class CountdownDialogs {
                                           ? AppColors.orange
                                           : AppColors.textMuted,
                                     ),
-                                    const SizedBox(width: 10),
+                                    SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         'Dikerjakan saat lembur',
@@ -739,8 +740,8 @@ class CountdownDialogs {
                                 }),
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
-                                  margin: const EdgeInsets.only(bottom: 6),
-                                  padding: const EdgeInsets.all(12),
+                                  margin: EdgeInsets.only(bottom: 6),
+                                  padding: EdgeInsets.all(12),
                                   decoration: BoxDecoration(
                                     color: isSel
                                         ? AppColors.gold.withValues(alpha: 0.07)
@@ -765,7 +766,7 @@ class CountdownDialogs {
                                             ? AppColors.gold
                                             : AppColors.textMuted,
                                       ),
-                                      const SizedBox(width: 10),
+                                      SizedBox(width: 10),
                                       Expanded(
                                         child: Column(
                                           crossAxisAlignment:
@@ -773,7 +774,7 @@ class CountdownDialogs {
                                           children: [
                                             Text(
                                               combo.jobdesc,
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 13,
                                                 color: AppColors.textPrimary,
                                                 fontWeight: FontWeight.w500,
@@ -781,7 +782,7 @@ class CountdownDialogs {
                                             ),
                                             Text(
                                               'Sisa: ${TimeParser.formatDecimalToHHmm((combo.availablePlanHoursAlias != null || combo.reservedPlanHours > 0) ? combo.availablePlanHours : combo.remainingHours)} jam',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontSize: 11,
                                                 color: AppColors.textMuted,
                                               ),
@@ -804,8 +805,8 @@ class CountdownDialogs {
                           controller: descriptionCtrl,
                           minLines: 2,
                           maxLines: 4,
-                          style: const TextStyle(color: AppColors.textPrimary),
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppColors.textPrimary),
+                          decoration: InputDecoration(
                             hintText: 'Tulis instruksi atau nomor POK...',
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
@@ -814,7 +815,7 @@ class CountdownDialogs {
                         ),
                       ),
 
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                     ],
                   ),
                 ),
@@ -827,7 +828,7 @@ class CountdownDialogs {
                     16,
                     16 + MediaQuery.of(ctx).viewInsets.bottom,
                   ),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.surfaceCard,
                     border: Border(top: BorderSide(color: AppColors.border)),
                   ),
@@ -836,8 +837,8 @@ class CountdownDialogs {
                     child: SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
-                        icon: const Icon(Icons.save_rounded),
-                        label: const Text(
+                        icon: Icon(Icons.save_rounded),
+                        label: Text(
                           'Simpan ke Draft',
                           style: TextStyle(
                             fontSize: 16,
@@ -847,7 +848,7 @@ class CountdownDialogs {
                         style: FilledButton.styleFrom(
                           backgroundColor: AppColors.gold,
                           foregroundColor: AppColors.background,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          padding: EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -972,8 +973,8 @@ class CountdownDialogs {
     final hoursCtrl = TextEditingController();
     final reasonCtrl = TextEditingController();
     var deadline =
-        DateTime.tryParse(item.deadlineDate)?.add(const Duration(days: 1)) ??
-        DateTime.now().add(const Duration(days: 1));
+        DateTime.tryParse(item.deadlineDate)?.add(Duration(days: 1)) ??
+        DateTime.now().add(Duration(days: 1));
     String? inlineError;
     bool isSubmitting = false;
 
@@ -983,7 +984,7 @@ class CountdownDialogs {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surfaceCard,
-          title: const Text(
+          title: Text(
             'Ajukan Revisi Countdown',
             style: TextStyle(color: AppColors.textPrimary),
           ),
@@ -994,26 +995,26 @@ class CountdownDialogs {
               children: [
                 Text(
                   '${item.panelName} • ${item.jobdesc}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text(
                   'Deadline saat ini ${item.deadlineDate} • Target saat ini ${item.targetHoursRevised.toStringAsFixed(1)} jam',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textMuted,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 TextFormField(
                   controller: hoursCtrl,
                   readOnly: true,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
                     labelText: 'Tambahan Jam Kerja (opsional)',
                     helperText:
                         'Kosongkan bila cuma ubah deadline. Ketuk untuk isi',
@@ -1055,22 +1056,22 @@ class CountdownDialogs {
                     }
                   },
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text(
+                  title: Text(
                     'Deadline Baru',
                     style: TextStyle(fontSize: 13, color: AppColors.textMuted),
                   ),
                   subtitle: Text(
                     '${deadline.year}-${deadline.month.toString().padLeft(2, '0')}-${deadline.day.toString().padLeft(2, '0')}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  trailing: const Icon(
+                  trailing: Icon(
                     Icons.calendar_today_rounded,
                     color: AppColors.gold,
                     size: 18,
@@ -1090,17 +1091,17 @@ class CountdownDialogs {
                 TextField(
                   controller: reasonCtrl,
                   maxLines: 3,
-                  style: const TextStyle(color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
+                  style: TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
                     labelText: 'Alasan Revisi',
                     helperText:
                         'Jelaskan kebutuhan revisi deadline dan/atau tambahan jam kerja.',
                   ),
                 ),
                 if (inlineError != null) ...[
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
                   Container(
-                    padding: const EdgeInsets.symmetric(
+                    padding: EdgeInsets.symmetric(
                       horizontal: 10,
                       vertical: 8,
                     ),
@@ -1113,16 +1114,16 @@ class CountdownDialogs {
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.error_outline,
                           size: 16,
                           color: AppColors.statusLocked,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             inlineError!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
                               color: AppColors.statusLocked,
                             ),
@@ -1138,7 +1139,7 @@ class CountdownDialogs {
           actions: [
             TextButton(
               onPressed: isSubmitting ? null : () => Navigator.pop(ctx, false),
-              child: const Text('Batal'),
+              child: Text('Batal'),
             ),
             FilledButton(
               onPressed: isSubmitting
@@ -1195,7 +1196,10 @@ class CountdownDialogs {
                       } catch (e) {
                         setDialogState(() {
                           isSubmitting = false;
-                          inlineError = 'Gagal: $e';
+                          inlineError = friendlyMessage(
+                            e,
+                            fallback: 'Gagal mengajukan revisi',
+                          );
                         });
                       }
                     },
@@ -1204,7 +1208,7 @@ class CountdownDialogs {
                 foregroundColor: AppColors.background,
               ),
               child: isSubmitting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
@@ -1212,7 +1216,7 @@ class CountdownDialogs {
                         color: AppColors.background,
                       ),
                     )
-                  : const Text('Ajukan'),
+                  : Text('Ajukan'),
             ),
           ],
         ),
@@ -1221,7 +1225,7 @@ class CountdownDialogs {
 
     if (submitted == true && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Pengajuan revisi berhasil dikirim!'),
           backgroundColor: AppColors.statusDone,
         ),
@@ -1243,14 +1247,14 @@ class CountdownDialogs {
         backgroundColor: AppColors.surfaceCard,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: const BorderSide(color: AppColors.statusDone, width: 1.2),
+          side: BorderSide(color: AppColors.statusDone, width: 1.2),
         ),
-        icon: const Icon(
+        icon: Icon(
           Icons.check_circle_outline_rounded,
           color: AppColors.statusDone,
           size: 36,
         ),
-        title: const Text(
+        title: Text(
           'Dinyatakan Selesai?',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -1265,14 +1269,14 @@ class CountdownDialogs {
             Text(
               '${item.panelName} • ${item.jobdesc}',
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: AppColors.gold,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Pekerjaan ini akan dinyatakan selesai dan menunggu QC.\nStatus akan berubah ke READY_QC.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -1288,7 +1292,7 @@ class CountdownDialogs {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             style: TextButton.styleFrom(foregroundColor: AppColors.textMuted),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -1298,9 +1302,9 @@ class CountdownDialogs {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             ),
-            child: const Text(
+            child: Text(
               'Ya, Selesaikan',
               style: TextStyle(fontWeight: FontWeight.w600),
             ),

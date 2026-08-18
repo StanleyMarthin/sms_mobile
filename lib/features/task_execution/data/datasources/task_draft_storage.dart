@@ -12,7 +12,7 @@ import '../../domain/entities/task_draft.dart';
 /// 2. Mechanic taps on an in-progress task → [getDraft] loads saved data
 /// 3. Mechanic submits → API POST succeeds → [deleteDraft] clears local data
 class TaskDraftStorage {
-  static const _keyPrefix = 'task_draft_';
+  static final _keyPrefix = 'task_draft_';
 
   /// Save a draft for the given task.
   Future<void> saveDraft(TaskDraft draft) async {

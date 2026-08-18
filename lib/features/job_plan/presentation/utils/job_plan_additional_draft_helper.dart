@@ -6,7 +6,7 @@ Main Functions: hydrate.
 Side Effects: Tidak ada; seluruh fungsi hanya transformasi data in-memory.
 */
 class JobPlanAdditionalDraftHydratedState {
-  const JobPlanAdditionalDraftHydratedState({
+  JobPlanAdditionalDraftHydratedState({
     required this.useManualInput,
     required this.manualUnitName,
     required this.manualPanelName,
@@ -36,7 +36,7 @@ class JobPlanAdditionalDraftHydratedState {
 }
 
 class JobPlanAdditionalDraftHelper {
-  const JobPlanAdditionalDraftHelper._();
+  JobPlanAdditionalDraftHelper._();
 
   static String _text(Object? value) {
     final text = value?.toString().trim() ?? '';
@@ -63,12 +63,26 @@ class JobPlanAdditionalDraftHelper {
     final explicitDivisionName = _text(
       draft['divisionName'] ?? draft['assignedDivision'],
     );
+    final forcedManual = draft['isManualInput'] == true ||
+        draft['isManualInput'] == 1 ||
+        draft['is_manual_input'] == true;
 
     Map<String, dynamic>? selectedUnit;
     if (carId.isNotEmpty) {
       for (final unit in units) {
         final unitId = _text(unit['id']);
         if (unitId == carId) {
+          selectedUnit = unit;
+          break;
+        }
+      }
+    }
+    if (selectedUnit == null && unitName.isNotEmpty) {
+      for (final unit in units) {
+        final unitLabel = _text(
+          unit['unit_name'] ?? unit['unitName'] ?? unit['name'],
+        );
+        if (unitLabel.isNotEmpty && unitLabel.toLowerCase() == unitName.toLowerCase()) {
           selectedUnit = unit;
           break;
         }
@@ -93,7 +107,7 @@ class JobPlanAdditionalDraftHelper {
         ? panelName
         : panelCustomNote;
     final shouldUseManualInput =
-        carId.isEmpty || (selectedUnit == null && unitName.isNotEmpty);
+        forcedManual || carId.isEmpty || selectedUnit == null;
     final useFreeTextPanel = sectionName.isNotEmpty;
 
     return JobPlanAdditionalDraftHydratedState(
@@ -101,7 +115,7 @@ class JobPlanAdditionalDraftHelper {
       manualUnitName: shouldUseManualInput ? unitName : '',
       manualPanelName: shouldUseManualInput ? resolvedPanelName : '',
       manualJobDescription: shouldUseManualInput ? jobDescription : '',
-      selectedUnit: shouldUseManualInput ? null : selectedUnit,
+      selectedUnit: selectedUnit,
       selectedPanel:
           shouldUseManualInput || useFreeTextPanel || resolvedPanelName.isEmpty
           ? null
@@ -113,7 +127,7 @@ class JobPlanAdditionalDraftHelper {
           ? null
           : _text(draft['assignedUserId']),
       selectedJobs: shouldUseManualInput || jobDescription.isEmpty
-          ? const <String>{}
+          ? <String>{}
           : {jobDescription},
       selectedCategory: _text(draft['panelCategory']).isEmpty
           ? null

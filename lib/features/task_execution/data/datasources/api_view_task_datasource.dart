@@ -20,7 +20,7 @@ class ApiViewTaskDataSource implements ViewTaskDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  const ApiViewTaskDataSource({
+  ApiViewTaskDataSource({
     required this.apiClient,
     required this.sessionManager,
   });
@@ -59,12 +59,12 @@ class ApiViewTaskDataSource implements ViewTaskDataSource {
       if (inner is List) {
         items = inner;
       } else if (inner is Map) {
-        items = (inner['data'] as List<dynamic>?) ?? const [];
+        items = (inner['data'] as List<dynamic>?) ?? [];
       } else {
-        items = const [];
+        items = [];
       }
     } else {
-      items = const [];
+      items = [];
     }
 
     return items

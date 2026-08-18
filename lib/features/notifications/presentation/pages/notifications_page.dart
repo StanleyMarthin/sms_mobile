@@ -33,17 +33,17 @@ class _NotificationsPageState extends State<NotificationsPage> {
         final items = _inbox.items;
 
         if (items.isEmpty) {
-          return const _EmptyNotifications();
+          return _EmptyNotifications();
         }
 
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(16),
           children: [
             _HeaderBar(
               count: items.length,
               onClear: () => _handleClearAll(context),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             ...items.map(_buildItemCard),
           ],
         );
@@ -59,8 +59,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
       onTap: () => context.push(item.targetRoute),
       borderRadius: BorderRadius.circular(18),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(1),
+        margin: EdgeInsets.only(bottom: 10),
+        padding: EdgeInsets.all(1),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isRead
@@ -78,12 +78,12 @@ class _NotificationsPageState extends State<NotificationsPage> {
               BoxShadow(
                 color: meta.color.withValues(alpha: 0.10),
                 blurRadius: 18,
-                offset: const Offset(0, 8),
+                offset: Offset(0, 8),
               ),
           ],
         ),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(17),
@@ -99,7 +99,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Container(
                 width: 42,
                 height: 42,
@@ -116,7 +116,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                       : meta.color,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +139,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        SizedBox(width: 10),
                         Text(
                           _formatShortTime(item.createdAt),
                           style: TextStyle(
@@ -150,22 +150,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 7),
+                    SizedBox(height: 7),
                     Text(
                       item.body,
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                         height: 1.45,
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
+                          padding: EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 4,
                           ),
@@ -182,18 +182,18 @@ class _NotificationsPageState extends State<NotificationsPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _formatCreatedAt(item.createdAt),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
                               color: AppColors.textMuted,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.arrow_forward_ios_rounded,
                           size: 12,
                           color: AppColors.textMuted,
@@ -215,25 +215,25 @@ class _NotificationsPageState extends State<NotificationsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceCard,
-        title: const Text(
+        title: Text(
           'Hapus Riwayat Notifikasi?',
           style: TextStyle(color: AppColors.textPrimary),
         ),
-        content: const Text(
+        content: Text(
           'Semua notifikasi yang tersimpan di perangkat ini akan dihapus.',
           style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Batal'),
+            child: Text('Batal'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.statusLocked,
             ),
-            child: const Text('Hapus'),
+            child: Text('Hapus'),
           ),
         ],
       ),
@@ -268,48 +268,48 @@ class _NotificationsPageState extends State<NotificationsPage> {
   _NotifMeta _metaFor(String route) {
     final value = route.toLowerCase();
     if (value.contains('/warehouse')) {
-      return const _NotifMeta(
+      return _NotifMeta(
         label: 'Warehouse',
         icon: Icons.inventory_2_outlined,
         color: Color(0xFF13B8A6),
       );
     }
     if (value.contains('/work-orders')) {
-      return const _NotifMeta(
+      return _NotifMeta(
         label: 'WO',
         icon: Icons.assignment_outlined,
         color: AppColors.orange,
       );
     }
     if (value.contains('/qc')) {
-      return const _NotifMeta(
+      return _NotifMeta(
         label: 'QC',
         icon: Icons.verified_outlined,
         color: Color(0xFF5B8EFF),
       );
     }
     if (value.contains('/tasks') || value.contains('/plans')) {
-      return const _NotifMeta(
+      return _NotifMeta(
         label: 'Task',
         icon: Icons.event_note_outlined,
         color: AppColors.gold,
       );
     }
     if (value.contains('/countdown')) {
-      return const _NotifMeta(
+      return _NotifMeta(
         label: 'Countdown',
         icon: Icons.timelapse_rounded,
         color: Color(0xFFB67BFF),
       );
     }
     if (value.contains('/pr')) {
-      return const _NotifMeta(
+      return _NotifMeta(
         label: 'PR',
         icon: Icons.shopping_cart_outlined,
         color: Color(0xFF4CAF50),
       );
     }
-    return const _NotifMeta(
+    return _NotifMeta(
       label: 'Notif',
       icon: Icons.notifications_outlined,
       color: AppColors.gold,
@@ -326,7 +326,7 @@ class _HeaderBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),
@@ -342,14 +342,14 @@ class _HeaderBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
-            child: const Icon(
+            child: Icon(
               Icons.notifications_outlined,
               color: AppColors.gold,
               size: 20,
             ),
           ),
-          const SizedBox(width: 12),
-          const Expanded(
+          SizedBox(width: 12),
+          Expanded(
             child: Text(
               'Notifikasi',
               style: TextStyle(
@@ -360,7 +360,7 @@ class _HeaderBar extends StatelessWidget {
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: AppColors.background,
               borderRadius: BorderRadius.circular(10),
@@ -368,14 +368,14 @@ class _HeaderBar extends StatelessWidget {
             ),
             child: Text(
               '$count item',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: AppColors.gold,
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           IconButton(
             onPressed: onClear,
             style: IconButton.styleFrom(
@@ -384,7 +384,7 @@ class _HeaderBar extends StatelessWidget {
                 color: AppColors.statusLocked.withValues(alpha: 0.35),
               ),
             ),
-            icon: const Icon(
+            icon: Icon(
               Icons.delete_outline_rounded,
               color: AppColors.statusLocked,
               size: 20,
@@ -397,7 +397,7 @@ class _HeaderBar extends StatelessWidget {
 }
 
 class _NotifMeta {
-  const _NotifMeta({
+  _NotifMeta({
     required this.label,
     required this.icon,
     required this.color,
@@ -415,9 +415,9 @@ class _EmptyNotifications extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Container(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.circular(20),
@@ -434,14 +434,14 @@ class _EmptyNotifications extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
-                child: const Icon(
+                child: Icon(
                   Icons.notifications_none_rounded,
                   size: 36,
                   color: AppColors.gold,
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
+              SizedBox(height: 16),
+              Text(
                 'Belum ada notifikasi',
                 textAlign: TextAlign.center,
                 style: TextStyle(

@@ -78,14 +78,14 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       maxChildSize: 0.85,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surfaceCard,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             border: Border(top: BorderSide(color: AppColors.gold, width: 2)),
           ),
           child: ListView(
             controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+            padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
               // Drag handle
               Center(
@@ -98,18 +98,18 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
 
               // Header
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.play_circle_outline,
                     color: AppColors.gold,
                     size: 24,
                   ),
-                  const SizedBox(width: 10),
-                  const Expanded(
+                  SizedBox(width: 10),
+                  Expanded(
                     child: Text(
                       'Mulai Pekerjaan',
                       style: TextStyle(
@@ -121,42 +121,42 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       color: AppColors.textMuted,
                       size: 22,
                     ),
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    constraints: BoxConstraints(),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // Task info
               _taskInfoCard(),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Start time
               _sectionLabel('Jam Mulai', Icons.schedule),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _startTimeTile(),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Photo before
               _sectionLabel('Foto Before', Icons.camera_alt_outlined),
-              const SizedBox(height: 4),
-              const Text(
+              SizedBox(height: 4),
+              Text(
                 'Ambil foto kondisi sebelum mulai.',
                 style: TextStyle(fontSize: 11, color: AppColors.textMuted),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               _photoBeforeSlot(),
-              const SizedBox(height: 28),
+              SizedBox(height: 28),
 
               // Mulai button
               _startButton(),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
             ],
           ),
         );
@@ -168,10 +168,10 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
     return Row(
       children: [
         Icon(icon, size: 16, color: AppColors.gold),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         Text(
           text,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
             color: AppColors.textPrimary,
@@ -186,7 +186,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
     final hasExtraDetail =
         t.jobDescription.isNotEmpty && t.jobDescription != t.jobName;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(12),
@@ -196,12 +196,12 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _readOnlyField('Unit', t.unitName, Icons.directions_car_outlined),
-          const Divider(color: AppColors.border, height: 16),
+          Divider(color: AppColors.border, height: 16),
           _readOnlyField('Panel', t.panelName, Icons.dashboard_outlined),
-          const Divider(color: AppColors.border, height: 16),
+          Divider(color: AppColors.border, height: 16),
           _readOnlyField('Pekerjaan', t.jobName, Icons.build_outlined),
           if (hasExtraDetail) ...[
-            const Divider(color: AppColors.border, height: 16),
+            Divider(color: AppColors.border, height: 16),
             _readOnlyField(
               'Detail Pekerjaan',
               t.jobDescription,
@@ -224,23 +224,23 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 16, color: AppColors.textMuted),
-        const SizedBox(width: 10),
+        SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   color: AppColors.textMuted,
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
@@ -260,7 +260,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       controller: _startTimeCtrl,
       keyboardType: TextInputType.number,
       inputFormatters: [HHMMFormatter()],
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         color: AppColors.textPrimary,
@@ -272,19 +272,19 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
         fillColor: AppColors.surfaceInput,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.gold),
+          borderSide: BorderSide(color: AppColors.gold),
         ),
         suffixIcon: IconButton(
           onPressed: _pickStartTime,
-          icon: const Icon(Icons.schedule_rounded, color: AppColors.gold),
+          icon: Icon(Icons.schedule_rounded, color: AppColors.gold),
         ),
       ),
     );
@@ -297,7 +297,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.gold,
               onPrimary: AppColors.background,
               surface: AppColors.surfaceCard,
@@ -372,12 +372,12 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                     child: GestureDetector(
                       onTap: () => setState(() => _photoBeforePath = null),
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: EdgeInsets.all(4),
                         decoration: BoxDecoration(
                           color: AppColors.background.withValues(alpha: 0.7),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.close,
                           size: 16,
                           color: AppColors.textPrimary,
@@ -387,7 +387,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
                   ),
                 ],
               )
-            : const Column(
+            : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
@@ -431,7 +431,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
 
     final path = await Navigator.of(context).push<String>(
       MaterialPageRoute(
-        builder: (_) => const InAppCameraPage(
+        builder: (_) => InAppCameraPage(
           slot: 'before',
           label: 'Foto Before (Sebelum Pekerjaan)',
         ),
@@ -453,15 +453,15 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
       width: double.infinity,
       child: FilledButton.icon(
         onPressed: _doStart,
-        icon: const Icon(Icons.play_arrow, size: 20),
-        label: const Text(
+        icon: Icon(Icons.play_arrow, size: 20),
+        label: Text(
           'Mulai Pekerjaan',
           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.gold,
           foregroundColor: AppColors.background,
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -473,7 +473,7 @@ class _TaskStartSheetState extends State<TaskStartSheet> {
   void _doStart() {
     if (_photoBeforePath == null || _photoBeforePath!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text('Foto wajib diambil sebelum mulai pekerjaan.'),
         ),
       );

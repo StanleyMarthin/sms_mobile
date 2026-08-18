@@ -18,6 +18,7 @@ abstract class CountdownRepository {
     required int divisionId,
     String? search,
     String? status,
+    bool plannable = false,
   });
 
   /// Level 4: list jobdesc per panel (car_id + division_id + panel_id).
@@ -28,6 +29,7 @@ abstract class CountdownRepository {
     required int panelId,
     String? search,
     String? status,
+    bool plannable = false,
   });
 
 

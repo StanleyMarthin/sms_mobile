@@ -24,7 +24,7 @@ class TaskDraft {
   /// ISO 8601 timestamp when the draft was created.
   final String createdAt;
 
-  const TaskDraft({
+  TaskDraft({
     required this.plandailyId,
     required this.startTime,
     this.photoBeforePath,
