@@ -13,7 +13,9 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'core/di/injection.dart';
 import 'core/constants/app_colors.dart';
+import 'core/presentation/connectivity_guard.dart';
 import 'core/router/app_router.dart';
+import 'core/services/connectivity_monitor.dart';
 import 'core/services/fcm_service.dart';
 import 'core/services/notification_inbox_service.dart';
 import 'core/session/session_manager.dart';
@@ -25,6 +27,7 @@ void main() async {
   await initializeDateFormatting('id_ID', null);
   initDependencies();
   await sl<SessionManager>().init();
+  await sl<ConnectivityMonitor>().init();
   await ThemeController.load();
   await sl<NotificationInboxService>().init();
 
@@ -62,6 +65,8 @@ class SmWorkshopApp extends StatelessWidget {
           darkTheme: buildAppTheme(),
           themeMode: ThemeController.themeMode,
           routerConfig: createRouter(),
+          builder: (context, child) =>
+              ConnectivityGuard(child: child ?? const SizedBox.shrink()),
         );
       },
     );

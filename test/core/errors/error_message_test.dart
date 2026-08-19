@@ -14,9 +14,9 @@ import 'package:sm_system/core/errors/failures.dart';
 void main() {
   group('friendlyMessage', () {
     test('memakai pesan Failure yang sudah manusiawi', () {
-      expect(friendlyMessage(const NetworkFailure()), contains('server'));
-      expect(friendlyMessage(const TimeoutFailure()), contains('lama'));
-      expect(friendlyMessage(const ServerFailure()), contains('server'));
+      expect(friendlyMessage(const NetworkFailure()), contains('izin istirahat'));
+      expect(friendlyMessage(const TimeoutFailure()), contains('ngos-ngosan'));
+      expect(friendlyMessage(const ServerFailure()), contains('Servernya lagi capek'));
       expect(friendlyMessage(const DataParsingFailure()), contains('server'));
     });
 
@@ -26,7 +26,7 @@ void main() {
         type: DioExceptionType.connectionError,
         message: 'SocketException: failed to connect',
       );
-      expect(friendlyMessage(error), contains('internet'));
+      expect(friendlyMessage(error), contains('izin istirahat'));
       expect(friendlyMessage(error), isNot(contains('SocketException')));
     });
 

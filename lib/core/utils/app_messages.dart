@@ -25,7 +25,8 @@ class AppMessages {
   static const http502 =
       'Server sebelah kayaknya lagi nggak mood 😮‍💨 Coba lagi sebentar.';
   static const http503 =
-      'Servernya bilang, "cukup dulu, bos." 😂 Layanan lagi istirahat sebentar.';
+      'Servernya bilang, "cukup dulu, bos." 😂 '
+      'Layanan lagi istirahat sebentar. Kamu boleh ikut.';
   static const http503M =
       'Sistem lagi ambil jatah healing 🔧 Tenang, data kamu aman.';
   static const http504 =

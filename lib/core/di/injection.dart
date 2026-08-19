@@ -2,6 +2,7 @@ import 'package:get_it/get_it.dart';
 
 import '../network/api_client.dart';
 import '../session/session_manager.dart';
+import '../services/connectivity_monitor.dart';
 import '../services/upload_service.dart';
 
 // ── Auth ──
@@ -92,9 +93,17 @@ void initDependencies() {
   // ─── Core ────────────────────────────────────────────────
   sl.registerLazySingleton<SessionManager>(() => SessionManager());
 
+  /// Global connectivity monitor — dipakai ApiClient + ConnectivityGuard.
+  sl.registerLazySingleton<ConnectivityMonitor>(
+    () => ConnectivityMonitor(),
+  );
+
   /// Shared HTTP client — used by all remote datasources.
   sl.registerLazySingleton<ApiClient>(
-    () => ApiClient(sessionManager: sl<SessionManager>()),
+    () => ApiClient(
+      sessionManager: sl<SessionManager>(),
+      connectivityMonitor: sl<ConnectivityMonitor>(),
+    ),
   );
 
   /// Service for Cloudflare R2 binary photo uploads
