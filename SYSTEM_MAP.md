@@ -47,10 +47,12 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
   - Navigation via `go_router`
   - Remote-first runtime; local/mock datasource ada tapi bukan jalur runtime utama
 - Storage/runtime:
-  - Session dan small local state via `SharedPreferences`
-  - FCM + local notification diinisialisasi saat startup
-  - Wakelock enabled global di `main()`
-  - Photo upload via presigned ticket → direct PUT ke object storage
+- Session dan small local state via `SharedPreferences`
+- FCM + local notification diinisialisasi saat startup
+- Wakelock enabled global di `main()`
+- Photo upload via presigned ticket → direct PUT ke object storage
+- Global connectivity guard: offline/server-down → SnackBar + dialog modal
+  (Keluar → logout ke `/login`; Coba Lagi → `ConnectivityMonitor.recheck()`)
 
 ---
 
@@ -79,10 +81,10 @@ sm_workshop/
     │   ├── di/             # injection.dart
     │   ├── errors/         # failures.dart, error_message.dart (friendlyMessage)
     │   ├── network/        # api_client.dart (Dio), api_endpoints.dart
-    │   ├── presentation/   # feature_shell_page.dart
+    │   ├── presentation/   # feature_shell_page.dart, connectivity_guard.dart
     │   ├── router/         # app_router.dart
     │   ├── security/       # device_signing_service.dart, app_secure_storage.dart
-    │   ├── services/       # fcm_service, notification_inbox, upload, alarm_timer
+    │   ├── services/       # fcm_service, notification_inbox, connectivity_monitor, upload, alarm_timer
     │   ├── session/        # session_manager.dart
     │   ├── theme/          # app_theme.dart, theme_controller.dart
     │   ├── utils/
@@ -133,6 +135,7 @@ main()
 -> initializeDateFormatting('id_ID')
 -> initDependencies()           # lib/core/di/injection.dart
 -> SessionManager.init()        # lib/core/session/session_manager.dart
+-> ConnectivityMonitor.init()   # lib/core/services/connectivity_monitor.dart
 -> NotificationInboxService.init()
 -> FCMService.init()
    -> if permission denied: SystemNavigator.pop()   ← app exit, tidak bisa skip
@@ -142,7 +145,7 @@ main()
 ```
 
 Files touched:
-`main.dart` → `injection.dart` → `session_manager.dart` → `notification_inbox_service.dart` → `fcm_service.dart` → `app_router.dart` → `app_theme.dart`
+`main.dart` → `injection.dart` → `session_manager.dart` → `connectivity_monitor.dart` → `notification_inbox_service.dart` → `fcm_service.dart` → `app_router.dart` → `app_theme.dart`
 
 **Catatan startup:**
 - App tidak bisa skip FCM init. Jika permission notifikasi denied → app exit.
@@ -286,7 +289,8 @@ Source: `lib/core/di/injection.dart`
 ### Core singletons (via GetIt)
 
 - `SessionManager`
-- `ApiClient`
+- `ConnectivityMonitor`
+- `ApiClient` (terima `connectivityMonitor` → report server down pada network/timeout/5xx)
 - `UploadService`
 - `LocalMockApiStore`
 - `NotificationInboxService`
@@ -409,6 +413,22 @@ Source: `lib/core/network/api_endpoints.dart`
 - Standard response unwrap + failure mapping
 - Refresh token flow on `401`
 - Retry dengan exponential backoff untuk network/`503`
+- Setelah retry habis, `connectionError`/timeout/`>=500` dilaporkan ke
+  `ConnectivityMonitor.reportServerDown()` → memicu guard global
+
+### Connectivity & offline guard
+
+- `lib/core/services/connectivity_monitor.dart` — `ConnectivityMonitor`
+  - Status: `online` / `offline` / `serverDown` via `ValueNotifier`
+  - `init()`: cek konektivitas awal + subscribe `connectivity_plus`
+  - `reportServerDown()`: dipanggil ApiClient saat device online tapi server tidak merespons
+  - `recheck()`: cek ulang dari aksi "Coba Lagi" pada dialog
+- `lib/core/presentation/connectivity_guard.dart` — `ConnectivityGuard`
+  - Dipasang di `MaterialApp.builder` (membungkus Navigator global)
+  - Status non-online → SnackBar notif + `AlertDialog` sekali per episode
+  - Copy gen-z dari `AppMessages` (NET-001 offline, HTTP-503 server down)
+  - Opsi "Keluar": `SessionManager.logout()` + `appRouter.go('/login')`
+  - Opsi "Coba Lagi": `ConnectivityMonitor.recheck()`; dialog tertutup bila online
 
 ### Device signing
 
@@ -824,7 +844,7 @@ Sparepart   → WO_ID / Task_ID (constraint sm_warehouse)
 
 ### Aktif tapi tidak diroute dari menu
 
-`fcm_service`, `notification_inbox_service`, `upload_service`, `alarm_timer_service`, `device_signing_service`, `in_app_camera_page`
+`fcm_service`, `notification_inbox_service`, `upload_service`, `alarm_timer_service`, `device_signing_service`, `in_app_camera_page`, `connectivity_monitor`, `connectivity_guard`
 
 ### Ada di kode, belum diroute
 
@@ -862,6 +882,7 @@ Sparepart   → WO_ID / Task_ID (constraint sm_warehouse)
 - Semua feature API melalui `ApiClient` (Dio), kecuali direct upload PUT yang menggunakan `http`
 - Refresh token flow terpusat di `ApiClient`
 - Signed upload ticket dipakai oleh: task photos, QC photos, warehouse photos
+- Global connectivity guard: offline / server tidak merespons → SnackBar + dialog modal (Keluar / Coba Lagi)
 
 ### Device/runtime side effects
 

@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 
 import '../errors/failures.dart';
 import '../session/session_manager.dart';
+import '../services/connectivity_monitor.dart';
 import 'api_endpoints.dart';
 
 /// Parsed API response wrapper.
@@ -33,12 +34,17 @@ class _CacheEntry {
 class ApiClient {
   final Dio _dio;
   final SessionManager _sessionManager;
+  final ConnectivityMonitor? _connectivityMonitor;
   Future<bool>? _refreshFuture;
   final Map<String, _CacheEntry> _cache = {};
 
-  ApiClient({required SessionManager sessionManager, Dio? dio})
-    : _sessionManager = sessionManager,
-      _dio = dio ?? Dio() {
+  ApiClient({
+    required SessionManager sessionManager,
+    Dio? dio,
+    ConnectivityMonitor? connectivityMonitor,
+  }) : _sessionManager = sessionManager,
+       _connectivityMonitor = connectivityMonitor,
+       _dio = dio ?? Dio() {
     _dio.options
       ..connectTimeout = Duration(seconds: 10)
       ..receiveTimeout = Duration(seconds: 30)
@@ -192,9 +198,26 @@ class ApiClient {
           await _sessionManager.logout();
         }
 
+        _reportServerDownIfNeeded(error);
         handler.next(error);
       },
     );
+  }
+
+  /// Lapor ke monitor global saat device online tapi server tidak
+  /// merespons (koneksi gagal / timeout / HTTP >= 500).
+  void _reportServerDownIfNeeded(DioException error) {
+    final statusCode = error.response?.statusCode ?? 0;
+    final isConnection = switch (error.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.connectionError => true,
+      _ => false,
+    };
+    if (isConnection || statusCode >= 500) {
+      _connectivityMonitor?.reportServerDown();
+    }
   }
 
   Interceptor _retryInterceptor() {
