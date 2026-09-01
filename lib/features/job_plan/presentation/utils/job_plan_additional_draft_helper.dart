@@ -13,6 +13,7 @@ class JobPlanAdditionalDraftHydratedState {
     required this.manualJobDescription,
     required this.selectedUnit,
     required this.selectedPanel,
+    required this.selectedPanelId,
     required this.useFreeTextPanel,
     required this.freeTextPanelName,
     required this.divisionLabel,
@@ -27,6 +28,7 @@ class JobPlanAdditionalDraftHydratedState {
   final String manualJobDescription;
   final Map<String, dynamic>? selectedUnit;
   final String? selectedPanel;
+  final int? selectedPanelId;
   final bool useFreeTextPanel;
   final String freeTextPanelName;
   final String divisionLabel;
@@ -52,6 +54,11 @@ class JobPlanAdditionalDraftHelper {
     final carId = _text(draft['carId']);
     final unitName = _text(draft['unitName']);
     final panelName = _text(draft['panelName']);
+    final panelId = switch (draft['panelId']) {
+      final num value => value.toInt(),
+      final String value => int.tryParse(value),
+      _ => null,
+    };
     final panelCustomNote = _text(
       draft['panelCustomNote'] ?? draft['panel_custom_note'],
     );
@@ -63,7 +70,8 @@ class JobPlanAdditionalDraftHelper {
     final explicitDivisionName = _text(
       draft['divisionName'] ?? draft['assignedDivision'],
     );
-    final forcedManual = draft['isManualInput'] == true ||
+    final forcedManual =
+        draft['isManualInput'] == true ||
         draft['isManualInput'] == 1 ||
         draft['is_manual_input'] == true;
 
@@ -82,7 +90,8 @@ class JobPlanAdditionalDraftHelper {
         final unitLabel = _text(
           unit['unit_name'] ?? unit['unitName'] ?? unit['name'],
         );
-        if (unitLabel.isNotEmpty && unitLabel.toLowerCase() == unitName.toLowerCase()) {
+        if (unitLabel.isNotEmpty &&
+            unitLabel.toLowerCase() == unitName.toLowerCase()) {
           selectedUnit = unit;
           break;
         }
@@ -120,6 +129,9 @@ class JobPlanAdditionalDraftHelper {
           shouldUseManualInput || useFreeTextPanel || resolvedPanelName.isEmpty
           ? null
           : resolvedPanelName,
+      selectedPanelId: shouldUseManualInput || useFreeTextPanel
+          ? null
+          : panelId,
       useFreeTextPanel: !shouldUseManualInput && useFreeTextPanel,
       freeTextPanelName: useFreeTextPanel ? sectionName : '',
       divisionLabel: divisionLabel,

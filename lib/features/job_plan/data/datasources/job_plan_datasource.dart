@@ -99,6 +99,7 @@ abstract class JobPlanDataSource {
     String? initialStatus,
     bool syncToTasks = false,
     bool isUrgent = false,
+    int? panelId,
     required String unitName,
     required String panelName,
     required String assignedDivision,

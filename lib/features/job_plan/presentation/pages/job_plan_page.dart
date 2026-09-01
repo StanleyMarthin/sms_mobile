@@ -50,6 +50,12 @@ String? _pickNullableJobPlanText(Iterable<Object?> values) {
   return value.isEmpty ? null : value;
 }
 
+int? _jobPlanInt(Object? value) => switch (value) {
+  final num n => n.toInt(),
+  final String s => int.tryParse(s),
+  _ => null,
+};
+
 bool _canReviewApprovalStatus(SessionManager session, String status) {
   final s = status.toUpperCase();
   // Hanya status PENDING yang masuk antrean review
@@ -321,9 +327,7 @@ Future<Map<String, dynamic>?> jobPlanMasterSearchPicker(
                               contentPadding: EdgeInsets.zero,
                               title: Text(
                                 labelBuilder(item),
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                               ),
                               subtitle: subtitleBuilder != null
                                   ? Text(
@@ -611,9 +615,7 @@ Future<Set<String>?> jobPlanMultiJobPicker(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
                             item,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                            ),
+                            style: TextStyle(color: AppColors.textPrimary),
                           ),
                           value: isSelected,
                           activeColor: AppColors.gold,
@@ -1136,10 +1138,7 @@ class _JobPlanPageState extends State<JobPlanPage>
               },
             ),
             ListTile(
-              leading: Icon(
-                Icons.add_task_rounded,
-                color: AppColors.gold,
-              ),
+              leading: Icon(Icons.add_task_rounded, color: AppColors.gold),
               title: Text('Additional Task'),
               subtitle: Text('Input pekerjaan manual atau urgent'),
               onTap: () async {
@@ -1219,10 +1218,7 @@ class _JobPlanPageState extends State<JobPlanPage>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          'Job Plan',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text('Job Plan', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
         bottom: TabBar(
@@ -1809,6 +1805,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
           'coreId': job.id,
           'carId': _selectedUnit!.carId,
           'divisionId': job.divisionId,
+          'panelId': _selectedPanel!.panelId,
           'unitName': _selectedUnit!.unitName,
           'panelName': job.panelName,
           'assignedUserId': _selectedEmployee?['id']?.toString() ?? '',
@@ -1874,6 +1871,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
             carId: item['carId']?.toString() ?? '',
             sourceType: 'COUNTDOWN',
             sourceRefId: item['sourceRefId']?.toString() ?? '',
+            panelId: _jobPlanInt(item['panelId']),
             unitName: item['unitName']?.toString() ?? '',
             panelName: item['panelName']?.toString() ?? '',
             assignedDivision: item['divisionId']?.toString() ?? '',
@@ -1928,9 +1926,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         ],
       ),
       body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(color: AppColors.gold),
-            )
+          ? Center(child: CircularProgressIndicator(color: AppColors.gold))
           : Column(
               children: [
                 Expanded(
@@ -2409,6 +2405,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
 
   Map<String, dynamic>? _selectedUnit;
   String? _selectedPanel;
+  int? _selectedPanelId;
   String _selectedDivision = '';
   String? _selectedEmployeeId;
   String? _selectedCategory;
@@ -2494,6 +2491,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     _manualJobCtrl.text = hydrated.manualJobDescription;
     _selectedUnit = hydrated.selectedUnit;
     _selectedPanel = hydrated.selectedPanel;
+    _selectedPanelId = hydrated.selectedPanelId;
     _useManualInput = hydrated.useManualInput;
     _useFreeTextPanel = hydrated.useFreeTextPanel;
     _sectionNameCtrl.text = hydrated.freeTextPanelName;
@@ -2609,6 +2607,15 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
       return;
     }
 
+    if (!widget.isCountdown &&
+        (selectedUnit == null || _selectedPanelId == null)) {
+      AppNotification.showWarning(
+        context,
+        'Pilih Unit dan Panel Master sebelum membuat Job Plan.',
+      );
+      return;
+    }
+
     final targetHours = TimeParser.parseHHmmToDecimal(_hoursCtrl.text);
     if (targetHours == null || targetHours <= 0) {
       AppNotification.showWarning(context, 'Target jam tidak valid.');
@@ -2660,6 +2667,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
             initialStatus: widget.isUrgent ? 'APPROVED' : null,
             syncToTasks: widget.isUrgent,
             isUrgent: widget.isUrgent,
+            panelId: _selectedPanelId,
             unitName: _isNonTechnicalJob
                 ? ''
                 : (selectedUnit?['unit_name']?.toString() ?? manualUnit),
@@ -2735,7 +2743,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                 ? ''
                 : (selectedUnit?['id']?.toString() ?? ''),
             'divisionId': divId,
-            'panelId': null,
+            'panelId': _selectedPanelId,
             'panelCustomNote': usesManualInput
                 ? manualPanel
                 : (_useFreeTextPanel ? null : (_selectedPanel ?? '')),
@@ -2745,7 +2753,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
             'panelCategory': (usesManualInput || _useFreeTextPanel)
                 ? _selectedCategory
                 : null,
-            'addPanelToMaster': true,
+            'addPanelToMaster': false,
             'jobTypeId': null,
             'sourceType': 'ADDITIONAL',
             'isManualInput': usesManualInput,
@@ -2859,6 +2867,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
               carId: item['carId']?.toString() ?? '',
               sourceType: item['sourceType']?.toString() ?? 'ADDITIONAL',
               sourceRefId: item['sourceRefId']?.toString() ?? '',
+              panelId: _jobPlanInt(item['panelId']),
               unitName: item['unitName']?.toString() ?? '',
               panelName: item['panelName']?.toString() ?? '',
               assignedDivision: item['divisionId']?.toString() ?? '',
@@ -2943,9 +2952,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
         ],
       ),
       body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(color: AppColors.gold),
-            )
+          ? Center(child: CircularProgressIndicator(color: AppColors.gold))
           : Column(
               children: [
                 Expanded(
@@ -3002,9 +3009,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                           title: 'Aktivitas',
                           child: TextField(
                             controller: _manualJobCtrl,
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                            ),
+                            style: TextStyle(color: AppColors.textPrimary),
                             decoration: InputDecoration(
                               labelText: 'Nama Aktivitas *',
                               hintText: 'Contoh: Meeting progres',
@@ -3042,9 +3047,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               SizedBox(height: 12),
                               TextField(
                                 controller: _manualPanelCtrl,
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                                 decoration: InputDecoration(
                                   labelText: 'Nama Panel *',
                                   hintText: 'Contoh: Mesin',
@@ -3076,6 +3079,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                     setState(() {
                                       _selectedUnit = res;
                                       _selectedPanel = null;
+                                      _selectedPanelId = null;
                                     });
                                   }
                                 },
@@ -3132,10 +3136,13 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                           m['section']?.toString() ?? '',
                                     );
                                     if (res != null) {
-                                      setState(
-                                        () => _selectedPanel = res['name']
-                                            ?.toString(),
-                                      );
+                                      setState(() {
+                                        _selectedPanel = res['name']
+                                            ?.toString();
+                                        _selectedPanelId =
+                                            (res['id'] as num?)?.toInt() ??
+                                            int.tryParse('${res['id'] ?? ''}');
+                                      });
                                     }
                                   },
                                 ),
@@ -3143,6 +3150,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                 value: _useFreeTextPanel,
                                 onChanged: (v) => setState(() {
                                   _useFreeTextPanel = v ?? false;
+                                  _selectedPanelId = null;
                                   if (!_useFreeTextPanel) {
                                     _sectionNameCtrl.clear();
                                   }
@@ -3182,9 +3190,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                             if (_useManualInput)
                               TextField(
                                 controller: _manualJobCtrl,
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: TextStyle(color: AppColors.textPrimary),
                                 decoration: InputDecoration(
                                   labelText: 'Nama Pekerjaan *',
                                   hintText: 'Contoh: Turunkan Mesin',
@@ -3249,9 +3255,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               initialValue: _selectedCategory,
                               isExpanded: true,
                               dropdownColor: AppColors.surfaceCard,
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                              ),
+                              style: TextStyle(color: AppColors.textPrimary),
                               decoration: InputDecoration(
                                 labelText: 'Kategori Pekerjaan *',
                               ),
@@ -3333,14 +3337,11 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                             children: [
                               TextField(
                                 controller: _totalProjectHoursCtrl,
-                                keyboardType:
-                                    TextInputType.numberWithOptions(
-                                      decimal: false,
-                                    ),
-                                inputFormatters: [TotalProjectHoursFormatter()],
-                                style: TextStyle(
-                                  color: AppColors.textPrimary,
+                                keyboardType: TextInputType.numberWithOptions(
+                                  decimal: false,
                                 ),
+                                inputFormatters: [TotalProjectHoursFormatter()],
+                                style: TextStyle(color: AppColors.textPrimary),
                                 decoration: InputDecoration(
                                   labelText: 'Total Target Proyek (000:00)',
                                   hintText: 'Contoh: 180:00',
@@ -3449,9 +3450,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                               ),
                               subtitle: Text(
                                 _formatDate(_selectedDate),
-                                style: TextStyle(
-                                  color: AppColors.textMuted,
-                                ),
+                                style: TextStyle(color: AppColors.textMuted),
                               ),
                               trailing: Icon(
                                 Icons.calendar_today_rounded,
@@ -3888,16 +3887,14 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
       return;
     }
     if (_jobdescCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Jobdesc tidak boleh kosong.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Jobdesc tidak boleh kosong.')));
       return;
     }
     if (targetHours == null || targetHours <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Target hours harus valid dan lebih dari 0.'),
-        ),
+        SnackBar(content: Text('Target hours harus valid dan lebih dari 0.')),
       );
       return;
     }
@@ -3979,6 +3976,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
             sourceType:
                 item['sourceType']?.toString() ?? widget.seed.sourceType,
             sourceRefId: item['sourceRefId']?.toString() ?? '',
+            panelId: _jobPlanInt(item['panelId']),
             unitName: item['unitName']?.toString() ?? '',
             panelName: item['panelName']?.toString() ?? '',
             assignedDivision: item['divisionId']?.toString() ?? '',
@@ -4039,9 +4037,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
         ],
       ),
       body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(color: AppColors.gold),
-            )
+          ? Center(child: CircularProgressIndicator(color: AppColors.gold))
           : Column(
               children: [
                 Expanded(
@@ -4095,9 +4091,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                           children: [
                             TextField(
                               controller: _panelCtrl,
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                              ),
+                              style: TextStyle(color: AppColors.textPrimary),
                               decoration: InputDecoration(
                                 labelText: 'Panel / Section *',
                                 hintText: 'Nama panel atau section',
@@ -4113,9 +4107,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                               controller: _jobdescCtrl,
                               minLines: 2,
                               maxLines: 4,
-                              style: TextStyle(
-                                color: AppColors.textPrimary,
-                              ),
+                              style: TextStyle(color: AppColors.textPrimary),
                               decoration: InputDecoration(
                                 labelText: 'Jobdesc / Deskripsi Pekerjaan *',
                                 hintText: 'Deskripsi pekerjaan',
@@ -4196,9 +4188,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                               ),
                               subtitle: Text(
                                 _formatDate(_selectedDate),
-                                style: TextStyle(
-                                  color: AppColors.textMuted,
-                                ),
+                                style: TextStyle(color: AppColors.textMuted),
                               ),
                               trailing: Icon(
                                 Icons.calendar_today_rounded,
@@ -4412,10 +4402,7 @@ class _SearchFieldTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 10, color: AppColors.textMuted),
                   ),
                   SizedBox(height: 2),
                   Text(
@@ -4430,10 +4417,7 @@ class _SearchFieldTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: AppColors.gold,
-            ),
+            Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.gold),
           ],
         ),
       ),
@@ -4625,9 +4609,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: failed.isEmpty
-            ? Color(0xFF2E7D32)
-            : Color(0xFFFFA000),
+        backgroundColor: failed.isEmpty ? Color(0xFF2E7D32) : Color(0xFFFFA000),
       ),
     );
     if (mounted) {
@@ -4704,9 +4686,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
         // Content
         Expanded(
           child: _isLoading
-              ? Center(
-                  child: CircularProgressIndicator(color: AppColors.gold),
-                )
+              ? Center(child: CircularProgressIndicator(color: AppColors.gold))
               : _level == 0
               ? _buildUnitList()
               : _level == 1
@@ -4816,10 +4796,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
               children: [
                 Text(
                   '${_planItems.length} rencana',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 TextButton(
                   onPressed: () => setState(() {
@@ -4915,10 +4892,7 @@ class _NavDrillCard extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -5448,10 +5422,9 @@ class _BrowseTabState extends State<_BrowseTab> {
   Future<void> _editDraftItem(JobPlan plan) async {
     final uid = _session.employeeId ?? '';
     final existingDraft = await _repository.getDraft(userId: uid);
-    final items =
-        (existingDraft?['items'] as List<dynamic>? ?? <dynamic>[])
-            .whereType<Map<String, dynamic>>()
-            .toList();
+    final items = (existingDraft?['items'] as List<dynamic>? ?? <dynamic>[])
+        .whereType<Map<String, dynamic>>()
+        .toList();
     final index = items.indexWhere(
       (t) => t['draftItemId']?.toString() == plan.planId,
     );
@@ -5613,10 +5586,7 @@ class _BrowseTabState extends State<_BrowseTab> {
                       ),
                     ),
                     IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        color: AppColors.textSecondary,
-                      ),
+                      icon: Icon(Icons.close, color: AppColors.textSecondary),
                       onPressed: () => Navigator.pop(ctx),
                     ),
                   ],
@@ -5733,10 +5703,7 @@ class _BrowseTabState extends State<_BrowseTab> {
               children: [
                 Text(
                   '${draftPlans.length} draft',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 TextButton(
                   onPressed: () => setState(() {
@@ -5756,9 +5723,7 @@ class _BrowseTabState extends State<_BrowseTab> {
           ),
         Expanded(
           child: _isLoading
-              ? Center(
-                  child: CircularProgressIndicator(color: AppColors.gold),
-                )
+              ? Center(child: CircularProgressIndicator(color: AppColors.gold))
               : _plans.isEmpty
               ? Center(child: Text('Tidak ada rencana kerja.'))
               : ListView.builder(
@@ -5945,10 +5910,7 @@ class _SubmittedPlanCard extends StatelessWidget {
               // ── Job description ──────────────────────────────────
               Text(
                 plan.description,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -5957,10 +5919,7 @@ class _SubmittedPlanCard extends StatelessWidget {
               if (plan.panelName.isNotEmpty)
                 Text(
                   plan.panelName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
               SizedBox(height: 10),
               // ── Bottom row: assignee + hours + history ───────────
@@ -6073,10 +6032,7 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             ),
           ),
           Expanded(

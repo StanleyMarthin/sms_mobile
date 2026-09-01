@@ -494,6 +494,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     String? initialStatus,
     bool syncToTasks = false,
     bool isUrgent = false,
+    int? panelId,
     required String unitName,
     required String panelName,
     required String assignedDivision,
@@ -511,8 +512,13 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     bool isNonTechnicalJob = false,
     required String note,
   }) async {
+    final normalizedSourceType = sourceType.trim().toUpperCase();
+    final requiresPanelId =
+        coreId.trim().isEmpty && normalizedSourceType != 'WO';
+    if (requiresPanelId && panelId == null) {
+      throw ArgumentError('panelId master wajib diisi untuk membuat Job Plan.');
+    }
     final divisionId = await _resolveDivisionId(assignedDivision);
-    final panelId = await _resolvePanelId(panelName);
     final jobTypeId = await _resolveJobTypeId(description, assignedDivision);
     final normalizedNote = _resolveNote(
       note: note,
@@ -525,7 +531,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       if (carId.trim().isNotEmpty) 'carId': carId,
       if (sourceRefId.trim().isNotEmpty) 'sourceRefId': sourceRefId,
       'divisionId': divisionId,
-      'panelId': panelId,
+      if (panelId != null) 'panelId': panelId,
       'panelCustomNote': panelName,
       'jobTypeId': jobTypeId,
       'assignedUserId': assignedUserId,
@@ -546,7 +552,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       data: {
         'action': 'submit',
         'userId': sessionManager.employeeId ?? '',
-        'sourceType': sourceType.toUpperCase(),
+        'sourceType': normalizedSourceType,
         if (sourceRefId.trim().isNotEmpty) 'sourceRefId': sourceRefId,
         'note': normalizedNote,
         'items': [item],
@@ -880,17 +886,6 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       }
     }
     return await _resolveNumericDivisionId(divisionName) ?? '1';
-  }
-
-  Future<int> _resolvePanelId(String panelName) async {
-    final dropdowns = await _getOrFetchDropdowns();
-    final pName = panelName.toUpperCase();
-    for (final p in dropdowns['panels'] ?? []) {
-      if (p['name']?.toString().toUpperCase() == pName) {
-        return int.tryParse(p['id'].toString()) ?? 0;
-      }
-    }
-    return 1;
   }
 
   Future<String> _resolveJobTypeId(

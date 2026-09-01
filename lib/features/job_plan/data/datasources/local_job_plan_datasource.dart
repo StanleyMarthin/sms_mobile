@@ -370,6 +370,11 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
         coreId: (item['coreId'] ?? '').toString(),
         carId: (item['carId'] ?? '').toString(),
         sourceType: sourceType,
+        panelId: switch (item['panelId']) {
+          final num value => value.toInt(),
+          final String value => int.tryParse(value),
+          _ => null,
+        },
         unitName: (item['unitName'] ?? '-').toString(),
         panelName: (item['panelName'] ?? '-').toString(),
         assignedDivision: (item['divisionName'] ?? item['divisionId'] ?? '')
@@ -521,6 +526,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     String? initialStatus,
     bool syncToTasks = false,
     bool isUrgent = false,
+    int? panelId,
     required String unitName,
     required String panelName,
     required String assignedDivision,
@@ -538,6 +544,12 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     bool isNonTechnicalJob = false,
     required String note,
   }) async {
+    final normalizedSourceType = sourceType.trim().toUpperCase();
+    if (coreId.trim().isEmpty &&
+        normalizedSourceType != 'WO' &&
+        panelId == null) {
+      throw ArgumentError('panelId master wajib diisi untuk membuat Job Plan.');
+    }
     final plans = await _loadPlans();
     final sequence = (plans.length + 1).toString().padLeft(3, '0');
     final normalizedNote = _resolveNote(
@@ -551,6 +563,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
       'carId': carId,
       'sourceType': sourceType,
       'sourceRefId': sourceRefId,
+      if (panelId != null) 'panelId': panelId,
       if (isUrgent) 'isUrgent': true,
       'unitName': unitName,
       'panelName': panelName,

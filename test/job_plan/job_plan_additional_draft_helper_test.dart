@@ -16,6 +16,7 @@ void main() {
           'carId': 'car-1',
           'unitName': 'Ferrari Test',
           'panelName': 'Dashboard',
+          'panelId': 77,
           'jobDescription': 'Pasang Dashboard',
           'divisionId': '12',
           'assignedUserId': 'emp-1',
@@ -32,6 +33,7 @@ void main() {
       expect(state.divisionLabel, 'INTERIOR');
       expect(state.selectedUnit?['id'], 'car-1');
       expect(state.selectedPanel, 'Dashboard');
+      expect(state.selectedPanelId, 77);
       expect(state.selectedJobs, {'Pasang Dashboard'});
       expect(state.selectedEmployeeId, 'emp-1');
     });
