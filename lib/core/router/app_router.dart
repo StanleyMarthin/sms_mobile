@@ -1,3 +1,11 @@
+/*
+Tujuan: Routing utama aplikasi mobile.
+Caller: App bootstrap dan navigasi internal/notification.
+Dependensi: GoRouter, SessionManager, FeatureShellPage, halaman fitur.
+Main Functions: createRouter.
+Side Effects: Menginisialisasi global appRouter.
+*/
+
 import 'package:go_router/go_router.dart';
 
 import '../di/injection.dart';
@@ -17,6 +25,7 @@ import '../../features/task_execution/presentation/pages/task_section_page.dart'
 import '../../features/task_execution/presentation/pages/alarm_page.dart';
 import '../../features/warehouse_request/presentation/pages/warehouse_request_page.dart';
 import '../../features/work_order/presentation/pages/work_order_page.dart';
+import '../../features/unit_preparation/presentation/pages/unit_preparation_page.dart';
 
 /// Top-level GoRouter instance — diakses oleh FCMService untuk navigasi dari notifikasi.
 late GoRouter appRouter;
@@ -36,7 +45,7 @@ GoRouter createRouter() {
       if (!isLoggedIn) {
         // Jika belum login dan tidak punya tempToken, wajib ke splash dulu
         if (session.tempToken == null) return '/splash';
-        
+
         // Jika sudah punya tempToken tapi bukan di halaman login, arahkan ke login
         if (loc != '/login') return '/login';
       } else {
@@ -47,22 +56,10 @@ GoRouter createRouter() {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/splash',
-        builder: (context, state) => SplashPage(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => LoginPage(),
-      ),
-      GoRoute(
-        path: '/home',
-        builder: (context, state) => HomePage(),
-      ),
-      GoRoute(
-        path: '/dashboard',
-        redirect: (context, state) => '/home',
-      ),
+      GoRoute(path: '/splash', builder: (context, state) => SplashPage()),
+      GoRoute(path: '/login', builder: (context, state) => LoginPage()),
+      GoRoute(path: '/home', builder: (context, state) => HomePage()),
+      GoRoute(path: '/dashboard', redirect: (context, state) => '/home'),
       GoRoute(
         path: '/tasks',
         builder: (context, state) => FeatureShellPage(
@@ -103,8 +100,15 @@ GoRouter createRouter() {
         path: '/countdown',
         builder: (context, state) => FeatureShellPage(
           title: 'Countdown',
-          child: CountdownPage(
-            focusCarId: state.uri.queryParameters['carId'],
+          child: CountdownPage(focusCarId: state.uri.queryParameters['carId']),
+        ),
+      ),
+      GoRoute(
+        path: '/unit-preparation',
+        builder: (context, state) => FeatureShellPage(
+          title: 'Persiapan Unit',
+          child: UnitPreparationPage(
+            initialUnitId: state.uri.queryParameters['unitId'],
           ),
         ),
       ),
@@ -112,67 +116,51 @@ GoRouter createRouter() {
         path: '/monitoring',
         builder: (context, state) => FeatureShellPage(
           title: 'Monitoring',
-          child: MonitoringPage(
-            focusCarId: state.uri.queryParameters['carId'],
-          ),
+          child: MonitoringPage(focusCarId: state.uri.queryParameters['carId']),
         ),
       ),
       GoRoute(
         path: '/qc',
         builder: (context, state) => FeatureShellPage(
           title: 'QC',
-          child: QcTab(
-            focusCoreId: state.uri.queryParameters['qcId'],
-          ),
+          child: QcTab(focusCoreId: state.uri.queryParameters['qcId']),
         ),
       ),
       GoRoute(
         path: '/work-orders',
         builder: (context, state) => FeatureShellPage(
           title: 'Work Order',
-          child: WorkOrderPage(
-            focusWoId: state.uri.queryParameters['woId'],
-          ),
+          child: WorkOrderPage(focusWoId: state.uri.queryParameters['woId']),
         ),
       ),
       GoRoute(
         path: '/warehouse',
-        builder: (context, state) => FeatureShellPage(
-          title: 'Warehouse',
-          child: WarehouseRequestPage(),
-        ),
+        builder: (context, state) =>
+            FeatureShellPage(title: 'Warehouse', child: WarehouseRequestPage()),
       ),
       GoRoute(
         path: '/pr',
         builder: (context, state) => FeatureShellPage(
           title: 'Purchase Request',
-          child: PrPage(
-            focusReqId: state.uri.queryParameters['reqId'],
-          ),
+          child: PrPage(focusReqId: state.uri.queryParameters['reqId']),
         ),
       ),
       GoRoute(
         path: '/wov',
         builder: (context, state) => FeatureShellPage(
           title: 'Work Order Vendor',
-          child: WovPage(
-            focusReqId: state.uri.queryParameters['reqId'],
-          ),
+          child: WovPage(focusReqId: state.uri.queryParameters['reqId']),
         ),
       ),
       GoRoute(
         path: '/notifications',
-        builder: (context, state) => FeatureShellPage(
-          title: 'Notifikasi',
-          child: NotificationsPage(),
-        ),
+        builder: (context, state) =>
+            FeatureShellPage(title: 'Notifikasi', child: NotificationsPage()),
       ),
       GoRoute(
         path: '/profile',
-        builder: (context, state) => FeatureShellPage(
-          title: 'Profil',
-          child: ProfilePage(),
-        ),
+        builder: (context, state) =>
+            FeatureShellPage(title: 'Profil', child: ProfilePage()),
       ),
       GoRoute(
         path: '/alarm',

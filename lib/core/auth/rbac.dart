@@ -84,6 +84,9 @@ enum Permission {
   warehouseLogsView,
   profileView,
   notificationsView,
+  unitCatalogView,
+  unitCatalogSurvey,
+  unitCatalogCreateJobdesc,
   dashboardKd,
   dashboardMechanic,
 }
@@ -117,6 +120,9 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.wovReject,
     Permission.wovUpdate,
     Permission.profileView,
+    Permission.unitCatalogView,
+    Permission.unitCatalogSurvey,
+    Permission.unitCatalogCreateJobdesc,
     Permission.dashboardKd,
   },
   'adv': {
@@ -164,6 +170,9 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.wovView,
     Permission.wovCreate,
     Permission.profileView,
+    Permission.unitCatalogView,
+    Permission.unitCatalogSurvey,
+    Permission.unitCatalogCreateJobdesc,
     Permission.dashboardKd,
   },
   'warehouse': {
@@ -194,6 +203,8 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.warehouseLogsView,
     Permission.notificationsView,
     Permission.profileView,
+    Permission.unitCatalogView,
+    Permission.unitCatalogSurvey,
     Permission.dashboardMechanic,
   },
 };
@@ -260,6 +271,9 @@ Map<Permission, List<String>> _permissionCodeMap = {
   ],
   Permission.profileView: [Perms.profileView],
   Permission.notificationsView: [Perms.notificationsView],
+  Permission.unitCatalogView: [Perms.unitCatalogView],
+  Permission.unitCatalogSurvey: [Perms.unitCatalogSurvey],
+  Permission.unitCatalogCreateJobdesc: [Perms.unitCatalogCreateJobdesc],
 };
 
 SessionManager? _trySession() {

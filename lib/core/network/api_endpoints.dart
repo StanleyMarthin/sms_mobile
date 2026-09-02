@@ -69,6 +69,31 @@ abstract class ApiEndpoints {
   static String get countdown => '$_countdownBase/countdown';
   static String get countdownAction => '$_countdownBase/countdown/action';
   static String get countdownRevision => '$_countdownBase/countdown/revision';
+  static String unitCatalog(String unitId) =>
+      '$_countdownBase/units/$unitId/catalog';
+  static String unitCatalogReference(String unitId, int referenceId) =>
+      '$_countdownBase/units/$unitId/catalog/$referenceId';
+  static String unitCatalogReferenceMedia(String unitId, int referenceId) =>
+      '$_countdownBase/units/$unitId/catalog/$referenceId/media';
+  static String unitCatalogItem(String unitId, int itemId) =>
+      '$_countdownBase/units/$unitId/catalog/items/$itemId';
+  static String unitCatalogItemSurvey(String unitId, int itemId) =>
+      '$_countdownBase/units/$unitId/catalog/items/$itemId/survey';
+  static String unitCatalogItemSurveyConfirm(String unitId, int itemId) =>
+      '$_countdownBase/units/$unitId/catalog/items/$itemId/survey/confirm';
+  static String unitCatalogItemMedia(String unitId, int itemId) =>
+      '$_countdownBase/units/$unitId/catalog/items/$itemId/media';
+  static String unitCatalogItemMediaDetail(
+    String unitId,
+    int itemId,
+    int mediaId,
+  ) => '$_countdownBase/units/$unitId/catalog/items/$itemId/media/$mediaId';
+  static String unitCatalogItemPromote(String unitId, int itemId) =>
+      '$_countdownBase/units/$unitId/catalog/items/$itemId/promote';
+  static String unitMasterPanel(String unitId, int panelId) =>
+      '$_countdownBase/units/$unitId/master-panels/$panelId';
+  static String unitMasterPanelJobdescs(String unitId, int panelId) =>
+      '$_countdownBase/units/$unitId/master-panels/$panelId/jobdescs';
 
   // ── Warehouse (sm_warehouse) ─────────────────────────────
   static String get warehouse => '$_warehouseBase/warehouse';

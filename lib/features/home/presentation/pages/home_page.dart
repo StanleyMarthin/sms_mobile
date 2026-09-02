@@ -255,10 +255,7 @@ class HomePage extends StatelessWidget {
                   SizedBox(height: 6),
                   Text(
                     div,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                 ],
               ],
@@ -273,10 +270,7 @@ class HomePage extends StatelessWidget {
               },
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
@@ -395,10 +389,7 @@ class _NotificationBellState extends State<_NotificationBell>
                   right: -6,
                   top: -6,
                   child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 2,
-                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.statusLocked,
                       borderRadius: BorderRadius.circular(999),
@@ -526,12 +517,7 @@ class _MenuItem {
   final String? route;
   final Color? color;
 
-  _MenuItem({
-    required this.icon,
-    required this.label,
-    this.route,
-    this.color,
-  });
+  _MenuItem({required this.icon, required this.label, this.route, this.color});
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -648,6 +634,17 @@ List<_MenuItem> _buildMenusForSession(SessionManager session) {
         icon: Icons.directions_car_outlined,
         label: 'Countdown',
         route: '/countdown',
+        color: alt(),
+      ),
+    );
+  }
+  if (perms.contains(Permission.unitCatalogView) ||
+      perms.contains(Permission.unitCatalogSurvey)) {
+    menus.add(
+      _MenuItem(
+        icon: Icons.fact_check_outlined,
+        label: 'Persiapan\nUnit',
+        route: '/unit-preparation',
         color: alt(),
       ),
     );

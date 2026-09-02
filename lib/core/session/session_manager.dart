@@ -593,8 +593,7 @@ class SessionManager extends ChangeNotifier {
       return 'adv';
     }
     if (normalizedPerms.any(
-      (code) =>
-          {'CREATE_TASK', 'UPDATE_PLAN', 'WO_CREATE'}.contains(code),
+      (code) => {'CREATE_TASK', 'UPDATE_PLAN', 'WO_CREATE'}.contains(code),
     )) {
       return 'kd';
     }
@@ -718,4 +717,9 @@ abstract class Perms {
   // ── Profile ────────────────────────────────────────────
   static final notificationsView = 'LIST_NOTIFICATIONS';
   static final profileView = 'PROFILE_VIEW';
+
+  // ── Unit Preparation / Catalog ─────────────────────────
+  static final unitCatalogView = 'UNIT_CATALOG_VIEW';
+  static final unitCatalogSurvey = 'UNIT_CATALOG_SURVEY';
+  static final unitCatalogCreateJobdesc = 'UNIT_CATALOG_CREATE_JOBDESC';
 }

@@ -945,6 +945,14 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → ApiEndpoints.countdown* (/sm/countdown via gateway; legacy port 8090)
 ```
 
+### Unit preparation / catalog survey issue
+```text
+/unit-preparation → UnitPreparationPage
+→ RemoteUnitPreparationDataSource
+→ ApiEndpoints.unitCatalog*|unitMasterPanel* (/sm/units/... via countdown gateway; legacy port 8090)
+→ Catalog survey DRAFT/CONFIRMED; confirm materializes master_panels and later jobdesc uses panel_id
+```
+
 ### Warehouse issue
 ```text
 /warehouse → WarehouseRequestPage → WarehouseRepositoryImpl
