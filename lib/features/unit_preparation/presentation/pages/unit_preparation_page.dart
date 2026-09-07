@@ -251,10 +251,10 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     });
 
     try {
-      final componentRows = components.isEmpty
-          ? await datasource.getComponents()
-          : components;
       final catalog = await datasource.getCatalog(unitId);
+      final componentRows = components.isEmpty
+          ? await _loadComponentsOrDerive(catalog)
+          : components;
       if (!mounted) return;
       setState(() {
         components = componentRows;
@@ -276,6 +276,18 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     } finally {
       if (mounted) setState(() => loading = false);
     }
+  }
+
+  Future<List<CatalogComponent>> _loadComponentsOrDerive(
+    List<CatalogReference> catalog,
+  ) async {
+    try {
+      final rows = await datasource.getComponents();
+      if (rows.isNotEmpty) return rows;
+    } catch (_) {
+      // Catalog runtime lives in sm_countdown; component master is optional.
+    }
+    return UnitPreparationCatalogHelper.componentsFromReferences(catalog);
   }
 
   Future<CatalogReference> hydrateReference(

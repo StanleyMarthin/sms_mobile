@@ -181,6 +181,25 @@ class UnitPreparationCatalogHelper {
     return result;
   }
 
+  static List<CatalogComponent> componentsFromReferences(
+    List<CatalogReference> references,
+  ) {
+    final names = references
+        .map((reference) => reference.componentName.trim().toUpperCase())
+        .where((name) => name.isNotEmpty)
+        .toSet();
+    return componentFilters
+        .where(names.contains)
+        .map(
+          (name) => CatalogComponent(
+            id: componentFilters.indexOf(name) + 1,
+            code: name,
+            componentName: name,
+          ),
+        )
+        .toList();
+  }
+
   static List<CatalogPanelSummary> panelSummaries(
     List<CatalogReference> references,
     String component, {

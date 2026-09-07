@@ -958,7 +958,8 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → ApiEndpoints.catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia (/api/... web catalog gateway)
 → Final mobile flow: unit list/search → component list → panel list → panel workspace → part detail/survey
 → Unit list pakai ApiEndpoints.countdown existing rows; search car_id/unit_name/customer_name/plate_number tanpa manual Unit ID/Load
-→ Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; selected panel hydrate via /catalog/{panel_id}
+→ Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; component list bisa derive dari response countdown jika component master API belum tersedia
+→ Selected panel hydrate via /catalog/{panel_id}
 → Panel list punya + Tambah Panel: create panel master via existing catalog API, optional image, optional lanjut batch item
 → Panel workspace image-first dari catalog_panel_images/media lalu compact part list panel-only dan + Tambah Item batch rows
 → Compact tappable rows; primary alias_name/item_name, secondary part_number, detail name_part/code, status Sudah/Belum didata

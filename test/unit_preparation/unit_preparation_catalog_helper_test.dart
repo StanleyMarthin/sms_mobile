@@ -124,6 +124,15 @@ void main() {
     expect(summaries.first.doneCount, 0);
   });
 
+  test('derives component rows from countdown catalog references', () {
+    final components = UnitPreparationCatalogHelper.componentsFromReferences(
+      references,
+    );
+
+    expect(components.map((component) => component.code), ['BODY', 'INTERIOR']);
+    expect(components.first.componentName, 'BODY');
+  });
+
   test('builds panel navigation summaries and panel-only part search', () {
     final panelSummaries = UnitPreparationCatalogHelper.panelSummaries(
       references,
