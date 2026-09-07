@@ -143,6 +143,9 @@ class TaskEntity extends Equatable {
   /// From: trx_jobdesc_core.total_actual_hours
   final double totalActualHours;
 
+  /// Progress explicitly submitted by operator, when backend provides it.
+  final double? submittedProgressPercent;
+
   /// True after OP has submitted at least one monitoring/progress record.
   /// Once set, OP can no longer reopen or resubmit this task from the mobile flow.
   final bool hasMonitoringRecord;
@@ -155,7 +158,6 @@ class TaskEntity extends Equatable {
 
   /// Indicates if this task is marked as priority
   final bool isPriority;
-
 
   const TaskEntity({
     required this.plandailyId,
@@ -182,6 +184,7 @@ class TaskEntity extends Equatable {
     this.lockedByName,
     required this.ownerName,
     required this.totalActualHours,
+    this.submittedProgressPercent,
     this.hasMonitoringRecord = false,
     this.isRework = false,
     this.isOvertime = false,
@@ -254,6 +257,10 @@ class TaskEntity extends Equatable {
   /// Calculated as: (targetHoursRevised - remainingHours) / targetHoursRevised * 100
   /// If target is 0, returns 0%
   double get progressPercent {
+    final submittedProgress = submittedProgressPercent;
+    if (submittedProgress != null) {
+      return submittedProgress.clamp(0.0, 100.0);
+    }
     if (targetHoursRevised <= 0) return 0;
     final hoursUsed = targetHoursRevised - remainingHours;
     return (hoursUsed / targetHoursRevised) * 100;
@@ -291,6 +298,7 @@ class TaskEntity extends Equatable {
     lockedByName,
     ownerName,
     totalActualHours,
+    submittedProgressPercent,
     hasMonitoringRecord,
     isRework,
     isOvertime,

@@ -166,6 +166,7 @@ class TaskModel {
   final String? lockedByName;
   final String ownerName;
   final double totalActualHours;
+  final double? submittedProgressPercent;
   final bool hasMonitoringRecord;
   final bool isRework;
   final bool isOvertime;
@@ -196,6 +197,7 @@ class TaskModel {
     this.lockedByName,
     required this.ownerName,
     required this.totalActualHours,
+    this.submittedProgressPercent,
     this.hasMonitoringRecord = false,
     this.isRework = false,
     this.isOvertime = false,
@@ -233,6 +235,12 @@ class TaskModel {
       lockedByName: _taskNullableString([json['lockedByName']]),
       ownerName: _taskString(json['ownerName']),
       totalActualHours: _taskHours(json['totalActualHours']),
+      submittedProgressPercent: _taskPercent(
+        json['submittedProgressPercent'] ??
+            json['submitted_progress_percent'] ??
+            json['progressPercent'] ??
+            json['actualProgressPercent'],
+      ),
       hasMonitoringRecord: _taskBool(json['hasMonitoringRecord']),
       isRework: _taskBool(json['isRework']),
       isOvertime: _taskBool(json['isOvertime']),
@@ -283,17 +291,23 @@ class TaskModel {
           dailyTargetHours,
     );
     final actualProgressPercent = _taskPercent(
-      countdownCumulative['progressPercent'] ??
+      executionLatest['progressPercent'] ??
+          executionLatest['progress_percent'] ??
+          executionLatest['actualProgressPercent'] ??
+          executionLatest['actual_progress_percent'] ??
+          json['submittedProgressPercent'] ??
+          json['submitted_progress_percent'] ??
+          json['progressPercent'] ??
+          json['actualProgressPercent'] ??
+          json['actual_progress_percent'] ??
+          countdownCumulative['progressPercent'] ??
           countdownCumulative['progress_percent'] ??
           countdownCumulative['actualProgressPercent'] ??
           countdownCumulative['actual_progress_percent'] ??
           json['actualProgress'] ??
-          json['actualProgressPercent'] ??
           json['actual_progress'] ??
-          json['actual_progress_percent'] ??
           task['actualProgressPercent'] ??
           task['actual_progress_percent'] ??
-          json['progressPercent'] ??
           json['progress'],
     );
     final actualDurationHours = _taskHours(
@@ -517,6 +531,7 @@ class TaskModel {
           : (actualProgressPercent != null && dailyTargetHours > 0
                 ? (actualProgressPercent / 100.0) * dailyTargetHours
                 : actualDurationHours),
+      submittedProgressPercent: actualProgressPercent,
       hasMonitoringRecord: hasMonitoringRecord,
       isRework: _taskBool(
         task['is_rework'] ?? task['isRework'] ?? json['isRework'],
@@ -595,6 +610,7 @@ class TaskModel {
     lockedByName: lockedByName,
     ownerName: ownerName,
     totalActualHours: totalActualHours,
+    submittedProgressPercent: submittedProgressPercent,
     hasMonitoringRecord: hasMonitoringRecord,
     isRework: isRework,
     isOvertime: isOvertime,

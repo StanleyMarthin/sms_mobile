@@ -23,10 +23,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  ApiTaskDataSource({
-    required this.apiClient,
-    required this.sessionManager,
-  });
+  ApiTaskDataSource({required this.apiClient, required this.sessionManager});
 
   void _assertRemotePhotoUrl(String? value, String fieldName) {
     if (value == null || value.isEmpty) return;
@@ -261,6 +258,7 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
       instruction: '',
       ownerName: sessionManager.fullName ?? '',
       totalActualHours: (data['duration'] as num?)?.toDouble() ?? 0,
+      submittedProgressPercent: log.progressPercent,
       hasMonitoringRecord: true,
     );
   }

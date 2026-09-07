@@ -217,6 +217,26 @@ void main() {
       expect(model.toEntity().progressPercent, 80);
     });
 
+    test('prefers submitted manual progress over remaining-hours estimate', () {
+      final model = TaskModel.fromTaskApiJson({
+        'planDailyId': 'pd-manual-progress',
+        'coreId': 'core-manual-progress',
+        'status': 'PROSES',
+        'targetHoursRevised': 10,
+        'remainingHours': 8,
+        'progressPercent': 75,
+        'division': {'divisionName': 'INTERIOR'},
+        'unit': {'unitId': 'car-3', 'unitName': 'PORSCHE 911'},
+        'task': {
+          'namaPanel': 'DOOR PANEL',
+          'jobName': 'ASSEMBLY',
+          'jobDescription': 'Pasang panel pintu',
+        },
+      });
+
+      expect(model.toEntity().progressPercent, 75);
+    });
+
     test('prefers explicit semantic blocks from backend task payload', () {
       final model = TaskModel.fromTaskApiJson({
         'planDailyId': 'pd-4',

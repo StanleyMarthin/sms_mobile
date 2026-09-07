@@ -1,9 +1,17 @@
+/*
+Tujuan: Datasource HTTP notifikasi mobile dan normalisasi payload backend ke struktur inbox.
+Caller: NotificationsRepositoryImpl, HomePage notification bell, NotificationsPage.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, NotificationInboxService.
+Main Functions: getNotifications.
+Side Effects: HTTP GET ke endpoint notifications.
+*/
 library;
 
 import 'dart:convert';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/services/notification_inbox_service.dart';
 import '../../../../core/session/session_manager.dart';
 import 'notifications_datasource.dart';
 
@@ -69,8 +77,10 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
 
   Map<String, dynamic> _normalizeItem(Map<String, dynamic> item) {
     final data = _extractDataPayload(item);
-
-    final module = '${data['module'] ?? item['module'] ?? ''}'.toLowerCase();
+    final module = '${data['module'] ?? item['module'] ?? ''}'.trim();
+    final routeData = module.isNotEmpty && data['module'] == null
+        ? <String, dynamic>{...data, 'module': module}
+        : data;
 
     return {
       'id':
@@ -78,10 +88,10 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
       'title': '${item['title'] ?? 'Notifikasi'}',
       'body': '${item['body'] ?? item['message'] ?? '-'}',
       'isRead': item['isRead'] == true || item['is_read'] == 1,
-      'createdAt': _toReadableDate(
+      'createdAt': _toIsoDate(
         '${item['createdAt'] ?? item['created_at'] ?? DateTime.now().toIso8601String()}',
       ),
-      'targetRoute': _resolveTargetRoute(module),
+      'targetRoute': NotificationInboxService.resolveRoute(routeData),
     };
   }
 
@@ -103,25 +113,9 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
     return <String, dynamic>{};
   }
 
-  String _resolveTargetRoute(String module) {
-    if (module.contains('wo')) return '/work-orders';
-    if (module.contains('warehouse')) return '/warehouse';
-    if (module.contains('countdown')) return '/countdown';
-    if (module.contains('qc')) return '/qc';
-    if (module.contains('job_plan')) return '/plans';
-    if (module.contains('task')) return '/tasks';
-    return '/notifications';
-  }
-
-  String _toReadableDate(String raw) {
+  String _toIsoDate(String raw) {
     final parsed = DateTime.tryParse(raw);
     if (parsed == null) return raw;
-    final local = parsed.toLocal();
-    final d = local.day.toString().padLeft(2, '0');
-    final m = local.month.toString().padLeft(2, '0');
-    final y = local.year.toString();
-    final hh = local.hour.toString().padLeft(2, '0');
-    final mm = local.minute.toString().padLeft(2, '0');
-    return '$d/$m/$y $hh:$mm';
+    return parsed.toIso8601String();
   }
 }

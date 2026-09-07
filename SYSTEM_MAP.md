@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-06-25
+- Last verified: 2026-09-02
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -67,7 +67,8 @@ sm_workshop/
 ├── docs/
 │   └── mobile_api_contract (1).md
 ├── test/
-│   └── core/network/api_endpoints_test.dart
+│   ├── core/network/api_endpoints_test.dart
+│   └── job_plan/job_plan_approval_gate_test.dart
 ├── assets/images/
 ├── android/
 ├── ios/
@@ -529,6 +530,7 @@ TaskExecutionSheet / SubmitExecutionEvent
 - Field root lama masih dipertahankan untuk backward compatibility, tetapi parser mobile sekarang memprioritaskan blok semantik di atas.
 - Detail operator menampilkan target harian, target total, sisa target, dan akumulasi dikerjakan; list tetap ringkas.
 - `TaskExecutionSheet` menghitung progress submit terhadap target total (`targetHoursRevised`) dan meng-anchorkan waktu submit ke `taskDate`, bukan `DateTime.now()`.
+- Progress manual operator disimpan sebagai `submittedProgressPercent` bila backend mengirim field progress eksplisit; UI fallback ke kalkulasi `remainingHours` hanya jika field manual tidak ada.
 
 **Alarm side effects:**
 - `TaskBloc` timer tiap 15 detik untuk task in-progress
@@ -589,13 +591,14 @@ Kemampuan runtime:
 - Approve, reject, resubmit, delete rejected, review, update
 - Additional source picker sekarang mengambil master jobdesc dari dropdown yang sudah terfilter divisi dan menormalkan alias backend `job_name/name` sebelum ditampilkan ke user.
 - Edit draft additional sekarang meng-hydrate ulang state form dari kombinasi `divisionId`, `carId`, `unitName`, dan `panelName`, jadi form tidak kosong walau draft hanya menyimpan id teknis.
+- Approval action gate dipusatkan di `JobPlanApprovalGate`: ADV hanya `PENDING_ADV`, KP hanya `PENDING_KP`, global/MP/PM hanya `PENDING_MP`/`PENDING_PM`.
 - Source-of-truth baru untuk planning:
   - `sm_jobdesc_countdown.remaining_hours` = sisa aktual pekerjaan yang belum benar-benar dikerjakan
   - `sm_jobdesc_plan.dailyTargetHours` aktif + draft lokal = reservasi planning sementara
   - Validasi kapasitas planning sekarang memakai `available plan hours`, jadi membuat plan tidak lagi mengurangi `remaining_hours` aktual.
 - Multi-job countdown di mobile tidak lagi dibagi rata buta; alokasi jam harian dibagi berurutan berdasarkan `availablePlanHours` tiap jobdesc.
 
-Approver ADV/KP/MP: multi-select `setujui terpilih`, checkbox `pilih semua`, bottom sheet detail — kontrak notif dan endpoint approve single-item tidak berubah.
+Approver ADV/KP/MP: multi-select `setujui terpilih`, checkbox `pilih semua`, bottom sheet detail — item hanya selectable jika status pending sesuai level approver; kontrak notif dan endpoint approve single-item tidak berubah.
 
 > `job_plan_page.dart` adalah file terbesar (6422 baris) dan mengandung picker dialog + form sub-pages secara monolitik.
 

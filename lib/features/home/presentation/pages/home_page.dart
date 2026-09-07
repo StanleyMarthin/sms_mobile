@@ -1,3 +1,10 @@
+/*
+Tujuan: Halaman home mobile dan menu utama setelah login, termasuk badge notifikasi.
+Caller: GoRouter route /home dan flow login sukses.
+Dependensi: SessionManager, RBAC, ProfileRepository, NotificationInboxService, NotificationsRepository.
+Main Functions: HomePage, _buildMenusForSession, _NotificationBell.
+Side Effects: Navigasi route, sinkronisasi notifikasi remote ke inbox lokal.
+*/
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +18,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/services/notification_inbox_service.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../../notifications/domain/repositories/notifications_repository.dart';
 
 /// Grid-style home menu page — first screen after login.
 ///
@@ -342,13 +350,17 @@ class _NotificationBell extends StatefulWidget {
 class _NotificationBellState extends State<_NotificationBell>
     with WidgetsBindingObserver {
   late final NotificationInboxService _inbox;
+  late final NotificationsRepository _repository;
+  late final SessionManager _session;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _inbox = sl<NotificationInboxService>();
-    _inbox.ensureLoaded();
+    _repository = sl<NotificationsRepository>();
+    _session = sl<SessionManager>();
+    _syncInbox();
   }
 
   @override
@@ -360,7 +372,19 @@ class _NotificationBellState extends State<_NotificationBell>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _inbox.ensureLoaded();
+      _syncInbox();
+    }
+  }
+
+  Future<void> _syncInbox() async {
+    await _inbox.ensureLoaded();
+    try {
+      final remoteItems = await _repository.getNotifications(
+        role: _session.role,
+      );
+      await _inbox.mergeRemoteItems(remoteItems);
+    } catch (_) {
+      // Silent on home badge refresh.
     }
   }
 

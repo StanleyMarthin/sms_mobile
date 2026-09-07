@@ -1,3 +1,10 @@
+/*
+Tujuan: Repository monitoring mobile untuk mapping data source mobil dan progres divisi.
+Caller: MonitoringPage dan DI MonitoringRepository.
+Dependensi: MonitoringDataSource, MonitoringCar, MonitoringDivisionProgress.
+Main Functions: getCars, getCarDivisions.
+Side Effects: HTTP read via datasource dan cache in-memory daftar mobil terakhir.
+*/
 library;
 
 import 'package:dio/dio.dart';
@@ -10,6 +17,7 @@ class MonitoringRepositoryImpl implements MonitoringRepository {
   MonitoringRepositoryImpl({required this.dataSource});
 
   final MonitoringDataSource dataSource;
+  List<Map<String, dynamic>> _cachedCars = const [];
 
   @override
   Future<List<MonitoringCar>> getCars({
@@ -18,17 +26,22 @@ class MonitoringRepositoryImpl implements MonitoringRepository {
     CancelToken? cancelToken,
   }) async {
     final cars = await dataSource.getCars(cancelToken: cancelToken);
-    final filtered = canSeeAll ? cars : cars.where((car) {
-      final divisions = (car['divisions'] as List).cast<Map<String, dynamic>>();
-      return divisions.any((item) => item['divisionName'] == division);
-    }).toList();
+    final filtered = canSeeAll
+        ? cars
+        : cars.where((car) {
+            final divisions = (car['divisions'] as List)
+                .cast<Map<String, dynamic>>();
+            return divisions.any((item) => item['divisionName'] == division);
+          }).toList();
+    _cachedCars = List<Map<String, dynamic>>.from(filtered);
     return filtered.map(_mapCar).toList();
   }
 
   @override
   Future<List<MonitoringDivisionProgress>> getCarDivisions(String carId) async {
-    final cars = await dataSource.getCars();
-    final car = cars.firstWhere((item) => item['carId'] == carId);
+    final cached = _cachedCars.where((item) => item['carId'] == carId).toList();
+    final car = (cached.isNotEmpty ? cached : await dataSource.getCars())
+        .firstWhere((item) => item['carId'] == carId);
     return (car['divisions'] as List)
         .cast<Map<String, dynamic>>()
         .map(_mapDivision)
@@ -50,7 +63,7 @@ class MonitoringRepositoryImpl implements MonitoringRepository {
       divisions: divisions,
       remainingWorkHours:
           (item['remainingWorkHours'] as num?)?.toDouble() ??
-              divisions.fold<double>(0, (sum, d) => sum + d.remainingHours),
+          divisions.fold<double>(0, (sum, d) => sum + d.remainingHours),
       deliveryDate: item['deliveryDate'] as String?,
       projectStartDate: item['projectStartDate'] as String?,
       lastUpdateDate: item['lastUpdateDate'] as String?,

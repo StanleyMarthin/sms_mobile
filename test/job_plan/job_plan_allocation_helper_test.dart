@@ -86,5 +86,36 @@ void main() {
       expect(allocations[1].startTime, const TimeOfDay(hour: 10, minute: 0));
       expect(allocations[1].finishTime, const TimeOfDay(hour: 11, minute: 0));
     });
+
+    test('keeps equality valid and exhausted capacity unavailable', () {
+      final exact = JobPlanAllocationHelper.allocateSequential(
+        taskDate: DateTime(2026, 5, 13),
+        sessionStartTime: const TimeOfDay(hour: 8, minute: 0),
+        totalSessionHours: 1,
+        jobs: const [
+          JobPlanAllocationTarget(jobId: 'a', availablePlanHours: 1),
+        ],
+      );
+      final exhausted = JobPlanAllocationHelper.allocateSequential(
+        taskDate: DateTime(2026, 5, 13),
+        sessionStartTime: const TimeOfDay(hour: 8, minute: 0),
+        totalSessionHours: 0.5,
+        jobs: const [
+          JobPlanAllocationTarget(jobId: 'a', availablePlanHours: 0),
+        ],
+      );
+      final partial = JobPlanAllocationHelper.allocateSequential(
+        taskDate: DateTime(2026, 5, 13),
+        sessionStartTime: const TimeOfDay(hour: 8, minute: 0),
+        totalSessionHours: 3,
+        jobs: const [
+          JobPlanAllocationTarget(jobId: 'a', availablePlanHours: 3),
+        ],
+      );
+
+      expect(exact.single.allocatedHours, 1);
+      expect(exhausted, isEmpty);
+      expect(partial.single.allocatedHours, 3);
+    });
   });
 }

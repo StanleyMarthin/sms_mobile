@@ -1,3 +1,10 @@
+/*
+Tujuan: Halaman monitoring mobile untuk daftar unit dan ringkasan progres divisi.
+Caller: GoRouter route /monitoring.
+Dependensi: MonitoringRepository, SessionManager, AppNotification, Date/route focus params.
+Main Functions: MonitoringPage, _loadCars, _openReport.
+Side Effects: HTTP read monitoring, navigasi route, menampilkan dialog/report.
+*/
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -151,7 +158,19 @@ class _MonitoringPageState extends State<MonitoringPage> {
   }
 
   Future<void> _openUnitReport(BuildContext context, MonitoringCar car) async {
-    final divisions = await _repository.getCarDivisions(car.carId);
+    List<MonitoringDivisionProgress> divisions;
+    try {
+      divisions = car.divisions.isNotEmpty
+          ? car.divisions
+          : await _repository.getCarDivisions(car.carId);
+    } catch (e) {
+      if (!context.mounted) return;
+      AppNotification.showError(
+        context,
+        friendlyMessage(e, fallback: 'Gagal memuat detail monitoring'),
+      );
+      return;
+    }
     if (!context.mounted) return;
 
     final weeklyTotal = divisions.fold<double>(
@@ -289,33 +308,25 @@ class _MonitoringPageState extends State<MonitoringPage> {
                           DataCell(
                             Text(
                               '${weeklyTotal.toStringAsFixed(1)} jam',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                           DataCell(
                             Text(
                               '${remainingTotal.toStringAsFixed(1)} jam',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                           DataCell(
                             Text(
                               '${estimatedWeeks.toStringAsFixed(1)} minggu',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                           DataCell(
                             Text(
                               '${car.avgProgressPercentage}%',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                         ],
@@ -451,10 +462,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
                   SizedBox(height: 2),
                   Text(
                     car.owner,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -472,10 +480,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 _formatDate(car.deliveryDate),
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textPrimary,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
               ),
             ),
             Expanded(
@@ -502,10 +507,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             Expanded(
               child: Text(
                 '${estWeeks.toStringAsFixed(1)} mg',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textPrimary,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.textPrimary),
               ),
             ),
             Icon(
@@ -571,10 +573,7 @@ class _MonitoringPageState extends State<MonitoringPage> {
             children: [
               Container(
                 color: AppColors.background,
-                padding: EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Row(
                   children: [
                     Expanded(

@@ -1,10 +1,21 @@
+/*
+Tujuan: Halaman daftar notifikasi mobile dengan sinkronisasi remote dan inbox lokal.
+Caller: GoRouter route /notifications dan notification bell.
+Dependensi: NotificationInboxService, NotificationsRepository, SessionManager, AppNotification.
+Main Functions: NotificationsPage, _syncRemoteNotifications, _buildItemCard.
+Side Effects: HTTP sync notifikasi, update SharedPreferences inbox, navigasi target route.
+*/
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/errors/error_message.dart';
 import '../../../../core/services/notification_inbox_service.dart';
+import '../../../../core/session/session_manager.dart';
+import '../../../../core/utils/snackbar_helper.dart';
 import '../../domain/entities/notification_item.dart';
+import '../../domain/repositories/notifications_repository.dart';
 
 class NotificationsPage extends StatefulWidget {
   const NotificationsPage({super.key});
@@ -15,14 +26,40 @@ class NotificationsPage extends StatefulWidget {
 
 class _NotificationsPageState extends State<NotificationsPage> {
   late final NotificationInboxService _inbox;
+  late final NotificationsRepository _repository;
+  late final SessionManager _session;
+  bool _isSyncing = true;
 
   @override
   void initState() {
     super.initState();
     _inbox = sl<NotificationInboxService>();
+    _repository = sl<NotificationsRepository>();
+    _session = sl<SessionManager>();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _inbox.ensureLoaded();
+      await _syncRemoteNotifications(showError: false);
     });
+  }
+
+  Future<void> _syncRemoteNotifications({required bool showError}) async {
+    try {
+      await _inbox.ensureLoaded();
+      final remoteItems = await _repository.getNotifications(
+        role: _session.role,
+      );
+      await _inbox.mergeRemoteItems(remoteItems);
+    } catch (e) {
+      if (showError && mounted) {
+        AppNotification.showError(
+          context,
+          friendlyMessage(e, fallback: 'Gagal memuat notifikasi'),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncing = false);
+      }
+    }
   }
 
   @override
@@ -32,20 +69,27 @@ class _NotificationsPageState extends State<NotificationsPage> {
       builder: (context, _) {
         final items = _inbox.items;
 
+        if (_isSyncing && items.isEmpty) {
+          return Center(child: CircularProgressIndicator());
+        }
+
         if (items.isEmpty) {
           return _EmptyNotifications();
         }
 
-        return ListView(
-          padding: EdgeInsets.all(16),
-          children: [
-            _HeaderBar(
-              count: items.length,
-              onClear: () => _handleClearAll(context),
-            ),
-            SizedBox(height: 14),
-            ...items.map(_buildItemCard),
-          ],
+        return RefreshIndicator(
+          onRefresh: () => _syncRemoteNotifications(showError: true),
+          child: ListView(
+            padding: EdgeInsets.all(16),
+            children: [
+              _HeaderBar(
+                count: items.length,
+                onClear: () => _handleClearAll(context),
+              ),
+              SizedBox(height: 14),
+              ...items.map(_buildItemCard),
+            ],
+          ),
         );
       },
     );
@@ -397,11 +441,7 @@ class _HeaderBar extends StatelessWidget {
 }
 
 class _NotifMeta {
-  _NotifMeta({
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
+  _NotifMeta({required this.label, required this.icon, required this.color});
 
   final String label;
   final IconData icon;

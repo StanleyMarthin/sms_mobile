@@ -1,3 +1,10 @@
+/*
+Tujuan: Service inbox notifikasi lokal untuk menyimpan, merge, dan navigasi item notifikasi mobile.
+Caller: FcmService, HomePage notification bell, NotificationsPage.
+Dependensi: FirebaseMessaging, SharedPreferences, AppSecureStorage, SessionManager.
+Main Functions: ensureLoaded, saveRemoteMessage, mergeRemoteItems, markAllRead, resolveRoute.
+Side Effects: Baca/tulis SharedPreferences dan notify listener UI.
+*/
 import 'dart:convert';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -54,6 +61,44 @@ class NotificationInboxService extends ChangeNotifier {
         data: data,
       ),
     );
+  }
+
+  Future<void> mergeRemoteItems(Iterable<NotificationItem> items) async {
+    await ensureLoaded();
+
+    final merged = <String, NotificationItem>{
+      for (final item in _items) item.id: item,
+    };
+    var changed = false;
+
+    for (final item in items) {
+      if (item.id.trim().isEmpty) {
+        continue;
+      }
+
+      final existing = merged[item.id];
+      final next = existing == null
+          ? item
+          : item.copyWith(
+              isRead: existing.isRead || item.isRead,
+              targetRoute: existing.targetRoute == '/notifications'
+                  ? item.targetRoute
+                  : existing.targetRoute,
+            );
+      if (!_sameItem(existing, next)) {
+        changed = true;
+      }
+      merged[item.id] = next;
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    _items = merged.values.toList(growable: false)
+      ..sort((a, b) => _compareCreatedAtDesc(a.createdAt, b.createdAt));
+    await _persistCurrent();
+    notifyListeners();
   }
 
   Future<void> markAllRead() async {
@@ -144,7 +189,9 @@ class NotificationInboxService extends ChangeNotifier {
     }
     if (module.contains('wov')) {
       final reqId = _pickFirst(data, ['reqId']);
-      return reqId == null ? '/wov' : '/wov?reqId=${Uri.encodeComponent(reqId)}';
+      return reqId == null
+          ? '/wov'
+          : '/wov?reqId=${Uri.encodeComponent(reqId)}';
     }
     return '/notifications';
   }
@@ -181,14 +228,15 @@ class NotificationInboxService extends ChangeNotifier {
   }
 
   static Future<String> _resolveStorageKeyStatic(dynamic storage) async {
-    final userId = ((await storage.read(key: SessionManager.keyUserId)) ?? '').trim();
+    final userId = ((await storage.read(key: SessionManager.keyUserId)) ?? '')
+        .trim();
     final employeeId =
         ((await storage.read(key: SessionManager.keyEmployeeId)) ?? '').trim();
     final suffix = userId.isNotEmpty
         ? userId
         : employeeId.isNotEmpty
-            ? employeeId
-            : 'guest';
+        ? employeeId
+        : 'guest';
     return '$_storagePrefix$suffix';
   }
 
@@ -233,18 +281,15 @@ class NotificationInboxService extends ChangeNotifier {
     if (messageId != null && messageId.trim().isNotEmpty) {
       return messageId.trim();
     }
-    final primaryId = _pickFirst(
-      data,
-      [
-        'id',
-        'reqId',
-        'logId',
-        'plandailyId',
-        'planId',
-        'coreId',
-        'countdownId'
-      ],
-    );
+    final primaryId = _pickFirst(data, [
+      'id',
+      'reqId',
+      'logId',
+      'plandailyId',
+      'planId',
+      'coreId',
+      'countdownId',
+    ]);
     final seed = [
       '${data['module'] ?? data['type'] ?? 'general'}',
       primaryId ?? '',
@@ -261,5 +306,24 @@ class NotificationInboxService extends ChangeNotifier {
       if (value.isNotEmpty) return value;
     }
     return null;
+  }
+
+  static bool _sameItem(NotificationItem? left, NotificationItem right) {
+    return left != null &&
+        left.id == right.id &&
+        left.title == right.title &&
+        left.body == right.body &&
+        left.isRead == right.isRead &&
+        left.createdAt == right.createdAt &&
+        left.targetRoute == right.targetRoute;
+  }
+
+  static int _compareCreatedAtDesc(String left, String right) {
+    final leftDate = DateTime.tryParse(left);
+    final rightDate = DateTime.tryParse(right);
+    if (leftDate != null && rightDate != null) {
+      return rightDate.compareTo(leftDate);
+    }
+    return right.compareTo(left);
   }
 }

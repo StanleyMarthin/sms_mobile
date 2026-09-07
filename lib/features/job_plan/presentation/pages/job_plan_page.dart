@@ -27,6 +27,7 @@ import 'package:sm_system/features/countdown/domain/repositories/countdown_repos
 import 'package:sm_system/features/countdown/presentation/utils/countdown_helper.dart';
 import 'package:sm_system/features/job_plan/presentation/utils/job_plan_allocation_helper.dart';
 import 'package:sm_system/features/job_plan/presentation/utils/job_plan_additional_draft_helper.dart';
+import 'package:sm_system/features/job_plan/presentation/utils/job_plan_approval_gate.dart';
 import 'package:sm_system/features/job_plan/presentation/utils/job_plan_job_type_helper.dart';
 import 'package:sm_system/features/task_execution/presentation/utils/task_execution_helper.dart';
 import 'package:sm_system/core/utils/snackbar_helper.dart';
@@ -57,17 +58,10 @@ int? _jobPlanInt(Object? value) => switch (value) {
 };
 
 bool _canReviewApprovalStatus(SessionManager session, String status) {
-  final s = status.toUpperCase();
-  // Hanya status PENDING yang masuk antrean review
-  if (!s.startsWith('PENDING')) return false;
-
-  if (session.isGlobalAccess || session.isKpAccess) {
-    return true;
-  }
-  if (session.isAdvisorAccess) {
-    return s == 'PENDING_ADV';
-  }
-  return false;
+  return JobPlanApprovalGate.canReview(
+    accessBucket: session.accessBucket,
+    status: status,
+  );
 }
 
 String _formatHours(double hours) {
