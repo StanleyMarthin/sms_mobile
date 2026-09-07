@@ -1,5 +1,5 @@
 /*
-Tujuan: Helper ringan untuk search catalog mobile dan annotation marker foto aktual.
+Tujuan: Helper ringan untuk search catalog mobile dan marker posisi/foto.
 Caller: UnitPreparationPage dan flutter test unit preparation.
 Dependensi: dart:convert dan model unit preparation.
 Main Functions: buildSearchEntries(), searchEntries(), item labels, batch payload, encode/decode annotation.
@@ -284,6 +284,9 @@ class UnitPreparationCatalogHelper {
   static String itemDetailLabel(CatalogItem item) =>
       _textValue(item.namePart) ?? _textValue(item.code) ?? '';
 
+  static String itemOriginalLabel(CatalogItem item) =>
+      _textValue(item.namePart) ?? _textValue(item.partName) ?? '-';
+
   static List<Map<String, dynamic>> batchItemPayloads(
     List<CatalogBatchItemRow> rows,
   ) {
@@ -343,30 +346,22 @@ class UnitPreparationCatalogHelper {
 
   static String surveyStatusLabel(String value) => switch (value) {
     'CONFIRMED' || 'DONE' => 'Sudah didata',
-    'DRAFT' => 'Draft',
+    'DRAFT' => 'Belum didata',
     'NOT_STARTED' => 'Belum dicek',
     _ => 'Belum dicek',
   };
 
   static String availabilityLabel(String value) => switch (value) {
     'AVAILABLE' => 'Ada',
-    'NOT_AVAILABLE' => 'Tidak ada',
-    _ => 'Belum tahu',
+    'NOT_AVAILABLE' => 'Tidak Ada',
+    _ => 'Tidak Ditemukan',
   };
 
   static String conditionLabel(String value) => switch (value) {
-    'GOOD' => 'Baik',
+    'GOOD' => 'Layak',
     'RESTORE' => 'Restorasi',
-    'NOT_USABLE' => 'Tidak layak',
-    _ => 'Belum diketahui',
-  };
-
-  static String actionLabel(String value) => switch (value) {
-    'NO_ACTION' => 'Tidak Ada',
-    'JOBDESC' => 'Jobdesc',
-    'ORDER' => 'Order',
-    'JOBDESC_ORDER' => 'Jobdesc + Order',
-    _ => 'Belum diputuskan',
+    'NOT_USABLE' => 'Tidak Layak',
+    _ => 'Tidak Ditemukan',
   };
 
   static String errorLabel({
@@ -422,6 +417,33 @@ class UnitPreparationCatalogHelper {
     }
 
     return 'Item ${item.id}';
+  }
+
+  static String encodePositionMarker(CatalogMapping marker) {
+    return jsonEncode({
+      'x': (marker.xPercent / 100).clamp(0.0, 1.0).toDouble(),
+      'y': (marker.yPercent / 100).clamp(0.0, 1.0).toDouble(),
+    });
+  }
+
+  static CatalogMapping? decodePositionMarker(String? position) {
+    final text = _textValue(position);
+    if (text == null) return null;
+    try {
+      final payload = jsonDecode(text);
+      if (payload is! Map<String, dynamic>) return null;
+      final x = _doubleValue(payload['x']);
+      final y = _doubleValue(payload['y']);
+      if (x == null || y == null) return null;
+      return CatalogMapping(
+        id: 0,
+        catalogReferenceMediaId: 0,
+        xPercent: (x * 100).clamp(0.0, 100.0).toDouble(),
+        yPercent: (y * 100).clamp(0.0, 100.0).toDouble(),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   static String encodeActualPhotoCaption(
@@ -486,6 +508,7 @@ String _normalize(String value) => value.trim().toLowerCase();
 String? _nonNumericText(String? value) {
   final text = _textValue(value);
   if (text == null) return null;
+  if (text.startsWith('{') || text.startsWith('[')) return null;
   return RegExp(r'^\d+$').hasMatch(text) ? null : text;
 }
 

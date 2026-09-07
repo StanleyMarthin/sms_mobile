@@ -16,6 +16,9 @@ Object? _pickAny(Map<String, dynamic> json, List<String> keys) {
   return null;
 }
 
+bool _boolValue(Object? value) =>
+    value == true || '$value'.trim().toLowerCase() == 'true' || value == 1;
+
 int _intValue(Object? value) => int.tryParse('${value ?? 0}') ?? 0;
 
 double? _doubleValue(Object? value) {
@@ -180,6 +183,7 @@ class CatalogItem {
     this.availabilityStatus = 'UNKNOWN',
     this.conditionStatus = 'UNKNOWN',
     this.actionType = 'UNDECIDED',
+    this.isRestoration = false,
     this.surveyStatus = 'NOT_STARTED',
     this.location,
     this.notes,
@@ -201,6 +205,7 @@ class CatalogItem {
   final String availabilityStatus;
   final String conditionStatus;
   final String actionType;
+  final bool isRestoration;
   final String surveyStatus;
   final String? location;
   final String? notes;
@@ -233,6 +238,7 @@ class CatalogItem {
         'UNKNOWN',
     actionType:
         _textValue(_pick(json, 'action_type', 'actionType')) ?? 'UNDECIDED',
+    isRestoration: _boolValue(_pick(json, 'is_restoration', 'isRestoration')),
     surveyStatus:
         _textValue(_pick(json, 'survey_status', 'surveyStatus')) ??
         'NOT_STARTED',

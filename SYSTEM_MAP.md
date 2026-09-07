@@ -954,20 +954,19 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 /unit-preparation?unitId=&unitName=&customerName= → FeatureShellPage AppBar tunggal → UnitPreparationPage
 → UnitPreparationCatalogHelper (unit search, component/panel summary, item display alias/name_part, batch item payload, marker caption JSON)
 → RemoteUnitPreparationDataSource
-→ ApiEndpoints.unitCatalog*|unitMasterPanel* (/sm/units/... via countdown gateway; legacy port 8090)
-→ ApiEndpoints.catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia (/api/... web catalog gateway)
+→ ApiEndpoints.unitCatalog*|catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia (/sm/... via countdown gateway; legacy port 8090)
 → Final mobile flow: unit list/search → component list → panel list → panel workspace → part detail/survey
 → Unit list pakai ApiEndpoints.countdown existing rows; search car_id/unit_name/customer_name/plate_number tanpa manual Unit ID/Load
 → Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; component list bisa derive dari response countdown jika component master API belum tersedia
 → Selected panel hydrate via /catalog/{panel_id}
 → Panel list punya + Tambah Panel: create panel master via existing catalog API, optional image, optional lanjut batch item
 → Panel workspace image-first dari catalog_panel_images/media lalu compact part list panel-only dan + Tambah Item batch rows
-→ Compact tappable rows; primary alias_name/item_name, secondary part_number, detail name_part/code, status Sudah/Belum didata
-→ Survey bottom sheet: compact chips/stepper, sticky Kembali/Simpan Data, confirm via POST confirm
+→ Compact tappable rows; primary alias_name/item_name, secondary part_number, original name_part penuh, status Sudah/Belum didata
+→ Panel image tap atau item Mark membuka mode Tandai Lokasi; marker disimpan normalized JSON di unit_catalog.position tanpa menampilkan koordinat
+→ Survey bottom sheet: checkbox-style availability/condition/progress, Foto Part optional, sticky Kembali/Simpan Data, confirm via POST confirm
 → Foto Part optional: camera/gallery → preview → tap/reposition/remove marker → upload/media caption
-→ Posisi panel: icon/list atau detail → pilih reference image → tap marker normalized coordinate → save via existing survey mapping payload
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media
-→ Catalog survey DRAFT/CONFIRMED; confirm materializes master_panels and later jobdesc uses panel_id
+→ Catalog survey CONFIRMED readonly; confirm materializes master_panels tanpa membuat countdown/WO/PR
 ```
 
 ### Warehouse issue

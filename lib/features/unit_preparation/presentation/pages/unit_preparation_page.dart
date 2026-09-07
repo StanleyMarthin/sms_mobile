@@ -510,36 +510,40 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
   }
 
   Future<void> openPositionMarker(CatalogSearchEntry entry) async {
-    final mapping = await showModalBottomSheet<CatalogMapping>(
+    final result = await showModalBottomSheet<_PositionMarkerResult>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _PositionMarkerSheet(
         reference: entry.reference,
         item: entry.item,
-        initial: entry.item.mappings.firstOrNull,
+        initial:
+            UnitPreparationCatalogHelper.decodePositionMarker(
+              entry.item.positionCode,
+            ) ??
+            entry.item.mappings.firstOrNull,
       ),
     );
-    if (mapping == null) return;
+    if (result == null) return;
+    final mapping = result.mapping;
     try {
-      await datasource.saveDraft(
+      final updated = await datasource.savePanelItemsBatch(
         unitId: currentUnitId,
-        itemId: entry.item.id,
-        survey: {
-          'qtyOpname': entry.item.qtyOpname,
-          'actualName': entry.item.actualName,
-          'availabilityStatus': entry.item.availabilityStatus,
-          'conditionStatus': entry.item.conditionStatus,
-          'actionType': entry.item.actionType,
-          'location': entry.item.location,
-          'notes': entry.item.notes,
-          'mapping': {
-            'catalogReferenceMediaId': mapping.catalogReferenceMediaId,
-            'xPercent': mapping.xPercent,
-            'yPercent': mapping.yPercent,
+        panelId: entry.reference.id,
+        items: [
+          {
+            'id': entry.item.id,
+            'code': entry.item.code,
+            'partNumber': entry.item.partNumber,
+            'itemName': entry.item.aliasName ?? entry.item.partName,
+            'position': mapping == null
+                ? null
+                : UnitPreparationCatalogHelper.encodePositionMarker(mapping),
+            'qtyNormal': entry.item.qtyNormal,
           },
-        },
+        ],
       );
-      await refreshReference(entry.reference);
+      if (!mounted) return;
+      upsertReference(updated);
     } catch (error) {
       if (mounted) {
         setState(
@@ -626,48 +630,6 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
                 ),
         ),
       );
-    }
-  }
-
-  Future<void> openCountdown(CatalogItem item) async {
-    final panelId = item.promotedPanelId;
-    if (panelId == null || panelId <= 0) {
-      setState(() => message = 'Master Panel belum tersedia untuk item ini.');
-      return;
-    }
-    setState(() {
-      loading = true;
-      message = null;
-    });
-    try {
-      final panel = await datasource.getMasterPanel(currentUnitId, panelId);
-      if (!mounted) return;
-      final result = await showModalBottomSheet<bool>(
-        context: context,
-        isScrollControlled: true,
-        builder: (context) => _CountdownSheet(
-          panel: panel,
-          onSubmit: (job) => datasource.createJobdescs(
-            unitId: currentUnitId,
-            panelId: panelId,
-            jobs: [job],
-          ),
-        ),
-      );
-      if (result == true) {
-        await loadCatalog();
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(
-          () => message = _unitPreparationErrorMessage(
-            error,
-            fallback: 'Gagal membuka pekerjaan.',
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -838,6 +800,9 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       return const _EmptyCatalogState(message: 'Panel tidak ditemukan.');
     }
     final entries = panelEntries;
+    final markerTarget =
+        entries.where((entry) => !entry.item.isConfirmed).firstOrNull ??
+        entries.firstOrNull;
     return ListView(
       controller: partScrollController,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
@@ -850,7 +815,12 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
         const SizedBox(height: 12),
         _SectionLabel('Gambar Referensi Panel'),
         const SizedBox(height: 8),
-        _ReferenceImageStrip(media: reference.media),
+        _ReferenceImageStrip(
+          media: reference.media,
+          onTap: markerTarget == null
+              ? null
+              : () => openPositionMarker(markerTarget),
+        ),
         const SizedBox(height: 16),
         Row(
           children: [
@@ -889,11 +859,6 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
                 entry: entry,
                 onTap: () => openSurvey(entry),
                 onPosition: () => openPositionMarker(entry),
-                onCountdown:
-                    !entry.item.isConfirmed ||
-                        entry.item.promotedPanelId == null
-                    ? null
-                    : () => openCountdown(entry.item),
               ),
             ),
           ),
@@ -1380,7 +1345,7 @@ class _PositionMarkerSheetState extends State<_PositionMarkerSheet> {
                                             (yPercent! / 100) -
                                         28,
                                     child: const Icon(
-                                      Icons.location_on,
+                                      Icons.push_pin,
                                       color: Colors.redAccent,
                                       size: 32,
                                     ),
@@ -1669,9 +1634,10 @@ class _GlobalCatalogResultCard extends StatelessWidget {
 }
 
 class _ReferenceImageStrip extends StatelessWidget {
-  const _ReferenceImageStrip({required this.media});
+  const _ReferenceImageStrip({required this.media, this.onTap});
 
   final List<CatalogMedia> media;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1691,16 +1657,19 @@ class _ReferenceImageStrip extends StatelessWidget {
       child: PageView(
         children: [
           for (final image in media)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: InteractiveViewer(
-                minScale: 1,
-                maxScale: 3,
-                child: Image.network(
-                  image.fileUrl,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, _, _) =>
-                      const Center(child: Icon(Icons.broken_image_outlined)),
+            GestureDetector(
+              onTap: onTap,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 3,
+                  child: Image.network(
+                    image.fileUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, _, _) =>
+                        const Center(child: Icon(Icons.broken_image_outlined)),
+                  ),
                 ),
               ),
             ),
@@ -1715,13 +1684,11 @@ class _PartRow extends StatelessWidget {
     required this.entry,
     required this.onTap,
     required this.onPosition,
-    this.onCountdown,
   });
 
   final CatalogSearchEntry entry;
   final VoidCallback onTap;
   final VoidCallback onPosition;
-  final VoidCallback? onCountdown;
 
   @override
   Widget build(BuildContext context) {
@@ -1748,26 +1715,17 @@ class _PartRow extends StatelessWidget {
                         item,
                         entry.reference,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
+                    const SizedBox(height: 2),
+                    Text(UnitPreparationCatalogHelper.itemSecondaryLabel(item)),
+                    const SizedBox(height: 2),
                     Text(
-                      UnitPreparationCatalogHelper.itemSecondaryLabel(item),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (UnitPreparationCatalogHelper.itemDetailLabel(
-                      item,
-                    ).isNotEmpty)
-                      Text(
-                        UnitPreparationCatalogHelper.itemDetailLabel(item),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.textMuted,
-                        ),
+                      'Original: ${UnitPreparationCatalogHelper.itemOriginalLabel(item)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -1778,16 +1736,10 @@ class _PartRow extends StatelessWidget {
                 icon: const Icon(Icons.description_outlined),
               ),
               IconButton(
-                tooltip: 'Tandai Posisi',
+                tooltip: 'Mark',
                 onPressed: onPosition,
-                icon: const Icon(Icons.location_on_outlined),
+                icon: const Icon(Icons.push_pin_outlined),
               ),
-              if (onCountdown != null)
-                IconButton(
-                  tooltip: 'Buat pekerjaan',
-                  onPressed: onCountdown,
-                  icon: const Icon(Icons.playlist_add_check_rounded),
-                ),
             ],
           ),
         ),
@@ -1908,126 +1860,6 @@ String _unitPreparationErrorMessage(Object error, {required String fallback}) {
   return friendlyMessage(error, fallback: fallback);
 }
 
-String _panelText(Map<String, dynamic> panel, String snake, String camel) {
-  final value = panel[snake] ?? panel[camel];
-  final text = '${value ?? ''}'.trim();
-  return text.isEmpty ? '-' : text;
-}
-
-class _CountdownSheet extends StatefulWidget {
-  const _CountdownSheet({required this.panel, required this.onSubmit});
-
-  final Map<String, dynamic> panel;
-  final Future<List<dynamic>> Function(Map<String, dynamic> job) onSubmit;
-
-  @override
-  State<_CountdownSheet> createState() => _CountdownSheetState();
-}
-
-class _CountdownSheetState extends State<_CountdownSheet> {
-  final divisionController = TextEditingController();
-  final jobTypeController = TextEditingController();
-  final descriptionController = TextEditingController();
-  final targetController = TextEditingController();
-  bool submitting = false;
-
-  @override
-  void dispose() {
-    divisionController.dispose();
-    jobTypeController.dispose();
-    descriptionController.dispose();
-    targetController.dispose();
-    super.dispose();
-  }
-
-  Future<void> submit() async {
-    final divisionId = int.tryParse(divisionController.text.trim());
-    final targetHours = double.tryParse(targetController.text.trim());
-    if (divisionId == null ||
-        jobTypeController.text.trim().isEmpty ||
-        descriptionController.text.trim().isEmpty ||
-        targetHours == null ||
-        targetHours <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Divisi, jenis, deskripsi, dan target wajib diisi.'),
-        ),
-      );
-      return;
-    }
-    setState(() => submitting = true);
-    try {
-      await widget.onSubmit({
-        'divisionId': divisionId,
-        'jobTypeId': jobTypeController.text.trim(),
-        'description': descriptionController.text.trim(),
-        'targetHoursInitial': targetHours,
-        'taskCategory': 'MAIN',
-      });
-      if (mounted) Navigator.pop(context, true);
-    } finally {
-      if (mounted) setState(() => submitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: ListView(
-        shrinkWrap: true,
-        children: [
-          Text('Buat Countdown', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            'Component: ${_panelText(widget.panel, 'component_name', 'componentName')}',
-          ),
-          Text('Panel: ${_panelText(widget.panel, 'name', 'name')}'),
-          Text(
-            'Part Number: ${_panelText(widget.panel, 'part_number', 'partNumber')}',
-          ),
-          Text(
-            'Position Code: ${_panelText(widget.panel, 'position_code', 'positionCode')}',
-          ),
-          Text(
-            'Initial Condition: ${_panelText(widget.panel, 'initial_condition', 'initialCondition')}',
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: divisionController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Division ID'),
-          ),
-          TextField(
-            controller: jobTypeController,
-            decoration: const InputDecoration(labelText: 'Job Type ID'),
-          ),
-          TextField(
-            controller: descriptionController,
-            decoration: const InputDecoration(labelText: 'Deskripsi pekerjaan'),
-            maxLines: 3,
-          ),
-          TextField(
-            controller: targetController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Target Jam'),
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: submitting ? null : submit,
-            child: const Text('Simpan Countdown'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _SurveySheet extends StatefulWidget {
   const _SurveySheet({
     required this.item,
@@ -2053,16 +1885,13 @@ class _SurveySheet extends StatefulWidget {
 class _SurveySheetState extends State<_SurveySheet> {
   final qtyController = TextEditingController();
   final actualNameController = TextEditingController();
-  final locationController = TextEditingController();
   final notesController = TextEditingController();
   String availability = 'UNKNOWN';
   String condition = 'UNKNOWN';
-  String action = 'UNDECIDED';
+  bool masukProgress = false;
   String? photoPath;
   String? existingPhotoUrl;
   CatalogAnnotationMarker? actualMarker;
-  CatalogMapping? referenceMapping;
-  bool referenceMappingChanged = false;
   bool markerChanged = false;
   bool submitting = false;
 
@@ -2071,11 +1900,11 @@ class _SurveySheetState extends State<_SurveySheet> {
     super.initState();
     qtyController.text = widget.item.qtyOpname?.toString() ?? '';
     actualNameController.text = widget.item.actualName ?? '';
-    locationController.text = widget.item.location ?? '';
     notesController.text = widget.item.notes ?? '';
     availability = widget.item.availabilityStatus;
     condition = widget.item.conditionStatus;
-    action = widget.item.actionType;
+    masukProgress =
+        widget.item.isRestoration || widget.item.conditionStatus == 'RESTORE';
     existingPhotoUrl = UnitPreparationCatalogHelper.pickActualPhoto(
       widget.item.media,
     )?.fileUrl;
@@ -2083,20 +1912,17 @@ class _SurveySheetState extends State<_SurveySheet> {
       widget.item.media,
     );
     actualMarker = markers.isEmpty ? null : markers.last;
-    referenceMapping = widget.item.mappings.firstOrNull;
   }
 
   @override
   void dispose() {
     qtyController.dispose();
     actualNameController.dispose();
-    locationController.dispose();
     notesController.dispose();
     super.dispose();
   }
 
   Map<String, dynamic> buildSurvey() {
-    final backendAction = action == 'ORDER' ? 'JOBDESC_ORDER' : action;
     return {
       'qtyOpname': double.tryParse(qtyController.text.trim()),
       'actualName': actualNameController.text.trim().isEmpty
@@ -2104,22 +1930,10 @@ class _SurveySheetState extends State<_SurveySheet> {
           : actualNameController.text.trim(),
       'availabilityStatus': availability,
       'conditionStatus': condition,
-      'actionType': backendAction,
-      'location': locationController.text.trim().isEmpty
-          ? null
-          : locationController.text.trim(),
+      'isRestoration': masukProgress,
       'notes': notesController.text.trim().isEmpty
           ? null
           : notesController.text.trim(),
-      if (referenceMappingChanged || referenceMapping != null)
-        'mapping': referenceMapping == null
-            ? null
-            : {
-                'catalogReferenceMediaId':
-                    referenceMapping!.catalogReferenceMediaId,
-                'xPercent': referenceMapping!.xPercent,
-                'yPercent': referenceMapping!.yPercent,
-              },
     };
   }
 
@@ -2227,23 +2041,6 @@ class _SurveySheetState extends State<_SurveySheet> {
     }
   }
 
-  Future<void> markReferencePosition() async {
-    final result = await showModalBottomSheet<_PositionMarkerResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _PositionMarkerSheet(
-        reference: widget.reference,
-        item: widget.item,
-        initial: referenceMapping,
-      ),
-    );
-    if (!mounted || result == null) return;
-    setState(() {
-      referenceMapping = result.mapping;
-      referenceMappingChanged = true;
-    });
-  }
-
   void placeMarker(TapUpDetails details, BoxConstraints constraints) {
     if (constraints.maxWidth <= 0 || constraints.maxHeight <= 0) return;
     final xPercent = (details.localPosition.dx / constraints.maxWidth * 100)
@@ -2295,8 +2092,6 @@ class _SurveySheetState extends State<_SurveySheet> {
                             children: [
                               Text(
                                 title,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleLarge
                                     ?.copyWith(fontWeight: FontWeight.w800),
                               ),
@@ -2310,9 +2105,7 @@ class _SurveySheetState extends State<_SurveySheet> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                widget.item.namePart ??
-                                    widget.item.partName ??
-                                    'Nama item belum diisi',
+                                'Original: ${UnitPreparationCatalogHelper.itemOriginalLabel(widget.item)}',
                               ),
                               Text(
                                 widget.item.partNumber ??
@@ -2335,8 +2128,8 @@ class _SurveySheetState extends State<_SurveySheet> {
                       enabled: canEdit,
                       options: const {
                         'AVAILABLE': 'Ada',
-                        'UNKNOWN': 'Tidak Ada',
-                        'NOT_AVAILABLE': 'Tidak Ditemukan',
+                        'NOT_AVAILABLE': 'Tidak Ada',
+                        'UNKNOWN': 'Tidak Ditemukan',
                       },
                       onChanged: (value) =>
                           setState(() => availability = value),
@@ -2352,29 +2145,16 @@ class _SurveySheetState extends State<_SurveySheet> {
                       },
                       onChanged: (value) => setState(() => condition = value),
                     ),
-                    _SectionLabel('Tindakan'),
-                    _ChoiceWrap(
-                      value: action,
-                      enabled: canEdit,
-                      options: const {
-                        'NO_ACTION': 'Tidak Ada',
-                        'JOBDESC': 'Jobdesc',
-                        'ORDER': 'Order',
-                        'JOBDESC_ORDER': 'Jobdesc + Order',
-                      },
-                      onChanged: (value) => setState(() => action = value),
-                    ),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: submitting || !canEdit
-                          ? null
-                          : markReferencePosition,
-                      icon: const Icon(Icons.location_on_outlined),
-                      label: Text(
-                        referenceMapping == null
-                            ? 'Tandai Posisi'
-                            : 'Ubah Posisi',
-                      ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      value: masukProgress,
+                      onChanged: canEdit
+                          ? (value) =>
+                                setState(() => masukProgress = value ?? false)
+                          : null,
+                      title: const Text('Masuk Progress Restorasi'),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
                     ),
                     const SizedBox(height: 12),
                     _SectionLabel('Foto Part'),
@@ -2446,13 +2226,6 @@ class _SurveySheetState extends State<_SurveySheet> {
                         labelText: 'Nama Aktual',
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: locationController,
-                      enabled: canEdit,
-                      decoration: const InputDecoration(labelText: 'Lokasi'),
-                    ),
-                    const SizedBox(height: 12),
                     TextField(
                       controller: notesController,
                       enabled: canEdit,
@@ -2544,11 +2317,35 @@ class _ChoiceWrap extends StatelessWidget {
       runSpacing: 8,
       children: [
         for (final entry in options.entries)
-          ChoiceChip(
-            label: Text(entry.value),
-            selected: value == entry.key,
-            onSelected: enabled ? (_) => onChanged(entry.key) : null,
-            materialTapTargetSize: MaterialTapTargetSize.padded,
+          InkWell(
+            onTap: enabled ? () => onChanged(entry.key) : null,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 44),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: value == entry.key
+                      ? AppColors.gold
+                      : Theme.of(context).dividerColor,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    value == entry.key
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
+                    size: 20,
+                    color: value == entry.key ? AppColors.gold : null,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(entry.value),
+                ],
+              ),
+            ),
           ),
       ],
     );
@@ -2655,7 +2452,7 @@ class _ActualPhotoPreview extends StatelessWidget {
                               marker!.yPercent / 100 * constraints.maxHeight -
                               24,
                           child: const Icon(
-                            Icons.location_on,
+                            Icons.push_pin,
                             color: Colors.red,
                             size: 28,
                           ),

@@ -195,6 +195,74 @@ void main() {
     );
   });
 
+  test('item detail label shows original name without truncating identity', () {
+    final reference = _reference(
+      id: 3,
+      component: 'BODY',
+      panel: 'FRONT DOOR LH',
+      items: const [
+        {
+          'id': 32,
+          'aliasName': 'Door Handle LH',
+          'namePart': 'Inside door handle 123 760 02 59',
+          'partNumber': 'A 123 760 02 59',
+        },
+      ],
+    );
+    final item = reference.items.single;
+
+    expect(
+      UnitPreparationCatalogHelper.itemPrimaryLabel(item, reference),
+      'Door Handle LH',
+    );
+    expect(
+      UnitPreparationCatalogHelper.itemOriginalLabel(item),
+      'Inside door handle 123 760 02 59',
+    );
+  });
+
+  test('catalog item reads restoration progress flag from unit catalog', () {
+    final item = CatalogItem.fromJson({'id': 40, 'is_restoration': true});
+
+    expect(item.isRestoration, isTrue);
+  });
+
+  test(
+    'position marker uses internal normalized json without becoming label',
+    () {
+      final position = UnitPreparationCatalogHelper.encodePositionMarker(
+        const CatalogMapping(
+          id: 0,
+          catalogReferenceMediaId: 10,
+          xPercent: 45,
+          yPercent: 32,
+        ),
+      );
+      final marker = UnitPreparationCatalogHelper.decodePositionMarker(
+        position,
+      );
+      final reference = _reference(
+        id: 4,
+        component: 'BODY',
+        panel: 'FRONT DOOR LH',
+        items: [
+          {'id': 33, 'position': position},
+        ],
+      );
+
+      expect(position, '{"x":0.45,"y":0.32}');
+      expect(marker?.xPercent, 45);
+      expect(marker?.yPercent, 32);
+      expect(
+        UnitPreparationCatalogHelper.itemPrimaryLabel(
+          reference.items.single,
+          reference,
+        ),
+        'FRONT DOOR LH',
+      );
+    },
+  );
+
   test(
     'batch item payload keeps multiple incomplete rows and drops blanks',
     () {
@@ -241,22 +309,21 @@ void main() {
       UnitPreparationCatalogHelper.surveyStatusLabel('NOT_STARTED'),
       'Belum dicek',
     );
-    expect(UnitPreparationCatalogHelper.surveyStatusLabel('DRAFT'), 'Draft');
+    expect(
+      UnitPreparationCatalogHelper.surveyStatusLabel('DRAFT'),
+      'Belum didata',
+    );
     expect(
       UnitPreparationCatalogHelper.surveyStatusLabel('CONFIRMED'),
       'Sudah didata',
     );
     expect(
       UnitPreparationCatalogHelper.availabilityLabel('UNKNOWN'),
-      'Belum tahu',
+      'Tidak Ditemukan',
     );
     expect(
       UnitPreparationCatalogHelper.conditionLabel('NOT_USABLE'),
-      'Tidak layak',
-    );
-    expect(
-      UnitPreparationCatalogHelper.actionLabel('JOBDESC_ORDER'),
-      'Jobdesc + Order',
+      'Tidak Layak',
     );
   });
 

@@ -33,6 +33,18 @@ void main() {
         ApiEndpoints.warehouse,
         'https://api.stanleymarthin.com/sm/warehouse',
       );
+      expect(
+        ApiEndpoints.catalogComponents,
+        'https://api.stanleymarthin.com/sm/catalog/components',
+      );
+      expect(
+        ApiEndpoints.unitCatalogOpenPanel('220S'),
+        'https://api.stanleymarthin.com/sm/units/220S/catalog',
+      );
+      expect(
+        ApiEndpoints.unitCatalogPanelItemsBatch('220S', 91),
+        'https://api.stanleymarthin.com/sm/units/220S/catalog/91/items',
+      );
     });
   });
 
