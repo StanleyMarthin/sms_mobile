@@ -274,8 +274,9 @@ class UnitPreparationCatalogHelper {
     CatalogItem item,
     CatalogReference reference,
   ) =>
-      _textValue(item.aliasName) ??
+      (item.isConfirmed ? _textValue(item.aliasName) : null) ??
       _textValue(item.partName) ??
+      _textValue(item.namePart) ??
       _nonNumericText(item.positionCode) ??
       reference.panelName;
 

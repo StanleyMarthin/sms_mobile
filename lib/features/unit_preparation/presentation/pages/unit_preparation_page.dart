@@ -534,7 +534,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
             'id': entry.item.id,
             'code': entry.item.code,
             'partNumber': entry.item.partNumber,
-            'itemName': entry.item.aliasName ?? entry.item.partName,
+            'itemName': entry.item.partName ?? entry.item.namePart,
             'position': mapping == null
                 ? null
                 : UnitPreparationCatalogHelper.encodePositionMarker(mapping),

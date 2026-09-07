@@ -163,7 +163,7 @@ void main() {
     );
   });
 
-  test('item list display prioritizes alias part number then name part', () {
+  test('item list hides alias before survey confirmation', () {
     final reference = _reference(
       id: 3,
       component: 'BODY',
@@ -183,7 +183,7 @@ void main() {
 
     expect(
       UnitPreparationCatalogHelper.itemPrimaryLabel(entry.item, reference),
-      '75 REAR LID',
+      'Rear bearing pin',
     );
     expect(
       UnitPreparationCatalogHelper.itemSecondaryLabel(entry.item),
@@ -192,6 +192,31 @@ void main() {
     expect(
       UnitPreparationCatalogHelper.itemDetailLabel(entry.item),
       'Rear bearing pin',
+    );
+  });
+
+  test('item list can show alias after survey confirmation', () {
+    final reference = _reference(
+      id: 3,
+      component: 'BODY',
+      panel: 'REAR LID',
+      items: const [
+        {
+          'id': 31,
+          'aliasName': '75 REAR LID',
+          'namePart': 'Rear bearing pin',
+          'partNumber': 'C 75 006a',
+          'surveyStatus': 'CONFIRMED',
+        },
+      ],
+    );
+    final entry = UnitPreparationCatalogHelper.buildSearchEntries([
+      reference,
+    ]).single;
+
+    expect(
+      UnitPreparationCatalogHelper.itemPrimaryLabel(entry.item, reference),
+      '75 REAR LID',
     );
   });
 
@@ -213,7 +238,7 @@ void main() {
 
     expect(
       UnitPreparationCatalogHelper.itemPrimaryLabel(item, reference),
-      'Door Handle LH',
+      'Inside door handle 123 760 02 59',
     );
     expect(
       UnitPreparationCatalogHelper.itemOriginalLabel(item),
