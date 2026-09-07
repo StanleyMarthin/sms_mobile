@@ -163,7 +163,7 @@ void main() {
     );
   });
 
-  test('item list hides alias before survey confirmation', () {
+  test('item list keeps alias area blank before survey confirmation', () {
     final reference = _reference(
       id: 3,
       component: 'BODY',
@@ -183,7 +183,7 @@ void main() {
 
     expect(
       UnitPreparationCatalogHelper.itemPrimaryLabel(entry.item, reference),
-      'Rear bearing pin',
+      '',
     );
     expect(
       UnitPreparationCatalogHelper.itemSecondaryLabel(entry.item),
@@ -236,10 +236,7 @@ void main() {
     );
     final item = reference.items.single;
 
-    expect(
-      UnitPreparationCatalogHelper.itemPrimaryLabel(item, reference),
-      'Inside door handle 123 760 02 59',
-    );
+    expect(UnitPreparationCatalogHelper.itemPrimaryLabel(item, reference), '');
     expect(
       UnitPreparationCatalogHelper.itemOriginalLabel(item),
       'Inside door handle 123 760 02 59',
@@ -283,7 +280,7 @@ void main() {
           reference.items.single,
           reference,
         ),
-        'FRONT DOOR LH',
+        '',
       );
     },
   );

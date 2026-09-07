@@ -273,12 +273,7 @@ class UnitPreparationCatalogHelper {
   static String itemPrimaryLabel(
     CatalogItem item,
     CatalogReference reference,
-  ) =>
-      (item.isConfirmed ? _textValue(item.aliasName) : null) ??
-      _textValue(item.partName) ??
-      _textValue(item.namePart) ??
-      _nonNumericText(item.positionCode) ??
-      reference.panelName;
+  ) => item.isConfirmed ? _textValue(item.aliasName) ?? '' : '';
 
   static String itemSecondaryLabel(CatalogItem item) =>
       _textValue(item.partNumber) ?? '-';
