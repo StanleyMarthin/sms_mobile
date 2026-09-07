@@ -109,6 +109,8 @@ GoRouter createRouter() {
           title: 'Persiapan Unit',
           child: UnitPreparationPage(
             initialUnitId: state.uri.queryParameters['unitId'],
+            initialUnitName: state.uri.queryParameters['unitName'],
+            initialCustomerName: state.uri.queryParameters['customerName'],
           ),
         ),
       ),
