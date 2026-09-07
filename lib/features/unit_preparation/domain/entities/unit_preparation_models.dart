@@ -2,12 +2,19 @@
 Tujuan: Model ringan untuk flow Unit Preparation catalog dan pendataan.
 Caller: RemoteUnitPreparationDatasource dan halaman UnitPreparationPage.
 Dependensi: Tidak ada.
-Main Functions: CatalogReference, CatalogItem, CatalogMedia, CatalogMapping parser.
+Main Functions: CatalogComponent, CatalogReference, CatalogItem, CatalogMedia, CatalogMapping parser.
 Side Effects: Tidak ada.
 */
 
 Object? _pick(Map<String, dynamic> json, String snake, String camel) =>
     json[snake] ?? json[camel];
+
+Object? _pickAny(Map<String, dynamic> json, List<String> keys) {
+  for (final key in keys) {
+    if (json[key] != null) return json[key];
+  }
+  return null;
+}
 
 int _intValue(Object? value) => int.tryParse('${value ?? 0}') ?? 0;
 
@@ -78,6 +85,42 @@ class UnitPreparationUnit {
   }
 }
 
+class CatalogComponent {
+  const CatalogComponent({
+    required this.id,
+    required this.code,
+    required this.componentName,
+  });
+
+  final int id;
+  final String code;
+  final String componentName;
+
+  factory CatalogComponent.fromJson(Map<String, dynamic> json) =>
+      CatalogComponent(
+        id: _intValue(json['id']),
+        code: _textValue(json['code']) ?? '',
+        componentName:
+            _textValue(_pick(json, 'component_name', 'componentName')) ?? '',
+      );
+}
+
+class CatalogBatchItemRow {
+  const CatalogBatchItemRow({
+    this.code,
+    this.partNumber,
+    this.itemName,
+    this.position,
+    this.qtyNormal,
+  });
+
+  final String? code;
+  final String? partNumber;
+  final String? itemName;
+  final String? position;
+  final String? qtyNormal;
+}
+
 class CatalogMedia {
   const CatalogMedia({
     required this.id,
@@ -125,6 +168,9 @@ class CatalogMapping {
 class CatalogItem {
   const CatalogItem({
     required this.id,
+    this.code,
+    this.aliasName,
+    this.namePart,
     this.positionCode,
     this.partNumber,
     this.partName,
@@ -143,6 +189,9 @@ class CatalogItem {
   });
 
   final int id;
+  final String? code;
+  final String? aliasName;
+  final String? namePart;
   final String? positionCode;
   final String? partNumber;
   final String? partName;
@@ -163,9 +212,16 @@ class CatalogItem {
 
   factory CatalogItem.fromJson(Map<String, dynamic> json) => CatalogItem(
     id: _intValue(json['id']),
-    positionCode: _textValue(_pick(json, 'position_code', 'positionCode')),
+    code: _textValue(json['code']),
+    aliasName: _textValue(_pick(json, 'alias_name', 'aliasName')),
+    namePart: _textValue(_pick(json, 'name_part', 'namePart')),
+    positionCode: _textValue(
+      _pickAny(json, ['position_code', 'positionCode', 'position']),
+    ),
     partNumber: _textValue(_pick(json, 'part_number', 'partNumber')),
-    partName: _textValue(_pick(json, 'part_name', 'partName')),
+    partName: _textValue(
+      _pickAny(json, ['part_name', 'partName', 'item_name', 'itemName']),
+    ),
     qtyNormal: _doubleValue(_pick(json, 'qty_normal', 'qtyNormal')),
     qtyOpname: _doubleValue(_pick(json, 'qty_opname', 'qtyOpname')),
     actualName: _textValue(_pick(json, 'actual_name', 'actualName')),
@@ -216,7 +272,14 @@ class CatalogReference {
   final List<CatalogItem> items;
 
   factory CatalogReference.fromJson(Map<String, dynamic> json) {
-    final media = (json['media'] as List<dynamic>? ?? [])
+    final panel = json['panel'] is Map
+        ? Map<String, dynamic>.from(json['panel'] as Map)
+        : const <String, dynamic>{};
+    final mediaRows =
+        json['media'] as List<dynamic>? ??
+        json['panelImages'] as List<dynamic>? ??
+        const [];
+    final media = mediaRows
         .whereType<Map<String, dynamic>>()
         .map(CatalogMedia.fromJson)
         .toList();
@@ -230,15 +293,26 @@ class CatalogReference {
         .whereType<Map<String, dynamic>>()
         .map(CatalogItem.fromJson)
         .toList();
+    final countValue = _intValue(_pick(json, 'item_count', 'itemCount'));
     return CatalogReference(
-      id: _intValue(json['id']),
+      id: _intValue(json['id'] ?? panel['id']),
       componentName:
-          _textValue(_pick(json, 'component_name', 'componentName')) ?? '',
-      panelName: _textValue(_pick(json, 'panel_name', 'panelName')) ?? '',
-      itemCount: _intValue(_pick(json, 'item_count', 'itemCount')) == 0
-          ? items.length
-          : _intValue(_pick(json, 'item_count', 'itemCount')),
-      surveyedCount: _intValue(_pick(json, 'surveyed_count', 'surveyedCount')),
+          _textValue(
+            _pick(json, 'component_name', 'componentName') ??
+                _pick(panel, 'component_name', 'componentName'),
+          ) ??
+          '',
+      panelName:
+          _textValue(
+            _pick(json, 'panel_name', 'panelName') ??
+                _pick(panel, 'panel_name', 'panelName'),
+          ) ??
+          '',
+      itemCount: countValue == 0 ? items.length : countValue,
+      surveyedCount: _intValue(
+        _pick(json, 'surveyed_count', 'surveyedCount') ??
+            json['restorationCount'],
+      ),
       media: media,
       items: items,
     );

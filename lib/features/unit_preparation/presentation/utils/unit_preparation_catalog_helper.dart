@@ -2,7 +2,7 @@
 Tujuan: Helper ringan untuk search catalog mobile dan annotation marker foto aktual.
 Caller: UnitPreparationPage dan flutter test unit preparation.
 Dependensi: dart:convert dan model unit preparation.
-Main Functions: buildSearchEntries(), searchEntries(), resolveMarkerName(), encode/decode annotation.
+Main Functions: buildSearchEntries(), searchEntries(), item labels, batch payload, encode/decode annotation.
 Side Effects: Tidak ada.
 */
 
@@ -124,8 +124,11 @@ class UnitPreparationCatalogHelper {
       final searchText = _normalize(
         [
           entry.item.partName,
+          entry.item.aliasName,
+          entry.item.namePart,
           entry.item.actualName,
           entry.item.partNumber,
+          entry.item.code,
           entry.item.positionCode,
         ].whereType<String>().join(' '),
       );
@@ -232,8 +235,11 @@ class UnitPreparationCatalogHelper {
           entry.reference.componentName,
           entry.reference.panelName,
           entry.item.partName,
+          entry.item.aliasName,
+          entry.item.namePart,
           entry.item.actualName,
           entry.item.partNumber,
+          entry.item.code,
           entry.item.positionCode,
         ].whereType<String>().join(' '),
       );
@@ -243,6 +249,48 @@ class UnitPreparationCatalogHelper {
 
   static String hierarchyLabel(CatalogSearchEntry entry) =>
       '${entry.reference.componentName} > ${entry.reference.panelName}';
+
+  static String itemPrimaryLabel(
+    CatalogItem item,
+    CatalogReference reference,
+  ) =>
+      _textValue(item.aliasName) ??
+      _textValue(item.partName) ??
+      _nonNumericText(item.positionCode) ??
+      reference.panelName;
+
+  static String itemSecondaryLabel(CatalogItem item) =>
+      _textValue(item.partNumber) ?? '-';
+
+  static String itemDetailLabel(CatalogItem item) =>
+      _textValue(item.namePart) ?? _textValue(item.code) ?? '';
+
+  static List<Map<String, dynamic>> batchItemPayloads(
+    List<CatalogBatchItemRow> rows,
+  ) {
+    return rows
+        .map((row) {
+          final payload = {
+            'id': null,
+            'clientRowId': null,
+            'code': _textValue(row.code),
+            'partNumber': _textValue(row.partNumber),
+            'itemName': _textValue(row.itemName),
+            'position': _textValue(row.position),
+            'qtyNormal': _doubleValue(row.qtyNormal),
+            'isRestoration': false,
+          };
+          final empty =
+              payload['code'] == null &&
+              payload['partNumber'] == null &&
+              payload['itemName'] == null &&
+              payload['position'] == null &&
+              payload['qtyNormal'] == null;
+          return empty ? null : payload;
+        })
+        .whereType<Map<String, dynamic>>()
+        .toList();
+  }
 
   static List<String> panelOptions(List<CatalogReference> references) {
     final panels =
@@ -316,9 +364,12 @@ class UnitPreparationCatalogHelper {
 
   static String resolveItemLabel(CatalogItem item, CatalogReference reference) {
     final values = [
+      item.aliasName,
       item.partName,
+      item.namePart,
       item.actualName,
       _nonNumericText(item.positionCode),
+      item.code,
       reference.panelName,
       item.partNumber,
       reference.componentName,
@@ -338,6 +389,8 @@ class UnitPreparationCatalogHelper {
   ) {
     final values = [
       item.partName,
+      item.aliasName,
+      item.namePart,
       item.actualName,
       reference.panelName,
       reference.componentName,

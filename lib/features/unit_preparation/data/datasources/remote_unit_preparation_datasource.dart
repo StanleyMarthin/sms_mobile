@@ -2,7 +2,7 @@
 Tujuan: Datasource API mobile untuk Unit Preparation catalog dan pendataan.
 Caller: UnitPreparationPage dan flow mobile yang butuh catalog/master panel.
 Dependensi: ApiClient, ApiEndpoints, SessionManager, UnitPreparation models.
-Main Functions: load units, load catalog, save draft, confirm survey, add media, create jobdescs.
+Main Functions: load units/components/catalog, save batch item, survey, add media, create jobdescs.
 Side Effects: HTTP request ke be_sms sm_countdown.
 */
 
@@ -36,6 +36,21 @@ class RemoteUnitPreparationDatasource {
         .toList();
   }
 
+  Future<List<CatalogComponent>> getComponents() async {
+    final response = await apiClient.get(ApiEndpoints.catalogComponents);
+    final data = response.data;
+    final rows = data is Map<String, dynamic>
+        ? data['components'] as List<dynamic>? ?? []
+        : data is List
+        ? data
+        : const [];
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(CatalogComponent.fromJson)
+        .where((component) => component.code.isNotEmpty)
+        .toList();
+  }
+
   Future<List<CatalogReference>> getCatalog(String unitId) async {
     final response = await apiClient.get(
       ApiEndpoints.unitCatalog(unitId),
@@ -63,6 +78,42 @@ class RemoteUnitPreparationDatasource {
         ? Map<String, dynamic>.from(data['reference'] as Map)
         : Map<String, dynamic>.from(data as Map);
     return CatalogReference.fromJson(payload);
+  }
+
+  Future<CatalogReference> openPanel({
+    required String unitId,
+    required String componentCode,
+    required String panelName,
+  }) async {
+    final response = await apiClient.post(
+      ApiEndpoints.unitCatalogOpenPanel(unitId),
+      data: {'componentCode': componentCode, 'panelName': panelName},
+    );
+    return CatalogReference.fromJson(_extractWorkspace(response.data));
+  }
+
+  Future<CatalogReference> savePanelItemsBatch({
+    required String unitId,
+    required int panelId,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    final response = await apiClient.put(
+      ApiEndpoints.unitCatalogPanelItemsBatch(unitId, panelId),
+      data: {'items': items, 'deletedItemIds': []},
+    );
+    return CatalogReference.fromJson(_extractWorkspace(response.data));
+  }
+
+  Future<void> addPanelReferenceImage({
+    required String unitId,
+    required int panelId,
+    required String fileUrl,
+    String? caption,
+  }) async {
+    await apiClient.post(
+      ApiEndpoints.unitCatalogPanelMedia(unitId, panelId),
+      data: {'fileUrl': fileUrl, if (caption != null) 'caption': caption},
+    );
   }
 
   Future<CatalogItem> saveDraft({
@@ -137,6 +188,14 @@ class RemoteUnitPreparationDatasource {
   Map<String, dynamic> _extractItem(Object? data) {
     if (data is Map<String, dynamic> && data['item'] is Map) {
       return Map<String, dynamic>.from(data['item'] as Map);
+    }
+    if (data is Map<String, dynamic>) return data;
+    return <String, dynamic>{};
+  }
+
+  Map<String, dynamic> _extractWorkspace(Object? data) {
+    if (data is Map<String, dynamic> && data['workspace'] is Map) {
+      return Map<String, dynamic>.from(data['workspace'] as Map);
     }
     if (data is Map<String, dynamic>) return data;
     return <String, dynamic>{};

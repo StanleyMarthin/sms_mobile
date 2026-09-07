@@ -2,7 +2,7 @@
 Tujuan: Mengunci search-first catalog dan annotation marker untuk mobile survey.
 Caller: flutter test.
 Dependensi: flutter_test, UnitPreparationCatalogHelper, model unit preparation.
-Main Functions: main().
+Main Functions: main(), display label dan batch payload checks.
 Side Effects: Tidak ada.
 */
 
@@ -153,6 +153,72 @@ void main() {
       'INTERIOR > DOOR TRIM RH',
     );
   });
+
+  test('item list display prioritizes alias part number then name part', () {
+    final reference = _reference(
+      id: 3,
+      component: 'BODY',
+      panel: 'REAR LID',
+      items: const [
+        {
+          'id': 31,
+          'aliasName': '75 REAR LID',
+          'namePart': 'Rear bearing pin',
+          'partNumber': 'C 75 006a',
+        },
+      ],
+    );
+    final entry = UnitPreparationCatalogHelper.buildSearchEntries([
+      reference,
+    ]).single;
+
+    expect(
+      UnitPreparationCatalogHelper.itemPrimaryLabel(entry.item, reference),
+      '75 REAR LID',
+    );
+    expect(
+      UnitPreparationCatalogHelper.itemSecondaryLabel(entry.item),
+      'C 75 006a',
+    );
+    expect(
+      UnitPreparationCatalogHelper.itemDetailLabel(entry.item),
+      'Rear bearing pin',
+    );
+  });
+
+  test(
+    'batch item payload keeps multiple incomplete rows and drops blanks',
+    () {
+      final payloads = UnitPreparationCatalogHelper.batchItemPayloads([
+        CatalogBatchItemRow(itemName: 'Oil Dipstick', qtyNormal: '1'),
+        CatalogBatchItemRow(partNumber: 'A 110'),
+        const CatalogBatchItemRow(),
+      ]);
+
+      expect(payloads, [
+        {
+          'id': null,
+          'clientRowId': null,
+          'code': null,
+          'partNumber': null,
+          'itemName': 'Oil Dipstick',
+          'position': null,
+          'qtyNormal': 1.0,
+          'isRestoration': false,
+        },
+        {
+          'id': null,
+          'clientRowId': null,
+          'code': null,
+          'partNumber': 'A 110',
+          'itemName': null,
+          'position': null,
+          'qtyNormal': null,
+          'isRestoration': false,
+        },
+      ]);
+    },
+  );
 
   test('builds distinct sorted panel filter options', () {
     expect(UnitPreparationCatalogHelper.panelOptions(references), [

@@ -19,6 +19,7 @@ abstract class ApiEndpoints {
   static final String _prBase = '${AppConfig.serviceOrigin(8096)}/sm';
   static final String _countdownBase = '${AppConfig.serviceOrigin(8090)}/sm';
   static final String _warehouseBase = '${AppConfig.serviceOrigin(8091)}/sm';
+  static final String _systemApiBase = '${AppConfig.serviceOrigin(8085)}/api';
 
   /// Used by ApiClient only if it needs a single baseUrl (kept for compat).
   static String get baseUrl => _loginBase;
@@ -90,6 +91,13 @@ abstract class ApiEndpoints {
   ) => '$_countdownBase/units/$unitId/catalog/items/$itemId/media/$mediaId';
   static String unitCatalogItemPromote(String unitId, int itemId) =>
       '$_countdownBase/units/$unitId/catalog/items/$itemId/promote';
+  static String get catalogComponents => '$_systemApiBase/catalog/components';
+  static String unitCatalogOpenPanel(String unitId) =>
+      '$_systemApiBase/units/$unitId/catalog';
+  static String unitCatalogPanelItemsBatch(String unitId, int panelId) =>
+      '$_systemApiBase/units/$unitId/catalog/$panelId/items';
+  static String unitCatalogPanelMedia(String unitId, int panelId) =>
+      '$_systemApiBase/units/$unitId/catalog/$panelId/media';
   static String unitMasterPanel(String unitId, int panelId) =>
       '$_countdownBase/units/$unitId/master-panels/$panelId';
   static String unitMasterPanelJobdescs(String unitId, int panelId) =>

@@ -2,7 +2,7 @@
 Tujuan: Test parser model Unit Preparation.
 Caller: flutter test.
 Dependensi: flutter_test dan model unit_preparation.
-Main Functions: validasi unit search, reference summary, incomplete item, dan mapping normalized.
+Main Functions: validasi unit search, component/panel parser, incomplete item, dan mapping normalized.
 Side Effects: Tidak ada.
 */
 
@@ -10,6 +10,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/features/unit_preparation/domain/entities/unit_preparation_models.dart';
 
 void main() {
+  test('catalog component parses web API aliases', () {
+    final component = CatalogComponent.fromJson({
+      'id': 4,
+      'code': 'BODY',
+      'componentName': 'Body',
+    });
+
+    expect(component.id, 4);
+    expect(component.code, 'BODY');
+    expect(component.componentName, 'Body');
+  });
+
   test('unit preparation unit searches name customer and plate', () {
     final unit = UnitPreparationUnit.fromJson({
       'car_id': 'MB220S_MRSANTOSO',
@@ -40,6 +52,25 @@ void main() {
     expect(item.partName, isNull);
     expect(item.qtyNormal, isNull);
     expect(item.surveyStatus, 'NOT_STARTED');
+  });
+
+  test('catalog item parses alias name_part and code aliases', () {
+    final item = CatalogItem.fromJson({
+      'id': 127,
+      'alias_name': '303',
+      'name_part': 'Oil Dipstick Detail',
+      'itemName': 'Oil Dipstick',
+      'partNumber': 'A 110 010 01 72',
+      'code': 'C 75 006a',
+      'position': '303',
+    });
+
+    expect(item.aliasName, '303');
+    expect(item.namePart, 'Oil Dipstick Detail');
+    expect(item.partName, 'Oil Dipstick');
+    expect(item.partNumber, 'A 110 010 01 72');
+    expect(item.code, 'C 75 006a');
+    expect(item.positionCode, '303');
   });
 
   test('catalog reference parses panel summary counts and diagram image', () {
