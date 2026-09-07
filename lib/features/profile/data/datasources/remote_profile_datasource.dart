@@ -55,8 +55,6 @@ class RemoteProfileDataSource implements ProfileDataSource {
               '${ApiEndpoints.baseUrl}/api/v1/proxy/image?url=$encodedUrl';
         }
 
-        debugPrint('--- PROFILE DATASOURCE PARSED PHOTO URL: $photoUrl ---');
-
         result = {
           'employeeId':
               '${user['employeeId'] ?? user['employee_id'] ?? result['employeeId']}',

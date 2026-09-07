@@ -209,6 +209,8 @@ class HomePage extends StatelessWidget {
                           fit: BoxFit.cover,
                           width: 46,
                           height: 46,
+                          memCacheWidth: 96,
+                          memCacheHeight: 96,
                           placeholder: (context, url) => Center(
                             child: SizedBox(
                               width: 16,
@@ -272,9 +274,11 @@ class HomePage extends StatelessWidget {
           // Logout
           Builder(
             builder: (ctx) => InkWell(
-              onTap: () {
-                sl<SessionManager>().logout();
-                GoRouter.of(ctx).go('/login');
+              onTap: () async {
+                await sl<ProfileRepository>().logout();
+                if (ctx.mounted) {
+                  GoRouter.of(ctx).go('/login');
+                }
               },
               borderRadius: BorderRadius.circular(8),
               child: Container(

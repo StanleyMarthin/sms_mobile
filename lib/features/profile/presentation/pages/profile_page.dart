@@ -1,3 +1,9 @@
+// Tujuan: Halaman profil user — menampilkan foto profil, data user, mode tema, dan logout.
+// Caller: FeatureShellPage via route /profile.
+// Dependensi: ProfileRepository, CachedNetworkImage, AppColors.
+// Main Functions: ProfilePage, _buildProfileHeader, _buildInitialsAvatar, _buildInfoCard, _confirmLogout.
+// Side Effects: Fetch GET /api/v1/users/profile via ProfileRepository.getProfile(); CachedNetworkImage load avatar.
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -8,11 +14,6 @@ import '../../../../core/theme/theme_controller.dart';
 import '../../domain/entities/profile_data.dart';
 import '../../domain/repositories/profile_repository.dart';
 
-// Tujuan: Halaman profil user — menampilkan foto profil (dari URL), nama, divisi, jabatan, employee ID, dan logout.
-// Caller: FeatureShellPage via route /profile.
-// Dependensi: ProfileRepository, CachedNetworkImage, AppColors.
-// Main Functions: ProfilePage (widget utama), _buildProfileHeader, _buildInitialsAvatar, _buildInfoCard, _confirmLogout.
-// Side Effects: Fetch GET /api/v1/users/profile via ProfileRepository.getProfile(); CachedNetworkImage load dari object storage.
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
@@ -105,6 +106,8 @@ class ProfilePage extends StatelessWidget {
                     fit: BoxFit.cover,
                     width: 88,
                     height: 88,
+                    memCacheWidth: 176,
+                    memCacheHeight: 176,
                     placeholder: (context, url) => Center(
                       child: SizedBox(
                         width: 24,
@@ -135,10 +138,7 @@ class ProfilePage extends StatelessWidget {
         SizedBox(height: 4),
         Text(
           '${profile.grade} — ${profile.division}',
-          style: TextStyle(
-            fontSize: 13,
-            color: AppColors.textMuted,
-          ),
+          style: TextStyle(fontSize: 13, color: AppColors.textMuted),
         ),
       ],
     );
@@ -161,11 +161,7 @@ class ProfilePage extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.palette_outlined,
-                  size: 20,
-                  color: AppColors.gold,
-                ),
+                Icon(Icons.palette_outlined, size: 20, color: AppColors.gold),
                 const SizedBox(width: 14),
                 Text(
                   'Mode Tampilan',
@@ -251,10 +247,7 @@ class ProfilePage extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
                 SizedBox(height: 2),
                 Text(
@@ -284,10 +277,14 @@ class ProfilePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           side: BorderSide(color: AppColors.border),
         ),
-        title: Text('Logout?',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16)),
-        content: Text('Anda akan keluar dari akun ini.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+        title: Text(
+          'Logout?',
+          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+        ),
+        content: Text(
+          'Anda akan keluar dari akun ini.',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -303,8 +300,10 @@ class ProfilePage extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.statusLocked,
             ),
-            child: Text('Logout',
-                style: TextStyle(color: AppColors.textPrimary)),
+            child: Text(
+              'Logout',
+              style: TextStyle(color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),

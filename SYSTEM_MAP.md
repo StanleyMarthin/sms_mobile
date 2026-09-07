@@ -767,12 +767,13 @@ FCM foreground/background payload
 ```text
 /profile → ProfilePage
 -> ProfileRepository.getProfile() → GET https://api.stanleymarthin.com/api/v1/users/profile
+   -> ProfileRepositoryImpl cache in-memory per sesi untuk mencegah fetch/avatar decode berulang saat Home/Profile rebuild
 -> fallback ke session values jika endpoint gagal
 ```
 
 **Logout:**
 ```text
-ProfilePage logout
+ProfilePage/HomePage logout
 -> RemoteProfileDataSource.logout()
 -> TaskDraftStorage.clearAllDrafts()
 -> SessionManager.logout()
