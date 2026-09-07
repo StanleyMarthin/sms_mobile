@@ -1,8 +1,8 @@
 /*
-Tujuan: Halaman mobile Unit Preparation untuk search-first catalog dan pendataan item.
+Tujuan: Halaman mobile Unit Preparation untuk navigasi unit -> component -> panel -> survey catalog.
 Caller: GoRouter route /unit-preparation.
 Dependensi: ApiClient, SessionManager, UploadService, InAppCameraPage, RemoteUnitPreparationDatasource, UnitPreparationCatalogHelper.
-Main Functions: load catalog detail, search item, draft survey, confirm survey, annotate foto aktual.
+Main Functions: load units, load catalog hierarchy, panel workspace, draft survey, confirm survey, annotate foto aktual.
 Side Effects: HTTP request pendataan dan materialization ke be_sms.
 */
 
@@ -11,7 +11,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/constants/app_colors.dart';
@@ -41,22 +40,34 @@ class UnitPreparationPage extends StatefulWidget {
   State<UnitPreparationPage> createState() => _UnitPreparationPageState();
 }
 
+enum _PreparationStep { units, components, panels, panel }
+
 class _UnitPreparationPageState extends State<UnitPreparationPage> {
   late final RemoteUnitPreparationDatasource datasource;
   late final UploadService uploadService;
   late final SessionManager sessionManager;
-  late final TextEditingController unitController;
-  late final TextEditingController queryController;
-  late final ScrollController resultScrollController;
+  late final TextEditingController unitSearchController;
+  late final TextEditingController catalogSearchController;
+  late final TextEditingController panelSearchController;
+  late final TextEditingController partSearchController;
+  late final ScrollController partScrollController;
   Timer? searchDebounce;
 
+  _PreparationStep step = _PreparationStep.units;
+  List<UnitPreparationUnit> units = const [];
   List<CatalogReference> references = const [];
   List<CatalogSearchEntry> searchEntries = const [];
+  UnitPreparationUnit? selectedUnit;
   String selectedComponent = '';
-  String selectedPanel = '';
-  String query = '';
+  CatalogReference? selectedReference;
+  String unitQuery = '';
+  String catalogQuery = '';
+  String panelQuery = '';
+  String partQuery = '';
+  bool unitsLoaded = false;
   bool catalogLoaded = false;
   bool loading = false;
+  bool searchHydrating = false;
   String? message;
 
   @override
@@ -68,55 +79,142 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       sessionManager: sessionManager,
     );
     uploadService = sl<UploadService>();
-    unitController = TextEditingController(text: widget.initialUnitId ?? '');
-    queryController = TextEditingController();
-    resultScrollController = ScrollController();
-    if (unitController.text.isNotEmpty) {
+    unitSearchController = TextEditingController();
+    catalogSearchController = TextEditingController();
+    panelSearchController = TextEditingController();
+    partSearchController = TextEditingController();
+    partScrollController = ScrollController();
+
+    final initialUnitId = widget.initialUnitId?.trim();
+    if (initialUnitId != null && initialUnitId.isNotEmpty) {
+      selectedUnit = UnitPreparationUnit(
+        carId: initialUnitId,
+        unitName: widget.initialUnitName?.trim().isNotEmpty == true
+            ? widget.initialUnitName!.trim()
+            : initialUnitId,
+        customerName: widget.initialCustomerName,
+      );
+      step = _PreparationStep.components;
       WidgetsBinding.instance.addPostFrameCallback((_) => loadCatalog());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => loadUnits());
     }
   }
 
   @override
   void dispose() {
     searchDebounce?.cancel();
-    unitController.dispose();
-    queryController.dispose();
-    resultScrollController.dispose();
+    unitSearchController.dispose();
+    catalogSearchController.dispose();
+    panelSearchController.dispose();
+    partSearchController.dispose();
+    partScrollController.dispose();
     super.dispose();
   }
 
-  List<CatalogSearchEntry> get filteredEntries =>
-      UnitPreparationCatalogHelper.searchEntries(
-        searchEntries,
-        query: query,
-        componentFilter: selectedComponent,
-        panelFilter: selectedPanel,
-      );
-
-  String get currentUnitId => unitController.text.trim();
+  String get currentUnitId => selectedUnit?.carId ?? '';
 
   String get unitTitle {
-    final title = widget.initialUnitName?.trim();
-    if (title != null && title.isNotEmpty) return title;
-    return currentUnitId.isEmpty ? 'Pilih unit' : currentUnitId;
+    final unit = selectedUnit;
+    if (unit == null) return 'Persiapan Unit';
+    return unit.unitName;
   }
 
   String get unitSubtitle {
-    final owner = widget.initialCustomerName?.trim();
-    if (owner != null && owner.isNotEmpty) return owner;
-    return currentUnitId.isEmpty ? 'Belum ada unit aktif' : 'Unit aktif';
+    final unit = selectedUnit;
+    if (unit == null) return sessionManager.roleLabel;
+    return [
+      unit.customerName,
+      unit.plateNumber,
+      unit.status,
+      unit.deliveryDate == null ? null : 'Target ${unit.deliveryDate}',
+    ].whereType<String>().where((text) => text.trim().isNotEmpty).join(' • ');
   }
 
-  Future<void> loadCatalog({String? nextUnitId}) async {
-    if (nextUnitId != null) unitController.text = nextUnitId;
+  List<UnitPreparationUnit> get filteredUnits =>
+      UnitPreparationCatalogHelper.searchUnits(units, unitQuery);
+
+  List<CatalogComponentSummary> get componentSummaries =>
+      UnitPreparationCatalogHelper.componentSummaries(references);
+
+  List<CatalogPanelSummary> get panelSummaries =>
+      UnitPreparationCatalogHelper.panelSummaries(
+        references,
+        selectedComponent,
+        query: panelQuery,
+      );
+
+  CatalogReference? get currentReference {
+    final reference = selectedReference;
+    if (reference == null) return null;
+    return references.firstWhere(
+      (item) => item.id == reference.id,
+      orElse: () => reference,
+    );
+  }
+
+  List<CatalogSearchEntry> get panelEntries {
+    final reference = currentReference;
+    if (reference == null) return const [];
+    return UnitPreparationCatalogHelper.panelPartEntries(
+      UnitPreparationCatalogHelper.buildSearchEntries([reference]),
+      referenceId: reference.id,
+      query: partQuery,
+    );
+  }
+
+  List<CatalogSearchEntry> get globalSearchResults =>
+      UnitPreparationCatalogHelper.globalCatalogSearch(
+        searchEntries,
+        catalogQuery,
+      );
+
+  Future<void> loadUnits() async {
+    setState(() {
+      loading = true;
+      message = null;
+    });
+    try {
+      final rows = await datasource.getUnits();
+      if (!mounted) return;
+      setState(() {
+        units = rows;
+        unitsLoaded = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        unitsLoaded = true;
+        message = _unitPreparationErrorMessage(
+          error,
+          fallback: 'Gagal memuat unit.',
+        );
+      });
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> selectUnit(UnitPreparationUnit unit) async {
+    setState(() {
+      selectedUnit = unit;
+      step = _PreparationStep.components;
+      selectedComponent = '';
+      selectedReference = null;
+      catalogQuery = '';
+      panelQuery = '';
+      partQuery = '';
+      catalogSearchController.clear();
+      panelSearchController.clear();
+      partSearchController.clear();
+    });
+    await loadCatalog();
+  }
+
+  Future<void> loadCatalog() async {
     final unitId = currentUnitId;
     if (unitId.isEmpty) {
-      setState(() {
-        message = 'Pilih unit dulu.';
-        catalogLoaded = false;
-        references = const [];
-        searchEntries = const [];
-      });
+      await loadUnits();
       return;
     }
 
@@ -127,22 +225,12 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
 
     try {
       final catalog = await datasource.getCatalog(unitId);
-      final hydrated = await Future.wait(
-        catalog.map((reference) async {
-          if (reference.items.isNotEmpty) return reference;
-          try {
-            return await datasource.getReference(unitId, reference.id);
-          } catch (_) {
-            return reference;
-          }
-        }),
-      );
       if (!mounted) return;
       setState(() {
         catalogLoaded = true;
-        references = hydrated;
+        references = catalog;
         searchEntries = UnitPreparationCatalogHelper.buildSearchEntries(
-          hydrated,
+          catalog,
         );
       });
     } catch (error) {
@@ -159,28 +247,123 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     }
   }
 
-  Future<void> refreshReference(CatalogReference reference) async {
-    try {
-      final detail = await datasource.getReference(
-        unitController.text.trim(),
-        reference.id,
+  Future<CatalogReference> hydrateReference(
+    CatalogReference reference, {
+    bool force = false,
+  }) async {
+    if (!force && reference.items.isNotEmpty) return reference;
+    final detail = await datasource.getReference(currentUnitId, reference.id);
+    if (!mounted) return detail;
+    final nextReferences = [
+      for (final entry in references) entry.id == detail.id ? detail : entry,
+    ];
+    setState(() {
+      references = nextReferences;
+      selectedReference = selectedReference?.id == detail.id
+          ? detail
+          : selectedReference;
+      searchEntries = UnitPreparationCatalogHelper.buildSearchEntries(
+        nextReferences,
       );
-      if (!mounted) return;
-      final nextReferences = [
-        for (final entry in references) entry.id == detail.id ? detail : entry,
-      ];
-      setState(() {
-        references = nextReferences;
-        searchEntries = UnitPreparationCatalogHelper.buildSearchEntries(
-          nextReferences,
+    });
+    return detail;
+  }
+
+  Future<void> hydrateComponent(String component) async {
+    final targets = references
+        .where(
+          (reference) =>
+              reference.componentName.toUpperCase() == component.toUpperCase(),
+        )
+        .where((reference) => reference.items.isEmpty)
+        .toList();
+    if (targets.isEmpty) return;
+    setState(() => loading = true);
+    try {
+      final hydrated = await Future.wait(targets.map(hydrateReference));
+      if (!mounted || hydrated.isEmpty) return;
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => message = _unitPreparationErrorMessage(
+            error,
+            fallback: 'Gagal memuat panel.',
+          ),
         );
-      });
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> hydrateAllForSearch() async {
+    if (searchHydrating ||
+        catalogQuery.trim().isEmpty ||
+        references.every((reference) => reference.items.isNotEmpty)) {
+      return;
+    }
+    setState(() => searchHydrating = true);
+    try {
+      await Future.wait(
+        references
+            .where((reference) => reference.items.isEmpty)
+            .map(hydrateReference),
+      );
     } catch (error) {
       if (mounted) {
         setState(
           () => message = _unitPreparationErrorMessage(
             error,
             fallback: 'Gagal memperbarui item.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => searchHydrating = false);
+    }
+  }
+
+  Future<void> refreshReference(CatalogReference reference) async {
+    try {
+      await hydrateReference(reference, force: true);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => message = _unitPreparationErrorMessage(
+            error,
+            fallback: 'Gagal memperbarui item.',
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> selectComponent(String component) async {
+    setState(() {
+      selectedComponent = component;
+      selectedReference = null;
+      panelQuery = '';
+      panelSearchController.clear();
+      step = _PreparationStep.panels;
+    });
+    await hydrateComponent(component);
+  }
+
+  Future<void> selectPanel(CatalogReference reference) async {
+    setState(() {
+      selectedReference = reference;
+      partQuery = '';
+      partSearchController.clear();
+      step = _PreparationStep.panel;
+    });
+    try {
+      await hydrateReference(reference);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => message = _unitPreparationErrorMessage(
+            error,
+            fallback: 'Gagal memuat part panel.',
           ),
         );
       }
@@ -218,7 +401,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       await refreshReference(entry.reference);
       if (!mounted) return;
       final nextEntry = UnitPreparationCatalogHelper.nextSurveyEntry(
-        filteredEntries,
+        panelEntries,
         entry.item.id,
       );
       ScaffoldMessenger.of(context).showSnackBar(
@@ -281,151 +464,255 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
 
   @override
   Widget build(BuildContext context) {
-    final results = filteredEntries;
-    final hasCatalog = catalogLoaded && searchEntries.isNotEmpty;
     return Column(
       children: [
-        _UnitContextHeader(
-          title: unitTitle,
-          subtitle: unitSubtitle,
-          itemCount: searchEntries.length,
-          loading: loading,
-          onChangeUnit: showUnitPicker,
-        ),
         if (message != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: _InlineError(message: message!),
           ),
         if (loading) const LinearProgressIndicator(minHeight: 2),
-        if (hasCatalog)
-          _CatalogFilters(
-            queryController: queryController,
-            selectedComponent: selectedComponent,
-            selectedPanel: selectedPanel,
-            resultCount: results.length,
-            onQueryChanged: scheduleSearch,
-            onClearQuery: () {
-              queryController.clear();
-              searchDebounce?.cancel();
-              setState(() => query = '');
-            },
-            onComponentChanged: (value) {
-              setState(() => selectedComponent = value);
-              if (resultScrollController.hasClients) {
-                resultScrollController.jumpTo(0);
-              }
-            },
-            onPanelPressed: showPanelPicker,
-          ),
         Expanded(
-          child: !catalogLoaded && loading
-              ? const _CatalogSkeletonList()
-              : currentUnitId.isEmpty
-              ? _EmptyCatalogState(
-                  message: 'Pilih unit untuk mulai pendataan catalog.',
-                  actionLabel: 'Ganti Unit',
-                  onAction: showUnitPicker,
-                )
-              : catalogLoaded && searchEntries.isEmpty
-              ? _EmptyCatalogState(
-                  message: 'Belum ada item Catalog untuk unit ini.',
-                  actionLabel: 'Kembali ke Unit',
-                  onAction: () => context.go('/home'),
-                )
-              : catalogLoaded && results.isEmpty
-              ? const _EmptyCatalogState(
-                  message: 'Item catalog tidak ditemukan.',
-                )
-              : ListView.separated(
-                  controller: resultScrollController,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                  itemCount: results.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final entry = results[index];
-                    return _CatalogResultCard(
-                      entry: entry,
-                      onSelect: () => openSurvey(entry),
-                      onCountdown:
-                          !entry.item.isConfirmed ||
-                              entry.item.promotedPanelId == null
-                          ? null
-                          : () => openCountdown(entry.item),
-                    );
-                  },
-                ),
+          child: switch (step) {
+            _PreparationStep.units => buildUnitList(),
+            _PreparationStep.components => buildComponentList(),
+            _PreparationStep.panels => buildPanelList(),
+            _PreparationStep.panel => buildPanelWorkspace(),
+          },
         ),
       ],
     );
   }
 
-  void scheduleSearch(String value) {
+  Widget buildUnitList() {
+    final results = filteredUnits;
+    if (!unitsLoaded && loading) return const _CatalogSkeletonList();
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      itemCount: results.isEmpty ? 2 : results.length + 1,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return TextField(
+            controller: unitSearchController,
+            decoration: const InputDecoration(
+              labelText: 'Cari unit, customer, atau plat',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (value) => setState(() => unitQuery = value),
+          );
+        }
+        if (results.isEmpty) {
+          return const _EmptyCatalogState(message: 'Unit tidak ditemukan.');
+        }
+        final unit = results[index - 1];
+        return _UnitCard(unit: unit, onTap: () => selectUnit(unit));
+      },
+    );
+  }
+
+  Widget buildComponentList() {
+    if (!catalogLoaded && loading) return const _CatalogSkeletonList();
+    if (catalogLoaded && references.isEmpty) {
+      return const _EmptyCatalogState(
+        message: 'Belum ada item Catalog untuk unit ini.',
+      );
+    }
+    final searchResults = globalSearchResults;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      children: [
+        _UnitSummaryHeader(
+          title: unitTitle,
+          subtitle: unitSubtitle,
+          onBack: widget.initialUnitId?.trim().isNotEmpty == true
+              ? null
+              : () => setState(() => step = _PreparationStep.units),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: catalogSearchController,
+          decoration: InputDecoration(
+            labelText: 'Cari panel atau part',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: searchHydrating
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : null,
+          ),
+          onChanged: scheduleCatalogSearch,
+        ),
+        const SizedBox(height: 12),
+        if (catalogQuery.trim().isNotEmpty) ...[
+          if (searchResults.isEmpty && searchHydrating)
+            const _CatalogSkeletonList()
+          else if (searchResults.isEmpty)
+            const _EmptyCatalogState(
+              message: 'Panel atau part tidak ditemukan.',
+            )
+          else
+            ...searchResults.map(
+              (entry) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _GlobalCatalogResultCard(
+                  entry: entry,
+                  onTap: () async {
+                    await selectPanel(entry.reference);
+                    if (!mounted) return;
+                    await openSurvey(entry);
+                  },
+                ),
+              ),
+            ),
+        ] else ...[
+          for (final component in componentSummaries)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _ComponentCard(
+                summary: component,
+                onTap: () => selectComponent(component.componentName),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  Widget buildPanelList() {
+    final panels = panelSummaries;
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      itemCount: panels.length + 2,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return _UnitSummaryHeader(
+            title: unitTitle,
+            subtitle: selectedComponent,
+            onBack: () => setState(() => step = _PreparationStep.components),
+          );
+        }
+        if (index == 1) {
+          return TextField(
+            controller: panelSearchController,
+            decoration: const InputDecoration(
+              labelText: 'Cari panel',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (value) => setState(() => panelQuery = value),
+          );
+        }
+        final panel = panels[index - 2];
+        return _PanelCard(
+          summary: panel,
+          onTap: () => selectPanel(panel.reference),
+        );
+      },
+    );
+  }
+
+  Widget buildPanelWorkspace() {
+    final reference = currentReference;
+    if (reference == null) {
+      return const _EmptyCatalogState(message: 'Panel tidak ditemukan.');
+    }
+    final entries = panelEntries;
+    return ListView(
+      controller: partScrollController,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      children: [
+        _UnitSummaryHeader(
+          title: '${reference.componentName} > ${reference.panelName}',
+          subtitle: unitTitle,
+          onBack: () => setState(() => step = _PreparationStep.panels),
+        ),
+        const SizedBox(height: 12),
+        _SectionLabel('Gambar Referensi Panel'),
+        const SizedBox(height: 8),
+        _ReferenceImageStrip(media: reference.media),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${reference.itemCount} Part',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: showAdditionalItemGap,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Item Tambahan'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: partSearchController,
+          decoration: const InputDecoration(
+            labelText: 'Cari part',
+            prefixIcon: Icon(Icons.search_rounded),
+          ),
+          onChanged: (value) => setState(() => partQuery = value),
+        ),
+        const SizedBox(height: 8),
+        if (entries.isEmpty)
+          const _EmptyCatalogState(message: 'Part tidak ditemukan.')
+        else
+          ...entries.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _PartRow(
+                entry: entry,
+                onTap: () => openSurvey(entry),
+                onCountdown:
+                    !entry.item.isConfirmed ||
+                        entry.item.promotedPanelId == null
+                    ? null
+                    : () => openCountdown(entry.item),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void scheduleCatalogSearch(String value) {
     searchDebounce?.cancel();
     searchDebounce = Timer(const Duration(milliseconds: 280), () {
       if (!mounted) return;
-      setState(() => query = value);
+      setState(() => catalogQuery = value);
+      unawaited(hydrateAllForSearch());
     });
   }
 
-  Future<void> showPanelPicker() async {
-    final panel = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => _PanelPickerSheet(
-        panels: UnitPreparationCatalogHelper.panelOptions(references),
-        selectedPanel: selectedPanel,
+  void showAdditionalItemGap() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Item tambahan butuh endpoint mobile unit_additional_items.',
+        ),
       ),
     );
-    if (panel == null || !mounted) return;
-    setState(() => selectedPanel = panel);
-    if (resultScrollController.hasClients) {
-      resultScrollController.jumpTo(0);
-    }
-  }
-
-  Future<void> showUnitPicker() async {
-    final unitId = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => _UnitPickerSheet(
-        units: sessionManager.managedUnitIds,
-        initialUnitId: currentUnitId,
-      ),
-    );
-    if (unitId == null || !mounted) return;
-    setState(() {
-      selectedComponent = '';
-      selectedPanel = '';
-      query = '';
-      queryController.clear();
-    });
-    await loadCatalog(nextUnitId: unitId);
   }
 }
 
-class _CatalogResultCard extends StatelessWidget {
-  const _CatalogResultCard({
-    required this.entry,
-    required this.onSelect,
-    this.onCountdown,
-  });
+class _UnitCard extends StatelessWidget {
+  const _UnitCard({required this.unit, required this.onTap});
 
-  final CatalogSearchEntry entry;
-  final VoidCallback onSelect;
-  final VoidCallback? onCountdown;
+  final UnitPreparationUnit unit;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final item = entry.item;
-    final title = UnitPreparationCatalogHelper.resolveItemLabel(
-      item,
-      entry.reference,
-    );
-    final subtitle = item.partName == title
-        ? item.partNumber ?? entry.reference.panelName
-        : item.partName ?? item.partNumber ?? entry.reference.panelName;
-
     return Material(
       color: Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(
@@ -433,12 +720,301 @@ class _CatalogResultCard extends StatelessWidget {
         side: BorderSide(color: Theme.of(context).dividerColor),
       ),
       child: InkWell(
-        onTap: onSelect,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      unit.unitName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      unit.customerName ?? '-',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      [
+                        unit.plateNumber,
+                        unit.status,
+                        unit.deliveryDate == null
+                            ? null
+                            : 'Target ${unit.deliveryDate}',
+                      ].whereType<String>().join(' • '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UnitSummaryHeader extends StatelessWidget {
+  const _UnitSummaryHeader({
+    required this.title,
+    required this.subtitle,
+    this.onBack,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback? onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        if (onBack != null) ...[
+          IconButton(
+            tooltip: 'Kembali',
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+          const SizedBox(width: 4),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              if (subtitle.trim().isNotEmpty)
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.textMuted),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ComponentCard extends StatelessWidget {
+  const _ComponentCard({required this.summary, required this.onTap});
+
+  final CatalogComponentSummary summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _NavRow(
+      title: summary.componentName,
+      subtitle: '${summary.panelCount} Panel',
+      trailing: summary.partCount > 0
+          ? '${summary.partCount} Part'
+          : '${summary.doneCount} didata',
+      onTap: onTap,
+    );
+  }
+}
+
+class _PanelCard extends StatelessWidget {
+  const _PanelCard({required this.summary, required this.onTap});
+
+  final CatalogPanelSummary summary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _NavRow(
+      title: summary.panelName,
+      subtitle: '${summary.partCount} Part',
+      trailing: summary.doneCount > 0
+          ? '${summary.doneCount} sudah didata'
+          : '',
+      onTap: onTap,
+    );
+  }
+}
+
+class _NavRow extends StatelessWidget {
+  const _NavRow({
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final String trailing;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Theme.of(context).dividerColor),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Text(
+                    trailing,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlobalCatalogResultCard extends StatelessWidget {
+  const _GlobalCatalogResultCard({required this.entry, required this.onTap});
+
+  final CatalogSearchEntry entry;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return _NavRow(
+      title: UnitPreparationCatalogHelper.resolveItemLabel(
+        entry.item,
+        entry.reference,
+      ),
+      subtitle: [
+        UnitPreparationCatalogHelper.hierarchyLabel(entry),
+        entry.item.partNumber,
+      ].whereType<String>().join(' • '),
+      trailing: UnitPreparationCatalogHelper.surveyStatusLabel(
+        entry.item.surveyStatus,
+      ),
+      onTap: onTap,
+    );
+  }
+}
+
+class _ReferenceImageStrip extends StatelessWidget {
+  const _ReferenceImageStrip({required this.media});
+
+  final List<CatalogMedia> media;
+
+  @override
+  Widget build(BuildContext context) {
+    if (media.isEmpty) {
+      return Container(
+        height: 160,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Text('Belum ada gambar referensi'),
+      );
+    }
+    return SizedBox(
+      height: 220,
+      child: PageView(
+        children: [
+          for (final image in media)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 3,
+                child: Image.network(
+                  image.fileUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) =>
+                      const Center(child: Icon(Icons.broken_image_outlined)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PartRow extends StatelessWidget {
+  const _PartRow({required this.entry, required this.onTap, this.onCountdown});
+
+  final CatalogSearchEntry entry;
+  final VoidCallback onTap;
+  final VoidCallback? onCountdown;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = entry.item;
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Theme.of(context).dividerColor),
+      ),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               SizedBox(
                 width: 48,
@@ -455,28 +1031,21 @@ class _CatalogResultCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      item.partNumber ?? '-',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
+                    ),
+                    Text(
+                      UnitPreparationCatalogHelper.resolveItemLabel(
+                        item,
+                        entry.reference,
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    const SizedBox(height: 2),
                     Text(
-                      [
-                        if (item.partNumber != null) item.partNumber,
-                        entry.reference.componentName,
-                      ].whereType<String>().join(' • '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      'Qty Normal: ${item.qtyNormal?.toStringAsFixed(0) ?? '-'}',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textMuted,
                       ),
@@ -484,208 +1053,21 @@ class _CatalogResultCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _StatusPill(item: item),
-                  const SizedBox(height: 4),
-                  if (onCountdown != null)
-                    IconButton(
-                      tooltip: 'Buat pekerjaan',
-                      constraints: const BoxConstraints(
-                        minHeight: 44,
-                        minWidth: 44,
-                      ),
-                      padding: EdgeInsets.zero,
-                      onPressed: onCountdown,
-                      icon: const Icon(Icons.playlist_add_check_rounded),
-                    )
-                  else
-                    const Icon(Icons.chevron_right_rounded),
-                ],
-              ),
+              _StatusPill(item: item),
+              if (onCountdown == null)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Icon(Icons.chevron_right_rounded),
+                )
+              else
+                IconButton(
+                  tooltip: 'Buat pekerjaan',
+                  onPressed: onCountdown,
+                  icon: const Icon(Icons.playlist_add_check_rounded),
+                ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _UnitContextHeader extends StatelessWidget {
-  const _UnitContextHeader({
-    required this.title,
-    required this.subtitle,
-    required this.itemCount,
-    required this.loading,
-    required this.onChangeUnit,
-  });
-
-  final String title;
-  final String subtitle;
-  final int itemCount;
-  final bool loading;
-  final VoidCallback onChangeUnit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  itemCount > 0
-                      ? '$subtitle • $itemCount item catalog'
-                      : subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          TextButton.icon(
-            onPressed: loading ? null : onChangeUnit,
-            icon: const Icon(Icons.swap_horiz_rounded),
-            label: const Text('Ganti Unit'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CatalogFilters extends StatelessWidget {
-  const _CatalogFilters({
-    required this.queryController,
-    required this.selectedComponent,
-    required this.selectedPanel,
-    required this.resultCount,
-    required this.onQueryChanged,
-    required this.onClearQuery,
-    required this.onComponentChanged,
-    required this.onPanelPressed,
-  });
-
-  final TextEditingController queryController;
-  final String selectedComponent;
-  final String selectedPanel;
-  final int resultCount;
-  final ValueChanged<String> onQueryChanged;
-  final VoidCallback onClearQuery;
-  final ValueChanged<String> onComponentChanged;
-  final VoidCallback onPanelPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextField(
-            controller: queryController,
-            minLines: 1,
-            decoration: InputDecoration(
-              labelText: 'Cari nama, part number, atau code',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: queryController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: onClearQuery,
-                      icon: const Icon(Icons.close_rounded),
-                    ),
-            ),
-            onChanged: onQueryChanged,
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                _FilterChip(
-                  label: 'Semua',
-                  selected: selectedComponent.isEmpty,
-                  onSelected: () => onComponentChanged(''),
-                ),
-                for (final value
-                    in UnitPreparationCatalogHelper.componentFilters)
-                  _FilterChip(
-                    label: _componentLabel(value),
-                    selected: selectedComponent == value,
-                    onSelected: () => onComponentChanged(value),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPanelPressed,
-                  icon: const Icon(Icons.view_agenda_outlined),
-                  label: Text(
-                    selectedPanel.isEmpty
-                        ? 'Panel: Semua Panel'
-                        : 'Panel: $selectedPanel',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text('$resultCount item'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onSelected(),
-        visualDensity: VisualDensity.compact,
       ),
     );
   }
@@ -744,15 +1126,9 @@ class _InlineError extends StatelessWidget {
 }
 
 class _EmptyCatalogState extends StatelessWidget {
-  const _EmptyCatalogState({
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
+  const _EmptyCatalogState({required this.message});
 
   final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -767,10 +1143,6 @@ class _EmptyCatalogState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 12),
-              OutlinedButton(onPressed: onAction, child: Text(actionLabel!)),
-            ],
           ],
         ),
       ),
@@ -797,177 +1169,6 @@ class _CatalogSkeletonList extends StatelessWidget {
     );
   }
 }
-
-class _PanelPickerSheet extends StatefulWidget {
-  const _PanelPickerSheet({required this.panels, required this.selectedPanel});
-
-  final List<String> panels;
-  final String selectedPanel;
-
-  @override
-  State<_PanelPickerSheet> createState() => _PanelPickerSheetState();
-}
-
-class _PanelPickerSheetState extends State<_PanelPickerSheet> {
-  final controller = TextEditingController();
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final query = controller.text.trim().toLowerCase();
-    final panels = widget.panels
-        .where((panel) => query.isEmpty || panel.toLowerCase().contains(query))
-        .toList();
-    return _PickerSheet(
-      title: 'Pilih Panel',
-      controller: controller,
-      hint: 'Cari panel',
-      children: [
-        ListTile(
-          minVerticalPadding: 12,
-          title: const Text('Semua Panel'),
-          trailing: widget.selectedPanel.isEmpty
-              ? const Icon(Icons.check_rounded)
-              : null,
-          onTap: () => Navigator.pop(context, ''),
-        ),
-        for (final panel in panels)
-          ListTile(
-            minVerticalPadding: 12,
-            title: Text(panel),
-            trailing: panel == widget.selectedPanel
-                ? const Icon(Icons.check_rounded)
-                : null,
-            onTap: () => Navigator.pop(context, panel),
-          ),
-      ],
-      onChanged: () => setState(() {}),
-    );
-  }
-}
-
-class _UnitPickerSheet extends StatefulWidget {
-  const _UnitPickerSheet({required this.units, required this.initialUnitId});
-
-  final List<String> units;
-  final String initialUnitId;
-
-  @override
-  State<_UnitPickerSheet> createState() => _UnitPickerSheetState();
-}
-
-class _UnitPickerSheetState extends State<_UnitPickerSheet> {
-  late final TextEditingController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = TextEditingController(text: widget.initialUnitId);
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final query = controller.text.trim().toLowerCase();
-    final units = widget.units
-        .where((unit) => query.isEmpty || unit.toLowerCase().contains(query))
-        .toList();
-    return _PickerSheet(
-      title: 'Ganti Unit',
-      controller: controller,
-      hint: 'Cari atau isi Unit ID',
-      children: [
-        ListTile(
-          minVerticalPadding: 12,
-          leading: const Icon(Icons.check_circle_outline_rounded),
-          title: Text(
-            query.isEmpty ? 'Gunakan Unit ID' : controller.text.trim(),
-          ),
-          onTap: () {
-            final text = controller.text.trim();
-            if (text.isNotEmpty) Navigator.pop(context, text);
-          },
-        ),
-        for (final unit in units)
-          ListTile(
-            minVerticalPadding: 12,
-            title: Text(unit),
-            onTap: () => Navigator.pop(context, unit),
-          ),
-      ],
-      onChanged: () => setState(() {}),
-    );
-  }
-}
-
-class _PickerSheet extends StatelessWidget {
-  const _PickerSheet({
-    required this.title,
-    required this.controller,
-    required this.hint,
-    required this.children,
-    required this.onChanged,
-  });
-
-  final String title;
-  final TextEditingController controller;
-  final String hint;
-  final List<Widget> children;
-  final VoidCallback onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          16,
-          16,
-          MediaQuery.of(context).viewInsets.bottom + 16,
-        ),
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.72,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  labelText: hint,
-                  prefixIcon: const Icon(Icons.search_rounded),
-                ),
-                onChanged: (_) => onChanged(),
-              ),
-              const SizedBox(height: 8),
-              Expanded(child: ListView(children: children)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-String _componentLabel(String value) => switch (value) {
-  'ENGINE' => 'Engine',
-  'UNDERCARRIAGE' => 'Undercarriage',
-  'ELECTRICAL' => 'Electrical',
-  'BODY' => 'Body',
-  'INTERIOR' => 'Interior',
-  _ => value,
-};
 
 String _unitPreparationErrorMessage(Object error, {required String fallback}) {
   if (error is DioException) {
@@ -1396,7 +1597,7 @@ class _SurveySheetState extends State<_SurveySheet> {
                       enabled: canEdit,
                       options: const {
                         'AVAILABLE': 'Ada',
-                        'NOT_AVAILABLE': 'Tidak Ada',
+                        'NOT_AVAILABLE': 'Tidak Ditemukan',
                         'UNKNOWN': 'Belum Tahu',
                       },
                       onChanged: (value) =>
@@ -1407,7 +1608,7 @@ class _SurveySheetState extends State<_SurveySheet> {
                       value: condition,
                       enabled: canEdit,
                       options: const {
-                        'GOOD': 'Baik',
+                        'GOOD': 'Layak',
                         'RESTORE': 'Restorasi',
                         'NOT_USABLE': 'Tidak Layak',
                         'UNKNOWN': 'Belum Tahu',
@@ -1419,10 +1620,9 @@ class _SurveySheetState extends State<_SurveySheet> {
                       value: action,
                       enabled: canEdit,
                       options: const {
-                        'NO_ACTION': 'Tidak Perlu',
-                        'JOBDESC': 'Buat Pekerjaan',
-                        'JOBDESC_ORDER': 'Order',
-                        'UNDECIDED': 'Belum Diputuskan',
+                        'NO_ACTION': 'Tidak Ada',
+                        'JOBDESC': 'Jobdesc',
+                        'JOBDESC_ORDER': 'Jobdesc + Order',
                       },
                       onChanged: (value) => setState(() => action = value),
                     ),

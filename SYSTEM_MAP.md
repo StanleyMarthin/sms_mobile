@@ -951,12 +951,14 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 ### Unit preparation / catalog survey issue
 ```text
 /unit-preparation?unitId=&unitName=&customerName= → FeatureShellPage AppBar tunggal → UnitPreparationPage
-→ UnitPreparationCatalogHelper (flatten search entry, label enum Indonesia, marker caption JSON)
+→ UnitPreparationCatalogHelper (unit search, component/panel summary, panel-only part search, label enum Indonesia, marker caption JSON)
 → RemoteUnitPreparationDataSource
 → ApiEndpoints.unitCatalog*|unitMasterPanel* (/sm/units/... via countdown gateway; legacy port 8090)
-→ Search-first mobile flow: initial unit context → optional searchable unit picker → hydrate catalog reference detail → local search/filter by name/part number/code
-→ Component filter pakai chips tetap ENGINE/UNDERCARRIAGE/ELECTRICAL/BODY/INTERIOR; panel filter pakai searchable bottom sheet
-→ Compact tappable item rows; status/condition/action enum hanya ditampilkan sebagai label Indonesia
+→ Final mobile flow: unit list/search → component list → panel list → panel workspace → part detail/survey
+→ Unit list pakai ApiEndpoints.countdown existing rows; search car_id/unit_name/customer_name/plate_number tanpa manual Unit ID/Load
+→ Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; selected panel hydrate via /catalog/{panel_id}
+→ Panel workspace image-first dari catalog_panel_images/media lalu compact part list panel-only
+→ Compact tappable rows; status/condition/action enum hanya ditampilkan sebagai label Indonesia
 → Survey bottom sheet: compact chips/stepper, sticky Simpan Draft/KONFIRMASI, save draft via PUT survey, confirm via POST confirm
 → Foto aktual first-class: camera/gallery → preview → tap/reposition/remove marker → upload/media caption
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media

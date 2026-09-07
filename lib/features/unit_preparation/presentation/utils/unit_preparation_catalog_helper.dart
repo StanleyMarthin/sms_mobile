@@ -20,6 +20,36 @@ class CatalogSearchEntry {
       reference.media.isEmpty ? null : reference.media.first;
 }
 
+class CatalogComponentSummary {
+  const CatalogComponentSummary({
+    required this.componentName,
+    required this.panelCount,
+    required this.partCount,
+    required this.doneCount,
+  });
+
+  final String componentName;
+  final int panelCount;
+  final int partCount;
+  final int doneCount;
+}
+
+class CatalogPanelSummary {
+  const CatalogPanelSummary({
+    required this.reference,
+    required this.panelName,
+    required this.componentName,
+    required this.partCount,
+    required this.doneCount,
+  });
+
+  final CatalogReference reference;
+  final String panelName;
+  final String componentName;
+  final int partCount;
+  final int doneCount;
+}
+
 class CatalogAnnotationMarker {
   const CatalogAnnotationMarker({
     required this.name,
@@ -111,6 +141,109 @@ class UnitPreparationCatalogHelper {
     }).toList();
   }
 
+  static List<UnitPreparationUnit> searchUnits(
+    List<UnitPreparationUnit> units,
+    String query,
+  ) {
+    return units.where((unit) => unit.matches(query)).toList();
+  }
+
+  static List<CatalogComponentSummary> componentSummaries(
+    List<CatalogReference> references,
+  ) {
+    final result = <CatalogComponentSummary>[];
+    for (final component in componentFilters) {
+      final panels = references
+          .where(
+            (reference) =>
+                _normalize(reference.componentName) == _normalize(component),
+          )
+          .toList();
+      if (panels.isEmpty) continue;
+      result.add(
+        CatalogComponentSummary(
+          componentName: component,
+          panelCount: panels.map((panel) => panel.id).toSet().length,
+          partCount: panels.fold<int>(
+            0,
+            (sum, panel) => sum + _partCount(panel),
+          ),
+          doneCount: panels.fold<int>(
+            0,
+            (sum, panel) => sum + _doneCount(panel),
+          ),
+        ),
+      );
+    }
+    return result;
+  }
+
+  static List<CatalogPanelSummary> panelSummaries(
+    List<CatalogReference> references,
+    String component, {
+    String query = '',
+  }) {
+    final normalizedComponent = _normalize(component);
+    final normalizedQuery = _normalize(query);
+    final panels = references
+        .where((reference) {
+          final sameComponent =
+              normalizedComponent.isEmpty ||
+              _normalize(reference.componentName) == normalizedComponent;
+          final matchesQuery =
+              normalizedQuery.isEmpty ||
+              _normalize(reference.panelName).contains(normalizedQuery);
+          return sameComponent && matchesQuery;
+        })
+        .map((reference) {
+          return CatalogPanelSummary(
+            reference: reference,
+            panelName: reference.panelName,
+            componentName: reference.componentName,
+            partCount: _partCount(reference),
+            doneCount: _doneCount(reference),
+          );
+        })
+        .toList();
+    panels.sort((left, right) => left.panelName.compareTo(right.panelName));
+    return panels;
+  }
+
+  static List<CatalogSearchEntry> panelPartEntries(
+    List<CatalogSearchEntry> entries, {
+    required int referenceId,
+    String query = '',
+  }) {
+    return searchEntries(
+      entries.where((entry) => entry.reference.id == referenceId).toList(),
+      query: query,
+    );
+  }
+
+  static List<CatalogSearchEntry> globalCatalogSearch(
+    List<CatalogSearchEntry> entries,
+    String query,
+  ) {
+    final normalizedQuery = _normalize(query);
+    if (normalizedQuery.isEmpty) return const [];
+    return entries.where((entry) {
+      final haystack = _normalize(
+        [
+          entry.reference.componentName,
+          entry.reference.panelName,
+          entry.item.partName,
+          entry.item.actualName,
+          entry.item.partNumber,
+          entry.item.positionCode,
+        ].whereType<String>().join(' '),
+      );
+      return haystack.contains(normalizedQuery);
+    }).toList();
+  }
+
+  static String hierarchyLabel(CatalogSearchEntry entry) =>
+      '${entry.reference.componentName} > ${entry.reference.panelName}';
+
   static List<String> panelOptions(List<CatalogReference> references) {
     final panels =
         references
@@ -162,9 +295,10 @@ class UnitPreparationCatalogHelper {
   };
 
   static String actionLabel(String value) => switch (value) {
-    'NO_ACTION' => 'Tidak perlu tindakan',
-    'JOBDESC' => 'Buat pekerjaan',
-    'JOBDESC_ORDER' => 'Order pekerjaan',
+    'NO_ACTION' => 'Tidak Ada',
+    'JOBDESC' => 'Jobdesc',
+    'ORDER' => 'Order',
+    'JOBDESC_ORDER' => 'Jobdesc + Order',
     _ => 'Belum diputuskan',
   };
 
@@ -260,6 +394,14 @@ class UnitPreparationCatalogHelper {
   }
 
   static int _confirmedRank(CatalogItem item) => item.isConfirmed ? 1 : 0;
+
+  static int _partCount(CatalogReference reference) =>
+      reference.items.isNotEmpty ? reference.items.length : reference.itemCount;
+
+  static int _doneCount(CatalogReference reference) =>
+      reference.items.isNotEmpty
+      ? reference.items.where((item) => item.isConfirmed).length
+      : reference.surveyedCount;
 }
 
 double? _doubleValue(Object? value) {

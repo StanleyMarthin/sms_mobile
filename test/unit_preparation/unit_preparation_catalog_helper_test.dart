@@ -113,6 +113,47 @@ void main() {
     ]);
   });
 
+  test('builds component navigation summaries from catalog panels', () {
+    final summaries = UnitPreparationCatalogHelper.componentSummaries(
+      references,
+    );
+
+    expect(summaries.map((item) => item.componentName), ['BODY', 'INTERIOR']);
+    expect(summaries.first.panelCount, 1);
+    expect(summaries.first.partCount, 2);
+    expect(summaries.first.doneCount, 0);
+  });
+
+  test('builds panel navigation summaries and panel-only part search', () {
+    final panelSummaries = UnitPreparationCatalogHelper.panelSummaries(
+      references,
+      'BODY',
+      query: 'fender',
+    );
+    final entries = UnitPreparationCatalogHelper.panelPartEntries(
+      UnitPreparationCatalogHelper.buildSearchEntries(references),
+      referenceId: panelSummaries.single.reference.id,
+      query: '998877',
+    );
+
+    expect(panelSummaries.single.panelName, 'FRONT FENDER LH');
+    expect(panelSummaries.single.partCount, 2);
+    expect(entries.single.item.id, 12);
+  });
+
+  test('global catalog search returns hierarchy labels', () {
+    final entries = UnitPreparationCatalogHelper.globalCatalogSearch(
+      UnitPreparationCatalogHelper.buildSearchEntries(references),
+      'clip',
+    );
+
+    expect(entries.single.item.id, 21);
+    expect(
+      UnitPreparationCatalogHelper.hierarchyLabel(entries.single),
+      'INTERIOR > DOOR TRIM RH',
+    );
+  });
+
   test('builds distinct sorted panel filter options', () {
     expect(UnitPreparationCatalogHelper.panelOptions(references), [
       'DOOR TRIM RH',
@@ -139,8 +180,8 @@ void main() {
       'Tidak layak',
     );
     expect(
-      UnitPreparationCatalogHelper.actionLabel('UNDECIDED'),
-      'Belum diputuskan',
+      UnitPreparationCatalogHelper.actionLabel('JOBDESC_ORDER'),
+      'Jobdesc + Order',
     );
   });
 

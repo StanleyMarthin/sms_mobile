@@ -2,7 +2,7 @@
 Tujuan: Datasource API mobile untuk Unit Preparation catalog dan pendataan.
 Caller: UnitPreparationPage dan flow mobile yang butuh catalog/master panel.
 Dependensi: ApiClient, ApiEndpoints, SessionManager, UnitPreparation models.
-Main Functions: load catalog, save draft, confirm survey, add media, create jobdescs.
+Main Functions: load units, load catalog, save draft, confirm survey, add media, create jobdescs.
 Side Effects: HTTP request ke be_sms sm_countdown.
 */
 
@@ -22,6 +22,19 @@ class RemoteUnitPreparationDatasource {
 
   String get _userId =>
       sessionManager.userId ?? sessionManager.employeeId ?? '';
+
+  Future<List<UnitPreparationUnit>> getUnits() async {
+    final response = await apiClient.get(
+      ApiEndpoints.countdown,
+      queryParameters: {'user_id': _userId},
+    );
+    final rows = response.data is List ? response.data as List<dynamic> : [];
+    return rows
+        .whereType<Map<String, dynamic>>()
+        .map(UnitPreparationUnit.fromJson)
+        .where((unit) => unit.carId.isNotEmpty)
+        .toList();
+  }
 
   Future<List<CatalogReference>> getCatalog(String unitId) async {
     final response = await apiClient.get(

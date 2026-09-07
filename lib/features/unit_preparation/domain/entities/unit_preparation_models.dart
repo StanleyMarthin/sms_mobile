@@ -21,6 +21,63 @@ String? _textValue(Object? value) {
   return text.isEmpty ? null : text;
 }
 
+class UnitPreparationUnit {
+  const UnitPreparationUnit({
+    required this.carId,
+    required this.unitName,
+    this.customerName,
+    this.plateNumber,
+    this.status,
+    this.deliveryDate,
+  });
+
+  final String carId;
+  final String unitName;
+  final String? customerName;
+  final String? plateNumber;
+  final String? status;
+  final String? deliveryDate;
+
+  bool matches(String query) {
+    final normalized = query.trim().toLowerCase();
+    if (normalized.isEmpty) return true;
+    return [
+      carId,
+      unitName,
+      customerName,
+      plateNumber,
+    ].whereType<String>().join(' ').toLowerCase().contains(normalized);
+  }
+
+  factory UnitPreparationUnit.fromJson(Map<String, dynamic> json) {
+    final carId =
+        _textValue(
+          json['car_id'] ?? json['carId'] ?? json['id'] ?? json['unitId'],
+        ) ??
+        '';
+    return UnitPreparationUnit(
+      carId: carId,
+      unitName:
+          _textValue(
+            json['unit_name'] ?? json['unitName'] ?? json['carName'],
+          ) ??
+          carId,
+      customerName: _textValue(
+        json['customer_name'] ?? json['customerName'] ?? json['owner'],
+      ),
+      plateNumber: _textValue(
+        json['plate_number'] ?? json['plateNumber'] ?? json['plate'],
+      ),
+      status: _textValue(json['status']),
+      deliveryDate: _textValue(
+        json['contract_delivery_date'] ??
+            json['deliveryDate'] ??
+            json['targetDelivery'],
+      ),
+    );
+  }
+}
+
 class CatalogMedia {
   const CatalogMedia({
     required this.id,
@@ -144,6 +201,8 @@ class CatalogReference {
     required this.id,
     required this.componentName,
     required this.panelName,
+    this.itemCount = 0,
+    this.surveyedCount = 0,
     this.media = const [],
     this.items = const [],
   });
@@ -151,22 +210,37 @@ class CatalogReference {
   final int id;
   final String componentName;
   final String panelName;
+  final int itemCount;
+  final int surveyedCount;
   final List<CatalogMedia> media;
   final List<CatalogItem> items;
 
-  factory CatalogReference.fromJson(Map<String, dynamic> json) =>
-      CatalogReference(
-        id: _intValue(json['id']),
-        componentName:
-            _textValue(_pick(json, 'component_name', 'componentName')) ?? '',
-        panelName: _textValue(_pick(json, 'panel_name', 'panelName')) ?? '',
-        media: (json['media'] as List<dynamic>? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .map(CatalogMedia.fromJson)
-            .toList(),
-        items: (json['items'] as List<dynamic>? ?? [])
-            .whereType<Map<String, dynamic>>()
-            .map(CatalogItem.fromJson)
-            .toList(),
-      );
+  factory CatalogReference.fromJson(Map<String, dynamic> json) {
+    final media = (json['media'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(CatalogMedia.fromJson)
+        .toList();
+    final diagramImage = _textValue(
+      json['diagram_image_url'] ?? json['diagramImageUrl'] ?? json['imageUrl'],
+    );
+    if (diagramImage != null && media.isEmpty) {
+      media.add(CatalogMedia(id: 0, fileUrl: diagramImage));
+    }
+    final items = (json['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(CatalogItem.fromJson)
+        .toList();
+    return CatalogReference(
+      id: _intValue(json['id']),
+      componentName:
+          _textValue(_pick(json, 'component_name', 'componentName')) ?? '',
+      panelName: _textValue(_pick(json, 'panel_name', 'panelName')) ?? '',
+      itemCount: _intValue(_pick(json, 'item_count', 'itemCount')) == 0
+          ? items.length
+          : _intValue(_pick(json, 'item_count', 'itemCount')),
+      surveyedCount: _intValue(_pick(json, 'surveyed_count', 'surveyedCount')),
+      media: media,
+      items: items,
+    );
+  }
 }
