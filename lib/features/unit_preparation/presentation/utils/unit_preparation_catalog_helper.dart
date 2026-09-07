@@ -1,13 +1,14 @@
 /*
 Tujuan: Helper ringan untuk search catalog mobile dan marker posisi/foto.
 Caller: UnitPreparationPage dan flutter test unit preparation.
-Dependensi: dart:convert dan model unit preparation.
+Dependensi: dart:convert, ApiEndpoints, dan model unit preparation.
 Main Functions: buildSearchEntries(), searchEntries(), item labels, batch payload, encode/decode annotation.
 Side Effects: Tidak ada.
 */
 
 import 'dart:convert';
 
+import '../../../../core/network/api_endpoints.dart';
 import '../../domain/entities/unit_preparation_models.dart';
 
 class CatalogSearchEntry {
@@ -485,6 +486,13 @@ class UnitPreparationCatalogHelper {
   static CatalogMedia? pickActualPhoto(List<CatalogMedia> media) {
     if (media.isEmpty) return null;
     return media.last;
+  }
+
+  static String imageUrl(String rawUrl) {
+    final url = rawUrl.trim();
+    if (url.isEmpty || url.contains('/api/v1/proxy/image?url=')) return url;
+    if (!url.contains('.r2.dev')) return url;
+    return '${ApiEndpoints.baseUrl}/api/v1/proxy/image?url=${Uri.encodeComponent(url)}';
   }
 
   static int _confirmedRank(CatalogItem item) => item.isConfirmed ? 1 : 0;

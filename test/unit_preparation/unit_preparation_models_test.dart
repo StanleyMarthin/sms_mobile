@@ -91,6 +91,15 @@ void main() {
     );
   });
 
+  test('catalog media accepts backend image url aliases', () {
+    final media = CatalogMedia.fromJson({
+      'id': 12,
+      'url_image': 'https://cdn.example.com/panel.jpg',
+    });
+
+    expect(media.fileUrl, 'https://cdn.example.com/panel.jpg');
+  });
+
   test('mapping memakai koordinat normalized percent', () {
     final item = CatalogItem.fromJson({
       'id': 127,

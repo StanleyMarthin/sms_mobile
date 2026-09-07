@@ -139,7 +139,19 @@ class CatalogMedia {
 
   factory CatalogMedia.fromJson(Map<String, dynamic> json) => CatalogMedia(
     id: _intValue(json['id']),
-    fileUrl: _textValue(_pick(json, 'file_url', 'fileUrl')) ?? '',
+    fileUrl:
+        _textValue(
+          _pickAny(json, [
+            'file_url',
+            'fileUrl',
+            'url_image',
+            'urlImage',
+            'image_url',
+            'imageUrl',
+            'url',
+          ]),
+        ) ??
+        '',
     caption: _textValue(json['caption']),
     sortOrder: _intValue(_pick(json, 'sort_order', 'sortOrder')),
   );

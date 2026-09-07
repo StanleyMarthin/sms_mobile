@@ -391,6 +391,17 @@ void main() {
     expect(markers, isEmpty);
   });
 
+  test('proxies R2 image urls through API gateway', () {
+    final url = UnitPreparationCatalogHelper.imageUrl(
+      'https://pub-abc.r2.dev/panel.jpg',
+    );
+
+    expect(
+      url,
+      'https://api.stanleymarthin.com/api/v1/proxy/image?url=https%3A%2F%2Fpub-abc.r2.dev%2Fpanel.jpg',
+    );
+  });
+
   test('maps API and network errors to workshop-safe messages', () {
     expect(
       UnitPreparationCatalogHelper.errorLabel(statusCode: 401),

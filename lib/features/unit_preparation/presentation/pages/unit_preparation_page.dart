@@ -1327,7 +1327,9 @@ class _PositionMarkerSheetState extends State<_PositionMarkerSheet> {
                                   minScale: 1,
                                   maxScale: 3,
                                   child: Image.network(
-                                    image.fileUrl,
+                                    UnitPreparationCatalogHelper.imageUrl(
+                                      image.fileUrl,
+                                    ),
                                     fit: BoxFit.contain,
                                     errorBuilder: (_, _, _) => const Center(
                                       child: Icon(Icons.broken_image_outlined),
@@ -1665,7 +1667,7 @@ class _ReferenceImageStrip extends StatelessWidget {
                   minScale: 1,
                   maxScale: 3,
                   child: Image.network(
-                    image.fileUrl,
+                    UnitPreparationCatalogHelper.imageUrl(image.fileUrl),
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) =>
                         const Center(child: Icon(Icons.broken_image_outlined)),
@@ -2437,7 +2439,7 @@ class _ActualPhotoPreview extends StatelessWidget {
                         Image.file(File(localPath!), fit: BoxFit.contain)
                       else
                         Image.network(
-                          remoteUrl!,
+                          UnitPreparationCatalogHelper.imageUrl(remoteUrl!),
                           fit: BoxFit.contain,
                           errorBuilder: (_, _, _) => const Center(
                             child: Icon(Icons.broken_image_outlined),
