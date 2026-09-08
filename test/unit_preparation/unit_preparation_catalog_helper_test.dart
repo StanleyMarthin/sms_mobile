@@ -258,6 +258,7 @@ void main() {
           catalogReferenceMediaId: 10,
           xPercent: 45,
           yPercent: 32,
+          page: 1,
         ),
       );
       final marker = UnitPreparationCatalogHelper.decodePositionMarker(
@@ -272,15 +273,30 @@ void main() {
         ],
       );
 
-      expect(position, '{"x":0.45,"y":0.32}');
+      expect(position, '{"x":0.45,"y":0.32,"page":1}');
       expect(marker?.xPercent, 45);
       expect(marker?.yPercent, 32);
+      expect(marker?.page, 1);
+      expect(
+        UnitPreparationCatalogHelper.positionDisplayLabel(position),
+        isNull,
+      );
       expect(
         UnitPreparationCatalogHelper.itemPrimaryLabel(
           reference.items.single,
           reference,
         ),
         '',
+      );
+    },
+  );
+
+  test(
+    'position display label hides coordinates but keeps catalog position',
+    () {
+      expect(
+        UnitPreparationCatalogHelper.positionDisplayLabel('No 15'),
+        'No 15',
       );
     },
   );

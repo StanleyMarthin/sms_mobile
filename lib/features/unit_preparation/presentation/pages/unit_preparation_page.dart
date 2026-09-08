@@ -61,6 +61,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
   UnitPreparationUnit? selectedUnit;
   String selectedComponent = '';
   CatalogReference? selectedReference;
+  int? highlightedItemId;
   String unitQuery = '';
   String catalogQuery = '';
   String panelQuery = '';
@@ -228,6 +229,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       step = _PreparationStep.components;
       selectedComponent = '';
       selectedReference = null;
+      highlightedItemId = null;
       catalogQuery = '';
       panelQuery = '';
       partQuery = '';
@@ -509,22 +511,10 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     }
   }
 
-  Future<void> openPositionMarker(CatalogSearchEntry entry) async {
-    final result = await showModalBottomSheet<_PositionMarkerResult>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _PositionMarkerSheet(
-        reference: entry.reference,
-        item: entry.item,
-        initial:
-            UnitPreparationCatalogHelper.decodePositionMarker(
-              entry.item.positionCode,
-            ) ??
-            entry.item.mappings.firstOrNull,
-      ),
-    );
-    if (result == null) return;
-    final mapping = result.mapping;
+  Future<void> savePositionMarker(
+    CatalogSearchEntry entry,
+    CatalogMapping? mapping,
+  ) async {
     try {
       final updated = await datasource.savePanelItemsBatch(
         unitId: currentUnitId,
@@ -560,6 +550,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     setState(() {
       selectedComponent = component;
       selectedReference = null;
+      highlightedItemId = null;
       panelQuery = '';
       panelSearchController.clear();
       step = _PreparationStep.panels;
@@ -570,6 +561,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
   Future<void> selectPanel(CatalogReference reference) async {
     setState(() {
       selectedReference = reference;
+      highlightedItemId = null;
       partQuery = '';
       partSearchController.clear();
       step = _PreparationStep.panel;
@@ -586,6 +578,14 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
         );
       }
     }
+  }
+
+  Future<void> openPartDetail(CatalogSearchEntry entry) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _PartDetailSheet(entry: entry),
+    );
   }
 
   Future<void> openSurvey(CatalogSearchEntry entry) async {
@@ -608,6 +608,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
           itemId: entry.item.id,
           survey: survey,
         ),
+        onSavePosition: (mapping) => savePositionMarker(entry, mapping),
       ),
     );
     if (result != null) {
@@ -731,7 +732,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
                   onTap: () async {
                     await selectPanel(entry.reference);
                     if (!mounted) return;
-                    await openSurvey(entry);
+                    setState(() => highlightedItemId = entry.item.id);
                   },
                 ),
               ),
@@ -800,68 +801,84 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       return const _EmptyCatalogState(message: 'Panel tidak ditemukan.');
     }
     final entries = panelEntries;
-    final markerTarget =
-        entries.where((entry) => !entry.item.isConfirmed).firstOrNull ??
-        entries.firstOrNull;
-    return ListView(
-      controller: partScrollController,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+    final highlightedEntry = highlightedItemId == null
+        ? null
+        : entries
+              .where((entry) => entry.item.id == highlightedItemId)
+              .firstOrNull;
+    return Column(
       children: [
-        _UnitSummaryHeader(
-          title: '${reference.componentName} > ${reference.panelName}',
-          subtitle: unitTitle,
-          onBack: () => setState(() => step = _PreparationStep.panels),
-        ),
-        const SizedBox(height: 12),
-        _SectionLabel('Gambar Referensi Panel'),
-        const SizedBox(height: 8),
-        _ReferenceImageStrip(
-          media: reference.media,
-          onTap: markerTarget == null
-              ? null
-              : () => openPositionMarker(markerTarget),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                '${reference.itemCount} Part',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _UnitSummaryHeader(
+                title: '${reference.componentName} > ${reference.panelName}',
+                subtitle: unitTitle,
+                onBack: () => setState(() => step = _PreparationStep.panels),
               ),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => openAddItems(reference),
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('Tambah Item'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: partSearchController,
-          decoration: const InputDecoration(
-            labelText: 'Cari part',
-            prefixIcon: Icon(Icons.search_rounded),
-          ),
-          onChanged: (value) => setState(() => partQuery = value),
-        ),
-        const SizedBox(height: 8),
-        if (entries.isEmpty)
-          const _EmptyCatalogState(message: 'Part tidak ditemukan.')
-        else
-          ...entries.map(
-            (entry) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _PartRow(
-                entry: entry,
-                onTap: () => openSurvey(entry),
-                onPosition: () => openPositionMarker(entry),
+              const SizedBox(height: 12),
+              _SectionLabel('Gambar Referensi Panel'),
+              const SizedBox(height: 8),
+              _ReferenceImageStrip(
+                media: reference.media,
+                selectedEntry: highlightedEntry,
               ),
-            ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${reference.itemCount} Part',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => openAddItems(reference),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Tambah Item'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: partSearchController,
+                decoration: const InputDecoration(
+                  labelText: 'Cari part',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+                onChanged: (value) => setState(() => partQuery = value),
+              ),
+              const SizedBox(height: 8),
+            ],
           ),
+        ),
+        Expanded(
+          child: entries.isEmpty
+              ? const _EmptyCatalogState(message: 'Part tidak ditemukan.')
+              : ListView.separated(
+                  controller: partScrollController,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                  itemCount: entries.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final entry = entries[index];
+                    return _PartRow(
+                      entry: entry,
+                      selected: entry.item.id == highlightedItemId,
+                      onTap: () =>
+                          setState(() => highlightedItemId = entry.item.id),
+                      onDetail: () => openPartDetail(entry),
+                      onSurvey: entry.item.isConfirmed
+                          ? null
+                          : () => openSurvey(entry),
+                    );
+                  },
+                ),
+        ),
       ],
     );
   }
@@ -1186,209 +1203,6 @@ class _BatchItemControllers {
   }
 }
 
-class _PositionMarkerResult {
-  const _PositionMarkerResult(this.mapping);
-
-  final CatalogMapping? mapping;
-}
-
-class _PositionMarkerSheet extends StatefulWidget {
-  const _PositionMarkerSheet({
-    required this.reference,
-    required this.item,
-    this.initial,
-  });
-
-  final CatalogReference reference;
-  final CatalogItem item;
-  final CatalogMapping? initial;
-
-  @override
-  State<_PositionMarkerSheet> createState() => _PositionMarkerSheetState();
-}
-
-class _PositionMarkerSheetState extends State<_PositionMarkerSheet> {
-  late CatalogMedia? selectedImage;
-  double? xPercent;
-  double? yPercent;
-
-  @override
-  void initState() {
-    super.initState();
-    selectedImage =
-        widget.reference.media
-            .where(
-              (media) => media.id == widget.initial?.catalogReferenceMediaId,
-            )
-            .firstOrNull ??
-        widget.reference.media.firstOrNull;
-    xPercent = widget.initial?.xPercent;
-    yPercent = widget.initial?.yPercent;
-  }
-
-  void placeMarker(TapUpDetails details, BoxConstraints constraints) {
-    if (constraints.maxWidth <= 0 || constraints.maxHeight <= 0) return;
-    setState(() {
-      xPercent = (details.localPosition.dx / constraints.maxWidth * 100)
-          .clamp(0.0, 100.0)
-          .toDouble();
-      yPercent = (details.localPosition.dy / constraints.maxHeight * 100)
-          .clamp(0.0, 100.0)
-          .toDouble();
-    });
-  }
-
-  CatalogMapping? buildMapping() {
-    final image = selectedImage;
-    if (image == null ||
-        image.id <= 0 ||
-        xPercent == null ||
-        yPercent == null) {
-      return null;
-    }
-    return CatalogMapping(
-      id: widget.initial?.id ?? 0,
-      catalogReferenceMediaId: image.id,
-      xPercent: xPercent!,
-      yPercent: yPercent!,
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final image = selectedImage;
-    final title = UnitPreparationCatalogHelper.itemPrimaryLabel(
-      widget.item,
-      widget.reference,
-    );
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.86,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Tandai Posisi $title',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() {
-                      xPercent = null;
-                      yPercent = null;
-                    }),
-                    child: const Text('Hapus'),
-                  ),
-                ],
-              ),
-            ),
-            if (widget.reference.media.length > 1)
-              SizedBox(
-                height: 44,
-                child: ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: widget.reference.media.length,
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final media = widget.reference.media[index];
-                    return ChoiceChip(
-                      label: Text('Gambar ${index + 1}'),
-                      selected: media.id == selectedImage?.id,
-                      onSelected: (_) => setState(() => selectedImage = media),
-                    );
-                  },
-                ),
-              ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: image == null
-                    ? const _EmptyCatalogState(
-                        message: 'Belum ada gambar referensi',
-                      )
-                    : LayoutBuilder(
-                        builder: (context, constraints) {
-                          return GestureDetector(
-                            onTapUp: (details) =>
-                                placeMarker(details, constraints),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                InteractiveViewer(
-                                  minScale: 1,
-                                  maxScale: 3,
-                                  child: Image.network(
-                                    UnitPreparationCatalogHelper.imageUrl(
-                                      image.fileUrl,
-                                    ),
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, _, _) => const Center(
-                                      child: Icon(Icons.broken_image_outlined),
-                                    ),
-                                  ),
-                                ),
-                                if (xPercent != null && yPercent != null)
-                                  Positioned(
-                                    left:
-                                        constraints.maxWidth *
-                                            (xPercent! / 100) -
-                                        14,
-                                    top:
-                                        constraints.maxHeight *
-                                            (yPercent! / 100) -
-                                        28,
-                                    child: const Icon(
-                                      Icons.push_pin,
-                                      color: Colors.redAccent,
-                                      size: 32,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Kembali'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(
-                        context,
-                        _PositionMarkerResult(buildMapping()),
-                      ),
-                      child: const Text('Simpan Posisi'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _UnitCard extends StatelessWidget {
   const _UnitCard({required this.unit, required this.onTap});
 
@@ -1636,10 +1450,20 @@ class _GlobalCatalogResultCard extends StatelessWidget {
 }
 
 class _ReferenceImageStrip extends StatelessWidget {
-  const _ReferenceImageStrip({required this.media, this.onTap});
+  const _ReferenceImageStrip({
+    required this.media,
+    this.selectedEntry,
+    this.marker,
+    this.onTapUp,
+    this.onPageChanged,
+  });
 
   final List<CatalogMedia> media;
-  final VoidCallback? onTap;
+  final CatalogSearchEntry? selectedEntry;
+  final CatalogMapping? marker;
+  final void Function(TapUpDetails details, BoxConstraints constraints)?
+  onTapUp;
+  final ValueChanged<int>? onPageChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1657,49 +1481,109 @@ class _ReferenceImageStrip extends StatelessWidget {
     return SizedBox(
       height: 220,
       child: PageView(
+        onPageChanged: (index) => onPageChanged?.call(index + 1),
         children: [
-          for (final image in media)
-            GestureDetector(
-              onTap: onTap,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: InteractiveViewer(
-                  minScale: 1,
-                  maxScale: 3,
-                  child: Image.network(
-                    UnitPreparationCatalogHelper.imageUrl(image.fileUrl),
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) =>
-                        const Center(child: Icon(Icons.broken_image_outlined)),
+          for (var index = 0; index < media.length; index++)
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final image = media[index];
+                final visibleMarker = marker ?? _markerFor(selectedEntry);
+                final showMarker =
+                    visibleMarker != null && visibleMarker.page == index + 1;
+                final content = ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      InteractiveViewer(
+                        minScale: 1,
+                        maxScale: 3,
+                        child: Image.network(
+                          UnitPreparationCatalogHelper.imageUrl(image.fileUrl),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const Center(
+                            child: Icon(Icons.broken_image_outlined),
+                          ),
+                        ),
+                      ),
+                      if (showMarker)
+                        Positioned(
+                          left:
+                              constraints.maxWidth *
+                                  (visibleMarker.xPercent / 100) -
+                              14,
+                          top:
+                              constraints.maxHeight *
+                                  (visibleMarker.yPercent / 100) -
+                              26,
+                          child: const Icon(
+                            Icons.push_pin,
+                            color: Colors.redAccent,
+                            size: 30,
+                          ),
+                        ),
+                      if (selectedEntry != null)
+                        Positioned(
+                          left: 8,
+                          right: 8,
+                          bottom: 8,
+                          child: _SelectedPartInfo(entry: selectedEntry!),
+                        ),
+                    ],
                   ),
-                ),
-              ),
+                );
+                if (onTapUp == null) return content;
+                return GestureDetector(
+                  onTapUp: (details) => onTapUp!(details, constraints),
+                  child: content,
+                );
+              },
             ),
         ],
       ),
     );
+  }
+
+  CatalogMapping? _markerFor(CatalogSearchEntry? entry) {
+    if (entry == null) return null;
+    return UnitPreparationCatalogHelper.decodePositionMarker(
+          entry.item.positionCode,
+        ) ??
+        entry.item.mappings.firstOrNull;
   }
 }
 
 class _PartRow extends StatelessWidget {
   const _PartRow({
     required this.entry,
+    required this.selected,
     required this.onTap,
-    required this.onPosition,
+    required this.onDetail,
+    required this.onSurvey,
   });
 
   final CatalogSearchEntry entry;
+  final bool selected;
   final VoidCallback onTap;
-  final VoidCallback onPosition;
+  final VoidCallback onDetail;
+  final VoidCallback? onSurvey;
 
   @override
   Widget build(BuildContext context) {
     final item = entry.item;
+    final alias = UnitPreparationCatalogHelper.itemPrimaryLabel(
+      item,
+      entry.reference,
+    );
     return Material(
-      color: Theme.of(context).colorScheme.surface,
+      color: selected
+          ? AppColors.gold.withValues(alpha: 0.10)
+          : Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: Theme.of(context).dividerColor),
+        side: BorderSide(
+          color: selected ? AppColors.gold : Theme.of(context).dividerColor,
+        ),
       ),
       child: InkWell(
         onTap: onTap,
@@ -1713,37 +1597,78 @@ class _PartRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      UnitPreparationCatalogHelper.itemPrimaryLabel(
-                        item,
-                        entry.reference,
-                      ),
+                      item.code ?? '-',
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 2),
-                    Text(UnitPreparationCatalogHelper.itemSecondaryLabel(item)),
+                    Text(UnitPreparationCatalogHelper.itemOriginalLabel(item)),
                     const SizedBox(height: 2),
                     Text(
-                      'Original: ${UnitPreparationCatalogHelper.itemOriginalLabel(item)}',
+                      UnitPreparationCatalogHelper.itemSecondaryLabel(item),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textMuted,
                       ),
                     ),
+                    if (alias.isNotEmpty)
+                      Text(
+                        'Alias: $alias',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textMuted,
+                        ),
+                      ),
                   ],
                 ),
               ),
               _StatusPill(item: item),
               IconButton(
                 tooltip: 'Detail',
-                onPressed: onTap,
+                onPressed: onDetail,
                 icon: const Icon(Icons.description_outlined),
               ),
-              IconButton(
-                tooltip: 'Mark',
-                onPressed: onPosition,
-                icon: const Icon(Icons.push_pin_outlined),
-              ),
+              if (onSurvey != null)
+                IconButton(
+                  tooltip: 'Data',
+                  onPressed: onSurvey,
+                  icon: const Icon(Icons.fact_check_outlined),
+                ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectedPartInfo extends StatelessWidget {
+  const _SelectedPartInfo({required this.entry});
+
+  final CatalogSearchEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = entry.item;
+    final position = UnitPreparationCatalogHelper.positionDisplayLabel(
+      item.positionCode,
+    );
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: DefaultTextStyle(
+        style: Theme.of(context).textTheme.bodySmall!.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(item.code ?? '-'),
+            Text(UnitPreparationCatalogHelper.itemOriginalLabel(item)),
+            if (position != null) Text('Position: $position'),
+          ],
         ),
       ),
     );
@@ -1862,6 +1787,87 @@ String _unitPreparationErrorMessage(Object error, {required String fallback}) {
   return friendlyMessage(error, fallback: fallback);
 }
 
+class _PartDetailSheet extends StatelessWidget {
+  const _PartDetailSheet({required this.entry});
+
+  final CatalogSearchEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = entry.item;
+    final alias = item.isConfirmed ? item.aliasName : null;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Detail Part',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            _DetailLine(label: 'Code', value: item.code ?? '-'),
+            _DetailLine(
+              label: 'Original Name',
+              value: UnitPreparationCatalogHelper.itemOriginalLabel(item),
+            ),
+            if (alias != null && alias.trim().isNotEmpty)
+              _DetailLine(label: 'Alias Name', value: alias),
+            _DetailLine(
+              label: 'Part Number',
+              value: UnitPreparationCatalogHelper.itemSecondaryLabel(item),
+            ),
+            _DetailLine(
+              label: 'Qty Normal',
+              value: item.qtyNormal?.toString() ?? '-',
+            ),
+            _DetailLine(
+              label: 'Reference Panel',
+              value:
+                  '${entry.reference.componentName} > ${entry.reference.panelName}',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailLine extends StatelessWidget {
+  const _DetailLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+  }
+}
+
 class _SurveySheet extends StatefulWidget {
   const _SurveySheet({
     required this.item,
@@ -1870,6 +1876,7 @@ class _SurveySheet extends StatefulWidget {
     required this.uploadService,
     required this.onAddPhoto,
     required this.onConfirm,
+    required this.onSavePosition,
   });
 
   final CatalogItem item;
@@ -1879,6 +1886,7 @@ class _SurveySheet extends StatefulWidget {
   final Future<void> Function(String fileUrl, String? caption) onAddPhoto;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic> survey)
   onConfirm;
+  final Future<void> Function(CatalogMapping? mapping) onSavePosition;
 
   @override
   State<_SurveySheet> createState() => _SurveySheetState();
@@ -1894,6 +1902,9 @@ class _SurveySheetState extends State<_SurveySheet> {
   String? photoPath;
   String? existingPhotoUrl;
   CatalogAnnotationMarker? actualMarker;
+  CatalogMapping? referenceMarker;
+  int referencePage = 1;
+  bool referenceMarkerChanged = false;
   bool markerChanged = false;
   bool submitting = false;
 
@@ -1914,6 +1925,12 @@ class _SurveySheetState extends State<_SurveySheet> {
       widget.item.media,
     );
     actualMarker = markers.isEmpty ? null : markers.last;
+    referenceMarker =
+        UnitPreparationCatalogHelper.decodePositionMarker(
+          widget.item.positionCode,
+        ) ??
+        widget.item.mappings.firstOrNull;
+    referencePage = referenceMarker?.page ?? 1;
   }
 
   @override
@@ -1944,6 +1961,9 @@ class _SurveySheetState extends State<_SurveySheet> {
 
     try {
       final survey = buildSurvey();
+      if (referenceMarkerChanged) {
+        await widget.onSavePosition(referenceMarker);
+      }
       await widget.onConfirm(survey);
 
       if (photoPath != null) {
@@ -2065,12 +2085,32 @@ class _SurveySheetState extends State<_SurveySheet> {
     });
   }
 
+  void placeReferenceMarker(TapUpDetails details, BoxConstraints constraints) {
+    if (constraints.maxWidth <= 0 || constraints.maxHeight <= 0) return;
+    setState(() {
+      referenceMarker = CatalogMapping(
+        id: referenceMarker?.id ?? 0,
+        catalogReferenceMediaId:
+            referencePage > 0 && referencePage <= widget.reference.media.length
+            ? widget.reference.media[referencePage - 1].id
+            : 0,
+        xPercent: (details.localPosition.dx / constraints.maxWidth * 100)
+            .clamp(0.0, 100.0)
+            .toDouble(),
+        yPercent: (details.localPosition.dy / constraints.maxHeight * 100)
+            .clamp(0.0, 100.0)
+            .toDouble(),
+        page: referencePage,
+      );
+      referenceMarkerChanged = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title = UnitPreparationCatalogHelper.itemPrimaryLabel(
-      widget.item,
-      widget.reference,
-    );
+    final title = widget.item.code?.trim().isNotEmpty == true
+        ? widget.item.code!
+        : UnitPreparationCatalogHelper.itemOriginalLabel(widget.item);
     final canEdit = !widget.item.isConfirmed;
     return SafeArea(
       child: Padding(
@@ -2081,6 +2121,19 @@ class _SurveySheetState extends State<_SurveySheet> {
           height: MediaQuery.of(context).size.height * 0.92,
           child: Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _ReferenceImageStrip(
+                  media: widget.reference.media,
+                  selectedEntry: CatalogSearchEntry(
+                    reference: widget.reference,
+                    item: widget.item,
+                  ),
+                  marker: referenceMarker,
+                  onPageChanged: (page) => referencePage = page,
+                  onTapUp: canEdit ? placeReferenceMarker : null,
+                ),
+              ),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),

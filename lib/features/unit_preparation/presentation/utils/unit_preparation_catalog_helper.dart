@@ -420,6 +420,7 @@ class UnitPreparationCatalogHelper {
     return jsonEncode({
       'x': (marker.xPercent / 100).clamp(0.0, 1.0).toDouble(),
       'y': (marker.yPercent / 100).clamp(0.0, 1.0).toDouble(),
+      'page': marker.page <= 0 ? 1 : marker.page,
     });
   }
 
@@ -437,10 +438,19 @@ class UnitPreparationCatalogHelper {
         catalogReferenceMediaId: 0,
         xPercent: (x * 100).clamp(0.0, 100.0).toDouble(),
         yPercent: (y * 100).clamp(0.0, 100.0).toDouble(),
+        page: _intValue(payload['page']).clamp(1, 999),
       );
     } catch (_) {
       return null;
     }
+  }
+
+  static String? positionDisplayLabel(String? position) {
+    final text = _textValue(position);
+    if (text == null || text.startsWith('{') || text.startsWith('[')) {
+      return null;
+    }
+    return text;
   }
 
   static String encodeActualPhotoCaption(
@@ -506,6 +516,8 @@ double? _doubleValue(Object? value) {
   if (value == null) return null;
   return double.tryParse('$value');
 }
+
+int _intValue(Object? value) => int.tryParse('${value ?? 0}') ?? 0;
 
 String _normalize(String value) => value.trim().toLowerCase();
 

@@ -163,12 +163,14 @@ class CatalogMapping {
     required this.catalogReferenceMediaId,
     required this.xPercent,
     required this.yPercent,
+    this.page = 1,
   });
 
   final int id;
   final int catalogReferenceMediaId;
   final double xPercent;
   final double yPercent;
+  final int page;
 
   factory CatalogMapping.fromJson(Map<String, dynamic> json) => CatalogMapping(
     id: _intValue(json['id']),
@@ -177,6 +179,7 @@ class CatalogMapping {
     ),
     xPercent: _doubleValue(_pick(json, 'x_percent', 'xPercent')) ?? 0,
     yPercent: _doubleValue(_pick(json, 'y_percent', 'yPercent')) ?? 0,
+    page: _intValue(json['page']) <= 0 ? 1 : _intValue(json['page']),
   );
 }
 

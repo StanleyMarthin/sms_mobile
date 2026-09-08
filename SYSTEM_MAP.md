@@ -960,10 +960,12 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; component list bisa derive dari response countdown jika component master API belum tersedia
 → Selected panel hydrate via /catalog/{panel_id}
 → Panel list punya + Tambah Panel: create panel master via existing catalog API, optional image, optional lanjut batch item
-→ Panel workspace image-first dari catalog_panel_images/media lalu compact part list panel-only dan + Tambah Item batch rows
-→ Compact tappable rows; alias/primary kosong sebelum CONFIRMED, alias hanya tampil setelah pendataan jika diisi, original name_part tetap di baris detail, secondary part_number, status Sudah/Belum didata
-→ Panel image tap atau item Mark membuka mode Tandai Lokasi; marker disimpan normalized JSON di unit_catalog.position tanpa menampilkan koordinat
-→ Survey bottom sheet: checkbox-style availability/condition/progress, Foto Part optional, sticky Kembali/Simpan Data, confirm via POST confirm
+→ Panel workspace image-first fixed dari catalog_panel_images/media; search + part list scroll di bawah image
+→ Klik part hanya select/highlight info/marker pada gambar; tidak membuka survey
+→ Compact rows: code, original name_part, alias hanya setelah pendataan jika diisi, secondary part_number, status Sudah/Belum didata, action Detail/Data
+→ Detail action read-only; Data action membuka survey bila belum CONFIRMED
+→ Survey bottom sheet: gambar referensi fixed untuk klik marker; checkbox-style availability/condition/progress, Foto Part optional, sticky Kembali/Simpan Data, confirm via POST confirm
+→ Marker posisi panel disimpan normalized JSON {"x":0.43,"y":0.67,"page":1} di unit_catalog.position tanpa menampilkan koordinat
 → Foto Part optional: camera/gallery → preview → tap/reposition/remove marker → upload/media caption
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media
 → Catalog survey CONFIRMED readonly; confirm materializes master_panels tanpa membuat countdown/WO/PR
