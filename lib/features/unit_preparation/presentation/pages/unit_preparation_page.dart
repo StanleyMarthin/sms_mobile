@@ -1500,37 +1500,43 @@ class _ReferenceImageStrip extends StatelessWidget {
                   errorBuilder: (_, _, _) =>
                       const Center(child: Icon(Icons.broken_image_outlined)),
                 );
+                final markerOffset = showMarker
+                    ? UnitPreparationCatalogHelper.panelMarkerOffset(
+                        width: constraints.maxWidth,
+                        height: constraints.maxHeight,
+                        xPercent: visibleMarker.xPercent,
+                        yPercent: visibleMarker.yPercent,
+                      )
+                    : null;
+                final imageWithMarker = Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    imageWidget,
+                    if (markerOffset != null)
+                      Positioned(
+                        left: markerOffset.left,
+                        top: markerOffset.top,
+                        child: const Icon(
+                          Icons.push_pin,
+                          color: Colors.redAccent,
+                          size: 30,
+                        ),
+                      ),
+                  ],
+                );
                 final content = ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (zoomEnabled)
-                        InteractiveViewer(
+                  child: zoomEnabled
+                      ? InteractiveViewer(
                           minScale: 1,
                           maxScale: 3,
-                          child: imageWidget,
-                        )
-                      else
-                        imageWidget,
-                      if (showMarker)
-                        Positioned(
-                          left:
-                              constraints.maxWidth *
-                                  (visibleMarker.xPercent / 100) -
-                              14,
-                          top:
-                              constraints.maxHeight *
-                                  (visibleMarker.yPercent / 100) -
-                              26,
-                          child: const Icon(
-                            Icons.push_pin,
-                            color: Colors.redAccent,
-                            size: 30,
+                          child: SizedBox(
+                            width: constraints.maxWidth,
+                            height: constraints.maxHeight,
+                            child: imageWithMarker,
                           ),
-                        ),
-                    ],
-                  ),
+                        )
+                      : imageWithMarker,
                 );
                 if (onTapUp == null) return content;
                 return GestureDetector(

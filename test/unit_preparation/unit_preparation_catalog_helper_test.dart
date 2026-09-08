@@ -136,6 +136,18 @@ void main() {
     );
   });
 
+  test('panel marker offset follows normalized coordinates', () {
+    final offset = UnitPreparationCatalogHelper.panelMarkerOffset(
+      width: 300,
+      height: 200,
+      xPercent: 50,
+      yPercent: 25,
+    );
+
+    expect(offset.left, 136);
+    expect(offset.top, 24);
+  });
+
   test('builds component navigation summaries from catalog panels', () {
     final summaries = UnitPreparationCatalogHelper.componentSummaries(
       references,

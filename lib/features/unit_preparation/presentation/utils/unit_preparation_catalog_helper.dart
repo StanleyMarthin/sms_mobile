@@ -2,7 +2,7 @@
 Tujuan: Helper ringan untuk search catalog mobile, layout panel, dan marker posisi/foto.
 Caller: UnitPreparationPage dan flutter test unit preparation.
 Dependensi: dart:convert, ApiEndpoints, dan model unit preparation.
-Main Functions: buildSearchEntries(), searchEntries(), panelImageHeight(), item labels, batch payload, encode/decode annotation.
+Main Functions: buildSearchEntries(), searchEntries(), panelImageHeight(), panelMarkerOffset(), item labels, batch payload, encode/decode annotation.
 Side Effects: Tidak ada.
 */
 
@@ -87,6 +87,18 @@ class UnitPreparationCatalogHelper {
   }) {
     if (!keyboardVisible) return 220;
     return (availableHeight * 0.28).clamp(120.0, 160.0).toDouble();
+  }
+
+  static ({double left, double top}) panelMarkerOffset({
+    required double width,
+    required double height,
+    required double xPercent,
+    required double yPercent,
+  }) {
+    return (
+      left: width * (xPercent / 100) - 14,
+      top: height * (yPercent / 100) - 26,
+    );
   }
 
   static List<CatalogSearchEntry> buildSearchEntries(

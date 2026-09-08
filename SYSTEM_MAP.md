@@ -965,7 +965,7 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → Compact rows: alias hanya setelah pendataan jika diisi, original name_part, code, optional part_number, status Sudah/Belum didata, action Detail/Data
 → Detail action read-only; Data action membuka survey bila belum CONFIRMED
 → Survey bottom sheet: gambar referensi fixed, tombol Tandai Letak aktifkan mode tap-marker, checkbox-style availability/condition/progress, Foto Part optional, sticky Kembali/Simpan Data, confirm via POST confirm
-→ Marker posisi panel disimpan normalized JSON {"x":0.43,"y":0.67,"page":1} di unit_catalog.position sebagai data internal tanpa label/coordinate user-facing
+→ Marker posisi panel ikut transform zoom/pan image, disimpan normalized JSON {"x":0.43,"y":0.67,"page":1} di unit_catalog.position sebagai data internal tanpa label/coordinate user-facing
 → Foto Part optional: camera/gallery → preview → tap/reposition/remove marker → upload/media caption
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media
 → Catalog survey CONFIRMED readonly; confirm materializes master_panels tanpa membuat countdown/WO/PR
