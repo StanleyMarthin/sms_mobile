@@ -825,6 +825,10 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
                 media: reference.media,
                 selectedEntry: highlightedEntry,
               ),
+              if (highlightedEntry != null) ...[
+                const SizedBox(height: 6),
+                _SelectedPartInfo(entry: highlightedEntry),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -1037,7 +1041,6 @@ class _BatchItemsSheetState extends State<_BatchItemsSheet> {
             code: row.code.text,
             partNumber: row.partNumber.text,
             itemName: row.itemName.text,
-            position: row.position.text,
             qtyNormal: row.qtyNormal.text,
           ),
         )
@@ -1132,17 +1135,6 @@ class _BatchItemsSheetState extends State<_BatchItemsSheet> {
                             children: [
                               Expanded(
                                 child: TextField(
-                                  controller: row.position,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Detail / Posisi',
-                                    isDense: true,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              SizedBox(
-                                width: 96,
-                                child: TextField(
                                   controller: row.qtyNormal,
                                   decoration: const InputDecoration(
                                     labelText: 'Qty',
@@ -1191,14 +1183,12 @@ class _BatchItemControllers {
   final code = TextEditingController();
   final partNumber = TextEditingController();
   final itemName = TextEditingController();
-  final position = TextEditingController();
   final qtyNormal = TextEditingController();
 
   void dispose() {
     code.dispose();
     partNumber.dispose();
     itemName.dispose();
-    position.dispose();
     qtyNormal.dispose();
   }
 }
@@ -1454,6 +1444,7 @@ class _ReferenceImageStrip extends StatelessWidget {
     required this.media,
     this.selectedEntry,
     this.marker,
+    this.zoomEnabled = true,
     this.onTapUp,
     this.onPageChanged,
   });
@@ -1461,6 +1452,7 @@ class _ReferenceImageStrip extends StatelessWidget {
   final List<CatalogMedia> media;
   final CatalogSearchEntry? selectedEntry;
   final CatalogMapping? marker;
+  final bool zoomEnabled;
   final void Function(TapUpDetails details, BoxConstraints constraints)?
   onTapUp;
   final ValueChanged<int>? onPageChanged;
@@ -1490,22 +1482,25 @@ class _ReferenceImageStrip extends StatelessWidget {
                 final visibleMarker = marker ?? _markerFor(selectedEntry);
                 final showMarker =
                     visibleMarker != null && visibleMarker.page == index + 1;
+                final imageWidget = Image.network(
+                  UnitPreparationCatalogHelper.imageUrl(image.fileUrl),
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, _, _) =>
+                      const Center(child: Icon(Icons.broken_image_outlined)),
+                );
                 final content = ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      InteractiveViewer(
-                        minScale: 1,
-                        maxScale: 3,
-                        child: Image.network(
-                          UnitPreparationCatalogHelper.imageUrl(image.fileUrl),
-                          fit: BoxFit.contain,
-                          errorBuilder: (_, _, _) => const Center(
-                            child: Icon(Icons.broken_image_outlined),
-                          ),
-                        ),
-                      ),
+                      if (zoomEnabled)
+                        InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 3,
+                          child: imageWidget,
+                        )
+                      else
+                        imageWidget,
                       if (showMarker)
                         Positioned(
                           left:
@@ -1521,13 +1516,6 @@ class _ReferenceImageStrip extends StatelessWidget {
                             color: Colors.redAccent,
                             size: 30,
                           ),
-                        ),
-                      if (selectedEntry != null)
-                        Positioned(
-                          left: 8,
-                          right: 8,
-                          bottom: 8,
-                          child: _SelectedPartInfo(entry: selectedEntry!),
                         ),
                     ],
                   ),
@@ -1575,9 +1563,10 @@ class _PartRow extends StatelessWidget {
       item,
       entry.reference,
     );
+    final originalName = UnitPreparationCatalogHelper.itemOriginalLabel(item);
     return Material(
       color: selected
-          ? AppColors.gold.withValues(alpha: 0.10)
+          ? AppColors.gold.withValues(alpha: 0.06)
           : Theme.of(context).colorScheme.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
@@ -1596,22 +1585,31 @@ class _PartRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (alias.isNotEmpty) ...[
+                      Text(
+                        alias,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
                     Text(
-                      item.code ?? '-',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      originalName,
+                      style: TextStyle(
+                        fontWeight: alias.isEmpty
+                            ? FontWeight.w800
+                            : FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 2),
-                    Text(UnitPreparationCatalogHelper.itemOriginalLabel(item)),
-                    const SizedBox(height: 2),
                     Text(
-                      UnitPreparationCatalogHelper.itemSecondaryLabel(item),
+                      item.code ?? 'Code belum diisi',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.textMuted,
                       ),
                     ),
-                    if (alias.isNotEmpty)
+                    if (item.partNumber?.trim().isNotEmpty == true)
                       Text(
-                        'Alias: $alias',
+                        item.partNumber!,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.textMuted,
                         ),
@@ -1647,27 +1645,28 @@ class _SelectedPartInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = entry.item;
-    final position = UnitPreparationCatalogHelper.positionDisplayLabel(
-      item.positionCode,
-    );
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.72),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).dividerColor),
       ),
       child: DefaultTextStyle(
         style: Theme.of(context).textTheme.bodySmall!.copyWith(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           fontWeight: FontWeight.w600,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(item.code ?? '-'),
-            Text(UnitPreparationCatalogHelper.itemOriginalLabel(item)),
-            if (position != null) Text('Position: $position'),
+            if (item.code?.trim().isNotEmpty == true) Text(item.code!),
+            Text(
+              UnitPreparationCatalogHelper.itemOriginalLabel(item),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
       ),
@@ -1905,6 +1904,7 @@ class _SurveySheetState extends State<_SurveySheet> {
   CatalogMapping? referenceMarker;
   int referencePage = 1;
   bool referenceMarkerChanged = false;
+  bool pickingReferenceMarker = false;
   bool markerChanged = false;
   bool submitting = false;
 
@@ -2103,6 +2103,7 @@ class _SurveySheetState extends State<_SurveySheet> {
         page: referencePage,
       );
       referenceMarkerChanged = true;
+      pickingReferenceMarker = false;
     });
   }
 
@@ -2130,8 +2131,40 @@ class _SurveySheetState extends State<_SurveySheet> {
                     item: widget.item,
                   ),
                   marker: referenceMarker,
+                  zoomEnabled: !pickingReferenceMarker,
                   onPageChanged: (page) => referencePage = page,
-                  onTapUp: canEdit ? placeReferenceMarker : null,
+                  onTapUp: canEdit && pickingReferenceMarker
+                      ? placeReferenceMarker
+                      : null,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _SelectedPartInfo(
+                      entry: CatalogSearchEntry(
+                        reference: widget.reference,
+                        item: widget.item,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: submitting || !canEdit
+                          ? null
+                          : () => setState(
+                              () => pickingReferenceMarker =
+                                  !pickingReferenceMarker,
+                            ),
+                      icon: const Icon(Icons.push_pin_outlined),
+                      label: Text(
+                        pickingReferenceMarker
+                            ? 'Ketuk Gambar'
+                            : 'Tandai Letak pada Gambar',
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Expanded(

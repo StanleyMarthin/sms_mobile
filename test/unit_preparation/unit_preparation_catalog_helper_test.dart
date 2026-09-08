@@ -91,7 +91,7 @@ void main() {
     expect(entries.single.item.id, 21);
   });
 
-  test('search finds item by position code with combined filters', () {
+  test('search ignores backend-only position code', () {
     final entries = UnitPreparationCatalogHelper.searchEntries(
       UnitPreparationCatalogHelper.buildSearchEntries(references),
       query: 'DR-RH-02',
@@ -99,8 +99,7 @@ void main() {
       panelFilter: 'DOOR',
     );
 
-    expect(entries, hasLength(1));
-    expect(entries.single.item.id, 21);
+    expect(entries, isEmpty);
   });
 
   test('uses fixed workshop component chips', () {
@@ -278,25 +277,11 @@ void main() {
       expect(marker?.yPercent, 32);
       expect(marker?.page, 1);
       expect(
-        UnitPreparationCatalogHelper.positionDisplayLabel(position),
-        isNull,
-      );
-      expect(
         UnitPreparationCatalogHelper.itemPrimaryLabel(
           reference.items.single,
           reference,
         ),
         '',
-      );
-    },
-  );
-
-  test(
-    'position display label hides coordinates but keeps catalog position',
-    () {
-      expect(
-        UnitPreparationCatalogHelper.positionDisplayLabel('No 15'),
-        'No 15',
       );
     },
   );

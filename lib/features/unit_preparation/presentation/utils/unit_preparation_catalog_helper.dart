@@ -130,7 +130,6 @@ class UnitPreparationCatalogHelper {
           entry.item.actualName,
           entry.item.partNumber,
           entry.item.code,
-          entry.item.positionCode,
         ].whereType<String>().join(' '),
       );
 
@@ -379,7 +378,6 @@ class UnitPreparationCatalogHelper {
       item.partName,
       item.namePart,
       item.actualName,
-      _nonNumericText(item.positionCode),
       item.code,
       reference.panelName,
       item.partNumber,
@@ -405,7 +403,6 @@ class UnitPreparationCatalogHelper {
       item.actualName,
       reference.panelName,
       reference.componentName,
-      _nonNumericText(item.positionCode),
     ];
 
     for (final value in values) {
@@ -443,14 +440,6 @@ class UnitPreparationCatalogHelper {
     } catch (_) {
       return null;
     }
-  }
-
-  static String? positionDisplayLabel(String? position) {
-    final text = _textValue(position);
-    if (text == null || text.startsWith('{') || text.startsWith('[')) {
-      return null;
-    }
-    return text;
   }
 
   static String encodeActualPhotoCaption(
@@ -520,13 +509,6 @@ double? _doubleValue(Object? value) {
 int _intValue(Object? value) => int.tryParse('${value ?? 0}') ?? 0;
 
 String _normalize(String value) => value.trim().toLowerCase();
-
-String? _nonNumericText(String? value) {
-  final text = _textValue(value);
-  if (text == null) return null;
-  if (text.startsWith('{') || text.startsWith('[')) return null;
-  return RegExp(r'^\d+$').hasMatch(text) ? null : text;
-}
 
 String? _textValue(Object? value) {
   final text = '${value ?? ''}'.trim();
