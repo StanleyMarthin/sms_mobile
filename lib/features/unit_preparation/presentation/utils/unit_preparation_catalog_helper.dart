@@ -1,8 +1,8 @@
 /*
-Tujuan: Helper ringan untuk search catalog mobile dan marker posisi/foto.
+Tujuan: Helper ringan untuk search catalog mobile, layout panel, dan marker posisi/foto.
 Caller: UnitPreparationPage dan flutter test unit preparation.
 Dependensi: dart:convert, ApiEndpoints, dan model unit preparation.
-Main Functions: buildSearchEntries(), searchEntries(), item labels, batch payload, encode/decode annotation.
+Main Functions: buildSearchEntries(), searchEntries(), panelImageHeight(), item labels, batch payload, encode/decode annotation.
 Side Effects: Tidak ada.
 */
 
@@ -80,6 +80,14 @@ class UnitPreparationCatalogHelper {
     'BODY',
     'INTERIOR',
   ];
+
+  static double panelImageHeight({
+    required double availableHeight,
+    required bool keyboardVisible,
+  }) {
+    if (!keyboardVisible) return 220;
+    return (availableHeight * 0.28).clamp(120.0, 160.0).toDouble();
+  }
 
   static List<CatalogSearchEntry> buildSearchEntries(
     List<CatalogReference> references,

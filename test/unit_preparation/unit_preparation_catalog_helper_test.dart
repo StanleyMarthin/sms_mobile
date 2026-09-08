@@ -112,6 +112,30 @@ void main() {
     ]);
   });
 
+  test('panel image height stays compact when keyboard is visible', () {
+    expect(
+      UnitPreparationCatalogHelper.panelImageHeight(
+        availableHeight: 760,
+        keyboardVisible: false,
+      ),
+      220,
+    );
+    expect(
+      UnitPreparationCatalogHelper.panelImageHeight(
+        availableHeight: 420,
+        keyboardVisible: true,
+      ),
+      120,
+    );
+    expect(
+      UnitPreparationCatalogHelper.panelImageHeight(
+        availableHeight: 640,
+        keyboardVisible: true,
+      ),
+      160,
+    );
+  });
+
   test('builds component navigation summaries from catalog panels', () {
     final summaries = UnitPreparationCatalogHelper.componentSummaries(
       references,

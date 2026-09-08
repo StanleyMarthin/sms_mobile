@@ -960,7 +960,7 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; component list bisa derive dari response countdown jika component master API belum tersedia
 → Selected panel hydrate via /catalog/{panel_id}
 → Panel list punya + Tambah Panel: create panel master via existing catalog API, optional image, optional lanjut batch item
-→ Panel workspace image-first fixed dari catalog_panel_images/media; search + part list scroll di bawah image
+→ Panel workspace image-first fixed/adaptif keyboard dari catalog_panel_images/media; search + part list scroll di bawah image
 → Klik part hanya select/highlight marker pada gambar; info part tampil ringan di bawah gambar, tidak membuka survey
 → Compact rows: alias hanya setelah pendataan jika diisi, original name_part, code, optional part_number, status Sudah/Belum didata, action Detail/Data
 → Detail action read-only; Data action membuka survey bila belum CONFIRMED

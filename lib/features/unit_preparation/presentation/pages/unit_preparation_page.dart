@@ -800,6 +800,15 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     if (reference == null) {
       return const _EmptyCatalogState(message: 'Panel tidak ditemukan.');
     }
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardVisible = mediaQuery.viewInsets.bottom > 0;
+    final panelImageHeight = UnitPreparationCatalogHelper.panelImageHeight(
+      availableHeight:
+          mediaQuery.size.height -
+          mediaQuery.padding.vertical -
+          mediaQuery.viewInsets.bottom,
+      keyboardVisible: keyboardVisible,
+    );
     final entries = panelEntries;
     final highlightedEntry = highlightedItemId == null
         ? null
@@ -824,6 +833,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
               _ReferenceImageStrip(
                 media: reference.media,
                 selectedEntry: highlightedEntry,
+                height: panelImageHeight,
               ),
               if (highlightedEntry != null) ...[
                 const SizedBox(height: 6),
@@ -1444,6 +1454,7 @@ class _ReferenceImageStrip extends StatelessWidget {
     required this.media,
     this.selectedEntry,
     this.marker,
+    this.height = 220,
     this.zoomEnabled = true,
     this.onTapUp,
     this.onPageChanged,
@@ -1452,6 +1463,7 @@ class _ReferenceImageStrip extends StatelessWidget {
   final List<CatalogMedia> media;
   final CatalogSearchEntry? selectedEntry;
   final CatalogMapping? marker;
+  final double height;
   final bool zoomEnabled;
   final void Function(TapUpDetails details, BoxConstraints constraints)?
   onTapUp;
@@ -1461,7 +1473,7 @@ class _ReferenceImageStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     if (media.isEmpty) {
       return Container(
-        height: 160,
+        height: height,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -1471,7 +1483,7 @@ class _ReferenceImageStrip extends StatelessWidget {
       );
     }
     return SizedBox(
-      height: 220,
+      height: height,
       child: PageView(
         onPageChanged: (index) => onPageChanged?.call(index + 1),
         children: [
@@ -2109,23 +2121,30 @@ class _SurveySheetState extends State<_SurveySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
     final title = widget.item.code?.trim().isNotEmpty == true
         ? widget.item.code!
         : UnitPreparationCatalogHelper.itemOriginalLabel(widget.item);
     final canEdit = !widget.item.isConfirmed;
+    final referenceImageHeight = UnitPreparationCatalogHelper.panelImageHeight(
+      availableHeight:
+          mediaQuery.size.height -
+          mediaQuery.padding.vertical -
+          mediaQuery.viewInsets.bottom,
+      keyboardVisible: mediaQuery.viewInsets.bottom > 0,
+    );
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
+        padding: EdgeInsets.only(bottom: mediaQuery.viewInsets.bottom),
         child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.92,
+          height: mediaQuery.size.height * 0.92,
           child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: _ReferenceImageStrip(
                   media: widget.reference.media,
+                  height: referenceImageHeight,
                   selectedEntry: CatalogSearchEntry(
                     reference: widget.reference,
                     item: widget.item,
