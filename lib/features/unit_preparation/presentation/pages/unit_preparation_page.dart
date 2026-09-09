@@ -72,11 +72,6 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
   bool searchHydrating = false;
   String? message;
 
-  bool get canPromoteCatalog =>
-      sessionManager.hasPerm(Perms.unitCatalogPromote) ||
-      sessionManager.hasPerm(Perms.unitCatalogManage) ||
-      sessionManager.hasPerm('unit_catalog.promote');
-
   @override
   void initState() {
     super.initState();
@@ -456,7 +451,6 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       if (!mounted) return;
       upsertReference(reference);
       setState(() => step = _PreparationStep.panel);
-      if (result.addItems) await openAddItems(reference);
     } catch (error) {
       if (mounted) {
         setState(
@@ -471,49 +465,14 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
     }
   }
 
-  Future<void> openAddItems(CatalogReference reference) async {
-    final rows = await showModalBottomSheet<List<CatalogBatchItemRow>>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _BatchItemsSheet(panelName: reference.panelName),
+  void showAdditionalEndpointGap() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Item tambahan final membutuhkan endpoint unit_additional_items.',
+        ),
+      ),
     );
-    if (rows == null) return;
-    final payloads = UnitPreparationCatalogHelper.batchItemPayloads(rows);
-    if (payloads.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Tidak ada item yang disimpan.')),
-        );
-      }
-      return;
-    }
-    setState(() {
-      loading = true;
-      message = null;
-    });
-    try {
-      final updated = await datasource.savePanelItemsBatch(
-        unitId: currentUnitId,
-        panelId: reference.id,
-        items: payloads,
-      );
-      if (!mounted) return;
-      upsertReference(updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${payloads.length} item disimpan.')),
-      );
-    } catch (error) {
-      if (mounted) {
-        setState(
-          () => message = _unitPreparationErrorMessage(
-            error,
-            fallback: 'Gagal menyimpan item.',
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
   }
 
   Future<void> savePositionMarker(
@@ -602,7 +561,6 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
         unitId: currentUnitId,
         reference: entry.reference,
         uploadService: uploadService,
-        canPromote: canPromoteCatalog,
         onAddPhoto: (fileUrl, caption) => datasource.addActualPhoto(
           unitId: currentUnitId,
           itemId: entry.item.id,
@@ -613,10 +571,6 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
           unitId: currentUnitId,
           itemId: entry.item.id,
           survey: survey,
-        ),
-        onPromote: () => datasource.promoteItem(
-          unitId: currentUnitId,
-          itemId: entry.item.id,
         ),
         onSavePosition: (mapping) => savePositionMarker(entry, mapping),
       ),
@@ -631,8 +585,8 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result == 'promote'
-                ? 'Item dipromote ke Master Panel.'
+            result == 'backend-gap'
+                ? 'Data dikirim, server belum menyimpan survey lengkap.'
                 : 'Data tersimpan.',
           ),
           action: nextEntry == null
@@ -863,9 +817,9 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
                     ),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => openAddItems(reference),
+                    onPressed: showAdditionalEndpointGap,
                     icon: const Icon(Icons.add_rounded),
-                    label: const Text('Tambah Item'),
+                    label: const Text('Item Tambahan'),
                   ),
                 ],
               ),
@@ -898,7 +852,7 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
                       onTap: () =>
                           setState(() => highlightedItemId = entry.item.id),
                       onDetail: () => openPartDetail(entry),
-                      onSurvey: entry.item.isConfirmed
+                      onSurvey: entry.item.isPromoted
                           ? null
                           : () => openSurvey(entry),
                     );
@@ -920,14 +874,9 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
 }
 
 class _PanelCreateResult {
-  const _PanelCreateResult({
-    required this.panelName,
-    required this.addItems,
-    this.imagePath,
-  });
+  const _PanelCreateResult({required this.panelName, this.imagePath});
 
   final String panelName;
-  final bool addItems;
   final String? imagePath;
 }
 
@@ -942,7 +891,6 @@ class _PanelCreateSheet extends StatefulWidget {
 
 class _PanelCreateSheetState extends State<_PanelCreateSheet> {
   final panelController = TextEditingController();
-  bool addItems = true;
   String? imagePath;
 
   @override
@@ -993,12 +941,6 @@ class _PanelCreateSheetState extends State<_PanelCreateSheet> {
               icon: const Icon(Icons.image_outlined),
               label: Text(imagePath == null ? 'Tambah Gambar' : 'Ganti Gambar'),
             ),
-            CheckboxListTile(
-              value: addItems,
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Tambah item setelah simpan'),
-              onChanged: (value) => setState(() => addItems = value ?? true),
-            ),
             Row(
               children: [
                 Expanded(
@@ -1015,7 +957,6 @@ class _PanelCreateSheetState extends State<_PanelCreateSheet> {
                       _PanelCreateResult(
                         panelName: panelController.text,
                         imagePath: imagePath,
-                        addItems: addItems,
                       ),
                     ),
                     child: const Text('Simpan'),
@@ -1027,191 +968,6 @@ class _PanelCreateSheetState extends State<_PanelCreateSheet> {
         ),
       ),
     );
-  }
-}
-
-class _BatchItemsSheet extends StatefulWidget {
-  const _BatchItemsSheet({required this.panelName});
-
-  final String panelName;
-
-  @override
-  State<_BatchItemsSheet> createState() => _BatchItemsSheetState();
-}
-
-class _BatchItemsSheetState extends State<_BatchItemsSheet> {
-  final rows = <_BatchItemControllers>[];
-
-  @override
-  void initState() {
-    super.initState();
-    rows.addAll(List.generate(3, (_) => _BatchItemControllers()));
-  }
-
-  @override
-  void dispose() {
-    for (final row in rows) {
-      row.dispose();
-    }
-    super.dispose();
-  }
-
-  List<CatalogBatchItemRow> buildRows() {
-    return rows
-        .map(
-          (row) => CatalogBatchItemRow(
-            code: row.code.text,
-            partNumber: row.partNumber.text,
-            itemName: row.itemName.text,
-            qtyNormal: row.qtyNormal.text,
-          ),
-        )
-        .toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.86,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Tambah Item ${widget.panelName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Tambah row',
-                    onPressed: () =>
-                        setState(() => rows.add(_BatchItemControllers())),
-                    icon: const Icon(Icons.add_rounded),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView.separated(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  0,
-                  16,
-                  12 + MediaQuery.of(context).viewInsets.bottom,
-                ),
-                itemCount: rows.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final row = rows[index];
-                  return DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Theme.of(context).dividerColor),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Column(
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: row.code,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Code',
-                                    isDense: true,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  controller: row.partNumber,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Part Number',
-                                    isDense: true,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          TextField(
-                            controller: row.itemName,
-                            decoration: const InputDecoration(
-                              labelText: 'Alias / Nama Tampilan',
-                              isDense: true,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: row.qtyNormal,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Qty',
-                                    isDense: true,
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Kembali'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(context, buildRows()),
-                      child: const Text('Save Batch'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BatchItemControllers {
-  final code = TextEditingController();
-  final partNumber = TextEditingController();
-  final itemName = TextEditingController();
-  final qtyNormal = TextEditingController();
-
-  void dispose() {
-    code.dispose();
-    partNumber.dispose();
-    itemName.dispose();
-    qtyNormal.dispose();
   }
 }
 
@@ -1453,9 +1209,9 @@ class _GlobalCatalogResultCard extends StatelessWidget {
         UnitPreparationCatalogHelper.hierarchyLabel(entry),
         entry.item.partNumber,
       ].whereType<String>().join(' • '),
-      trailing: UnitPreparationCatalogHelper.surveyStatusLabel(
-        entry.item.surveyStatus,
-      ),
+      trailing: UnitPreparationCatalogHelper.hasCommittedSurvey(entry.item)
+          ? 'Sudah didata'
+          : 'Belum didata',
       onTap: onTap,
     );
   }
@@ -1711,21 +1467,21 @@ class _StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final confirmed = item.isConfirmed;
+    final surveyed = UnitPreparationCatalogHelper.hasCommittedSurvey(item);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: confirmed
+        color: surveyed
             ? AppColors.statusDone.withValues(alpha: 0.15)
             : AppColors.gold.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        confirmed ? '✓ Sudah didata' : 'Belum didata',
+        surveyed ? '✓ Sudah didata' : 'Belum didata',
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: confirmed ? AppColors.statusDone : AppColors.gold,
+          color: surveyed ? AppColors.statusDone : AppColors.gold,
         ),
       ),
     );
@@ -1824,7 +1580,9 @@ class _PartDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = entry.item;
-    final alias = item.isConfirmed ? item.aliasName : null;
+    final alias = UnitPreparationCatalogHelper.hasCommittedSurvey(item)
+        ? item.aliasName
+        : null;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
@@ -1903,10 +1661,8 @@ class _SurveySheet extends StatefulWidget {
     required this.reference,
     required this.unitId,
     required this.uploadService,
-    required this.canPromote,
     required this.onAddPhoto,
     required this.onSave,
-    required this.onPromote,
     required this.onSavePosition,
   });
 
@@ -1914,11 +1670,9 @@ class _SurveySheet extends StatefulWidget {
   final CatalogReference reference;
   final String unitId;
   final UploadService uploadService;
-  final bool canPromote;
   final Future<void> Function(String fileUrl, String? caption) onAddPhoto;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic> survey)
   onSave;
-  final Future<Map<String, dynamic>> Function() onPromote;
   final Future<void> Function(CatalogMapping? mapping) onSavePosition;
 
   @override
@@ -1932,8 +1686,8 @@ class _SurveySheetState extends State<_SurveySheet> {
   final notesController = TextEditingController();
   String availability = 'UNKNOWN';
   String condition = 'UNKNOWN';
-  String actionType = 'UNDECIDED';
   bool masukProgress = false;
+  bool needsOrder = false;
   String? photoPath;
   String? existingPhotoUrl;
   CatalogAnnotationMarker? actualMarker;
@@ -1953,7 +1707,7 @@ class _SurveySheetState extends State<_SurveySheet> {
     notesController.text = widget.item.notes ?? '';
     availability = widget.item.availabilityStatus;
     condition = widget.item.conditionStatus;
-    actionType = widget.item.actionType;
+    needsOrder = widget.item.surveyData?['needsOrder'] == true;
     masukProgress =
         widget.item.isRestoration || widget.item.conditionStatus == 'RESTORE';
     existingPhotoUrl = UnitPreparationCatalogHelper.pickActualPhoto(
@@ -1981,74 +1735,40 @@ class _SurveySheetState extends State<_SurveySheet> {
   }
 
   Map<String, dynamic> buildSurvey() {
-    return {
-      'qtyOpname': double.tryParse(qtyController.text.trim()),
-      'actualName': actualNameController.text.trim().isEmpty
-          ? null
-          : actualNameController.text.trim(),
-      'availabilityStatus': availability,
-      'conditionStatus': condition,
-      'actionType': actionType,
-      'isRestoration': masukProgress,
-      'location': locationController.text.trim().isEmpty
-          ? null
-          : locationController.text.trim(),
-      'notes': notesController.text.trim().isEmpty
-          ? null
-          : notesController.text.trim(),
-    };
+    return UnitPreparationCatalogHelper.finalSurveyPayload(
+      qtyOpname: double.tryParse(qtyController.text.trim()),
+      actualName: actualNameController.text,
+      availabilityStatus: availability,
+      conditionStatus: condition,
+      isRestoration: masukProgress,
+      needsOrder: needsOrder,
+      location: locationController.text,
+      notes: notesController.text,
+    );
   }
 
-  Future<void> save({bool promote = false}) async {
+  Future<void> save() async {
     setState(() => submitting = true);
 
     try {
+      if (photoPath != null || (markerChanged && existingPhotoUrl != null)) {
+        throw StateError(
+          'Foto survey normal belum didukung server aktif. Simpan tanpa foto dulu.',
+        );
+      }
       final survey = buildSurvey();
       if (referenceMarkerChanged) {
         await widget.onSavePosition(referenceMarker);
       }
-      await widget.onSave(survey);
+      final response = await widget.onSave(survey);
+      final hasSurveyData =
+          response['survey_data'] != null ||
+          response['surveyData'] != null ||
+          response['item'] is Map && (response['item']['survey_data'] != null);
 
-      if (promote) {
-        await widget.onPromote();
+      if (mounted) {
+        Navigator.pop(context, hasSurveyData ? 'save' : 'backend-gap');
       }
-
-      final canPersistPhoto = promote || widget.item.isConfirmed;
-      if (photoPath != null && canPersistPhoto) {
-        final photoUrl = await widget.uploadService.uploadPhoto(
-          localPath: photoPath!,
-          unit: widget.unitId,
-          division: 'Unit Preparation',
-          job: UnitPreparationCatalogHelper.resolveItemLabel(
-            widget.item,
-            widget.reference,
-          ),
-          panel: widget.reference.panelName,
-          type: 'part',
-        );
-        if (photoUrl == null || photoUrl.isEmpty) {
-          throw Exception('Upload foto part gagal.');
-        }
-        await widget.onAddPhoto(
-          photoUrl,
-          actualMarker == null
-              ? null
-              : UnitPreparationCatalogHelper.encodeActualPhotoCaption([
-                  actualMarker!,
-                ]),
-        );
-      } else if (markerChanged && existingPhotoUrl != null && canPersistPhoto) {
-        await widget.onAddPhoto(
-          existingPhotoUrl!,
-          actualMarker == null
-              ? null
-              : UnitPreparationCatalogHelper.encodeActualPhotoCaption([
-                  actualMarker!,
-                ]),
-        );
-      }
-
-      if (mounted) Navigator.pop(context, promote ? 'promote' : 'save');
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2161,7 +1881,7 @@ class _SurveySheetState extends State<_SurveySheet> {
     final title = widget.item.code?.trim().isNotEmpty == true
         ? widget.item.code!
         : UnitPreparationCatalogHelper.itemOriginalLabel(widget.item);
-    final canEdit = !widget.item.isConfirmed;
+    final canEdit = !widget.item.isPromoted;
     final referenceImageHeight = UnitPreparationCatalogHelper.panelImageHeight(
       availableHeight:
           mediaQuery.size.height -
@@ -2288,17 +2008,6 @@ class _SurveySheetState extends State<_SurveySheet> {
                       },
                       onChanged: (value) => setState(() => condition = value),
                     ),
-                    _SectionLabel('Tindakan'),
-                    _ChoiceWrap(
-                      value: actionType,
-                      enabled: canEdit,
-                      options: const {
-                        'NO_ACTION': 'Tidak Ada',
-                        'JOBDESC': 'Jobdesc',
-                        'JOBDESC_ORDER': 'Jobdesc + Order',
-                      },
-                      onChanged: (value) => setState(() => actionType = value),
-                    ),
                     const SizedBox(height: 8),
                     CheckboxListTile(
                       value: masukProgress,
@@ -2307,6 +2016,16 @@ class _SurveySheetState extends State<_SurveySheet> {
                                 setState(() => masukProgress = value ?? false)
                           : null,
                       title: const Text('Masuk Progress Restorasi'),
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    CheckboxListTile(
+                      value: needsOrder,
+                      onChanged: canEdit
+                          ? (value) =>
+                                setState(() => needsOrder = value ?? false)
+                          : null,
+                      title: const Text('Perlu Order / Penggantian'),
                       controlAffinity: ListTileControlAffinity.leading,
                       contentPadding: EdgeInsets.zero,
                     ),
@@ -2419,7 +2138,7 @@ class _SurveySheetState extends State<_SurveySheet> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: FilledButton(
-                                  onPressed: submitting ? null : () => save(),
+                                  onPressed: submitting ? null : save,
                                   child: Text(
                                     submitting ? 'Menyimpan...' : 'Simpan Data',
                                   ),
@@ -2427,18 +2146,6 @@ class _SurveySheetState extends State<_SurveySheet> {
                               ),
                             ],
                           ),
-                          if (widget.canPromote) ...[
-                            const SizedBox(height: 8),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.tonal(
-                                onPressed: submitting
-                                    ? null
-                                    : () => save(promote: true),
-                                child: const Text('Promote ke Master Panel'),
-                              ),
-                            ),
-                          ],
                         ],
                       )
                     : FilledButton(

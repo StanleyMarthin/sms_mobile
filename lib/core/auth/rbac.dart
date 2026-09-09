@@ -94,8 +94,6 @@ enum Permission {
   notificationsView,
   unitCatalogView,
   unitCatalogSurvey,
-  unitCatalogPromote,
-  unitCatalogManage,
   unitCatalogCreateJobdesc,
   dashboardKd,
   dashboardMechanic,
@@ -132,8 +130,6 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.profileView,
     Permission.unitCatalogView,
     Permission.unitCatalogSurvey,
-    Permission.unitCatalogPromote,
-    Permission.unitCatalogManage,
     Permission.unitCatalogCreateJobdesc,
     Permission.dashboardKd,
   },
@@ -184,8 +180,6 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.profileView,
     Permission.unitCatalogView,
     Permission.unitCatalogSurvey,
-    Permission.unitCatalogPromote,
-    Permission.unitCatalogManage,
     Permission.unitCatalogCreateJobdesc,
     Permission.dashboardKd,
   },
@@ -287,11 +281,6 @@ Map<Permission, List<String>> _permissionCodeMap = {
   Permission.notificationsView: [Perms.notificationsView],
   Permission.unitCatalogView: [Perms.unitCatalogView],
   Permission.unitCatalogSurvey: [Perms.unitCatalogSurvey],
-  Permission.unitCatalogPromote: [
-    Perms.unitCatalogPromote,
-    Perms.unitCatalogManage,
-  ],
-  Permission.unitCatalogManage: [Perms.unitCatalogManage],
   Permission.unitCatalogCreateJobdesc: [Perms.unitCatalogCreateJobdesc],
 };
 

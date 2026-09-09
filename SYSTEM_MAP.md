@@ -954,23 +954,23 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 /unit-preparation?unitId=&unitName=&customerName= → FeatureShellPage AppBar tunggal → UnitPreparationPage
 → UnitPreparationCatalogHelper (unit search, component/panel summary, item display alias/name_part, batch item payload, marker caption JSON)
 → RemoteUnitPreparationDataSource
-→ UnitCatalogRepositoryImpl + UnitCatalogRemoteDataSource V2 model adapter untuk payload unit_catalog_references/unit_catalog_items jika backend V2 tersedia
-→ ApiEndpoints.unitCatalog*|catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia|unitCatalogItemSurvey|unitCatalogItemPromote (/sm/... via countdown gateway; legacy port 8090)
+→ ApiEndpoints.unitCatalog*|catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia|unitCatalogItemSurvey (/sm/... via countdown gateway; legacy port 8090)
 → Final mobile flow: unit list/search → component list → panel list → panel workspace → part detail/survey
 → Unit list pakai ApiEndpoints.countdown existing rows; search car_id/unit_name/customer_name/plate_number tanpa manual Unit ID/Load
 → Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; component list bisa derive dari response countdown jika component master API belum tersedia
 → Selected panel hydrate via /catalog/{panel_id}
-→ Panel list punya + Tambah Panel: create panel master via existing catalog API, optional image, optional lanjut batch item
+→ Panel list punya + Tambah Panel: create panel master via existing catalog API dan optional image
 → Panel workspace image-first fixed/adaptif keyboard dari catalog_panel_images/media; search + part list scroll di bawah image
 → Klik part hanya select/highlight marker pada gambar; info part tampil ringan di bawah gambar, tidak membuka survey
 → Compact rows: alias hanya setelah pendataan jika diisi, original name_part, code, optional part_number, status Sudah/Belum didata, action Detail/Data
+→ + Item Tambahan final belum memakai batch catalog; mobile menampilkan gap sampai endpoint unit_additional_items tersedia
 → Detail action read-only; Data action membuka survey bila belum CONFIRMED
-→ Survey bottom sheet: gambar referensi fixed, tombol Tandai Letak aktifkan mode tap-marker, checkbox-style availability/condition/action/progress, Foto Part optional, sticky Kembali/Simpan Data, Promote permission-gated
-→ Simpan Data memakai PUT /sm/units/{unit}/catalog/items/{item}/survey; Promote memakai POST /sm/units/{unit}/catalog/items/{item}/promote; mobile tidak membuat Jobdesc/Countdown/WO/PR dari Catalog
+→ Survey bottom sheet: gambar referensi fixed, tombol Tandai Letak aktifkan mode tap-marker, checkbox-style availability/condition/progress + Perlu Order/Penggantian, Foto Part optional, sticky Kembali/Simpan Data
+→ Simpan Data memakai PUT /sm/units/{unit}/catalog/items/{item}/survey dengan payload final surveyData/needsOrder; mobile tidak membuat Promote manual, Jobdesc, Countdown, WO, PR, atau QC dari Catalog
 → Marker posisi panel ikut transform zoom/pan image, disimpan normalized JSON {"x":0.43,"y":0.67,"page":1} di unit_catalog.position sebagai data internal tanpa label/coordinate user-facing
-→ Foto Part optional: camera/gallery → preview → tap/reposition/remove marker → upload/media caption setelah item punya Master Panel karena backend aktif masih menyimpan media ke masterpanel_images
+→ Foto Part optional: UI preview tetap ada, tetapi persist foto normal menunggu backend survey_data.photos karena endpoint aktif masih menulis media ke masterpanel_images
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media
-→ Catalog survey promoted/CONFIRMED readonly; Master Panel tetap operational source sebelum Jobdesc/Countdown/PR/QC
+→ Catalog item dengan promoted_panel_id readonly; status Sudah/Belum Didata final diturunkan dari survey_data valid, bukan promotedPanelId/isRestoration
 ```
 
 ### Warehouse issue

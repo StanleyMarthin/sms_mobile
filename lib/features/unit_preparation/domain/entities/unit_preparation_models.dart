@@ -6,6 +6,8 @@ Main Functions: CatalogComponent, CatalogReference, CatalogItem, CatalogMedia, C
 Side Effects: Tidak ada.
 */
 
+import 'dart:convert';
+
 Object? _pick(Map<String, dynamic> json, String snake, String camel) =>
     json[snake] ?? json[camel];
 
@@ -197,11 +199,11 @@ class CatalogItem {
     this.actualName,
     this.availabilityStatus = 'UNKNOWN',
     this.conditionStatus = 'UNKNOWN',
-    this.actionType = 'UNDECIDED',
     this.isRestoration = false,
     this.surveyStatus = 'NOT_STARTED',
     this.location,
     this.notes,
+    this.surveyData,
     this.promotedPanelId,
     this.media = const [],
     this.mappings = const [],
@@ -219,16 +221,16 @@ class CatalogItem {
   final String? actualName;
   final String availabilityStatus;
   final String conditionStatus;
-  final String actionType;
   final bool isRestoration;
   final String surveyStatus;
   final String? location;
   final String? notes;
+  final Map<String, dynamic>? surveyData;
   final int? promotedPanelId;
   final List<CatalogMedia> media;
   final List<CatalogMapping> mappings;
 
-  bool get isConfirmed => surveyStatus == 'CONFIRMED';
+  bool get isPromoted => promotedPanelId != null;
 
   factory CatalogItem.fromJson(Map<String, dynamic> json) => CatalogItem(
     id: _intValue(json['id']),
@@ -251,14 +253,13 @@ class CatalogItem {
     conditionStatus:
         _textValue(_pick(json, 'condition_status', 'conditionStatus')) ??
         'UNKNOWN',
-    actionType:
-        _textValue(_pick(json, 'action_type', 'actionType')) ?? 'UNDECIDED',
     isRestoration: _boolValue(_pick(json, 'is_restoration', 'isRestoration')),
     surveyStatus:
         _textValue(_pick(json, 'survey_status', 'surveyStatus')) ??
         'NOT_STARTED',
     location: _textValue(json['location']),
     notes: _textValue(json['notes']),
+    surveyData: _mapValue(_pick(json, 'survey_data', 'surveyData')),
     promotedPanelId: _pick(json, 'promoted_panel_id', 'promotedPanelId') == null
         ? null
         : _intValue(_pick(json, 'promoted_panel_id', 'promotedPanelId')),
@@ -271,6 +272,24 @@ class CatalogItem {
         .map(CatalogMapping.fromJson)
         .toList(),
   );
+}
+
+Map<String, dynamic>? _mapValue(Object? value) {
+  if (value is Map<String, dynamic>) return value.isEmpty ? null : value;
+  if (value is Map) {
+    final mapped = Map<String, dynamic>.from(value);
+    return mapped.isEmpty ? null : mapped;
+  }
+  final text = _textValue(value);
+  if (text == null) return null;
+  try {
+    final decoded = jsonDecode(text);
+    if (decoded is! Map) return null;
+    final mapped = Map<String, dynamic>.from(decoded);
+    return mapped.isEmpty ? null : mapped;
+  } catch (_) {
+    return null;
+  }
 }
 
 class CatalogReference {

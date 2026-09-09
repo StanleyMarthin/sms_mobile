@@ -292,7 +292,7 @@ class UnitPreparationCatalogHelper {
   static String itemPrimaryLabel(
     CatalogItem item,
     CatalogReference reference,
-  ) => item.isConfirmed ? _textValue(item.aliasName) ?? '' : '';
+  ) => hasCommittedSurvey(item) ? _textValue(item.aliasName) ?? '' : '';
 
   static String itemSecondaryLabel(CatalogItem item) =>
       _textValue(item.partNumber) ?? '-';
@@ -349,23 +349,67 @@ class UnitPreparationCatalogHelper {
       (entry) => entry.item.id == currentItemId,
     );
     if (currentIndex < 0) {
-      return entries.where((entry) => !entry.item.isConfirmed).firstOrNull;
+      return entries
+          .where(
+            (entry) =>
+                !hasCommittedSurvey(entry.item) && !entry.item.isPromoted,
+          )
+          .firstOrNull;
     }
     for (var index = currentIndex + 1; index < entries.length; index++) {
-      if (!entries[index].item.isConfirmed) return entries[index];
+      if (!hasCommittedSurvey(entries[index].item) &&
+          !entries[index].item.isPromoted) {
+        return entries[index];
+      }
     }
     for (var index = 0; index < currentIndex; index++) {
-      if (!entries[index].item.isConfirmed) return entries[index];
+      if (!hasCommittedSurvey(entries[index].item) &&
+          !entries[index].item.isPromoted) {
+        return entries[index];
+      }
     }
     return null;
   }
 
-  static String surveyStatusLabel(String value) => switch (value) {
-    'CONFIRMED' || 'DONE' => 'Sudah didata',
-    'DRAFT' => 'Belum didata',
-    'NOT_STARTED' => 'Belum dicek',
-    _ => 'Belum dicek',
-  };
+  static bool hasCommittedSurvey(CatalogItem item) => item.surveyData != null;
+
+  static bool needsMasterPanel({
+    required bool isRestoration,
+    required bool needsOrder,
+  }) => isRestoration || needsOrder;
+
+  static Map<String, dynamic> finalSurveyPayload({
+    double? qtyOpname,
+    String? actualName,
+    required String availabilityStatus,
+    required String conditionStatus,
+    required bool isRestoration,
+    required bool needsOrder,
+    String? location,
+    String? notes,
+    List<Map<String, dynamic>> photos = const [],
+  }) {
+    return {
+      'qtyOpname': qtyOpname,
+      'actualName': _textValue(actualName),
+      'availabilityStatus': availabilityStatus,
+      'conditionStatus': conditionStatus,
+      'isRestoration': isRestoration,
+      'needsOrder': needsOrder,
+      'location': _textValue(location),
+      'notes': _textValue(notes),
+      'surveyData': {
+        'availability': availabilityStatus,
+        'condition': conditionStatus,
+        'qtyOpname': qtyOpname,
+        'actualName': _textValue(actualName),
+        'needsOrder': needsOrder,
+        'notes': _textValue(notes),
+        'location': _textValue(location),
+        if (photos.isNotEmpty) 'photos': photos,
+      },
+    };
+  }
 
   static String availabilityLabel(String value) => switch (value) {
     'AVAILABLE' => 'Ada',
@@ -510,14 +554,15 @@ class UnitPreparationCatalogHelper {
     return '${ApiEndpoints.baseUrl}/api/v1/proxy/image?url=${Uri.encodeComponent(url)}';
   }
 
-  static int _confirmedRank(CatalogItem item) => item.isConfirmed ? 1 : 0;
+  static int _confirmedRank(CatalogItem item) =>
+      hasCommittedSurvey(item) ? 1 : 0;
 
   static int _partCount(CatalogReference reference) =>
       reference.items.isNotEmpty ? reference.items.length : reference.itemCount;
 
   static int _doneCount(CatalogReference reference) =>
       reference.items.isNotEmpty
-      ? reference.items.where((item) => item.isConfirmed).length
+      ? reference.items.where(hasCommittedSurvey).length
       : reference.surveyedCount;
 }
 

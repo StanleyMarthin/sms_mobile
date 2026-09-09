@@ -153,18 +153,6 @@ class RemoteUnitPreparationDatasource {
     return data is Map<String, dynamic> ? data : <String, dynamic>{};
   }
 
-  Future<Map<String, dynamic>> promoteItem({
-    required String unitId,
-    required int itemId,
-  }) async {
-    final response = await apiClient.post(
-      ApiEndpoints.unitCatalogItemPromote(unitId, itemId),
-      data: {'userId': _userId},
-    );
-    final data = response.data;
-    return data is Map<String, dynamic> ? data : <String, dynamic>{};
-  }
-
   Future<void> addActualPhoto({
     required String unitId,
     required int itemId,

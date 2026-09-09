@@ -241,7 +241,7 @@ void main() {
           'aliasName': '75 REAR LID',
           'namePart': 'Rear bearing pin',
           'partNumber': 'C 75 006a',
-          'surveyStatus': 'CONFIRMED',
+          'survey_data': {'availability': 'AVAILABLE'},
         },
       ],
     );
@@ -363,19 +363,7 @@ void main() {
     ]);
   });
 
-  test('maps backend status values to Indonesian labels', () {
-    expect(
-      UnitPreparationCatalogHelper.surveyStatusLabel('NOT_STARTED'),
-      'Belum dicek',
-    );
-    expect(
-      UnitPreparationCatalogHelper.surveyStatusLabel('DRAFT'),
-      'Belum didata',
-    );
-    expect(
-      UnitPreparationCatalogHelper.surveyStatusLabel('CONFIRMED'),
-      'Sudah didata',
-    );
+  test('maps survey enum values to Indonesian labels', () {
     expect(
       UnitPreparationCatalogHelper.availabilityLabel('UNKNOWN'),
       'Tidak Ditemukan',
@@ -383,6 +371,78 @@ void main() {
     expect(
       UnitPreparationCatalogHelper.conditionLabel('NOT_USABLE'),
       'Tidak Layak',
+    );
+  });
+
+  test('surveyed status comes from committed survey data only', () {
+    final restorationOnly = CatalogItem.fromJson({
+      'id': 1,
+      'is_restoration': true,
+      'promoted_panel_id': null,
+    });
+    final promotedWithoutSurvey = CatalogItem.fromJson({
+      'id': 2,
+      'promoted_panel_id': 99,
+    });
+    final surveyed = CatalogItem.fromJson({
+      'id': 3,
+      'survey_data': {'availability': 'AVAILABLE'},
+    });
+
+    expect(
+      UnitPreparationCatalogHelper.hasCommittedSurvey(restorationOnly),
+      isFalse,
+    );
+    expect(
+      UnitPreparationCatalogHelper.hasCommittedSurvey(promotedWithoutSurvey),
+      isFalse,
+    );
+    expect(UnitPreparationCatalogHelper.hasCommittedSurvey(surveyed), isTrue);
+  });
+
+  test('final survey payload has needs order and no jobdesc action type', () {
+    final payload = UnitPreparationCatalogHelper.finalSurveyPayload(
+      qtyOpname: 1,
+      actualName: 'Door Handle LH',
+      availabilityStatus: 'AVAILABLE',
+      conditionStatus: 'RESTORE',
+      isRestoration: true,
+      needsOrder: true,
+      location: 'Cabin',
+      notes: 'retak',
+      photos: const [
+        {'url': 'https://cdn.example.com/part.jpg', 'caption': 'Foto Part'},
+      ],
+    );
+
+    expect(payload['needsOrder'], isTrue);
+    expect(payload['isRestoration'], isTrue);
+    expect(payload.containsKey('actionType'), isFalse);
+    expect(payload['surveyData'], containsPair('needsOrder', true));
+    expect(payload['surveyData'], contains('photos'));
+  });
+
+  test('master panel eligibility is restoration or order only', () {
+    expect(
+      UnitPreparationCatalogHelper.needsMasterPanel(
+        isRestoration: false,
+        needsOrder: false,
+      ),
+      isFalse,
+    );
+    expect(
+      UnitPreparationCatalogHelper.needsMasterPanel(
+        isRestoration: true,
+        needsOrder: false,
+      ),
+      isTrue,
+    );
+    expect(
+      UnitPreparationCatalogHelper.needsMasterPanel(
+        isRestoration: false,
+        needsOrder: true,
+      ),
+      isTrue,
     );
   });
 

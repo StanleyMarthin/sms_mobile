@@ -54,6 +54,17 @@ void main() {
     expect(item.surveyStatus, 'NOT_STARTED');
   });
 
+  test('catalog item parses committed survey data json', () {
+    final item = CatalogItem.fromJson({
+      'id': 127,
+      'survey_data':
+          '{"availability":"AVAILABLE","condition":"GOOD","needsOrder":false}',
+    });
+
+    expect(item.surveyData?['availability'], 'AVAILABLE');
+    expect(item.surveyData?['needsOrder'], isFalse);
+  });
+
   test('catalog item parses alias name_part and code aliases', () {
     final item = CatalogItem.fromJson({
       'id': 127,
@@ -103,7 +114,6 @@ void main() {
   test('mapping memakai koordinat normalized percent', () {
     final item = CatalogItem.fromJson({
       'id': 127,
-      'surveyStatus': 'CONFIRMED',
       'mappings': [
         {
           'id': 1,
@@ -114,7 +124,6 @@ void main() {
       ],
     });
 
-    expect(item.isConfirmed, isTrue);
     expect(item.mappings.single.catalogReferenceMediaId, 5);
     expect(item.mappings.single.xPercent, 25.5);
     expect(item.mappings.single.yPercent, 75);

@@ -93,10 +93,6 @@ abstract class ApiEndpoints {
   static String get catalogComponents => '$_countdownBase/catalog/components';
   static String unitCatalogOpenPanel(String unitId) =>
       '$_countdownBase/units/$unitId/catalog';
-  static String unitCatalogReferenceItemsBatch(
-    String unitId,
-    String referenceId,
-  ) => '$_countdownBase/units/$unitId/catalog/$referenceId/items';
   static String unitCatalogPanelItemsBatch(String unitId, int panelId) =>
       '$_countdownBase/units/$unitId/catalog/$panelId/items';
   static String unitCatalogPanelMedia(String unitId, int panelId) =>
