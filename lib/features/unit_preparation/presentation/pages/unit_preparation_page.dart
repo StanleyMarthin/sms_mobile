@@ -72,6 +72,11 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
   bool searchHydrating = false;
   String? message;
 
+  bool get canPromoteCatalog =>
+      sessionManager.hasPerm(Perms.unitCatalogPromote) ||
+      sessionManager.hasPerm(Perms.unitCatalogManage) ||
+      sessionManager.hasPerm('unit_catalog.promote');
+
   @override
   void initState() {
     super.initState();
@@ -597,16 +602,21 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
         unitId: currentUnitId,
         reference: entry.reference,
         uploadService: uploadService,
+        canPromote: canPromoteCatalog,
         onAddPhoto: (fileUrl, caption) => datasource.addActualPhoto(
           unitId: currentUnitId,
           itemId: entry.item.id,
           fileUrl: fileUrl,
           caption: caption,
         ),
-        onConfirm: (survey) => datasource.confirmSurvey(
+        onSave: (survey) => datasource.saveSurvey(
           unitId: currentUnitId,
           itemId: entry.item.id,
           survey: survey,
+        ),
+        onPromote: () => datasource.promoteItem(
+          unitId: currentUnitId,
+          itemId: entry.item.id,
         ),
         onSavePosition: (mapping) => savePositionMarker(entry, mapping),
       ),
@@ -621,7 +631,9 @@ class _UnitPreparationPageState extends State<UnitPreparationPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            result == 'confirm' ? 'Item sudah didata.' : 'Data tersimpan.',
+            result == 'promote'
+                ? 'Item dipromote ke Master Panel.'
+                : 'Data tersimpan.',
           ),
           action: nextEntry == null
               ? null
@@ -1891,8 +1903,10 @@ class _SurveySheet extends StatefulWidget {
     required this.reference,
     required this.unitId,
     required this.uploadService,
+    required this.canPromote,
     required this.onAddPhoto,
-    required this.onConfirm,
+    required this.onSave,
+    required this.onPromote,
     required this.onSavePosition,
   });
 
@@ -1900,9 +1914,11 @@ class _SurveySheet extends StatefulWidget {
   final CatalogReference reference;
   final String unitId;
   final UploadService uploadService;
+  final bool canPromote;
   final Future<void> Function(String fileUrl, String? caption) onAddPhoto;
   final Future<Map<String, dynamic>> Function(Map<String, dynamic> survey)
-  onConfirm;
+  onSave;
+  final Future<Map<String, dynamic>> Function() onPromote;
   final Future<void> Function(CatalogMapping? mapping) onSavePosition;
 
   @override
@@ -1912,9 +1928,11 @@ class _SurveySheet extends StatefulWidget {
 class _SurveySheetState extends State<_SurveySheet> {
   final qtyController = TextEditingController();
   final actualNameController = TextEditingController();
+  final locationController = TextEditingController();
   final notesController = TextEditingController();
   String availability = 'UNKNOWN';
   String condition = 'UNKNOWN';
+  String actionType = 'UNDECIDED';
   bool masukProgress = false;
   String? photoPath;
   String? existingPhotoUrl;
@@ -1931,9 +1949,11 @@ class _SurveySheetState extends State<_SurveySheet> {
     super.initState();
     qtyController.text = widget.item.qtyOpname?.toString() ?? '';
     actualNameController.text = widget.item.actualName ?? '';
+    locationController.text = widget.item.location ?? '';
     notesController.text = widget.item.notes ?? '';
     availability = widget.item.availabilityStatus;
     condition = widget.item.conditionStatus;
+    actionType = widget.item.actionType;
     masukProgress =
         widget.item.isRestoration || widget.item.conditionStatus == 'RESTORE';
     existingPhotoUrl = UnitPreparationCatalogHelper.pickActualPhoto(
@@ -1955,6 +1975,7 @@ class _SurveySheetState extends State<_SurveySheet> {
   void dispose() {
     qtyController.dispose();
     actualNameController.dispose();
+    locationController.dispose();
     notesController.dispose();
     super.dispose();
   }
@@ -1967,14 +1988,18 @@ class _SurveySheetState extends State<_SurveySheet> {
           : actualNameController.text.trim(),
       'availabilityStatus': availability,
       'conditionStatus': condition,
+      'actionType': actionType,
       'isRestoration': masukProgress,
+      'location': locationController.text.trim().isEmpty
+          ? null
+          : locationController.text.trim(),
       'notes': notesController.text.trim().isEmpty
           ? null
           : notesController.text.trim(),
     };
   }
 
-  Future<void> submit() async {
+  Future<void> save({bool promote = false}) async {
     setState(() => submitting = true);
 
     try {
@@ -1982,9 +2007,14 @@ class _SurveySheetState extends State<_SurveySheet> {
       if (referenceMarkerChanged) {
         await widget.onSavePosition(referenceMarker);
       }
-      await widget.onConfirm(survey);
+      await widget.onSave(survey);
 
-      if (photoPath != null) {
+      if (promote) {
+        await widget.onPromote();
+      }
+
+      final canPersistPhoto = promote || widget.item.isConfirmed;
+      if (photoPath != null && canPersistPhoto) {
         final photoUrl = await widget.uploadService.uploadPhoto(
           localPath: photoPath!,
           unit: widget.unitId,
@@ -2007,7 +2037,7 @@ class _SurveySheetState extends State<_SurveySheet> {
                   actualMarker!,
                 ]),
         );
-      } else if (markerChanged && existingPhotoUrl != null) {
+      } else if (markerChanged && existingPhotoUrl != null && canPersistPhoto) {
         await widget.onAddPhoto(
           existingPhotoUrl!,
           actualMarker == null
@@ -2018,7 +2048,7 @@ class _SurveySheetState extends State<_SurveySheet> {
         );
       }
 
-      if (mounted) Navigator.pop(context, 'confirm');
+      if (mounted) Navigator.pop(context, promote ? 'promote' : 'save');
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2258,6 +2288,17 @@ class _SurveySheetState extends State<_SurveySheet> {
                       },
                       onChanged: (value) => setState(() => condition = value),
                     ),
+                    _SectionLabel('Tindakan'),
+                    _ChoiceWrap(
+                      value: actionType,
+                      enabled: canEdit,
+                      options: const {
+                        'NO_ACTION': 'Tidak Ada',
+                        'JOBDESC': 'Jobdesc',
+                        'JOBDESC_ORDER': 'Jobdesc + Order',
+                      },
+                      onChanged: (value) => setState(() => actionType = value),
+                    ),
                     const SizedBox(height: 8),
                     CheckboxListTile(
                       value: masukProgress,
@@ -2340,6 +2381,11 @@ class _SurveySheetState extends State<_SurveySheet> {
                       ),
                     ),
                     TextField(
+                      controller: locationController,
+                      enabled: canEdit,
+                      decoration: const InputDecoration(labelText: 'Lokasi'),
+                    ),
+                    TextField(
                       controller: notesController,
                       enabled: canEdit,
                       decoration: const InputDecoration(labelText: 'Catatan'),
@@ -2357,25 +2403,42 @@ class _SurveySheetState extends State<_SurveySheet> {
                   ),
                 ),
                 child: canEdit
-                    ? Row(
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: submitting
-                                  ? null
-                                  : () => Navigator.pop(context),
-                              child: const Text('Kembali'),
-                            ),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: submitting
+                                      ? null
+                                      : () => Navigator.pop(context),
+                                  child: const Text('Kembali'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: submitting ? null : () => save(),
+                                  child: Text(
+                                    submitting ? 'Menyimpan...' : 'Simpan Data',
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: submitting ? null : submit,
-                              child: Text(
-                                submitting ? 'Menyimpan...' : 'Simpan Data',
+                          if (widget.canPromote) ...[
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.tonal(
+                                onPressed: submitting
+                                    ? null
+                                    : () => save(promote: true),
+                                child: const Text('Promote ke Master Panel'),
                               ),
                             ),
-                          ),
+                          ],
                         ],
                       )
                     : FilledButton(

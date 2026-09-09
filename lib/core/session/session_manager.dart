@@ -1,3 +1,11 @@
+/*
+Tujuan: Manajemen session, token, role profile, dan permission backend mobile.
+Caller: ApiClient, router redirect, RBAC, dan halaman fitur.
+Dependensi: AppSecureStorage, ChangeNotifier.
+Main Functions: SessionManager, Perms constants.
+Side Effects: Read/write secure local storage dan notifyListeners().
+*/
+
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -721,5 +729,7 @@ abstract class Perms {
   // ── Unit Preparation / Catalog ─────────────────────────
   static final unitCatalogView = 'UNIT_CATALOG_VIEW';
   static final unitCatalogSurvey = 'UNIT_CATALOG_SURVEY';
+  static final unitCatalogPromote = 'UNIT_CATALOG_PROMOTE';
+  static final unitCatalogManage = 'UNIT_CATALOG_MANAGE';
   static final unitCatalogCreateJobdesc = 'UNIT_CATALOG_CREATE_JOBDESC';
 }

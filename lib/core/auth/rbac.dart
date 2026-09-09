@@ -1,3 +1,11 @@
+/*
+Tujuan: RBAC mobile untuk role legacy dan permission backend.
+Caller: HomePage, RoleGuard, dan fitur yang hide/show action berbasis permission.
+Dependensi: GetIt injection dan SessionManager.
+Main Functions: UserRole, Permission, hasPermission(), getPermissions().
+Side Effects: Membaca session aktif dari service locator.
+*/
+
 import '../di/injection.dart';
 import '../session/session_manager.dart';
 
@@ -86,6 +94,8 @@ enum Permission {
   notificationsView,
   unitCatalogView,
   unitCatalogSurvey,
+  unitCatalogPromote,
+  unitCatalogManage,
   unitCatalogCreateJobdesc,
   dashboardKd,
   dashboardMechanic,
@@ -122,6 +132,8 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.profileView,
     Permission.unitCatalogView,
     Permission.unitCatalogSurvey,
+    Permission.unitCatalogPromote,
+    Permission.unitCatalogManage,
     Permission.unitCatalogCreateJobdesc,
     Permission.dashboardKd,
   },
@@ -172,6 +184,8 @@ Map<String, Set<Permission>> rolePermissions = {
     Permission.profileView,
     Permission.unitCatalogView,
     Permission.unitCatalogSurvey,
+    Permission.unitCatalogPromote,
+    Permission.unitCatalogManage,
     Permission.unitCatalogCreateJobdesc,
     Permission.dashboardKd,
   },
@@ -273,6 +287,11 @@ Map<Permission, List<String>> _permissionCodeMap = {
   Permission.notificationsView: [Perms.notificationsView],
   Permission.unitCatalogView: [Perms.unitCatalogView],
   Permission.unitCatalogSurvey: [Perms.unitCatalogSurvey],
+  Permission.unitCatalogPromote: [
+    Perms.unitCatalogPromote,
+    Perms.unitCatalogManage,
+  ],
+  Permission.unitCatalogManage: [Perms.unitCatalogManage],
   Permission.unitCatalogCreateJobdesc: [Perms.unitCatalogCreateJobdesc],
 };
 

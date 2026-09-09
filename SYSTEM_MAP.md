@@ -954,7 +954,8 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 /unit-preparation?unitId=&unitName=&customerName= → FeatureShellPage AppBar tunggal → UnitPreparationPage
 → UnitPreparationCatalogHelper (unit search, component/panel summary, item display alias/name_part, batch item payload, marker caption JSON)
 → RemoteUnitPreparationDataSource
-→ ApiEndpoints.unitCatalog*|catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia (/sm/... via countdown gateway; legacy port 8090)
+→ UnitCatalogRepositoryImpl + UnitCatalogRemoteDataSource V2 model adapter untuk payload unit_catalog_references/unit_catalog_items jika backend V2 tersedia
+→ ApiEndpoints.unitCatalog*|catalogComponents|unitCatalogOpenPanel|unitCatalogPanelItemsBatch|unitCatalogPanelMedia|unitCatalogItemSurvey|unitCatalogItemPromote (/sm/... via countdown gateway; legacy port 8090)
 → Final mobile flow: unit list/search → component list → panel list → panel workspace → part detail/survey
 → Unit list pakai ApiEndpoints.countdown existing rows; search car_id/unit_name/customer_name/plate_number tanpa manual Unit ID/Load
 → Catalog summary pakai /sm/units/{unit}/catalog item_count/surveyed_count; component list bisa derive dari response countdown jika component master API belum tersedia
@@ -964,11 +965,12 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → Klik part hanya select/highlight marker pada gambar; info part tampil ringan di bawah gambar, tidak membuka survey
 → Compact rows: alias hanya setelah pendataan jika diisi, original name_part, code, optional part_number, status Sudah/Belum didata, action Detail/Data
 → Detail action read-only; Data action membuka survey bila belum CONFIRMED
-→ Survey bottom sheet: gambar referensi fixed, tombol Tandai Letak aktifkan mode tap-marker, checkbox-style availability/condition/progress, Foto Part optional, sticky Kembali/Simpan Data, confirm via POST confirm
+→ Survey bottom sheet: gambar referensi fixed, tombol Tandai Letak aktifkan mode tap-marker, checkbox-style availability/condition/action/progress, Foto Part optional, sticky Kembali/Simpan Data, Promote permission-gated
+→ Simpan Data memakai PUT /sm/units/{unit}/catalog/items/{item}/survey; Promote memakai POST /sm/units/{unit}/catalog/items/{item}/promote; mobile tidak membuat Jobdesc/Countdown/WO/PR dari Catalog
 → Marker posisi panel ikut transform zoom/pan image, disimpan normalized JSON {"x":0.43,"y":0.67,"page":1} di unit_catalog.position sebagai data internal tanpa label/coordinate user-facing
-→ Foto Part optional: camera/gallery → preview → tap/reposition/remove marker → upload/media caption
+→ Foto Part optional: camera/gallery → preview → tap/reposition/remove marker → upload/media caption setelah item punya Master Panel karena backend aktif masih menyimpan media ke masterpanel_images
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media
-→ Catalog survey CONFIRMED readonly; confirm materializes master_panels tanpa membuat countdown/WO/PR
+→ Catalog survey promoted/CONFIRMED readonly; Master Panel tetap operational source sebelum Jobdesc/Countdown/PR/QC
 ```
 
 ### Warehouse issue
