@@ -378,6 +378,14 @@ class UnitPreparationCatalogHelper {
     required bool needsOrder,
   }) => isRestoration || needsOrder;
 
+  static bool responseHasCommittedSurvey(Map<String, dynamic> response) {
+    final data = response['data'];
+    final body = data is Map ? data : response;
+    final item = body['item'];
+    final itemBody = item is Map ? item : body;
+    return itemBody['survey_data'] != null || itemBody['surveyData'] != null;
+  }
+
   static Map<String, dynamic> finalSurveyPayload({
     double? qtyOpname,
     String? actualName,

@@ -446,6 +446,28 @@ void main() {
     );
   });
 
+  test('detects committed survey data inside backend response envelope', () {
+    expect(
+      UnitPreparationCatalogHelper.responseHasCommittedSurvey({
+        'data': {
+          'item': {
+            'survey_data': {'availability': 'AVAILABLE'},
+          },
+        },
+      }),
+      isTrue,
+    );
+
+    expect(
+      UnitPreparationCatalogHelper.responseHasCommittedSurvey({
+        'data': {
+          'item': {'survey_data': null},
+        },
+      }),
+      isFalse,
+    );
+  });
+
   test('finds next unchecked item after confirmation', () {
     final entries = UnitPreparationCatalogHelper.buildSearchEntries(references);
     final next = UnitPreparationCatalogHelper.nextSurveyEntry(

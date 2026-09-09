@@ -1751,20 +1751,16 @@ class _SurveySheetState extends State<_SurveySheet> {
     setState(() => submitting = true);
 
     try {
-      if (photoPath != null || (markerChanged && existingPhotoUrl != null)) {
-        throw StateError(
-          'Foto survey normal belum didukung server aktif. Simpan tanpa foto dulu.',
-        );
-      }
       final survey = buildSurvey();
       if (referenceMarkerChanged) {
         await widget.onSavePosition(referenceMarker);
       }
       final response = await widget.onSave(survey);
       final hasSurveyData =
-          response['survey_data'] != null ||
-          response['surveyData'] != null ||
-          response['item'] is Map && (response['item']['survey_data'] != null);
+          UnitPreparationCatalogHelper.responseHasCommittedSurvey(response);
+      if (hasSurveyData) {
+        await saveActualPhoto();
+      }
 
       if (mounted) {
         Navigator.pop(context, hasSurveyData ? 'save' : 'backend-gap');
@@ -1784,6 +1780,31 @@ class _SurveySheetState extends State<_SurveySheet> {
     } finally {
       if (mounted) setState(() => submitting = false);
     }
+  }
+
+  Future<void> saveActualPhoto() async {
+    if (photoPath == null && !(markerChanged && existingPhotoUrl != null)) {
+      return;
+    }
+
+    final fileUrl = photoPath == null
+        ? existingPhotoUrl
+        : await widget.uploadService.uploadPhoto(
+            localPath: photoPath!,
+            unit: widget.unitId,
+            division: 'Unit Preparation',
+            job: 'Catalog Survey',
+            panel: widget.reference.panelName,
+            type: 'foto-part',
+          );
+    if (fileUrl == null || fileUrl.isEmpty) return;
+
+    final caption = actualMarker == null
+        ? null
+        : UnitPreparationCatalogHelper.encodeActualPhotoCaption([
+            actualMarker!,
+          ]);
+    await widget.onAddPhoto(fileUrl, caption);
   }
 
   Future<void> pickCameraPhoto() async {

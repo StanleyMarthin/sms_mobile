@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-09-02
+- Last verified: 2026-09-09
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -963,12 +963,12 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → Panel workspace image-first fixed/adaptif keyboard dari catalog_panel_images/media; search + part list scroll di bawah image
 → Klik part hanya select/highlight marker pada gambar; info part tampil ringan di bawah gambar, tidak membuka survey
 → Compact rows: alias hanya setelah pendataan jika diisi, original name_part, code, optional part_number, status Sudah/Belum didata, action Detail/Data
-→ + Item Tambahan final belum memakai batch catalog; mobile menampilkan gap sampai endpoint unit_additional_items tersedia
+→ + Item Tambahan final harus memakai POST /sm/units/{unit}/additional-items ke unit_additional_items; tidak membuat catalog_panels
 → Detail action read-only; Data action membuka survey bila belum CONFIRMED
 → Survey bottom sheet: gambar referensi fixed, tombol Tandai Letak aktifkan mode tap-marker, checkbox-style availability/condition/progress + Perlu Order/Penggantian, Foto Part optional, sticky Kembali/Simpan Data
 → Simpan Data memakai PUT /sm/units/{unit}/catalog/items/{item}/survey dengan payload final surveyData/needsOrder; mobile tidak membuat Promote manual, Jobdesc, Countdown, WO, PR, atau QC dari Catalog
 → Marker posisi panel ikut transform zoom/pan image, disimpan normalized JSON {"x":0.43,"y":0.67,"page":1} di unit_catalog.position sebagai data internal tanpa label/coordinate user-facing
-→ Foto Part optional: UI preview tetap ada, tetapi persist foto normal menunggu backend survey_data.photos karena endpoint aktif masih menulis media ke masterpanel_images
+→ Foto Part optional: setelah survey tersimpan, media endpoint menyimpan metadata ke unit_catalog.survey_data.photos; normal survey tidak perlu master_panel hanya untuk foto
 → Marker foto aktual disimpan di media.caption JSON {"markers":[...]} dan dibuka ulang dari item.media
 → Catalog item dengan promoted_panel_id readonly; status Sudah/Belum Didata final diturunkan dari survey_data valid, bukan promotedPanelId/isRestoration
 ```
