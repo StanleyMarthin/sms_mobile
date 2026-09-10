@@ -45,6 +45,10 @@ void main() {
         ApiEndpoints.unitCatalogPanelItemsBatch('220S', 91),
         'https://api.stanleymarthin.com/sm/units/220S/catalog/91/items',
       );
+      expect(
+        ApiEndpoints.masterPanelTracking('220S'),
+        'https://api.stanleymarthin.com/sm/units/220S/master-panels/tracking',
+      );
     });
   });
 

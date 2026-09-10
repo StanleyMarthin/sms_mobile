@@ -71,6 +71,24 @@ class CountdownRepositoryImpl implements CountdownRepository {
   }
 
   @override
+  Future<MasterPanelTracking> getMasterPanelTracking(String unitId) async {
+    final row = await dataSource.getMasterPanelTracking(unitId);
+    return _mapMasterPanelTracking(row);
+  }
+
+  @override
+  Future<MasterPanelDetail> getMasterPanelDetail({
+    required String unitId,
+    required int panelId,
+  }) async {
+    final row = await dataSource.getMasterPanelDetail(
+      unitId: unitId,
+      panelId: panelId,
+    );
+    return _mapMasterPanelDetail(row);
+  }
+
+  @override
   Future<List<CountdownSection>> getSections({
     required String carId,
     required int divisionId,
@@ -151,6 +169,124 @@ class CountdownRepositoryImpl implements CountdownRepository {
       status: item['status'] as String,
       division: item['division'] as String,
       deliveryDate: item['deliveryDate'] as String?,
+    );
+  }
+
+  MasterPanelTracking _mapMasterPanelTracking(Map<String, dynamic> item) {
+    final summary = _mapTrackingSummary(
+      item['summary'] is Map ? item['summary'] as Map : const {},
+    );
+    final components = (item['components'] as List? ?? const [])
+        .whereType<Map>()
+        .map(_mapTrackingComponent)
+        .toList();
+    return MasterPanelTracking(summary: summary, components: components);
+  }
+
+  MasterPanelTrackingSummary _mapTrackingSummary(Map item) {
+    return MasterPanelTrackingSummary(
+      total: _asInt(item['total']),
+      pending: _asInt(item['pending']),
+      progress: _asInt(item['progress']),
+      order: _asInt(item['order']),
+      done: _asInt(item['done']),
+    );
+  }
+
+  MasterPanelTrackingComponent _mapTrackingComponent(Map item) {
+    return MasterPanelTrackingComponent(
+      componentId: _nullableInt(item['componentId']),
+      componentName: _asText(item['componentName'], 'Tanpa Component'),
+      totalPanels: _asInt(item['totalPanels']),
+      totalParts: _asInt(item['totalParts']),
+      pendingCount: _asInt(item['pendingCount']),
+      progressCount: _asInt(item['progressCount']),
+      orderCount: _asInt(item['orderCount']),
+      panels: (item['panels'] as List? ?? const [])
+          .whereType<Map>()
+          .map(_mapTrackingPanel)
+          .toList(),
+    );
+  }
+
+  MasterPanelTrackingPanel _mapTrackingPanel(Map item) {
+    return MasterPanelTrackingPanel(
+      panelId: _nullableInt(item['panelId']),
+      panelName: _asText(item['panelName'], 'Tanpa Panel'),
+      totalParts: _asInt(item['totalParts']),
+      activityCount: _asInt(item['activityCount']),
+      progressPercent: _asDouble(item['progressPercent']),
+      parts: (item['parts'] as List? ?? const [])
+          .whereType<Map>()
+          .map(_mapTrackingPart)
+          .toList(),
+    );
+  }
+
+  MasterPanelTrackingPart _mapTrackingPart(Map item) {
+    final activity = item['activitySummary'] is Map
+        ? item['activitySummary'] as Map
+        : const {};
+    return MasterPanelTrackingPart(
+      masterPanelId: _asInt(item['masterPanelId']),
+      componentName: _asText(item['componentName'], 'Tanpa Component'),
+      panelName: _asText(item['panelName'], 'Tanpa Panel'),
+      namePart: _asText(item['namePart'], 'Item'),
+      aliasName: _nullableText(item['aliasName']),
+      partNumber: _nullableText(item['partNumber']),
+      qty: _asDouble(item['qty']),
+      initialCondition: _asText(item['initialCondition'], 'UNKNOWN'),
+      currentStatus: _asText(item['currentStatus'], 'WAITING'),
+      trackingStatus: _asText(item['trackingStatus'], 'PENDING'),
+      photoCount: _asInt(item['photoCount']),
+      activitySummary: MasterPanelTrackingActivitySummary(
+        countdownCount: _asInt(activity['countdownCount']),
+        activeCountdownCount: _asInt(activity['activeCountdownCount']),
+        jobPlanCount: _asInt(activity['jobPlanCount']),
+        prCount: _asInt(activity['prCount']),
+        woCount: _asInt(activity['woCount']),
+        wovCount: _asInt(activity['wovCount']),
+      ),
+    );
+  }
+
+  MasterPanelDetail _mapMasterPanelDetail(Map item) {
+    return MasterPanelDetail(
+      id: _asInt(item['id']),
+      name: _asText(
+        item['name'] ?? item['namePart'] ?? item['name_part'],
+        'Item',
+      ),
+      componentName: _asText(
+        item['componentName'] ?? item['component_name'],
+        'Tanpa Component',
+      ),
+      panelName: _asText(
+        item['panelName'] ?? item['panel_name'],
+        'Tanpa Panel',
+      ),
+      partNumber: _nullableText(item['partNumber'] ?? item['part_number']),
+      qty: _asDouble(item['qty'] ?? item['qty_normal']),
+      initialCondition: _asText(
+        item['initialCondition'] ?? item['initial_condition'],
+        'UNKNOWN',
+      ),
+      currentStatus: _asText(
+        item['currentStatus'] ?? item['current_status'],
+        'WAITING',
+      ),
+      notes: _nullableText(item['notes']),
+      images: (item['media'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (media) => MasterPanelImage(
+              id: _asInt(media['id']),
+              fileUrl: _asText(media['fileUrl'] ?? media['file_url'], ''),
+              caption: _nullableText(media['caption']),
+            ),
+          )
+          .where((media) => media.fileUrl.isNotEmpty)
+          .toList(),
     );
   }
 
@@ -324,4 +460,23 @@ class CountdownRepositoryImpl implements CountdownRepository {
       note: notes,
     );
   }
+}
+
+int _asInt(Object? value) => int.tryParse('${value ?? 0}') ?? 0;
+
+int? _nullableInt(Object? value) {
+  if (value == null) return null;
+  return int.tryParse('$value');
+}
+
+double _asDouble(Object? value) => double.tryParse('${value ?? 0}') ?? 0;
+
+String _asText(Object? value, String fallback) {
+  final text = '${value ?? ''}'.trim();
+  return text.isEmpty ? fallback : text;
+}
+
+String? _nullableText(Object? value) {
+  final text = '${value ?? ''}'.trim();
+  return text.isEmpty ? null : text;
 }

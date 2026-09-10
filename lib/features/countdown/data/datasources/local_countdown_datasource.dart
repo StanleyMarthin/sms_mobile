@@ -1,3 +1,11 @@
+/*
+Tujuan: Datasource mock Countdown untuk mode lokal/offline ringan.
+Caller: CountdownRepositoryImpl saat memakai LocalMockApiStore.
+Dependensi: DummyCountdownData, LocalMockApiStore.
+Main Functions: LocalCountdownDataSource.
+Side Effects: Read/write mock store lokal.
+*/
+
 library;
 
 import '../../../../core/data/dummy_data.dart';
@@ -11,13 +19,31 @@ class LocalCountdownDataSource implements CountdownDataSource {
 
   @override
   Future<List<Map<String, dynamic>>> getUnits() async => store.readList(
-        key: LocalMockApiStore.countdownUnitsKey,
-        seedBuilder: DummyCountdownData.units,
-      );
+    key: LocalMockApiStore.countdownUnitsKey,
+    seedBuilder: DummyCountdownData.units,
+  );
 
   @override
   Future<List<Map<String, dynamic>>> getDivisions(String carId) async =>
       <Map<String, dynamic>>[];
+
+  @override
+  Future<Map<String, dynamic>> getMasterPanelTracking(String unitId) async => {
+    'summary': {'total': 0, 'pending': 0, 'progress': 0, 'order': 0, 'done': 0},
+    'components': <Map<String, dynamic>>[],
+  };
+
+  @override
+  Future<Map<String, dynamic>> getMasterPanelDetail({
+    required String unitId,
+    required int panelId,
+  }) async => <String, dynamic>{
+    'id': panelId,
+    'name': 'Master Panel',
+    'component_name': '-',
+    'panel_name': '-',
+    'media': <Map<String, dynamic>>[],
+  };
 
   @override
   Future<List<Map<String, dynamic>>> getSections({
@@ -26,8 +52,7 @@ class LocalCountdownDataSource implements CountdownDataSource {
     String? search,
     String? status,
     bool plannable = false,
-  }) async =>
-      <Map<String, dynamic>>[];
+  }) async => <Map<String, dynamic>>[];
 
   @override
   Future<List<Map<String, dynamic>>> getJobdescs({
@@ -37,8 +62,7 @@ class LocalCountdownDataSource implements CountdownDataSource {
     String? search,
     String? status,
     bool plannable = false,
-  }) async =>
-      <Map<String, dynamic>>[];
+  }) async => <Map<String, dynamic>>[];
 
   @override
   Future<List<Map<String, dynamic>>> getDetails(String countdownId) async {
@@ -47,8 +71,9 @@ class LocalCountdownDataSource implements CountdownDataSource {
       seedBuilder: DummyCountdownData.seedDetails,
     );
     for (final details in detailsByCar.values) {
-      final filtered =
-          details.where((item) => item['countdownId'] == countdownId).toList();
+      final filtered = details
+          .where((item) => item['countdownId'] == countdownId)
+          .toList();
       if (filtered.isNotEmpty) {
         return filtered;
       }
@@ -57,9 +82,9 @@ class LocalCountdownDataSource implements CountdownDataSource {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> getRevisionRequests(
-          {String? carId}) async =>
-      <Map<String, dynamic>>[];
+  Future<List<Map<String, dynamic>>> getRevisionRequests({
+    String? carId,
+  }) async => <Map<String, dynamic>>[];
 
   @override
   Future<void> requestRevision({

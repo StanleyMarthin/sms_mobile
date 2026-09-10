@@ -1,5 +1,3 @@
-library;
-
 /*
 Tujuan: Entity domain countdown untuk unit, jobdesc, dan detail eksekusi planning/monitoring.
 Caller: CountdownRepositoryImpl, grouped monitoring pages, countdown detail sheet, dialog plan.
@@ -7,6 +5,9 @@ Dependensi: Tidak ada; file ini hanya mendefinisikan struktur data domain.
 Main Functions: CountdownUnit, CountdownJobdesc, CountdownDetailItem constructors.
 Side Effects: Tidak ada; hanya representasi data in-memory.
 */
+
+library;
+
 class CountdownUnit {
   CountdownUnit({
     required this.carId,
@@ -69,6 +70,151 @@ class CountdownSection {
   final String sectionStatus;
   final String? totalTargetHoursAlias;
   final String? totalRemainingHoursAlias;
+}
+
+class MasterPanelTracking {
+  MasterPanelTracking({required this.summary, required this.components});
+
+  final MasterPanelTrackingSummary summary;
+  final List<MasterPanelTrackingComponent> components;
+}
+
+class MasterPanelTrackingSummary {
+  MasterPanelTrackingSummary({
+    required this.total,
+    required this.pending,
+    required this.progress,
+    required this.order,
+    required this.done,
+  });
+
+  final int total;
+  final int pending;
+  final int progress;
+  final int order;
+  final int done;
+}
+
+class MasterPanelTrackingComponent {
+  MasterPanelTrackingComponent({
+    required this.componentId,
+    required this.componentName,
+    required this.totalPanels,
+    required this.totalParts,
+    required this.pendingCount,
+    required this.progressCount,
+    required this.orderCount,
+    required this.panels,
+  });
+
+  final int? componentId;
+  final String componentName;
+  final int totalPanels;
+  final int totalParts;
+  final int pendingCount;
+  final int progressCount;
+  final int orderCount;
+  final List<MasterPanelTrackingPanel> panels;
+}
+
+class MasterPanelTrackingPanel {
+  MasterPanelTrackingPanel({
+    required this.panelId,
+    required this.panelName,
+    required this.totalParts,
+    required this.activityCount,
+    required this.progressPercent,
+    required this.parts,
+  });
+
+  final int? panelId;
+  final String panelName;
+  final int totalParts;
+  final int activityCount;
+  final double progressPercent;
+  final List<MasterPanelTrackingPart> parts;
+}
+
+class MasterPanelTrackingPart {
+  MasterPanelTrackingPart({
+    required this.masterPanelId,
+    required this.componentName,
+    required this.panelName,
+    required this.namePart,
+    required this.aliasName,
+    required this.partNumber,
+    required this.qty,
+    required this.initialCondition,
+    required this.currentStatus,
+    required this.trackingStatus,
+    required this.photoCount,
+    required this.activitySummary,
+  });
+
+  final int masterPanelId;
+  final String componentName;
+  final String panelName;
+  final String namePart;
+  final String? aliasName;
+  final String? partNumber;
+  final double qty;
+  final String initialCondition;
+  final String currentStatus;
+  final String trackingStatus;
+  final int photoCount;
+  final MasterPanelTrackingActivitySummary activitySummary;
+}
+
+class MasterPanelTrackingActivitySummary {
+  MasterPanelTrackingActivitySummary({
+    required this.countdownCount,
+    required this.activeCountdownCount,
+    required this.jobPlanCount,
+    required this.prCount,
+    required this.woCount,
+    required this.wovCount,
+  });
+
+  final int countdownCount;
+  final int activeCountdownCount;
+  final int jobPlanCount;
+  final int prCount;
+  final int woCount;
+  final int wovCount;
+}
+
+class MasterPanelImage {
+  MasterPanelImage({required this.id, required this.fileUrl, this.caption});
+
+  final int id;
+  final String fileUrl;
+  final String? caption;
+}
+
+class MasterPanelDetail {
+  MasterPanelDetail({
+    required this.id,
+    required this.name,
+    required this.componentName,
+    required this.panelName,
+    required this.partNumber,
+    required this.qty,
+    required this.initialCondition,
+    required this.currentStatus,
+    required this.notes,
+    required this.images,
+  });
+
+  final int id;
+  final String name;
+  final String componentName;
+  final String panelName;
+  final String? partNumber;
+  final double qty;
+  final String initialCondition;
+  final String currentStatus;
+  final String? notes;
+  final List<MasterPanelImage> images;
 }
 
 class CountdownJobdesc {

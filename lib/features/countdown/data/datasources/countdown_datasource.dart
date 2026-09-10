@@ -1,7 +1,22 @@
+/*
+Tujuan: Kontrak datasource Countdown untuk flow Divisi dan Tracking Master Panel.
+Caller: CountdownRepositoryImpl.
+Dependensi: Tidak ada; implementasi remote/local menyediakan data.
+Main Functions: CountdownDataSource.
+Side Effects: Tidak ada langsung.
+*/
+
 abstract class CountdownDataSource {
   Future<List<Map<String, dynamic>>> getUnits();
 
   Future<List<Map<String, dynamic>>> getDivisions(String carId);
+
+  Future<Map<String, dynamic>> getMasterPanelTracking(String unitId);
+
+  Future<Map<String, dynamic>> getMasterPanelDetail({
+    required String unitId,
+    required int panelId,
+  });
 
   Future<List<Map<String, dynamic>>> getSections({
     required String carId,

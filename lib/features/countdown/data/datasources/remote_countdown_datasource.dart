@@ -64,6 +64,35 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   }
 
   @override
+  Future<Map<String, dynamic>> getMasterPanelTracking(String unitId) async {
+    final response = await apiClient.get(
+      ApiEndpoints.masterPanelTracking(unitId),
+      queryParameters: {'user_id': _userId},
+    );
+    final raw = response.data;
+    if (raw is Map<String, dynamic> && raw['data'] is Map<String, dynamic>) {
+      return raw['data'] as Map<String, dynamic>;
+    }
+    return raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+  }
+
+  @override
+  Future<Map<String, dynamic>> getMasterPanelDetail({
+    required String unitId,
+    required int panelId,
+  }) async {
+    final response = await apiClient.get(
+      ApiEndpoints.masterPanelDetail(unitId, panelId),
+      queryParameters: {'user_id': _userId},
+    );
+    final raw = response.data;
+    if (raw is Map<String, dynamic> && raw['data'] is Map<String, dynamic>) {
+      return raw['data'] as Map<String, dynamic>;
+    }
+    return raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> getSections({
     required String carId,
     required int divisionId,

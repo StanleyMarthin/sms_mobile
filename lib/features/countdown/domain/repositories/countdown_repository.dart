@@ -1,3 +1,11 @@
+/*
+Tujuan: Kontrak repository countdown untuk flow Divisi dan Tracking Master Panel.
+Caller: Countdown UI dan repository implementation.
+Dependensi: Entity countdown.
+Main Functions: CountdownRepository.
+Side Effects: Tidak ada langsung; implementation dapat melakukan HTTP read/write sesuai method.
+*/
+
 library;
 
 import '../entities/countdown_entities.dart';
@@ -11,6 +19,14 @@ abstract class CountdownRepository {
 
   /// Level 2: list divisi untuk sebuah unit (car_id).
   Future<List<CountdownDivision>> getDivisions(String carId);
+
+  /// Read-only Tracking Panel berbasis master_panels per unit.
+  Future<MasterPanelTracking> getMasterPanelTracking(String unitId);
+
+  Future<MasterPanelDetail> getMasterPanelDetail({
+    required String unitId,
+    required int panelId,
+  });
 
   /// Level 3: list section/panel untuk divisi tertentu (car_id + division_id).
   Future<List<CountdownSection>> getSections({
@@ -32,7 +48,6 @@ abstract class CountdownRepository {
     bool plannable = false,
   });
 
-
   /// Level 5: detail aktual per countdown_id.
   Future<List<CountdownDetailItem>> getDetails(String countdownId);
 
@@ -53,7 +68,7 @@ abstract class CountdownRepository {
   });
 
   Future<void> markAsQcReady(String countdownId);
-  
+
   Future<void> moApproveRevision({
     required String requestId,
     required bool approved,

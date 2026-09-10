@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-09-02
+- Last verified: 2026-09-09
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -947,6 +947,12 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → CountdownRepositoryImpl|MonitoringRepositoryImpl
 → RemoteCountdownDataSource|RemoteMonitoringDataSource
 → ApiEndpoints.countdown* (/sm/countdown via gateway; legacy port 8090)
+→ Setelah pilih Unit: default Tracking Panel, tab Divisi tetap memakai flow lama
+→ Tracking Panel memakai GET /sm/units/{unit}/master-panels/tracking read-only
+→ Source tracking adalah master_panels.car_id; tidak membaca unit_catalog/catalog_panels/unit_additional_items
+→ Drill-down tracking: Component snapshot → Panel snapshot → Part/Master Panel detail
+→ Operational counts clean: sm_jobdesc_countdown.panel_id, sm_jobdesc_plan.core_id→countdown.panel_id, pur_pr_header.panel_id, sm_jobdesc_wo via countdown.ref_taks_id, vnd_wo_vendor via pr_id/core_id
+→ Root cause getSections server error 2026-09-09: backend masih query master_panels.name/section pada schema final; patch target memakai panel_name/name_part/component_name
 ```
 
 ### Unit preparation / catalog survey issue

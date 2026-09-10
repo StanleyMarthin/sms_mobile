@@ -1,3 +1,11 @@
+/*
+Tujuan: Halaman monitoring Countdown berjenjang Unit, Divisi, Section, Jobdesc, dan Tracking Master Panel.
+Caller: CountdownPage setelah user memilih unit.
+Dependensi: CountdownRepository, JobPlanRepository, SessionManager, AppColors, Countdown widgets.
+Main Functions: GroupedUnitMonitoringPage, GroupedDivisionPage, GroupedSectionPage.
+Side Effects: HTTP read-only countdown/tracking dan action existing revision/job plan melalui repository.
+*/
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../domain/entities/countdown_entities.dart';
@@ -11,6 +19,7 @@ import '../../../../core/utils/snackbar_helper.dart';
 import '../utils/countdown_helper.dart';
 import '../widgets/countdown_shared.dart';
 import '../widgets/countdown_detail_sheet.dart';
+import 'master_panel_tracking_view.dart';
 
 class GroupedUnitMonitoringPage extends StatefulWidget {
   const GroupedUnitMonitoringPage({
@@ -38,13 +47,20 @@ class GroupedUnitMonitoringPage extends StatefulWidget {
 }
 
 class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
-  bool _isLoading = true;
+  bool _isLoading = false;
+  bool _trackingMode = true;
   List<CountdownDivision> _divisions = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+  }
+
+  void _showDivisionMode() {
+    setState(() => _trackingMode = false);
+    if (_divisions.isEmpty && !_isLoading) {
+      _loadData();
+    }
   }
 
   Future<void> _loadData() async {
@@ -68,153 +84,235 @@ class _GroupedUnitMonitoringPageState extends State<GroupedUnitMonitoringPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: Text('${widget.unit.unitName} - Divisi'),
-          backgroundColor: AppColors.surfaceCard,
-          foregroundColor: AppColors.textPrimary,
-        ),
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // Summary dari data L2
-    final overallProgress = _divisions.isEmpty
-        ? 0.0
-        : _divisions.fold<double>(0, (s, d) => s + d.divisionProgress) /
-              _divisions.length /
-              100.0;
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('${widget.unit.unitName} - Divisi'),
+        title: Text(widget.unit.unitName),
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.unit.unitName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (widget.unit.contractDeliveryDate != null)
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.orange.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppColors.orange.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        child: Text(
-                          'DL ${widget.unit.contractDeliveryDate}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.orange,
-                          ),
-                        ),
-                      ),
-                    CountdownStatusChip(status: widget.effectiveUnitStatus),
-                  ],
-                ),
-                SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: LinearProgressIndicator(
-                        value: overallProgress,
-                        minHeight: 8,
-                        backgroundColor: AppColors.border,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      '${(overallProgress * 100).round()}%',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4),
-                Text(
-                  '${_divisions.length} divisi',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Text(
-              'Pilih divisi untuk lanjut ke Section',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-            ),
+          _UnitModeSwitch(
+            trackingMode: _trackingMode,
+            onTracking: () => setState(() => _trackingMode = true),
+            onDivision: _showDivisionMode,
           ),
           Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-              itemCount: _divisions.length,
-              itemBuilder: (_, index) {
-                final div = _divisions[index];
-                return CountdownNavCard(
-                  title: div.divisionName,
-                  subtitle:
-                      '${div.divisionProgress.toStringAsFixed(1)}% selesai',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => GroupedDivisionPage(
-                          unit: widget.unit,
-                          division: div,
-                          repository: widget.repository,
-                          jobPlanRepository: widget.jobPlanRepository,
-                          qcIdsByCoreId: widget.qcIdsByCoreId,
-                          onRefreshNeeded: widget.onRefreshNeeded,
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+            child: _trackingMode
+                ? MasterPanelTrackingView(
+                    unit: widget.unit,
+                    repository: widget.repository,
+                  )
+                : _buildDivisionMode(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildDivisionMode() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final overallProgress = _divisions.isEmpty
+        ? 0.0
+        : _divisions.fold<double>(0, (s, d) => s + d.divisionProgress) /
+              _divisions.length /
+              100.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: double.infinity,
+          margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceCard,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.unit.unitName,
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+              SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (widget.unit.contractDeliveryDate != null)
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.orange.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Text(
+                        'DL ${widget.unit.contractDeliveryDate}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.orange,
+                        ),
+                      ),
+                    ),
+                  CountdownStatusChip(status: widget.effectiveUnitStatus),
+                ],
+              ),
+              SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: overallProgress,
+                      minHeight: 8,
+                      backgroundColor: AppColors.border,
+                      color: AppColors.gold,
+                    ),
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    '${(overallProgress * 100).round()}%',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 4),
+              Text(
+                '${_divisions.length} divisi',
+                style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+          child: Text(
+            'Pilih divisi untuk lanjut ke Section',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+            itemCount: _divisions.length,
+            itemBuilder: (_, index) {
+              final div = _divisions[index];
+              return CountdownNavCard(
+                title: div.divisionName,
+                subtitle: '${div.divisionProgress.toStringAsFixed(1)}% selesai',
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => GroupedDivisionPage(
+                        unit: widget.unit,
+                        division: div,
+                        repository: widget.repository,
+                        jobPlanRepository: widget.jobPlanRepository,
+                        qcIdsByCoreId: widget.qcIdsByCoreId,
+                        onRefreshNeeded: widget.onRefreshNeeded,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _UnitModeSwitch extends StatelessWidget {
+  const _UnitModeSwitch({
+    required this.trackingMode,
+    required this.onTracking,
+    required this.onDivision,
+  });
+
+  final bool trackingMode;
+  final VoidCallback onTracking;
+  final VoidCallback onDivision;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceInput,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          _ModeButton(
+            label: 'Tracking Panel',
+            selected: trackingMode,
+            onTap: onTracking,
+          ),
+          _ModeButton(
+            label: 'Divisi',
+            selected: !trackingMode,
+            onTap: onDivision,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeButton extends StatelessWidget {
+  const _ModeButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(9),
+        child: Container(
+          height: 42,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.gold.withValues(alpha: 0.18) : null,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: selected ? AppColors.gold : AppColors.textMuted,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -388,10 +486,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
                 SizedBox(height: 4),
                 Text(
                   '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemainingHours)} sisa',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -414,10 +509,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
             ),
           ),
           Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 8.0,
-            ),
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (value) {
@@ -436,10 +528,7 @@ class _GroupedDivisionPageState extends State<GroupedDivisionPage> {
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
                 hintText: 'Cari nama panel/part...',
-                hintStyle: TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 13,
-                ),
+                hintStyle: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 prefixIcon: Icon(
                   Icons.search,
                   color: AppColors.textMuted,
@@ -636,10 +725,7 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
               children: [
                 Text(
                   '${widget.unit.unitName} • ${widget.division.divisionName}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 SizedBox(height: 2),
                 Text(
@@ -674,10 +760,7 @@ class _GroupedSectionPageState extends State<GroupedSectionPage> {
                 SizedBox(height: 4),
                 Text(
                   '$doneCount/$totalItems jobdesc selesai',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -803,18 +886,12 @@ class _PmJobdescActualPageState extends State<PmJobdescActualPage> {
                 SizedBox(height: 4),
                 Text(
                   'Status: $status • DL ${widget.item.deadlineDate}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
                 SizedBox(height: 4),
                 Text(
                   '${widget.item.progress}% • ${widget.item.remainingHoursAlias ?? CountdownHelper.formatWorkHours(widget.item.remainingHours)} sisa',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -987,10 +1064,7 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
               children: [
                 Text(
                   widget.unit.unitName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 SizedBox(height: 10),
                 Row(
@@ -1017,10 +1091,7 @@ class _KdGroupedPanelPageState extends State<KdGroupedPanelPage> {
                 SizedBox(height: 4),
                 Text(
                   '${_divisions.length} divisi',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -1196,10 +1267,7 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                 SizedBox(height: 4),
                 Text(
                   '$totalJobdesc jobdesc • ${CountdownHelper.formatWorkHours(totalRemaining)} sisa',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -1209,10 +1277,7 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Cari Panel/Part',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMuted,
-                ),
+                hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 prefixIcon: Icon(
                   Icons.search,
                   color: AppColors.textMuted,
@@ -1238,10 +1303,7 @@ class _KdDivisionSectionPageState extends State<KdDivisionSectionPage> {
                   borderSide: BorderSide(color: AppColors.gold),
                 ),
               ),
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textPrimary,
-              ),
+              style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
           ),
@@ -1417,10 +1479,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
               children: [
                 Text(
                   widget.unit.unitName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 SizedBox(height: 2),
                 Text(
@@ -1455,10 +1514,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                 SizedBox(height: 4),
                 Text(
                   '$doneCount/$totalItems jobdesc selesai',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ],
             ),
@@ -1485,10 +1541,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Cari jobdesc...',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textMuted,
-                ),
+                hintStyle: TextStyle(fontSize: 13, color: AppColors.textMuted),
                 prefixIcon: Icon(
                   Icons.search,
                   color: AppColors.textMuted,
@@ -1514,10 +1567,7 @@ class _KdPanelJobdescPageState extends State<KdPanelJobdescPage> {
                   borderSide: BorderSide(color: AppColors.gold),
                 ),
               ),
-              style: TextStyle(
-                fontSize: 13,
-                color: AppColors.textPrimary,
-              ),
+              style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
               onChanged: (val) => setState(() => _searchQuery = val),
             ),
           ),
