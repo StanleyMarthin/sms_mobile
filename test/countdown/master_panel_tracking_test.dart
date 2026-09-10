@@ -9,6 +9,7 @@ Side Effects: Tidak ada; memakai fake datasource.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/features/countdown/data/datasources/countdown_datasource.dart';
 import 'package:sm_system/features/countdown/data/repositories/countdown_repository_impl.dart';
+import 'package:sm_system/features/countdown/presentation/pages/grouped_monitoring_pages.dart';
 import 'package:sm_system/features/countdown/presentation/pages/master_panel_tracking_view.dart';
 
 class _FakeCountdownDataSource implements CountdownDataSource {
@@ -99,6 +100,17 @@ class _FakeCountdownDataSource implements CountdownDataSource {
     'current_status': 'WAITING',
     'media': [
       {'id': 1, 'file_url': 'https://cdn.example.com/master.jpg'},
+    ],
+    'prs': [
+      {
+        'req_id': 'pr-1',
+        'pr_number': 'PR/INT/001/09/2026',
+        'acc_tracking': 'PENDING_ADV',
+        'status': null,
+        'priority': 'NORMAL',
+        'target_date': '2026-09-20',
+        'qty': 1,
+      },
     ],
   };
 
@@ -270,6 +282,8 @@ void main() {
 
     expect(detail.id, 11);
     expect(detail.images.single.fileUrl, 'https://cdn.example.com/master.jpg');
+    expect(detail.prActivities.single.reqId, 'pr-1');
+    expect(detail.prActivities.single.prNumber, 'PR/INT/001/09/2026');
   });
 
   test('create countdown keeps selected master panel id fixed', () async {
@@ -305,6 +319,8 @@ void main() {
       true,
     );
     expect(canCreateMasterPanelCountdown({'CREATE_TASK'}), false);
+    expect(canCreateMasterPanelPr({'PR_CREATE'}), true);
+    expect(canCreateMasterPanelPr({'PR_VIEW'}), false);
   });
 
   test('countdown command id is uuid shaped', () {
@@ -320,5 +336,10 @@ void main() {
       ),
     );
     expect(first, isNot(second));
+  });
+
+  test('unit mode labels use panel and countdown wording', () {
+    expect(countdownPanelModeLabel, 'Panel');
+    expect(countdownOperationalModeLabel, 'Countdown');
   });
 }

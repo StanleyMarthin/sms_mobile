@@ -653,19 +653,25 @@ Panel   → getJobdescs(...)     → GET /sm/countdown?...&panel_id=...
 Detail  → getDetails(cntdwnId) → GET /sm/countdown?...&countdown_id=...
 ```
 
-**Master Panel Tracking create Countdown:**
+**Master Panel Tracking create Countdown / PR:**
 ```text
-Unit → Tracking Panel → Component → Panel → Part/Master Panel Detail
+Unit → Panel → Component → Panel → Part/Master Panel Detail
 → + Buat Countdown
 → GET /sm/units/{unit}/master-panels/countdown-options
 → POST /sm/units/{unit}/master-panels/{masterPanelId}/jobdescs
+
+Unit → Panel → Component → Panel → Part/Master Panel Detail
+→ + Buat PR
+→ POST /sm/pr action=create
 ```
 
 Rules:
 - Identity pekerjaan adalah `sm_jobdesc_countdown.panel_id = master_panels.id`.
+- Identity PR tracking adalah `pur_pr_header.panel_id = master_panels.id`; `pur_pr_header.master_panel_id` ada di DDL tetapi tidak dipakai sebagai canonical relation fase ini.
 - Backend wajib validasi `master_panels.id` ada dan `master_panels.car_id` cocok dengan unit; tidak lookup via `section_name`, `panel_name`, `name_part`, atau `part_number`.
 - Payload create memakai `command_id`, `division_id`, `pic_plan`, `job_type_id`, `description`, `target_hours_initial`, `start_date`, `deadline_date`, dan `task_category` default `MAIN`.
 - `command_id` adalah UUID idempotency key dari mobile; backend memakai key ini sebagai `sm_jobdesc_countdown.id` dan retry key yang sama mengembalikan Countdown existing bila payload identitas sama.
+- Payload create PR dari tracking memakai `commandId`, `masterPanelId`, `carId`, `items`, `targetDate`, `priority`, `originType`, dan backend menyimpan `commandId` sebagai `pur_pr_header.id` untuk idempotency.
 - `pic_plan` adalah planned PIC Countdown dari `sm_jobdesc_countdown.pic_plan` dan diisi dari `sm_employee.employee_id`; ini berbeda dari `sm_jobdesc_plan.assigned_user_id`.
 - `section_name` hanya snapshot/display compatibility, bukan relational identity.
 - Legacy DB columns seperti `ref_taks_id`, `dailyTargetHours`, `isPriority`, dan `progres` tetap dipakai sesuai DDL aktif; rename bukan bagian fase ini.
@@ -767,6 +773,12 @@ Upload   → GET 8091 /sm/warehouse/upload-ticket → PUT binary
 -> POST 8096 /sm/pr { action: create|approve }
 -> PUT 8096 /sm/pr/{reqId}/finalize   (ada di datasource, belum jadi flow utama routed page)
 ```
+
+Tracking-origin PR:
+- Mobile memakai `RemotePrDataSource.createPr(masterPanelId, commandId, items)` dari Master Panel detail.
+- Backend canonical relation: `sms_purchase.pur_pr_header.panel_id = sms_db.master_panels.id`.
+- PR dari Master Panel tidak membutuhkan Countdown; Countdown dan PR adalah sibling activity operational dari `master_panels.id`.
+- Idempotency memakai `pur_pr_header.id = commandId`; retry key sama + payload sama return existing, key sama + payload beda return 409.
 
 ### 10.12 Notifications
 
@@ -964,9 +976,10 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → CountdownRepositoryImpl|MonitoringRepositoryImpl
 → RemoteCountdownDataSource|RemoteMonitoringDataSource
 → ApiEndpoints.countdown* (/sm/countdown via gateway; legacy port 8090)
-→ Setelah pilih Unit: default Tracking Panel, tab Divisi tetap memakai flow lama
-→ Tracking Panel memakai GET /sm/units/{unit}/master-panels/tracking read-only
+→ Setelah pilih Unit: default tab Panel, tab Countdown tetap memakai flow Divisi lama
+→ Panel memakai GET /sm/units/{unit}/master-panels/tracking
 → Create Countdown dari Tracking memakai GET /sm/units/{unit}/master-panels/countdown-options lalu POST /sm/units/{unit}/master-panels/{masterPanelId}/jobdescs
+→ Create PR dari Tracking memakai POST /sm/pr action=create dengan `masterPanelId`; backend menyimpan relasi ke `pur_pr_header.panel_id`
 → Source tracking adalah master_panels.car_id; tidak membaca unit_catalog/catalog_panels/unit_additional_items
 → Drill-down tracking: Component snapshot → Panel snapshot → Part/Master Panel detail
 → Operational counts clean: sm_jobdesc_countdown.panel_id=master_panels.id, sm_jobdesc_plan.core_id→countdown.panel_id, pur_pr_header.panel_id, sm_jobdesc_wo via countdown.ref_taks_id, vnd_wo_vendor via pr_id/core_id

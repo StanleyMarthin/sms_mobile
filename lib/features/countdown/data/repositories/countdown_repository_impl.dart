@@ -357,6 +357,24 @@ class CountdownRepositoryImpl implements CountdownRepository {
           .where((media) => media.fileUrl.isNotEmpty)
           .toList(),
       countdownCount: (item['jobdescs'] as List? ?? const []).length,
+      prActivities: (item['prs'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (pr) => MasterPanelPrActivity(
+              reqId: _asText(pr['reqId'] ?? pr['req_id'] ?? pr['id'], ''),
+              prNumber: _asText(pr['prNumber'] ?? pr['pr_number'], '-'),
+              accTracking: _asText(
+                pr['accTracking'] ?? pr['acc_tracking'],
+                'PENDING_ADV',
+              ),
+              status: _nullableText(pr['status']),
+              priority: _asText(pr['priority'], 'NORMAL'),
+              qty: _asDouble(pr['qty']),
+              targetDate: _nullableText(pr['targetDate'] ?? pr['target_date']),
+            ),
+          )
+          .where((pr) => pr.reqId.isNotEmpty)
+          .toList(),
     );
   }
 

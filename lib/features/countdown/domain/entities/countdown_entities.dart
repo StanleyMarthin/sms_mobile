@@ -204,6 +204,7 @@ class MasterPanelDetail {
     required this.notes,
     required this.images,
     required this.countdownCount,
+    required this.prActivities,
   });
 
   final int id;
@@ -217,6 +218,27 @@ class MasterPanelDetail {
   final String? notes;
   final List<MasterPanelImage> images;
   final int countdownCount;
+  final List<MasterPanelPrActivity> prActivities;
+}
+
+class MasterPanelPrActivity {
+  MasterPanelPrActivity({
+    required this.reqId,
+    required this.prNumber,
+    required this.accTracking,
+    required this.status,
+    required this.priority,
+    required this.qty,
+    this.targetDate,
+  });
+
+  final String reqId;
+  final String prNumber;
+  final String accTracking;
+  final String? status;
+  final String priority;
+  final double qty;
+  final String? targetDate;
 }
 
 class CountdownCreateOptions {

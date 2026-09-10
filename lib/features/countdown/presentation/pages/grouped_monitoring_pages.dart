@@ -21,6 +21,9 @@ import '../widgets/countdown_shared.dart';
 import '../widgets/countdown_detail_sheet.dart';
 import 'master_panel_tracking_view.dart';
 
+const countdownPanelModeLabel = 'Panel';
+const countdownOperationalModeLabel = 'Countdown';
+
 class GroupedUnitMonitoringPage extends StatefulWidget {
   const GroupedUnitMonitoringPage({
     super.key,
@@ -265,12 +268,12 @@ class _UnitModeSwitch extends StatelessWidget {
       child: Row(
         children: [
           _ModeButton(
-            label: 'Tracking Panel',
+            label: countdownPanelModeLabel,
             selected: trackingMode,
             onTap: onTracking,
           ),
           _ModeButton(
-            label: 'Divisi',
+            label: countdownOperationalModeLabel,
             selected: !trackingMode,
             onTap: onDivision,
           ),

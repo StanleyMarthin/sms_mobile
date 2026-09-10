@@ -1,3 +1,11 @@
+/*
+Tujuan: Datasource HTTP Purchase Request mobile.
+Caller: PR list/detail/form dan Master Panel Tracking create PR.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, PRHeader, PRItem.
+Main Functions: getPrs(), getPrDetail(), createPr(), approvePr(), rejectPr(), updateItem(), finalizeItem().
+Side Effects: HTTP GET/POST ke service sm_pr.
+*/
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -15,10 +23,7 @@ class RemotePrDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  RemotePrDataSource({
-    required this.apiClient,
-    required this.sessionManager,
-  });
+  RemotePrDataSource({required this.apiClient, required this.sessionManager});
 
   String get _userId =>
       sessionManager.userId ?? sessionManager.employeeId ?? '';
@@ -78,6 +83,8 @@ class RemotePrDataSource {
   /// BE flow: acc_tracking starts at PENDING_ADV, status = null.
   Future<Map<String, dynamic>> createPr({
     required String carId,
+    int? masterPanelId,
+    String? commandId,
     String? carName,
     String? divisionId,
     String? divisionName,
@@ -92,6 +99,8 @@ class RemotePrDataSource {
         'action': 'create',
         'userId': _userId,
         'carId': carId,
+        if (commandId != null) 'commandId': commandId,
+        if (masterPanelId != null) 'masterPanelId': masterPanelId,
         if (carName != null) 'carName': carName,
         if (divisionId != null) 'divisionId': divisionId,
         if (divisionName != null) 'divisionName': divisionName,
@@ -113,10 +122,7 @@ class RemotePrDataSource {
   ///   PENDING_KP  → PENDING_MP (by KP)
   ///   PENDING_MP  → PENDING_PUR (by MP)
   ///   PENDING_PUR → APPROVED / status=OPEN (by Purchase Head)
-  Future<Map<String, dynamic>> approvePr(
-    String reqId, {
-    String? notes,
-  }) async {
+  Future<Map<String, dynamic>> approvePr(String reqId, {String? notes}) async {
     final response = await apiClient.post(
       ApiEndpoints.pr,
       data: {
@@ -132,10 +138,7 @@ class RemotePrDataSource {
   // ── Reject PR ──────────────────────────────────────────────
 
   /// Rejects a PR — sets status to REJECTED.
-  Future<Map<String, dynamic>> rejectPr(
-    String reqId, {
-    String? notes,
-  }) async {
+  Future<Map<String, dynamic>> rejectPr(String reqId, {String? notes}) async {
     final response = await apiClient.post(
       ApiEndpoints.pr,
       data: {
@@ -151,10 +154,7 @@ class RemotePrDataSource {
   // ── Update Item ────────────────────────────────────────────
 
   /// Updates a single PR item's status/data (by purchasing team).
-  Future<Map<String, dynamic>> updateItem(
-    String reqId,
-    PRItem item,
-  ) async {
+  Future<Map<String, dynamic>> updateItem(String reqId, PRItem item) async {
     final response = await apiClient.post(
       ApiEndpoints.pr,
       data: {

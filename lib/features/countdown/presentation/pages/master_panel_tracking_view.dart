@@ -1,9 +1,9 @@
 /*
-Tujuan: UI read-only Tracking Master Panel di modul Countdown.
+Tujuan: UI Tracking Master Panel di modul Countdown.
 Caller: GroupedUnitMonitoringPage mode Tracking Panel.
-Dependensi: CountdownRepository, Countdown entities, ApiEndpoints, AppColors.
+Dependensi: CountdownRepository, RemotePrDataSource, Countdown/PR entities, ApiEndpoints, AppColors.
 Main Functions: MasterPanelTrackingView.
-Side Effects: HTTP read-only melalui repository.
+Side Effects: HTTP read tracking, create Countdown, dan create PR sesuai permission.
 */
 
 import 'package:flutter/material.dart';
@@ -15,12 +15,19 @@ import '../../../../core/errors/error_message.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
+import '../../../pr/data/datasources/remote_pr_datasource.dart';
+import '../../../pr/data/models/pr_item.dart';
+import '../../../pr/presentation/pages/pr_detail_page.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
 import '../widgets/countdown_shared.dart';
 
 bool canCreateMasterPanelCountdown(Set<String> permissionCodes) {
   return permissionCodes.contains(Perms.unitCatalogCreateJobdesc);
+}
+
+bool canCreateMasterPanelPr(Set<String> permissionCodes) {
+  return permissionCodes.contains(Perms.prCreate);
 }
 
 String newCountdownCommandId() {
@@ -445,6 +452,7 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                 _ActivitySummaryCard(
                   summary: widget.part.activitySummary,
                   countdownCount: detail.countdownCount,
+                  prCount: detail.prActivities.length,
                 ),
                 if (detail.countdownCount > 0) ...[
                   const SizedBox(height: 8),
@@ -453,19 +461,44 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                     value: '${detail.countdownCount} pekerjaan',
                   ),
                 ],
-                if (_canCreateFromSession()) ...[
+                if (detail.prActivities.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...detail.prActivities.map((pr) => _PrActivityTile(pr: pr)),
+                ],
+                if (_canCreateCountdownFromSession() ||
+                    _canCreatePrFromSession()) ...[
                   const SizedBox(height: 16),
-                  SizedBox(
-                    height: 48,
-                    child: ElevatedButton.icon(
-                      onPressed: () => _openCreateCountdown(detail),
-                      icon: const Icon(Icons.add_task),
-                      label: const Text('Buat Countdown'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.gold,
-                        foregroundColor: Colors.black,
-                      ),
-                    ),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      if (_canCreateCountdownFromSession())
+                        SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _openCreateCountdown(detail),
+                            icon: const Icon(Icons.add_task),
+                            label: const Text('Buat Countdown'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.gold,
+                              foregroundColor: Colors.black,
+                            ),
+                          ),
+                        ),
+                      if (_canCreatePrFromSession())
+                        SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _openCreatePr(detail),
+                            icon: const Icon(Icons.shopping_cart_checkout),
+                            label: const Text('Buat PR'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.surfaceInput,
+                              foregroundColor: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ],
@@ -476,12 +509,20 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
     );
   }
 
-  bool _canCreateFromSession() {
+  bool _canCreateCountdownFromSession() {
     if (!sl.isRegistered<SessionManager>()) return false;
     final session = sl<SessionManager>();
     return canCreateMasterPanelCountdown({
       if (session.hasPerm(Perms.unitCatalogCreateJobdesc))
         Perms.unitCatalogCreateJobdesc,
+    });
+  }
+
+  bool _canCreatePrFromSession() {
+    if (!sl.isRegistered<SessionManager>()) return false;
+    final session = sl<SessionManager>();
+    return canCreateMasterPanelPr({
+      if (session.hasPerm(Perms.prCreate)) Perms.prCreate,
     });
   }
 
@@ -500,6 +541,252 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
     await widget.onChanged();
     if (!mounted) return;
     AppNotification.showSuccess(context, 'Countdown berhasil dibuat.');
+  }
+
+  Future<void> _openCreatePr(MasterPanelDetail detail) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _CreatePrSheet(unitId: widget.unitId, detail: detail),
+    );
+    if (created != true || !mounted) return;
+    await _reloadDetail();
+    await widget.onChanged();
+    if (!mounted) return;
+    AppNotification.showSuccess(context, 'PR berhasil dibuat.');
+  }
+}
+
+class _PrActivityTile extends StatelessWidget {
+  const _PrActivityTile({required this.pr});
+
+  final MasterPanelPrActivity pr;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => PrDetailPage(reqId: pr.reqId)),
+      ),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceInput,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.receipt_long, color: AppColors.gold, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    pr.prNumber,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${pr.accTracking} • Qty ${_formatQty(pr.qty)}${pr.targetDate == null ? '' : ' • ${pr.targetDate}'}',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColors.textMuted),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CreatePrSheet extends StatefulWidget {
+  const _CreatePrSheet({required this.unitId, required this.detail});
+
+  final String unitId;
+  final MasterPanelDetail detail;
+
+  @override
+  State<_CreatePrSheet> createState() => _CreatePrSheetState();
+}
+
+class _CreatePrSheetState extends State<_CreatePrSheet> {
+  final String _commandId = newCountdownCommandId();
+  final _qtyController = TextEditingController();
+  final _notesController = TextEditingController();
+  DateTime? _targetDate;
+  String _priority = 'NORMAL';
+  String _origin = 'LOKAL';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final qty = widget.detail.qty <= 0 ? 1.0 : widget.detail.qty;
+    _qtyController.text = _formatQty(qty);
+  }
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickTargetDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _targetDate ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _targetDate = picked);
+  }
+
+  Future<void> _save() async {
+    final qty = double.tryParse(_qtyController.text.trim());
+    if (qty == null || qty <= 0) {
+      AppNotification.showError(context, 'Qty wajib lebih dari 0.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final session = sl<SessionManager>();
+      await RemotePrDataSource(
+        apiClient: sl(),
+        sessionManager: session,
+      ).createPr(
+        carId: widget.unitId,
+        masterPanelId: widget.detail.id,
+        commandId: _commandId,
+        carName: widget.unitId,
+        divisionId: session.divisionId?.toString(),
+        divisionName: session.divisionName,
+        targetDate: _targetDate == null ? null : _dateOnly(_targetDate!),
+        priority: _priority,
+        notes: _notesController.text.trim(),
+        items: [
+          PRItem(
+            id: '',
+            prId: '',
+            itemName: widget.detail.name,
+            originType: _origin,
+            qty: qty,
+          ),
+        ],
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal membuat PR'),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Text(
+              'Buat PR',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${widget.unitId}\n${widget.detail.componentName} > ${widget.detail.panelName}\n${widget.detail.name}\nCondition: ${widget.detail.initialCondition} • Part Number: ${widget.detail.partNumber ?? '-'}',
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _qtyController,
+              enabled: !_saving,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: _fieldDecoration('Qty Request'),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: _priority,
+              items: const [
+                DropdownMenuItem(value: 'NORMAL', child: Text('NORMAL')),
+                DropdownMenuItem(value: 'URGENT', child: Text('URGENT')),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (value) => setState(() => _priority = value ?? 'NORMAL'),
+              decoration: _fieldDecoration('Priority'),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: _origin,
+              items: const [
+                DropdownMenuItem(value: 'LOKAL', child: Text('LOKAL')),
+                DropdownMenuItem(value: 'LN', child: Text('LN')),
+              ],
+              onChanged: _saving
+                  ? null
+                  : (value) => setState(() => _origin = value ?? 'LOKAL'),
+              decoration: _fieldDecoration('Origin'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _saving ? null : _pickTargetDate,
+              icon: const Icon(Icons.event),
+              label: Text(
+                _targetDate == null
+                    ? 'Pilih Target Date'
+                    : 'Target: ${_dateOnly(_targetDate!)}',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _notesController,
+              enabled: !_saving,
+              minLines: 2,
+              maxLines: 4,
+              decoration: _fieldDecoration('Catatan'),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _saving ? null : _save,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.gold,
+                  foregroundColor: Colors.black,
+                ),
+                child: Text(_saving ? 'Menyimpan...' : 'Buat PR'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -838,10 +1125,15 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _ActivitySummaryCard extends StatelessWidget {
-  const _ActivitySummaryCard({required this.summary, this.countdownCount});
+  const _ActivitySummaryCard({
+    required this.summary,
+    this.countdownCount,
+    this.prCount,
+  });
 
   final MasterPanelTrackingActivitySummary summary;
   final int? countdownCount;
+  final int? prCount;
 
   @override
   Widget build(BuildContext context) {
@@ -861,7 +1153,7 @@ class _ActivitySummaryCard extends StatelessWidget {
             count: countdownCount ?? summary.countdownCount,
           ),
           _CountPill(label: 'Job Plan', count: summary.jobPlanCount),
-          _CountPill(label: 'PR', count: summary.prCount),
+          _CountPill(label: 'PR', count: prCount ?? summary.prCount),
           _CountPill(label: 'WO', count: summary.woCount),
           _CountPill(label: 'WOV', count: summary.wovCount),
         ],
