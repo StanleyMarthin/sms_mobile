@@ -204,7 +204,10 @@ class MasterPanelDetail {
     required this.notes,
     required this.images,
     required this.countdownCount,
+    required this.countdownActivities,
     required this.prActivities,
+    required this.woActivities,
+    required this.wovActivities,
   });
 
   final int id;
@@ -218,7 +221,22 @@ class MasterPanelDetail {
   final String? notes;
   final List<MasterPanelImage> images;
   final int countdownCount;
+  final List<MasterPanelCountdownActivity> countdownActivities;
   final List<MasterPanelPrActivity> prActivities;
+  final List<MasterPanelWoActivity> woActivities;
+  final List<MasterPanelWovActivity> wovActivities;
+}
+
+class MasterPanelCountdownActivity {
+  MasterPanelCountdownActivity({
+    required this.id,
+    required this.label,
+    required this.status,
+  });
+
+  final String id;
+  final String label;
+  final String status;
 }
 
 class MasterPanelPrActivity {
@@ -239,6 +257,38 @@ class MasterPanelPrActivity {
   final String priority;
   final double qty;
   final String? targetDate;
+}
+
+class MasterPanelWoActivity {
+  MasterPanelWoActivity({
+    required this.reqId,
+    required this.woNumber,
+    required this.status,
+    required this.jobDetail,
+  });
+
+  final String reqId;
+  final String woNumber;
+  final String status;
+  final String jobDetail;
+}
+
+class MasterPanelWovActivity {
+  MasterPanelWovActivity({
+    required this.reqId,
+    required this.wovNumber,
+    required this.accTracking,
+    required this.status,
+    required this.vendorName,
+    required this.itemName,
+  });
+
+  final String reqId;
+  final String wovNumber;
+  final String accTracking;
+  final String? status;
+  final String vendorName;
+  final String itemName;
 }
 
 class CountdownCreateOptions {

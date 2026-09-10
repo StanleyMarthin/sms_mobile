@@ -24,18 +24,13 @@ class WoCreatePage extends StatefulWidget {
 
 class _WoCreateItemDraft {
   String? selectedPanelName;
-  bool useFreeTextPanel = false;
-  String? selectedCategory;
-  final sectionNameCtrl = TextEditingController();
   final jobDetailCtrl = TextEditingController();
   final quomCtrl = TextEditingController();
 
   bool get hasAnyInput =>
       (selectedPanelName?.trim().isNotEmpty ?? false) ||
-      sectionNameCtrl.text.trim().isNotEmpty ||
       jobDetailCtrl.text.trim().isNotEmpty ||
-      quomCtrl.text.trim().isNotEmpty ||
-      (selectedCategory?.trim().isNotEmpty ?? false);
+      quomCtrl.text.trim().isNotEmpty;
 
   bool get isValid => jobDetailCtrl.text.trim().isNotEmpty;
 
@@ -48,18 +43,10 @@ class _WoCreateItemDraft {
   Map<String, dynamic> toPayload() => {
     'jobDetail': jobDetailCtrl.text.trim(),
     if (buildNotes() != null) 'notes': buildNotes(),
-    if (useFreeTextPanel)
-      'panelName': sectionNameCtrl.text.trim()
-    else if (selectedPanelName != null)
-      'panelName': selectedPanelName,
-    if (useFreeTextPanel) 'sectionName': sectionNameCtrl.text.trim(),
-    if (useFreeTextPanel && selectedCategory != null)
-      'panelCategory': selectedCategory,
-    if (useFreeTextPanel) 'addPanelToMaster': true,
+    if (selectedPanelName != null) 'panelName': selectedPanelName,
   };
 
   void dispose() {
-    sectionNameCtrl.dispose();
     jobDetailCtrl.dispose();
     quomCtrl.dispose();
   }
@@ -81,16 +68,6 @@ class _WoCreatePageState extends State<WoCreatePage> {
   final List<_WoCreateItemDraft> _items = [_WoCreateItemDraft()];
 
   DateTime _targetDate = DateTime.now().add(Duration(days: 3));
-
-  static final _categories = [
-    'ENGINE',
-    'UNDERCARRIAGE',
-    'ELECTRICAL',
-    'INTERIOR',
-    'EXTERIOR',
-    'BODY',
-    'CUSTOM',
-  ];
 
   @override
   void initState() {
@@ -152,14 +129,6 @@ class _WoCreatePageState extends State<WoCreatePage> {
       }
       if (!item.isValid) {
         _snack('Item ${index + 1}: deskripsi pekerjaan wajib diisi');
-        return;
-      }
-      if (item.useFreeTextPanel && item.sectionNameCtrl.text.trim().isEmpty) {
-        _snack('Item ${index + 1}: nama panel/section wajib diisi');
-        return;
-      }
-      if (item.useFreeTextPanel && item.selectedCategory == null) {
-        _snack('Item ${index + 1}: pilih kategori panel untuk panel baru');
         return;
       }
       validItems.add(item);
@@ -265,9 +234,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
                       style: TextStyle(color: AppColors.textPrimary),
                       decoration: InputDecoration(
                         hintText: 'Cari...',
-                        hintStyle: TextStyle(
-                          color: AppColors.textDisabled,
-                        ),
+                        hintStyle: TextStyle(color: AppColors.textDisabled),
                         prefixIcon: Icon(
                           Icons.search_rounded,
                           color: AppColors.textMuted,
@@ -311,10 +278,8 @@ class _WoCreatePageState extends State<WoCreatePage> {
                               vertical: 4,
                             ),
                             itemCount: filtered.length,
-                            separatorBuilder: (_, __) => Divider(
-                              height: 1,
-                              color: AppColors.border,
-                            ),
+                            separatorBuilder: (_, __) =>
+                                Divider(height: 1, color: AppColors.border),
                             itemBuilder: (_, i) {
                               final item = filtered[i];
                               return ListTile(
@@ -372,9 +337,7 @@ class _WoCreatePageState extends State<WoCreatePage> {
         shape: Border(bottom: BorderSide(color: AppColors.border)),
       ),
       body: (_loading || _isSubmitting)
-          ? Center(
-              child: CircularProgressIndicator(color: AppColors.gold),
-            )
+          ? Center(child: CircularProgressIndicator(color: AppColors.gold))
           : BlocListener<WorkOrderBloc, WorkOrderState>(
               listener: (ctx, state) {
                 if (state is WorkOrderError) {
@@ -645,72 +608,28 @@ class _WoCreatePageState extends State<WoCreatePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!item.useFreeTextPanel)
-            _TapField(
-              value: item.selectedPanelName,
-              hint: 'Ketuk untuk pilih panel (opsional)',
-              onTap: () async {
-                final picked = await _pickFromList(
-                  title: 'Pilih Panel',
-                  items: _panels,
-                  label: (panel) => panel['name']?.toString() ?? '',
-                  sublabel: (panel) => panel['section']?.toString() ?? '',
+          _TapField(
+            value: item.selectedPanelName,
+            hint: 'Ketuk untuk pilih panel (opsional)',
+            onTap: () async {
+              final picked = await _pickFromList(
+                title: 'Pilih Panel',
+                items: _panels,
+                label: (panel) => panel['name']?.toString() ?? '',
+                sublabel: (panel) => panel['section']?.toString() ?? '',
+              );
+              if (picked != null) {
+                setState(
+                  () => item.selectedPanelName = picked['name']?.toString(),
                 );
-                if (picked != null) {
-                  setState(
-                    () => item.selectedPanelName = picked['name']?.toString(),
-                  );
-                }
-              },
-            ),
-          SizedBox(height: 8),
-          CheckboxListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            dense: true,
-            value: item.useFreeTextPanel,
-            activeColor: AppColors.gold,
-            onChanged: (value) => setState(() {
-              item.useFreeTextPanel = value ?? false;
-              if (!item.useFreeTextPanel) {
-                item.selectedCategory = null;
-                item.sectionNameCtrl.clear();
               }
-            }),
-            title: Text(
-              'Panel tidak ada di daftar (isi manual)',
-              style: TextStyle(fontSize: 13, color: AppColors.textMuted),
-            ),
+            },
           ),
-          if (item.useFreeTextPanel) ...[
-            TextField(
-              controller: item.sectionNameCtrl,
-              style: TextStyle(color: AppColors.textPrimary),
-              decoration: _inputDeco('Nama Panel / Section'),
-            ),
-            SizedBox(height: 10),
-            Text(
-              'Panel manual akan otomatis ditambahkan ke master sesuai unit terpilih.',
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-            ),
-            SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              initialValue: item.selectedCategory,
-              isExpanded: true,
-              dropdownColor: AppColors.surfaceCard,
-              decoration: _inputDeco('Kategori Panel *'),
-              items: _categories
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) =>
-                  setState(() => item.selectedCategory = value),
-              style: TextStyle(color: AppColors.textPrimary),
-            ),
-          ],
+          SizedBox(height: 8),
+          Text(
+            'WO dari Master Panel dibuat melalui Tracking Panel.',
+            style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+          ),
         ],
       ),
     );

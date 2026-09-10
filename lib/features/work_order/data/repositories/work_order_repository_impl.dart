@@ -74,6 +74,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
     String? panelCategory,
     bool addPanelToMaster = false,
     double? targetHours,
+    int? masterPanelId,
   }) async {
     try {
       return Right(
@@ -88,6 +89,7 @@ class WorkOrderRepositoryImpl implements WorkOrderRepository {
           panelCategory: panelCategory,
           addPanelToMaster: addPanelToMaster,
           targetHours: targetHours,
+          masterPanelId: masterPanelId,
         ),
       );
     } catch (e, s) {

@@ -8,16 +8,23 @@ Side Effects: HTTP read tracking, create Countdown, dan create PR sesuai permiss
 
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/errors/error_message.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../../../pr/data/datasources/remote_pr_datasource.dart';
 import '../../../pr/data/models/pr_item.dart';
 import '../../../pr/presentation/pages/pr_detail_page.dart';
+import '../../../work_order/domain/repositories/work_order_repository.dart';
+import '../../../work_order/presentation/bloc/work_order_bloc.dart';
+import '../../../work_order/presentation/pages/wo_detail_page.dart';
+import '../../../wov/data/datasources/remote_wov_datasource.dart';
+import '../../../wov/presentation/pages/wov_detail_page.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
 import '../widgets/countdown_shared.dart';
@@ -28,6 +35,15 @@ bool canCreateMasterPanelCountdown(Set<String> permissionCodes) {
 
 bool canCreateMasterPanelPr(Set<String> permissionCodes) {
   return permissionCodes.contains(Perms.prCreate);
+}
+
+bool canCreateMasterPanelWo(Set<String> permissionCodes) {
+  return permissionCodes.contains(Perms.woCreate);
+}
+
+bool canCreateMasterPanelWov(Set<String> permissionCodes) {
+  return permissionCodes.contains(Perms.wovCreate) ||
+      permissionCodes.contains(Perms.vendorCreate);
 }
 
 String newCountdownCommandId() {
@@ -454,19 +470,30 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                   countdownCount: detail.countdownCount,
                   prCount: detail.prActivities.length,
                 ),
-                if (detail.countdownCount > 0) ...[
+                if (detail.countdownActivities.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  _InfoRow(
-                    label: 'Countdown',
-                    value: '${detail.countdownCount} pekerjaan',
+                  ...detail.countdownActivities.map(
+                    (job) => _CountdownActivityTile(job: job),
                   ),
                 ],
                 if (detail.prActivities.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   ...detail.prActivities.map((pr) => _PrActivityTile(pr: pr)),
                 ],
+                if (detail.woActivities.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...detail.woActivities.map((wo) => _WoActivityTile(wo: wo)),
+                ],
+                if (detail.wovActivities.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  ...detail.wovActivities.map(
+                    (wov) => _WovActivityTile(wov: wov),
+                  ),
+                ],
                 if (_canCreateCountdownFromSession() ||
-                    _canCreatePrFromSession()) ...[
+                    _canCreatePrFromSession() ||
+                    _canCreateWoFromSession() ||
+                    _canCreateWovFromSession()) ...[
                   const SizedBox(height: 16),
                   Wrap(
                     spacing: 10,
@@ -485,6 +512,19 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                             ),
                           ),
                         ),
+                      if (_canCreateWoFromSession())
+                        SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _openCreateWo(detail),
+                            icon: const Icon(Icons.handyman),
+                            label: const Text('Buat WO'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.surfaceInput,
+                              foregroundColor: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
                       if (_canCreatePrFromSession())
                         SizedBox(
                           height: 48,
@@ -498,8 +538,38 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                             ),
                           ),
                         ),
+                      if (_canCreateWovFromSession())
+                        SizedBox(
+                          height: 48,
+                          child: ElevatedButton.icon(
+                            onPressed:
+                                detail.countdownActivities.isEmpty &&
+                                    detail.prActivities.isEmpty
+                                ? null
+                                : () => _openCreateWov(detail),
+                            icon: const Icon(Icons.local_shipping),
+                            label: const Text('Buat WOV'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.surfaceInput,
+                              foregroundColor: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
+                  if (_canCreateWovFromSession() &&
+                      detail.countdownActivities.isEmpty &&
+                      detail.prActivities.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Belum ada Countdown atau PR yang dapat digunakan.',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
                 ],
               ],
             );
@@ -523,6 +593,23 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
     final session = sl<SessionManager>();
     return canCreateMasterPanelPr({
       if (session.hasPerm(Perms.prCreate)) Perms.prCreate,
+    });
+  }
+
+  bool _canCreateWoFromSession() {
+    if (!sl.isRegistered<SessionManager>()) return false;
+    final session = sl<SessionManager>();
+    return canCreateMasterPanelWo({
+      if (session.hasPerm(Perms.woCreate)) Perms.woCreate,
+    });
+  }
+
+  bool _canCreateWovFromSession() {
+    if (!sl.isRegistered<SessionManager>()) return false;
+    final session = sl<SessionManager>();
+    return canCreateMasterPanelWov({
+      if (session.hasPerm(Perms.wovCreate)) Perms.wovCreate,
+      if (session.hasPerm(Perms.vendorCreate)) Perms.vendorCreate,
     });
   }
 
@@ -555,6 +642,48 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
     if (!mounted) return;
     AppNotification.showSuccess(context, 'PR berhasil dibuat.');
   }
+
+  Future<void> _openCreateWo(MasterPanelDetail detail) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _CreateWoSheet(unitId: widget.unitId, detail: detail),
+    );
+    if (created != true || !mounted) return;
+    await _reloadDetail();
+    await widget.onChanged();
+    if (!mounted) return;
+    AppNotification.showSuccess(context, 'WO berhasil dibuat.');
+  }
+
+  Future<void> _openCreateWov(MasterPanelDetail detail) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _CreateWovSheet(unitId: widget.unitId, detail: detail),
+    );
+    if (created != true || !mounted) return;
+    await _reloadDetail();
+    await widget.onChanged();
+    if (!mounted) return;
+    AppNotification.showSuccess(context, 'WOV berhasil dibuat.');
+  }
+}
+
+class _CountdownActivityTile extends StatelessWidget {
+  const _CountdownActivityTile({required this.job});
+
+  final MasterPanelCountdownActivity job;
+
+  @override
+  Widget build(BuildContext context) {
+    return _MiniActivityTile(
+      icon: Icons.timer,
+      title: job.label,
+      subtitle: 'Countdown • ${job.status}',
+      onTap: null,
+    );
+  }
 }
 
 class _PrActivityTile extends StatelessWidget {
@@ -564,10 +693,78 @@ class _PrActivityTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return _MiniActivityTile(
+      icon: Icons.receipt_long,
+      title: pr.prNumber,
+      subtitle:
+          '${pr.accTracking} • Qty ${_formatQty(pr.qty)}${pr.targetDate == null ? '' : ' • ${pr.targetDate}'}',
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => PrDetailPage(reqId: pr.reqId)),
       ),
+    );
+  }
+}
+
+class _WoActivityTile extends StatelessWidget {
+  const _WoActivityTile({required this.wo});
+
+  final MasterPanelWoActivity wo;
+
+  @override
+  Widget build(BuildContext context) {
+    return _MiniActivityTile(
+      icon: Icons.handyman,
+      title: wo.woNumber,
+      subtitle: '${wo.status} • ${wo.jobDetail}',
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BlocProvider(
+            create: (_) => sl<WorkOrderBloc>(),
+            child: WoDetailPage(woId: wo.reqId),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WovActivityTile extends StatelessWidget {
+  const _WovActivityTile({required this.wov});
+
+  final MasterPanelWovActivity wov;
+
+  @override
+  Widget build(BuildContext context) {
+    return _MiniActivityTile(
+      icon: Icons.local_shipping,
+      title: wov.wovNumber,
+      subtitle: '${wov.status ?? wov.accTracking} • ${wov.vendorName}',
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => WovDetailPage(reqId: wov.reqId),
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniActivityTile extends StatelessWidget {
+  const _MiniActivityTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
@@ -579,32 +776,534 @@ class _PrActivityTile extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.receipt_long, color: AppColors.gold, size: 20),
+            Icon(icon, color: AppColors.gold, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    pr.prNumber,
+                    title,
                     style: TextStyle(
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
-                    '${pr.accTracking} • Qty ${_formatQty(pr.qty)}${pr.targetDate == null ? '' : ' • ${pr.targetDate}'}',
+                    subtitle,
                     style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: AppColors.textMuted),
+            if (onTap != null)
+              Icon(Icons.chevron_right, color: AppColors.textMuted),
           ],
         ),
       ),
     );
   }
+}
+
+class _CreateWoSheet extends StatefulWidget {
+  const _CreateWoSheet({required this.unitId, required this.detail});
+
+  final String unitId;
+  final MasterPanelDetail detail;
+
+  @override
+  State<_CreateWoSheet> createState() => _CreateWoSheetState();
+}
+
+class _CreateWoSheetState extends State<_CreateWoSheet> {
+  final _jobController = TextEditingController();
+  final _notesController = TextEditingController();
+  CountdownCreateOptions? _options;
+  CountdownCreateDivisionOption? _division;
+  DateTime? _targetDate;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _jobController.text = widget.detail.name;
+    _loadOptions();
+  }
+
+  @override
+  void dispose() {
+    _jobController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadOptions() async {
+    try {
+      final options = await sl<CountdownRepository>().getCountdownCreateOptions(
+        widget.unitId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _options = options;
+        _division = options.divisions.firstOrNull;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal memuat pilihan WO'),
+      );
+    }
+  }
+
+  Future<void> _pickTargetDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _targetDate ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _targetDate = picked);
+  }
+
+  Future<void> _save() async {
+    if (_division == null || _targetDate == null) {
+      AppNotification.showError(
+        context,
+        'Divisi dan target tanggal wajib diisi.',
+      );
+      return;
+    }
+    if (_jobController.text.trim().isEmpty) {
+      AppNotification.showError(context, 'Detail pekerjaan wajib diisi.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final result = await sl<WorkOrderRepository>().createWorkOrder(
+        carId: widget.unitId,
+        targetDivId: _division!.id.toString(),
+        jobDetail: _jobController.text.trim(),
+        notes: _notesController.text.trim(),
+        targetDate: _dateOnly(_targetDate!),
+        sectionName: '${widget.detail.panelName} - ${widget.detail.name}',
+        masterPanelId: widget.detail.id,
+      );
+      if (!mounted) return;
+      result.fold((failure) {
+        setState(() => _saving = false);
+        AppNotification.showError(
+          context,
+          failure.message ?? 'Gagal membuat WO',
+        );
+      }, (_) => Navigator.of(context).pop(true));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal membuat WO'),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = _options;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
+        child: _loading
+            ? const SizedBox(
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  _SheetTitle(
+                    title: 'Buat WO',
+                    detail: widget.detail,
+                    unitId: widget.unitId,
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<CountdownCreateDivisionOption>(
+                    initialValue: _division,
+                    items: (options?.divisions ?? const [])
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _division = value),
+                    decoration: _fieldDecoration('Divisi Tujuan'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _jobController,
+                    enabled: !_saving,
+                    minLines: 2,
+                    maxLines: 3,
+                    decoration: _fieldDecoration('Detail Pekerjaan'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _notesController,
+                    enabled: !_saving,
+                    minLines: 2,
+                    maxLines: 3,
+                    decoration: _fieldDecoration('Catatan'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickTargetDate,
+                    icon: const Icon(Icons.event),
+                    label: Text(
+                      _targetDate == null
+                          ? 'Pilih Target Tanggal'
+                          : 'Target: ${_dateOnly(_targetDate!)}',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(_saving ? 'Menyimpan...' : 'Buat WO'),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _CreateWovSheet extends StatefulWidget {
+  const _CreateWovSheet({required this.unitId, required this.detail});
+
+  final String unitId;
+  final MasterPanelDetail detail;
+
+  @override
+  State<_CreateWovSheet> createState() => _CreateWovSheetState();
+}
+
+class _CreateWovSheetState extends State<_CreateWovSheet> {
+  final _qtyController = TextEditingController();
+  final _costController = TextEditingController();
+  final _remarksController = TextEditingController();
+  final _uomController = TextEditingController(text: 'PCS');
+  List<Map<String, dynamic>> _vendors = [];
+  _WovParentOption? _parent;
+  Map<String, dynamic>? _vendor;
+  DateTime? _targetDate;
+  bool _loading = true;
+  bool _saving = false;
+
+  List<_WovParentOption> get _parents => [
+    ...widget.detail.countdownActivities.map(
+      (item) => _WovParentOption.countdown(item.id, item.label),
+    ),
+    ...widget.detail.prActivities.map(
+      (item) => _WovParentOption.pr(item.reqId, item.prNumber),
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _qtyController.text = _formatQty(
+      widget.detail.qty <= 0 ? 1 : widget.detail.qty,
+    );
+    _parent = _parents.length == 1 ? _parents.first : null;
+    _loadVendors();
+  }
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    _costController.dispose();
+    _remarksController.dispose();
+    _uomController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadVendors() async {
+    try {
+      final res = await sl<ApiClient>().get('/sm/vendors');
+      final raw = res.data;
+      final data = raw is Map ? raw['data'] ?? raw : raw;
+      if (!mounted) return;
+      setState(() {
+        _vendors = data is List
+            ? data.whereType<Map<String, dynamic>>().toList()
+            : [];
+        _vendor = _vendors.length == 1 ? _vendors.first : null;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal memuat vendor'),
+      );
+    }
+  }
+
+  Future<void> _pickTargetDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _targetDate ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _targetDate = picked);
+  }
+
+  Future<void> _save() async {
+    final qty = double.tryParse(_qtyController.text.trim());
+    final cost = double.tryParse(_costController.text.trim());
+    if (_parent == null) {
+      AppNotification.showError(
+        context,
+        'Pilih Countdown atau PR terlebih dahulu.',
+      );
+      return;
+    }
+    if (_vendor == null) {
+      AppNotification.showError(context, 'Pilih vendor terlebih dahulu.');
+      return;
+    }
+    if (qty == null || qty <= 0) {
+      AppNotification.showError(context, 'Qty wajib lebih dari 0.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await RemoteWovDataSource(
+        apiClient: sl(),
+        sessionManager: sl(),
+      ).createWov(
+        carId: widget.unitId,
+        carName: widget.unitId,
+        masterPanelId: widget.detail.id,
+        coreId: _parent!.type == _WovParentType.countdown ? _parent!.id : null,
+        prId: _parent!.type == _WovParentType.pr ? _parent!.id : null,
+        vendorId: _textFromMap(_vendor!, ['id', 'vendorId', 'vendor_id']),
+        vendorName:
+            _textFromMap(_vendor!, ['name', 'vendorName', 'vendor_name']) ?? '',
+        itemName: widget.detail.name,
+        quantity: qty,
+        uom: _uomController.text.trim().isEmpty
+            ? 'PCS'
+            : _uomController.text.trim(),
+        targetDateReturn: _targetDate == null ? null : _dateOnly(_targetDate!),
+        estimatedCost: cost,
+        remarks: _remarksController.text.trim(),
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal membuat WOV'),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parents = _parents;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
+        child: _loading
+            ? const SizedBox(
+                height: 180,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  _SheetTitle(
+                    title: 'Buat WOV',
+                    detail: widget.detail,
+                    unitId: widget.unitId,
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<_WovParentOption>(
+                    initialValue: parents.contains(_parent) ? _parent : null,
+                    items: parents
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _parent = value),
+                    decoration: _fieldDecoration('Parent'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<Map<String, dynamic>>(
+                    initialValue: _vendors.contains(_vendor) ? _vendor : null,
+                    items: _vendors
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(
+                              _textFromMap(item, [
+                                    'name',
+                                    'vendorName',
+                                    'vendor_name',
+                                  ]) ??
+                                  '-',
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _vendor = value),
+                    decoration: _fieldDecoration('Vendor'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _qtyController,
+                    enabled: !_saving,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: _fieldDecoration('Qty'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _uomController,
+                    enabled: !_saving,
+                    decoration: _fieldDecoration('Satuan'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _costController,
+                    enabled: !_saving,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: _fieldDecoration('Estimasi Biaya'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickTargetDate,
+                    icon: const Icon(Icons.event),
+                    label: Text(
+                      _targetDate == null
+                          ? 'Pilih Target Kembali'
+                          : 'Target: ${_dateOnly(_targetDate!)}',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _remarksController,
+                    enabled: !_saving,
+                    minLines: 2,
+                    maxLines: 3,
+                    decoration: _fieldDecoration('Catatan'),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _saving || parents.isEmpty ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(_saving ? 'Menyimpan...' : 'Buat WOV'),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+}
+
+class _SheetTitle extends StatelessWidget {
+  const _SheetTitle({
+    required this.title,
+    required this.detail,
+    required this.unitId,
+  });
+
+  final String title;
+  final MasterPanelDetail detail;
+  final String unitId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '$unitId\n${detail.componentName} > ${detail.panelName}\n${detail.name}\nCondition: ${detail.initialCondition} • Part Number: ${detail.partNumber ?? '-'}',
+          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+        ),
+      ],
+    );
+  }
+}
+
+enum _WovParentType { countdown, pr }
+
+class _WovParentOption {
+  const _WovParentOption(this.type, this.id, this.label);
+
+  factory _WovParentOption.countdown(String id, String label) =>
+      _WovParentOption(_WovParentType.countdown, id, 'Countdown • $label');
+
+  factory _WovParentOption.pr(String id, String label) =>
+      _WovParentOption(_WovParentType.pr, id, 'PR • $label');
+
+  final _WovParentType type;
+  final String id;
+  final String label;
 }
 
 class _CreatePrSheet extends StatefulWidget {
@@ -1382,4 +2081,13 @@ String _dateOnly(DateTime value) {
   final month = value.month.toString().padLeft(2, '0');
   final day = value.day.toString().padLeft(2, '0');
   return '${value.year}-$month-$day';
+}
+
+String? _textFromMap(Map<String, dynamic> item, List<String> keys) {
+  for (final key in keys) {
+    final value = item[key];
+    final text = value == null ? '' : value.toString().trim();
+    if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+  }
+  return null;
 }

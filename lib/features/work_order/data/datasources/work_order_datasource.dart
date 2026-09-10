@@ -88,6 +88,7 @@ class WorkOrderRemoteDataSource {
     String? panelCategory,
     bool addPanelToMaster = false,
     double? targetHours,
+    int? masterPanelId,
   }) async {
     final response = await apiClient.post(
       ApiEndpoints.workOrders,
@@ -105,6 +106,7 @@ class WorkOrderRemoteDataSource {
         if (panelCategory != null) 'panelCategory': panelCategory,
         if (addPanelToMaster) 'addPanelToMaster': true,
         if (targetHours != null) 'targetHours': targetHours,
+        if (masterPanelId != null) 'masterPanelId': masterPanelId,
       },
     );
     final data = response.data as Map<String, dynamic>? ?? {};

@@ -112,6 +112,31 @@ class _FakeCountdownDataSource implements CountdownDataSource {
         'qty': 1,
       },
     ],
+    'jobdescs': [
+      {
+        'countdown_id': 'cd-1',
+        'job_name': 'Restorasi Karpet',
+        'status': 'PLAN',
+      },
+    ],
+    'wos': [
+      {
+        'req_id': 'wo-1',
+        'wo_number': 'WO/001/09/2026',
+        'status': 'OPEN',
+        'job_detail': 'Repair bracket',
+      },
+    ],
+    'wovs': [
+      {
+        'req_id': 'wov-1',
+        'wov_number': 'WOV/001/09/2026',
+        'status': null,
+        'acc_tracking': 'PENDING_ADV',
+        'vendor_name': 'Vendor A',
+        'item_name': 'Karpets',
+      },
+    ],
   };
 
   @override
@@ -282,8 +307,11 @@ void main() {
 
     expect(detail.id, 11);
     expect(detail.images.single.fileUrl, 'https://cdn.example.com/master.jpg');
+    expect(detail.countdownActivities.single.id, 'cd-1');
     expect(detail.prActivities.single.reqId, 'pr-1');
     expect(detail.prActivities.single.prNumber, 'PR/INT/001/09/2026');
+    expect(detail.woActivities.single.reqId, 'wo-1');
+    expect(detail.wovActivities.single.reqId, 'wov-1');
   });
 
   test('create countdown keeps selected master panel id fixed', () async {
@@ -321,6 +349,11 @@ void main() {
     expect(canCreateMasterPanelCountdown({'CREATE_TASK'}), false);
     expect(canCreateMasterPanelPr({'PR_CREATE'}), true);
     expect(canCreateMasterPanelPr({'PR_VIEW'}), false);
+    expect(canCreateMasterPanelWo({'WO_CREATE'}), true);
+    expect(canCreateMasterPanelWo({'WO_VIEW'}), false);
+    expect(canCreateMasterPanelWov({'WOV_CREATE'}), true);
+    expect(canCreateMasterPanelWov({'VENDOR_CREATE'}), true);
+    expect(canCreateMasterPanelWov({'WOV_VIEW'}), false);
   });
 
   test('countdown command id is uuid shaped', () {

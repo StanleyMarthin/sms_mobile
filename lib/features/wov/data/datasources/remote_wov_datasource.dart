@@ -16,10 +16,7 @@ class RemoteWovDataSource {
   final ApiClient apiClient;
   final SessionManager sessionManager;
 
-  RemoteWovDataSource({
-    required this.apiClient,
-    required this.sessionManager,
-  });
+  RemoteWovDataSource({required this.apiClient, required this.sessionManager});
 
   String get _userId =>
       sessionManager.userId ?? sessionManager.employeeId ?? '';
@@ -82,6 +79,7 @@ class RemoteWovDataSource {
     String? carName,
     String? coreId,
     String? prId,
+    int? masterPanelId,
     String? vendorId,
     required String vendorName,
     String? picVendor,
@@ -104,6 +102,7 @@ class RemoteWovDataSource {
         if (carName != null) 'carName': carName,
         if (coreId != null) 'coreId': coreId,
         if (prId != null) 'prId': prId,
+        if (masterPanelId != null) 'masterPanelId': masterPanelId,
         if (vendorId != null) 'vendorId': vendorId,
         'vendorName': vendorName,
         if (picVendor != null) 'picVendor': picVendor,

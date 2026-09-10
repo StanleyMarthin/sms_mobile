@@ -980,9 +980,12 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → Panel memakai GET /sm/units/{unit}/master-panels/tracking
 → Create Countdown dari Tracking memakai GET /sm/units/{unit}/master-panels/countdown-options lalu POST /sm/units/{unit}/master-panels/{masterPanelId}/jobdescs
 → Create PR dari Tracking memakai POST /sm/pr action=create dengan `masterPanelId`; backend menyimpan relasi ke `pur_pr_header.panel_id`
+→ Create WO dari Tracking memakai POST /sm/wo action=create dengan `masterPanelId`; backend menyimpan relasi ke `sm_jobdesc_wo.master_panel_id`
+→ WO create umum tidak lagi mengirim `addPanelToMaster`; Master Panel wajib dibuat dari Pendataan/Tracking, bukan dari nama panel bebas
+→ Create WOV dari Tracking memakai POST /sm/wov action=create dengan `masterPanelId` + parent `coreId` atau `prId`; backend validasi parent harus milik Master Panel yang sama
 → Source tracking adalah master_panels.car_id; tidak membaca unit_catalog/catalog_panels/unit_additional_items
 → Drill-down tracking: Component snapshot → Panel snapshot → Part/Master Panel detail
-→ Operational counts clean: sm_jobdesc_countdown.panel_id=master_panels.id, sm_jobdesc_plan.core_id→countdown.panel_id, pur_pr_header.panel_id, sm_jobdesc_wo via countdown.ref_taks_id, vnd_wo_vendor via pr_id/core_id
+→ Operational counts clean: sm_jobdesc_countdown.panel_id=master_panels.id, sm_jobdesc_plan.core_id→countdown.panel_id, pur_pr_header.panel_id, sm_jobdesc_wo.master_panel_id, vnd_wo_vendor via pr_id/core_id
 → `pic_plan` adalah planned PIC Countdown dari sm_employee.employee_id; jangan dicampur dengan sm_jobdesc_plan.assigned_user_id
 → Root cause getSections server error 2026-09-09: backend masih query master_panels.name/section pada schema final; patch target memakai panel_name/name_part/component_name
 ```

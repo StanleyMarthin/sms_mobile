@@ -33,6 +33,7 @@ abstract class WorkOrderRepository {
     String? panelCategory,
     bool addPanelToMaster = false,
     double? targetHours,
+    int? masterPanelId,
   });
 
   Future<Either<Failure, Map<String, dynamic>>> createWorkOrdersBatch({

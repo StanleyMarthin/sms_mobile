@@ -356,6 +356,23 @@ class CountdownRepositoryImpl implements CountdownRepository {
           )
           .where((media) => media.fileUrl.isNotEmpty)
           .toList(),
+      countdownActivities: (item['jobdescs'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (job) => MasterPanelCountdownActivity(
+              id: _asText(
+                job['countdownId'] ?? job['countdown_id'] ?? job['id'],
+                '',
+              ),
+              label: _asText(
+                job['jobName'] ?? job['job_name'] ?? job['jobdesc'],
+                'Countdown',
+              ),
+              status: _asText(job['status'], 'PLAN'),
+            ),
+          )
+          .where((job) => job.id.isNotEmpty)
+          .toList(),
       countdownCount: (item['jobdescs'] as List? ?? const []).length,
       prActivities: (item['prs'] as List? ?? const [])
           .whereType<Map>()
@@ -374,6 +391,35 @@ class CountdownRepositoryImpl implements CountdownRepository {
             ),
           )
           .where((pr) => pr.reqId.isNotEmpty)
+          .toList(),
+      woActivities: (item['wos'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (wo) => MasterPanelWoActivity(
+              reqId: _asText(wo['reqId'] ?? wo['req_id'] ?? wo['id'], ''),
+              woNumber: _asText(wo['woNumber'] ?? wo['wo_number'], '-'),
+              status: _asText(wo['status'], 'OPEN'),
+              jobDetail: _asText(wo['jobDetail'] ?? wo['job_detail'], '-'),
+            ),
+          )
+          .where((wo) => wo.reqId.isNotEmpty)
+          .toList(),
+      wovActivities: (item['wovs'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (wov) => MasterPanelWovActivity(
+              reqId: _asText(wov['reqId'] ?? wov['req_id'] ?? wov['id'], ''),
+              wovNumber: _asText(wov['wovNumber'] ?? wov['wov_number'], '-'),
+              accTracking: _asText(
+                wov['accTracking'] ?? wov['acc_tracking'],
+                'PENDING_ADV',
+              ),
+              status: _nullableText(wov['status']),
+              vendorName: _asText(wov['vendorName'] ?? wov['vendor_name'], '-'),
+              itemName: _asText(wov['itemName'] ?? wov['item_name'], '-'),
+            ),
+          )
+          .where((wov) => wov.reqId.isNotEmpty)
           .toList(),
     );
   }
