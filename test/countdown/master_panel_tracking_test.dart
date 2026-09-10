@@ -9,8 +9,12 @@ Side Effects: Tidak ada; memakai fake datasource.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/features/countdown/data/datasources/countdown_datasource.dart';
 import 'package:sm_system/features/countdown/data/repositories/countdown_repository_impl.dart';
+import 'package:sm_system/features/countdown/presentation/pages/master_panel_tracking_view.dart';
 
 class _FakeCountdownDataSource implements CountdownDataSource {
+  Map<String, dynamic>? lastCreatePayload;
+  int createCalls = 0;
+
   @override
   Future<Map<String, dynamic>> getMasterPanelTracking(String unitId) async => {
     'summary': {'total': 2, 'pending': 1, 'progress': 1, 'order': 1, 'done': 0},
@@ -97,6 +101,57 @@ class _FakeCountdownDataSource implements CountdownDataSource {
       {'id': 1, 'file_url': 'https://cdn.example.com/master.jpg'},
     ],
   };
+
+  @override
+  Future<Map<String, dynamic>> getCountdownCreateOptions(String unitId) async =>
+      {
+        'divisions': [
+          {'id': 3, 'name': 'INTERIOR'},
+        ],
+        'jobTypes': [
+          {'id': 9, 'job_name': 'Restorasi Karpet', 'division_id': 3},
+        ],
+        'users': [
+          {'id': 'SM-08.001', 'name': 'Budi', 'divisionId': 3},
+        ],
+      };
+
+  @override
+  Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
+    required String unitId,
+    required int masterPanelId,
+    required int divisionId,
+    required String jobTypeId,
+    required String description,
+    required double targetHours,
+    required String picPlan,
+    String? startDate,
+    String? deadlineDate,
+    String taskCategory = 'MAIN',
+  }) async {
+    createCalls += 1;
+    lastCreatePayload = {
+      'unitId': unitId,
+      'masterPanelId': masterPanelId,
+      'divisionId': divisionId,
+      'jobTypeId': jobTypeId,
+      'description': description,
+      'targetHours': targetHours,
+      'picPlan': picPlan,
+      'startDate': startDate,
+      'deadlineDate': deadlineDate,
+      'taskCategory': taskCategory,
+    };
+    return [
+      {
+        'countdown_id': 'cd-1',
+        'panel_id': masterPanelId,
+        'division_id': divisionId,
+        'job_type_id': jobTypeId,
+        'task_category': taskCategory,
+      },
+    ];
+  }
 
   @override
   Future<List<Map<String, dynamic>>> getDetails(String countdownId) async => [];
@@ -213,5 +268,35 @@ void main() {
 
     expect(detail.id, 11);
     expect(detail.images.single.fileUrl, 'https://cdn.example.com/master.jpg');
+  });
+
+  test('create countdown keeps selected master panel id fixed', () async {
+    final fake = _FakeCountdownDataSource();
+    final repository = CountdownRepositoryImpl(dataSource: fake);
+
+    final created = await repository.createMasterPanelCountdown(
+      unitId: '220S',
+      masterPanelId: 11,
+      divisionId: 3,
+      jobTypeId: '9',
+      description: 'Restorasi Karpet',
+      targetHours: 8,
+      picPlan: 'SM-08.001',
+      deadlineDate: '2026-09-11',
+    );
+
+    expect(fake.createCalls, 1);
+    expect(fake.lastCreatePayload?['masterPanelId'], 11);
+    expect(fake.lastCreatePayload?['picPlan'], 'SM-08.001');
+    expect(fake.lastCreatePayload?['taskCategory'], 'MAIN');
+    expect(created.single['panel_id'], 11);
+  });
+
+  test('permission helper shows create only for permission code', () {
+    expect(
+      canCreateMasterPanelCountdown({'UNIT_CATALOG_CREATE_JOBDESC'}),
+      true,
+    );
+    expect(canCreateMasterPanelCountdown({'CREATE_TASK'}), false);
   });
 }

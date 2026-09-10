@@ -18,6 +18,21 @@ abstract class CountdownDataSource {
     required int panelId,
   });
 
+  Future<Map<String, dynamic>> getCountdownCreateOptions(String unitId);
+
+  Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
+    required String unitId,
+    required int masterPanelId,
+    required int divisionId,
+    required String jobTypeId,
+    required String description,
+    required double targetHours,
+    required String picPlan,
+    String? startDate,
+    String? deadlineDate,
+    String taskCategory = 'MAIN',
+  });
+
   Future<List<Map<String, dynamic>>> getSections({
     required String carId,
     required int divisionId,

@@ -8,13 +8,19 @@ Side Effects: HTTP read-only melalui repository.
 
 import 'package:flutter/material.dart';
 
+import '../../../../core/di/injection.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/errors/error_message.dart';
 import '../../../../core/network/api_endpoints.dart';
+import '../../../../core/session/session_manager.dart';
 import '../../../../core/utils/snackbar_helper.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../domain/repositories/countdown_repository.dart';
 import '../widgets/countdown_shared.dart';
+
+bool canCreateMasterPanelCountdown(Set<String> permissionCodes) {
+  return permissionCodes.contains(Perms.unitCatalogCreateJobdesc);
+}
 
 class MasterPanelTrackingView extends StatefulWidget {
   const MasterPanelTrackingView({
@@ -176,7 +182,7 @@ class _TrackingPanelPage extends StatelessWidget {
   }
 }
 
-class _TrackingPartPage extends StatelessWidget {
+class _TrackingPartPage extends StatefulWidget {
   const _TrackingPartPage({
     required this.unit,
     required this.panel,
@@ -188,32 +194,89 @@ class _TrackingPartPage extends StatelessWidget {
   final CountdownRepository repository;
 
   @override
+  State<_TrackingPartPage> createState() => _TrackingPartPageState();
+}
+
+class _TrackingPartPageState extends State<_TrackingPartPage> {
+  late MasterPanelTrackingPanel _panel = widget.panel;
+  bool _refreshing = false;
+
+  Future<void> _refreshPanel() async {
+    setState(() => _refreshing = true);
+    try {
+      final tracking = await widget.repository.getMasterPanelTracking(
+        widget.unit.carId,
+      );
+      final panels = tracking.components.expand(
+        (component) => component.panels,
+      );
+      final updated = panels.where((panel) {
+        if (_panel.panelId != null) return panel.panelId == _panel.panelId;
+        return panel.panelId == null && panel.panelName == _panel.panelName;
+      }).firstOrNull;
+      if (!mounted || updated == null) return;
+      setState(() => _panel = updated);
+    } catch (error) {
+      if (!mounted) return;
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal refresh tracking panel'),
+      );
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(panel.panelName),
+        title: Text(_panel.panelName),
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: panel.parts.length,
-        itemBuilder: (_, index) {
-          final part = panel.parts[index];
-          return _PartCard(
-            part: part,
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              builder: (_) => _MasterPanelDetailSheet(
-                unitId: unit.carId,
-                part: part,
-                repository: repository,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: _refreshPanel,
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _panel.parts.length,
+              itemBuilder: (_, index) {
+                final part = _panel.parts[index];
+                return _PartCard(
+                  part: part,
+                  onTap: () async {
+                    final changed = await showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (_) => _MasterPanelDetailSheet(
+                        unitId: widget.unit.carId,
+                        part: part,
+                        repository: widget.repository,
+                        onChanged: _refreshPanel,
+                      ),
+                    );
+                    if (changed == true) {
+                      await _refreshPanel();
+                    }
+                  },
+                );
+              },
+            ),
+          ),
+          if (_refreshing)
+            const Positioned(
+              top: 8,
+              right: 16,
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
-          );
-        },
+        ],
       ),
     );
   }
@@ -289,11 +352,13 @@ class _MasterPanelDetailSheet extends StatefulWidget {
     required this.unitId,
     required this.part,
     required this.repository,
+    required this.onChanged,
   });
 
   final String unitId;
   final MasterPanelTrackingPart part;
   final CountdownRepository repository;
+  final Future<void> Function() onChanged;
 
   @override
   State<_MasterPanelDetailSheet> createState() =>
@@ -301,11 +366,20 @@ class _MasterPanelDetailSheet extends StatefulWidget {
 }
 
 class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
-  late final Future<MasterPanelDetail> _future = widget.repository
+  late Future<MasterPanelDetail> _future = widget.repository
       .getMasterPanelDetail(
         unitId: widget.unitId,
         panelId: widget.part.masterPanelId,
       );
+
+  Future<void> _reloadDetail() async {
+    setState(() {
+      _future = widget.repository.getMasterPanelDetail(
+        unitId: widget.unitId,
+        panelId: widget.part.masterPanelId,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -356,11 +430,365 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                 if (detail.notes != null)
                   _InfoRow(label: 'Catatan', value: detail.notes!),
                 const SizedBox(height: 12),
-                _ActivitySummaryCard(summary: widget.part.activitySummary),
+                _ActivitySummaryCard(
+                  summary: widget.part.activitySummary,
+                  countdownCount: detail.countdownCount,
+                ),
+                if (detail.countdownCount > 0) ...[
+                  const SizedBox(height: 8),
+                  _InfoRow(
+                    label: 'Countdown',
+                    value: '${detail.countdownCount} pekerjaan',
+                  ),
+                ],
+                if (_canCreateFromSession()) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: () => _openCreateCountdown(detail),
+                      icon: const Icon(Icons.add_task),
+                      label: const Text('Buat Countdown'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             );
           },
         ),
+      ),
+    );
+  }
+
+  bool _canCreateFromSession() {
+    if (!sl.isRegistered<SessionManager>()) return false;
+    final session = sl<SessionManager>();
+    return canCreateMasterPanelCountdown({
+      if (session.hasPerm(Perms.unitCatalogCreateJobdesc))
+        Perms.unitCatalogCreateJobdesc,
+    });
+  }
+
+  Future<void> _openCreateCountdown(MasterPanelDetail detail) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _CreateCountdownSheet(
+        unitId: widget.unitId,
+        detail: detail,
+        repository: widget.repository,
+      ),
+    );
+    if (created != true || !mounted) return;
+    await _reloadDetail();
+    await widget.onChanged();
+    if (!mounted) return;
+    AppNotification.showSuccess(context, 'Countdown berhasil dibuat.');
+  }
+}
+
+class _CreateCountdownSheet extends StatefulWidget {
+  const _CreateCountdownSheet({
+    required this.unitId,
+    required this.detail,
+    required this.repository,
+  });
+
+  final String unitId;
+  final MasterPanelDetail detail;
+  final CountdownRepository repository;
+
+  @override
+  State<_CreateCountdownSheet> createState() => _CreateCountdownSheetState();
+}
+
+class _CreateCountdownSheetState extends State<_CreateCountdownSheet> {
+  final _descriptionController = TextEditingController();
+  final _targetController = TextEditingController();
+  DateTime? _startDate;
+  DateTime? _deadline;
+  CountdownCreateOptions? _options;
+  CountdownCreateDivisionOption? _division;
+  CountdownCreateJobTypeOption? _jobType;
+  CountdownCreateUserOption? _pic;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _descriptionController.text = widget.detail.name;
+    _loadOptions();
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _targetController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadOptions() async {
+    try {
+      final options = await widget.repository.getCountdownCreateOptions(
+        widget.unitId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _options = options;
+        _division = options.divisions.isEmpty ? null : options.divisions.first;
+        _jobType = _jobTypesForDivision(options).firstOrNull;
+        _pic = _usersForDivision(options).firstOrNull;
+        _loading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal memuat pilihan Countdown'),
+      );
+    }
+  }
+
+  List<CountdownCreateJobTypeOption> _jobTypesForDivision(
+    CountdownCreateOptions options,
+  ) {
+    final divisionId = _division?.id;
+    return options.jobTypes
+        .where(
+          (item) => item.divisionId == null || item.divisionId == divisionId,
+        )
+        .toList();
+  }
+
+  List<CountdownCreateUserOption> _usersForDivision(
+    CountdownCreateOptions options,
+  ) {
+    final divisionId = _division?.id;
+    return options.users
+        .where(
+          (item) => item.divisionId == null || item.divisionId == divisionId,
+        )
+        .toList();
+  }
+
+  Future<void> _pickDeadline() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _deadline ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _deadline = picked);
+  }
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+    );
+    if (picked != null) setState(() => _startDate = picked);
+  }
+
+  Future<void> _save() async {
+    final target = double.tryParse(_targetController.text.trim());
+    if (_division == null || _pic == null || _jobType == null) {
+      AppNotification.showError(
+        context,
+        'Divisi, PIC, dan jenis pekerjaan wajib diisi.',
+      );
+      return;
+    }
+    if ((_descriptionController.text.trim()).isEmpty ||
+        target == null ||
+        target <= 0) {
+      AppNotification.showError(
+        context,
+        'Pekerjaan dan target jam wajib diisi.',
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await widget.repository.createMasterPanelCountdown(
+        unitId: widget.unitId,
+        masterPanelId: widget.detail.id,
+        divisionId: _division!.id,
+        jobTypeId: _jobType!.id,
+        description: _descriptionController.text.trim(),
+        targetHours: target,
+        picPlan: _pic!.id,
+        startDate: _startDate == null ? null : _dateOnly(_startDate!),
+        deadlineDate: _deadline == null ? null : _dateOnly(_deadline!),
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      AppNotification.showError(
+        context,
+        friendlyMessage(error, fallback: 'Gagal membuat Countdown'),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final options = _options;
+    final jobTypes = options == null
+        ? <CountdownCreateJobTypeOption>[]
+        : _jobTypesForDivision(options);
+    final users = options == null
+        ? <CountdownCreateUserOption>[]
+        : _usersForDivision(options);
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
+        ),
+        child: _loading
+            ? const SizedBox(
+                height: 220,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : ListView(
+                shrinkWrap: true,
+                children: [
+                  Text(
+                    'Buat Countdown',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${widget.unitId}\n${widget.detail.componentName} > ${widget.detail.panelName}\n${widget.detail.name}\nCondition: ${widget.detail.initialCondition} • Part Number: ${widget.detail.partNumber ?? '-'}',
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                  ),
+                  const SizedBox(height: 14),
+                  DropdownButtonFormField<CountdownCreateDivisionOption>(
+                    initialValue: _division,
+                    items: (options?.divisions ?? const [])
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() {
+                            _division = value;
+                            _jobType = _jobTypesForDivision(
+                              options!,
+                            ).firstOrNull;
+                            _pic = _usersForDivision(options).firstOrNull;
+                          }),
+                    decoration: _fieldDecoration('Divisi'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<CountdownCreateUserOption>(
+                    key: ValueKey('pic-${_division?.id}'),
+                    initialValue: users.contains(_pic) ? _pic : null,
+                    items: users
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() => _pic = value),
+                    decoration: _fieldDecoration('PIC Plan'),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<CountdownCreateJobTypeOption>(
+                    key: ValueKey('job-${_division?.id}'),
+                    initialValue: jobTypes.contains(_jobType) ? _jobType : null,
+                    items: jobTypes
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(item.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _saving
+                        ? null
+                        : (value) => setState(() {
+                            _jobType = value;
+                            if (value != null) {
+                              _descriptionController.text = value.name;
+                            }
+                          }),
+                    decoration: _fieldDecoration('Jenis Pekerjaan'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _descriptionController,
+                    enabled: !_saving,
+                    decoration: _fieldDecoration('Pekerjaan'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _targetController,
+                    enabled: !_saving,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: _fieldDecoration('Target Jam'),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickStartDate,
+                    icon: const Icon(Icons.today),
+                    label: Text(
+                      _startDate == null
+                          ? 'Pilih Start Date'
+                          : 'Start Date: ${_dateOnly(_startDate!)}',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickDeadline,
+                    icon: const Icon(Icons.event),
+                    label: Text(
+                      _deadline == null
+                          ? 'Pilih Deadline'
+                          : 'Deadline: ${_dateOnly(_deadline!)}',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.gold,
+                        foregroundColor: Colors.black,
+                      ),
+                      child: Text(_saving ? 'Menyimpan...' : 'Simpan'),
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -396,9 +824,10 @@ class _SummaryCard extends StatelessWidget {
 }
 
 class _ActivitySummaryCard extends StatelessWidget {
-  const _ActivitySummaryCard({required this.summary});
+  const _ActivitySummaryCard({required this.summary, this.countdownCount});
 
   final MasterPanelTrackingActivitySummary summary;
+  final int? countdownCount;
 
   @override
   Widget build(BuildContext context) {
@@ -413,7 +842,10 @@ class _ActivitySummaryCard extends StatelessWidget {
         spacing: 10,
         runSpacing: 8,
         children: [
-          _CountPill(label: 'Countdown', count: summary.countdownCount),
+          _CountPill(
+            label: 'Countdown',
+            count: countdownCount ?? summary.countdownCount,
+          ),
           _CountPill(label: 'Job Plan', count: summary.jobPlanCount),
           _CountPill(label: 'PR', count: summary.prCount),
           _CountPill(label: 'WO', count: summary.woCount),
@@ -606,6 +1038,27 @@ InputDecoration _searchDecoration(String hint) {
   );
 }
 
+InputDecoration _fieldDecoration(String label) {
+  return InputDecoration(
+    labelText: label,
+    labelStyle: TextStyle(color: AppColors.textMuted),
+    filled: true,
+    fillColor: AppColors.surfaceInput,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.border),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.border),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(10),
+      borderSide: BorderSide(color: AppColors.gold),
+    ),
+  );
+}
+
 String _imageUrl(String rawUrl) {
   final url = rawUrl.trim();
   if (url.isEmpty || url.contains('/api/v1/proxy/image?url=')) return url;
@@ -617,4 +1070,10 @@ String _formatQty(double value) {
   return value.truncateToDouble() == value
       ? value.toStringAsFixed(0)
       : value.toStringAsFixed(1);
+}
+
+String _dateOnly(DateTime value) {
+  final month = value.month.toString().padLeft(2, '0');
+  final day = value.day.toString().padLeft(2, '0');
+  return '${value.year}-$month-$day';
 }

@@ -49,6 +49,10 @@ void main() {
         ApiEndpoints.masterPanelTracking('220S'),
         'https://api.stanleymarthin.com/sm/units/220S/master-panels/tracking',
       );
+      expect(
+        ApiEndpoints.masterPanelCountdownOptions('220S'),
+        'https://api.stanleymarthin.com/sm/units/220S/master-panels/countdown-options',
+      );
     });
   });
 

@@ -93,6 +93,59 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   }
 
   @override
+  Future<Map<String, dynamic>> getCountdownCreateOptions(String unitId) async {
+    final response = await apiClient.get(
+      ApiEndpoints.masterPanelCountdownOptions(unitId),
+      queryParameters: {'user_id': _userId},
+    );
+    final raw = response.data;
+    if (raw is Map<String, dynamic> && raw['data'] is Map<String, dynamic>) {
+      return raw['data'] as Map<String, dynamic>;
+    }
+    return raw is Map<String, dynamic> ? raw : <String, dynamic>{};
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
+    required String unitId,
+    required int masterPanelId,
+    required int divisionId,
+    required String jobTypeId,
+    required String description,
+    required double targetHours,
+    required String picPlan,
+    String? startDate,
+    String? deadlineDate,
+    String taskCategory = 'MAIN',
+  }) async {
+    final response = await apiClient.post(
+      ApiEndpoints.masterPanelJobdescs(unitId, masterPanelId),
+      data: {
+        'user_id': _userId,
+        'jobs': [
+          {
+            'division_id': divisionId,
+            'job_type_id': jobTypeId,
+            'description': description,
+            'target_hours_initial': targetHours,
+            'pic_plan': picPlan,
+            if ((startDate ?? '').isNotEmpty) 'start_date': startDate,
+            if ((deadlineDate ?? '').isNotEmpty) 'deadline_date': deadlineDate,
+            'task_category': taskCategory,
+          },
+        ],
+      },
+    );
+    final raw = response.data;
+    if (raw is Map<String, dynamic> && raw['data'] is List<dynamic>) {
+      return raw['data']!.whereType<Map<String, dynamic>>().toList();
+    }
+    return raw is List<dynamic>
+        ? raw.whereType<Map<String, dynamic>>().toList()
+        : <Map<String, dynamic>>[];
+  }
+
+  @override
   Future<List<Map<String, dynamic>>> getSections({
     required String carId,
     required int divisionId,

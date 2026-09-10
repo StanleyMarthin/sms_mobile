@@ -89,6 +89,73 @@ class CountdownRepositoryImpl implements CountdownRepository {
   }
 
   @override
+  Future<CountdownCreateOptions> getCountdownCreateOptions(
+    String unitId,
+  ) async {
+    final raw = await dataSource.getCountdownCreateOptions(unitId);
+    return CountdownCreateOptions(
+      divisions: _asMapList(raw['divisions'])
+          .map(
+            (item) => CountdownCreateDivisionOption(
+              id: _asInt(item['id']),
+              name: _asText(item['name'], '-'),
+            ),
+          )
+          .where((item) => item.id > 0)
+          .toList(),
+      jobTypes: _asMapList(raw['jobTypes'])
+          .map(
+            (item) => CountdownCreateJobTypeOption(
+              id: _asText(item['id'], ''),
+              name: _asText(item['job_name'] ?? item['name'], '-'),
+              divisionId: _nullableInt(item['division_id']),
+            ),
+          )
+          .where((item) => item.id.isNotEmpty)
+          .toList(),
+      users: _asMapList(raw['users'])
+          .map(
+            (item) => CountdownCreateUserOption(
+              id: _asText(item['id'], ''),
+              name: _asText(item['name'], '-'),
+              divisionId: _nullableInt(
+                item['divisionId'] ?? item['division_id'],
+              ),
+            ),
+          )
+          .where((item) => item.id.isNotEmpty)
+          .toList(),
+    );
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
+    required String unitId,
+    required int masterPanelId,
+    required int divisionId,
+    required String jobTypeId,
+    required String description,
+    required double targetHours,
+    required String picPlan,
+    String? startDate,
+    String? deadlineDate,
+    String taskCategory = 'MAIN',
+  }) {
+    return dataSource.createMasterPanelCountdown(
+      unitId: unitId,
+      masterPanelId: masterPanelId,
+      divisionId: divisionId,
+      jobTypeId: jobTypeId,
+      description: description,
+      targetHours: targetHours,
+      picPlan: picPlan,
+      startDate: startDate,
+      deadlineDate: deadlineDate,
+      taskCategory: taskCategory,
+    );
+  }
+
+  @override
   Future<List<CountdownSection>> getSections({
     required String carId,
     required int divisionId,
@@ -287,6 +354,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
           )
           .where((media) => media.fileUrl.isNotEmpty)
           .toList(),
+      countdownCount: (item['jobdescs'] as List? ?? const []).length,
     );
   }
 
@@ -479,4 +547,9 @@ String _asText(Object? value, String fallback) {
 String? _nullableText(Object? value) {
   final text = '${value ?? ''}'.trim();
   return text.isEmpty ? null : text;
+}
+
+List<Map<String, dynamic>> _asMapList(Object? value) {
+  if (value is! List) return <Map<String, dynamic>>[];
+  return value.whereType<Map<String, dynamic>>().toList();
 }

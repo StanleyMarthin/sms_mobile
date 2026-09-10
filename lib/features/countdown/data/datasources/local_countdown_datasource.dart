@@ -43,7 +43,38 @@ class LocalCountdownDataSource implements CountdownDataSource {
     'component_name': '-',
     'panel_name': '-',
     'media': <Map<String, dynamic>>[],
+    'jobdescs': <Map<String, dynamic>>[],
   };
+
+  @override
+  Future<Map<String, dynamic>> getCountdownCreateOptions(String unitId) async =>
+      <String, dynamic>{
+        'divisions': <Map<String, dynamic>>[],
+        'jobTypes': <Map<String, dynamic>>[],
+        'users': <Map<String, dynamic>>[],
+      };
+
+  @override
+  Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
+    required String unitId,
+    required int masterPanelId,
+    required int divisionId,
+    required String jobTypeId,
+    required String description,
+    required double targetHours,
+    required String picPlan,
+    String? startDate,
+    String? deadlineDate,
+    String taskCategory = 'MAIN',
+  }) async => <Map<String, dynamic>>[
+    {
+      'countdown_id': 'local-countdown',
+      'panel_id': masterPanelId,
+      'division_id': divisionId,
+      'job_type_id': jobTypeId,
+      'task_category': taskCategory,
+    },
+  ];
 
   @override
   Future<List<Map<String, dynamic>>> getSections({

@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-09-09
+- Last verified: 2026-09-10
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -653,6 +653,22 @@ Panel   → getJobdescs(...)     → GET /sm/countdown?...&panel_id=...
 Detail  → getDetails(cntdwnId) → GET /sm/countdown?...&countdown_id=...
 ```
 
+**Master Panel Tracking create Countdown:**
+```text
+Unit → Tracking Panel → Component → Panel → Part/Master Panel Detail
+→ + Buat Countdown
+→ GET /sm/units/{unit}/master-panels/countdown-options
+→ POST /sm/units/{unit}/master-panels/{masterPanelId}/jobdescs
+```
+
+Rules:
+- Identity pekerjaan adalah `sm_jobdesc_countdown.panel_id = master_panels.id`.
+- Backend wajib validasi `master_panels.id` ada dan `master_panels.car_id` cocok dengan unit; tidak lookup via `section_name`, `panel_name`, `name_part`, atau `part_number`.
+- Payload create memakai `division_id`, `pic_plan`, `job_type_id`, `description`, `target_hours_initial`, `start_date`, `deadline_date`, dan `task_category` default `MAIN`.
+- `pic_plan` adalah planned PIC Countdown dari `sm_jobdesc_countdown.pic_plan` dan diisi dari `sm_employee.employee_id`; ini berbeda dari `sm_jobdesc_plan.assigned_user_id`.
+- `section_name` hanya snapshot/display compatibility, bukan relational identity.
+- Legacy DB columns seperti `ref_taks_id`, `dailyTargetHours`, `isPriority`, dan `progres` tetap dipakai sesuai DDL aktif; rename bukan bagian fase ini.
+
 Sinkronisasi runtime:
 - Saat WO final approved, backend diharapkan membuat row countdown lalu mengembalikan `coreId` atau `countdownId`; mobile memakai fallback keduanya.
 - Aktual task execution yang sudah mulai/selesai dibaca kembali lewat countdown detail (`getDetails`) sehingga countdown, aktual, dan progress WO tetap saling terhubung.
@@ -949,9 +965,11 @@ app_router.dart (/tasks|/overtime) → TaskSectionPage → MechanicTaskPage|Task
 → ApiEndpoints.countdown* (/sm/countdown via gateway; legacy port 8090)
 → Setelah pilih Unit: default Tracking Panel, tab Divisi tetap memakai flow lama
 → Tracking Panel memakai GET /sm/units/{unit}/master-panels/tracking read-only
+→ Create Countdown dari Tracking memakai GET /sm/units/{unit}/master-panels/countdown-options lalu POST /sm/units/{unit}/master-panels/{masterPanelId}/jobdescs
 → Source tracking adalah master_panels.car_id; tidak membaca unit_catalog/catalog_panels/unit_additional_items
 → Drill-down tracking: Component snapshot → Panel snapshot → Part/Master Panel detail
-→ Operational counts clean: sm_jobdesc_countdown.panel_id, sm_jobdesc_plan.core_id→countdown.panel_id, pur_pr_header.panel_id, sm_jobdesc_wo via countdown.ref_taks_id, vnd_wo_vendor via pr_id/core_id
+→ Operational counts clean: sm_jobdesc_countdown.panel_id=master_panels.id, sm_jobdesc_plan.core_id→countdown.panel_id, pur_pr_header.panel_id, sm_jobdesc_wo via countdown.ref_taks_id, vnd_wo_vendor via pr_id/core_id
+→ `pic_plan` adalah planned PIC Countdown dari sm_employee.employee_id; jangan dicampur dengan sm_jobdesc_plan.assigned_user_id
 → Root cause getSections server error 2026-09-09: backend masih query master_panels.name/section pada schema final; patch target memakai panel_name/name_part/component_name
 ```
 

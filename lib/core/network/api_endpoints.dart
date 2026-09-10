@@ -99,6 +99,10 @@ abstract class ApiEndpoints {
       '$_countdownBase/units/$unitId/master-panels/tracking';
   static String masterPanelDetail(String unitId, int panelId) =>
       '$_countdownBase/units/$unitId/master-panels/$panelId';
+  static String masterPanelJobdescs(String unitId, int panelId) =>
+      '$_countdownBase/units/$unitId/master-panels/$panelId/jobdescs';
+  static String masterPanelCountdownOptions(String unitId) =>
+      '$_countdownBase/units/$unitId/master-panels/countdown-options';
 
   // ── Warehouse (sm_warehouse) ─────────────────────────────
   static String get warehouse => '$_warehouseBase/warehouse';

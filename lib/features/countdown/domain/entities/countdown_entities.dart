@@ -203,6 +203,7 @@ class MasterPanelDetail {
     required this.currentStatus,
     required this.notes,
     required this.images,
+    required this.countdownCount,
   });
 
   final int id;
@@ -215,6 +216,50 @@ class MasterPanelDetail {
   final String currentStatus;
   final String? notes;
   final List<MasterPanelImage> images;
+  final int countdownCount;
+}
+
+class CountdownCreateOptions {
+  CountdownCreateOptions({
+    required this.divisions,
+    required this.jobTypes,
+    required this.users,
+  });
+
+  final List<CountdownCreateDivisionOption> divisions;
+  final List<CountdownCreateJobTypeOption> jobTypes;
+  final List<CountdownCreateUserOption> users;
+}
+
+class CountdownCreateDivisionOption {
+  CountdownCreateDivisionOption({required this.id, required this.name});
+
+  final int id;
+  final String name;
+}
+
+class CountdownCreateJobTypeOption {
+  CountdownCreateJobTypeOption({
+    required this.id,
+    required this.name,
+    this.divisionId,
+  });
+
+  final String id;
+  final String name;
+  final int? divisionId;
+}
+
+class CountdownCreateUserOption {
+  CountdownCreateUserOption({
+    required this.id,
+    required this.name,
+    this.divisionId,
+  });
+
+  final String id;
+  final String name;
+  final int? divisionId;
 }
 
 class CountdownJobdesc {

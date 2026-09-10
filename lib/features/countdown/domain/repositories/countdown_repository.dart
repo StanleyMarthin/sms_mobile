@@ -28,6 +28,21 @@ abstract class CountdownRepository {
     required int panelId,
   });
 
+  Future<CountdownCreateOptions> getCountdownCreateOptions(String unitId);
+
+  Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
+    required String unitId,
+    required int masterPanelId,
+    required int divisionId,
+    required String jobTypeId,
+    required String description,
+    required double targetHours,
+    required String picPlan,
+    String? startDate,
+    String? deadlineDate,
+    String taskCategory = 'MAIN',
+  });
+
   /// Level 3: list section/panel untuk divisi tertentu (car_id + division_id).
   Future<List<CountdownSection>> getSections({
     required String carId,
