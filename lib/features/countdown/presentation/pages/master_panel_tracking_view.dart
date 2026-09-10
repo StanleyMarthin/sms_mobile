@@ -7,6 +7,7 @@ Side Effects: HTTP read-only melalui repository.
 */
 
 import 'package:flutter/material.dart';
+import 'dart:math';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -20,6 +21,17 @@ import '../widgets/countdown_shared.dart';
 
 bool canCreateMasterPanelCountdown(Set<String> permissionCodes) {
   return permissionCodes.contains(Perms.unitCatalogCreateJobdesc);
+}
+
+String newCountdownCommandId() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes
+      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
 class MasterPanelTrackingView extends StatefulWidget {
@@ -507,6 +519,7 @@ class _CreateCountdownSheet extends StatefulWidget {
 }
 
 class _CreateCountdownSheetState extends State<_CreateCountdownSheet> {
+  final String _commandId = newCountdownCommandId();
   final _descriptionController = TextEditingController();
   final _targetController = TextEditingController();
   DateTime? _startDate;
@@ -622,6 +635,7 @@ class _CreateCountdownSheetState extends State<_CreateCountdownSheet> {
       await widget.repository.createMasterPanelCountdown(
         unitId: widget.unitId,
         masterPanelId: widget.detail.id,
+        idempotencyKey: _commandId,
         divisionId: _division!.id,
         jobTypeId: _jobType!.id,
         description: _descriptionController.text.trim(),

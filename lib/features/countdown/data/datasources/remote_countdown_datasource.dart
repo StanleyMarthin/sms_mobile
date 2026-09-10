@@ -109,6 +109,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
   Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
     required String unitId,
     required int masterPanelId,
+    required String idempotencyKey,
     required int divisionId,
     required String jobTypeId,
     required String description,
@@ -124,6 +125,7 @@ class RemoteCountdownDataSource implements CountdownDataSource {
         'user_id': _userId,
         'jobs': [
           {
+            'command_id': idempotencyKey,
             'division_id': divisionId,
             'job_type_id': jobTypeId,
             'description': description,

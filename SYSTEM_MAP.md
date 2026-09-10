@@ -664,7 +664,8 @@ Unit → Tracking Panel → Component → Panel → Part/Master Panel Detail
 Rules:
 - Identity pekerjaan adalah `sm_jobdesc_countdown.panel_id = master_panels.id`.
 - Backend wajib validasi `master_panels.id` ada dan `master_panels.car_id` cocok dengan unit; tidak lookup via `section_name`, `panel_name`, `name_part`, atau `part_number`.
-- Payload create memakai `division_id`, `pic_plan`, `job_type_id`, `description`, `target_hours_initial`, `start_date`, `deadline_date`, dan `task_category` default `MAIN`.
+- Payload create memakai `command_id`, `division_id`, `pic_plan`, `job_type_id`, `description`, `target_hours_initial`, `start_date`, `deadline_date`, dan `task_category` default `MAIN`.
+- `command_id` adalah UUID idempotency key dari mobile; backend memakai key ini sebagai `sm_jobdesc_countdown.id` dan retry key yang sama mengembalikan Countdown existing bila payload identitas sama.
 - `pic_plan` adalah planned PIC Countdown dari `sm_jobdesc_countdown.pic_plan` dan diisi dari `sm_employee.employee_id`; ini berbeda dari `sm_jobdesc_plan.assigned_user_id`.
 - `section_name` hanya snapshot/display compatibility, bukan relational identity.
 - Legacy DB columns seperti `ref_taks_id`, `dailyTargetHours`, `isPriority`, dan `progres` tetap dipakai sesuai DDL aktif; rename bukan bagian fase ini.

@@ -132,6 +132,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
   Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
     required String unitId,
     required int masterPanelId,
+    required String idempotencyKey,
     required int divisionId,
     required String jobTypeId,
     required String description,
@@ -144,6 +145,7 @@ class CountdownRepositoryImpl implements CountdownRepository {
     return dataSource.createMasterPanelCountdown(
       unitId: unitId,
       masterPanelId: masterPanelId,
+      idempotencyKey: idempotencyKey,
       divisionId: divisionId,
       jobTypeId: jobTypeId,
       description: description,

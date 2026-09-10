@@ -33,6 +33,7 @@ abstract class CountdownRepository {
   Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
     required String unitId,
     required int masterPanelId,
+    required String idempotencyKey,
     required int divisionId,
     required String jobTypeId,
     required String description,

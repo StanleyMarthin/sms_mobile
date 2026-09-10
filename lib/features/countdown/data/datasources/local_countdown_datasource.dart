@@ -58,6 +58,7 @@ class LocalCountdownDataSource implements CountdownDataSource {
   Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
     required String unitId,
     required int masterPanelId,
+    required String idempotencyKey,
     required int divisionId,
     required String jobTypeId,
     required String description,
@@ -68,7 +69,7 @@ class LocalCountdownDataSource implements CountdownDataSource {
     String taskCategory = 'MAIN',
   }) async => <Map<String, dynamic>>[
     {
-      'countdown_id': 'local-countdown',
+      'countdown_id': idempotencyKey,
       'panel_id': masterPanelId,
       'division_id': divisionId,
       'job_type_id': jobTypeId,

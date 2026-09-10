@@ -120,6 +120,7 @@ class _FakeCountdownDataSource implements CountdownDataSource {
   Future<List<Map<String, dynamic>>> createMasterPanelCountdown({
     required String unitId,
     required int masterPanelId,
+    required String idempotencyKey,
     required int divisionId,
     required String jobTypeId,
     required String description,
@@ -133,6 +134,7 @@ class _FakeCountdownDataSource implements CountdownDataSource {
     lastCreatePayload = {
       'unitId': unitId,
       'masterPanelId': masterPanelId,
+      'idempotencyKey': idempotencyKey,
       'divisionId': divisionId,
       'jobTypeId': jobTypeId,
       'description': description,
@@ -144,7 +146,7 @@ class _FakeCountdownDataSource implements CountdownDataSource {
     };
     return [
       {
-        'countdown_id': 'cd-1',
+        'countdown_id': idempotencyKey,
         'panel_id': masterPanelId,
         'division_id': divisionId,
         'job_type_id': jobTypeId,
@@ -277,6 +279,7 @@ void main() {
     final created = await repository.createMasterPanelCountdown(
       unitId: '220S',
       masterPanelId: 11,
+      idempotencyKey: '089c75f0-1111-4222-8333-123456789abc',
       divisionId: 3,
       jobTypeId: '9',
       description: 'Restorasi Karpet',
@@ -287,6 +290,10 @@ void main() {
 
     expect(fake.createCalls, 1);
     expect(fake.lastCreatePayload?['masterPanelId'], 11);
+    expect(
+      fake.lastCreatePayload?['idempotencyKey'],
+      '089c75f0-1111-4222-8333-123456789abc',
+    );
     expect(fake.lastCreatePayload?['picPlan'], 'SM-08.001');
     expect(fake.lastCreatePayload?['taskCategory'], 'MAIN');
     expect(created.single['panel_id'], 11);
@@ -298,5 +305,20 @@ void main() {
       true,
     );
     expect(canCreateMasterPanelCountdown({'CREATE_TASK'}), false);
+  });
+
+  test('countdown command id is uuid shaped', () {
+    final first = newCountdownCommandId();
+    final second = newCountdownCommandId();
+
+    expect(
+      first,
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ),
+      ),
+    );
+    expect(first, isNot(second));
   });
 }
