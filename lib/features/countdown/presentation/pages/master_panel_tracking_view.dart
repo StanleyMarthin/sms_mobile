@@ -1,9 +1,9 @@
 /*
 Tujuan: UI Tracking Master Panel di modul Countdown.
 Caller: GroupedUnitMonitoringPage mode Tracking Panel.
-Dependensi: CountdownRepository, RemotePrDataSource, Countdown/PR entities, ApiEndpoints, AppColors.
+Dependensi: CountdownRepository, RemotePrDataSource, RemoteWovDataSource, WorkOrderRepository, ApiEndpoints, AppColors.
 Main Functions: MasterPanelTrackingView.
-Side Effects: HTTP read tracking, create Countdown, dan create PR sesuai permission.
+Side Effects: HTTP read tracking; create Countdown, PR, WO, dan WOV sesuai permission.
 */
 
 import 'package:flutter/material.dart';
@@ -542,11 +542,7 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                         SizedBox(
                           height: 48,
                           child: ElevatedButton.icon(
-                            onPressed:
-                                detail.countdownActivities.isEmpty &&
-                                    detail.prActivities.isEmpty
-                                ? null
-                                : () => _openCreateWov(detail),
+                            onPressed: () => _openCreateWov(detail),
                             icon: const Icon(Icons.local_shipping),
                             label: const Text('Buat WOV'),
                             style: ElevatedButton.styleFrom(
@@ -557,19 +553,6 @@ class _MasterPanelDetailSheetState extends State<_MasterPanelDetailSheet> {
                         ),
                     ],
                   ),
-                  if (_canCreateWovFromSession() &&
-                      detail.countdownActivities.isEmpty &&
-                      detail.prActivities.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Belum ada Countdown atau PR yang dapat digunakan.',
-                        style: TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
                 ],
               ],
             );
@@ -1011,6 +994,7 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
   final _costController = TextEditingController();
   final _remarksController = TextEditingController();
   final _uomController = TextEditingController(text: 'PCS');
+  final _commandId = newCountdownCommandId();
   List<Map<String, dynamic>> _vendors = [];
   _WovParentOption? _parent;
   Map<String, dynamic>? _vendor;
@@ -1022,9 +1006,6 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
     ...widget.detail.countdownActivities.map(
       (item) => _WovParentOption.countdown(item.id, item.label),
     ),
-    ...widget.detail.prActivities.map(
-      (item) => _WovParentOption.pr(item.reqId, item.prNumber),
-    ),
   ];
 
   @override
@@ -1033,7 +1014,6 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
     _qtyController.text = _formatQty(
       widget.detail.qty <= 0 ? 1 : widget.detail.qty,
     );
-    _parent = _parents.length == 1 ? _parents.first : null;
     _loadVendors();
   }
 
@@ -1083,13 +1063,6 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
   Future<void> _save() async {
     final qty = double.tryParse(_qtyController.text.trim());
     final cost = double.tryParse(_costController.text.trim());
-    if (_parent == null) {
-      AppNotification.showError(
-        context,
-        'Pilih Countdown atau PR terlebih dahulu.',
-      );
-      return;
-    }
     if (_vendor == null) {
       AppNotification.showError(context, 'Pilih vendor terlebih dahulu.');
       return;
@@ -1104,11 +1077,11 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
         apiClient: sl(),
         sessionManager: sl(),
       ).createWov(
+        commandId: _commandId,
         carId: widget.unitId,
         carName: widget.unitId,
         masterPanelId: widget.detail.id,
-        coreId: _parent!.type == _WovParentType.countdown ? _parent!.id : null,
-        prId: _parent!.type == _WovParentType.pr ? _parent!.id : null,
+        coreId: _parent?.type == _WovParentType.countdown ? _parent!.id : null,
         vendorId: _textFromMap(_vendor!, ['id', 'vendorId', 'vendor_id']),
         vendorName:
             _textFromMap(_vendor!, ['name', 'vendorName', 'vendor_name']) ?? '',
@@ -1159,6 +1132,7 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
                   const SizedBox(height: 14),
                   DropdownButtonFormField<_WovParentOption>(
                     initialValue: parents.contains(_parent) ? _parent : null,
+                    hint: const Text('Tidak ada'),
                     items: parents
                         .map(
                           (item) => DropdownMenuItem(
@@ -1170,8 +1144,18 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
                     onChanged: _saving
                         ? null
                         : (value) => setState(() => _parent = value),
-                    decoration: _fieldDecoration('Parent'),
+                    decoration: _fieldDecoration('Pekerjaan Terkait'),
                   ),
+                  if (_parent != null)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: _saving
+                            ? null
+                            : () => setState(() => _parent = null),
+                        child: const Text('Tanpa pekerjaan terkait'),
+                      ),
+                    ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<Map<String, dynamic>>(
                     initialValue: _vendors.contains(_vendor) ? _vendor : null,
@@ -1241,7 +1225,7 @@ class _CreateWovSheetState extends State<_CreateWovSheet> {
                   SizedBox(
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: _saving || parents.isEmpty ? null : _save,
+                      onPressed: _saving ? null : _save,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.gold,
                         foregroundColor: Colors.black,
@@ -1290,16 +1274,13 @@ class _SheetTitle extends StatelessWidget {
   }
 }
 
-enum _WovParentType { countdown, pr }
+enum _WovParentType { countdown }
 
 class _WovParentOption {
   const _WovParentOption(this.type, this.id, this.label);
 
   factory _WovParentOption.countdown(String id, String label) =>
       _WovParentOption(_WovParentType.countdown, id, 'Countdown • $label');
-
-  factory _WovParentOption.pr(String id, String label) =>
-      _WovParentOption(_WovParentType.pr, id, 'PR • $label');
 
   final _WovParentType type;
   final String id;

@@ -1,3 +1,11 @@
+/*
+Tujuan: Remote datasource untuk operasi Work Order Vendor.
+Caller: WovPage, WovDetailPage, WovFormPage, dan MasterPanelTrackingView.
+Dependensi: ApiClient, ApiEndpoints, SessionManager.
+Main Functions: RemoteWovDataSource.getWovs, getWovDetail, createWov, approve/reject/update/finalize.
+Side Effects: HTTP call ke service sm_pr `/sm/wov`.
+*/
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
@@ -75,6 +83,7 @@ class RemoteWovDataSource {
   ///
   /// BE flow: acc_tracking starts at PENDING_ADV, status = null.
   Future<Map<String, dynamic>> createWov({
+    String? commandId,
     required String carId,
     String? carName,
     String? coreId,
@@ -98,6 +107,7 @@ class RemoteWovDataSource {
       data: {
         'action': 'create',
         'userId': _userId,
+        if (commandId != null) 'commandId': commandId,
         'carId': carId,
         if (carName != null) 'carName': carName,
         if (coreId != null) 'coreId': coreId,

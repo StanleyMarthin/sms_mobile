@@ -1,16 +1,57 @@
 /*
-Tujuan: Mengunci mapping read-only Tracking Master Panel di modul Countdown.
+Tujuan: Mengunci mapping dan payload Tracking Master Panel di modul Countdown.
 Caller: flutter test.
-Dependensi: CountdownRepositoryImpl dan entity countdown.
+Dependensi: CountdownRepositoryImpl, ApiClient, RemoteWovDataSource, dan entity countdown.
 Main Functions: main().
 Side Effects: Tidak ada; memakai fake datasource.
 */
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:dio/dio.dart';
+import 'package:sm_system/core/network/api_client.dart';
 import 'package:sm_system/features/countdown/data/datasources/countdown_datasource.dart';
 import 'package:sm_system/features/countdown/data/repositories/countdown_repository_impl.dart';
 import 'package:sm_system/features/countdown/presentation/pages/grouped_monitoring_pages.dart';
 import 'package:sm_system/features/countdown/presentation/pages/master_panel_tracking_view.dart';
+import 'package:sm_system/core/session/session_manager.dart';
+import 'package:sm_system/features/wov/data/datasources/remote_wov_datasource.dart';
+
+class _MemoryStorage {
+  final Map<String, String> _values = {};
+
+  Future<String?> read({required String key}) async => _values[key];
+
+  Future<void> write({required String key, required String value}) async {
+    _values[key] = value;
+  }
+
+  Future<void> delete({required String key}) async {
+    _values.remove(key);
+  }
+}
+
+class _CapturePostAdapter implements HttpClientAdapter {
+  Object? data;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    data = options.data;
+    return ResponseBody.fromString(
+      '{"success":true,"data":{"reqId":"wov-1","reused":false}}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
 
 class _FakeCountdownDataSource implements CountdownDataSource {
   Map<String, dynamic>? lastCreatePayload;
@@ -370,6 +411,47 @@ void main() {
     );
     expect(first, isNot(second));
   });
+
+  test(
+    'direct WOV payload uses master panel without required parent',
+    () async {
+      final adapter = _CapturePostAdapter();
+      final dio = Dio()..httpClientAdapter = adapter;
+      final session = SessionManager(storage: _MemoryStorage());
+      await session.login(
+        token: 'token',
+        refreshToken: 'refresh',
+        userId: 'SM-08.001',
+        employeeId: 'SM-08.001',
+        fullName: 'Budi',
+        role: 'kepala_divisi',
+        divisionName: 'INTERIOR',
+        jabatan: 'Kepala Divisi',
+        divisionId: 3,
+        permissions: const ['WOV_CREATE'],
+      );
+      final ds = RemoteWovDataSource(
+        apiClient: ApiClient(sessionManager: session, dio: dio),
+        sessionManager: session,
+      );
+
+      await ds.createWov(
+        commandId: '665f1c30-1111-4222-8333-123456789abc',
+        carId: '220S',
+        masterPanelId: 539,
+        vendorName: 'ABC Chrome',
+        itemName: 'Chrome bumper',
+        quantity: 1,
+        uom: 'PCS',
+      );
+
+      final payload = adapter.data as Map<String, dynamic>;
+      expect(payload['commandId'], '665f1c30-1111-4222-8333-123456789abc');
+      expect(payload['masterPanelId'], 539);
+      expect(payload.containsKey('coreId'), false);
+      expect(payload.containsKey('prId'), false);
+    },
+  );
 
   test('unit mode labels use panel and countdown wording', () {
     expect(countdownPanelModeLabel, 'Panel');
