@@ -507,6 +507,7 @@ TaskStartSheet / StartTaskFlowEvent
 -> optional UploadService.uploadPhoto(before photo)
 -> StartJobUseCase → ApiTaskDataSource.startJobExecution()
 -> POST 8086 /sm/tasks { action: start, plandailyId, userId, photoBefore1 }
+   atau V2: POST 8083 /sm/job-plans/v2/{planId}/execution { action: start|resume, commandId, expectedVersion }
 -> TaskDraftStorage.saveDraft()
 -> refresh GET /sm/tasks
 ```
@@ -517,6 +518,7 @@ TaskExecutionSheet / SubmitExecutionEvent
 -> UploadService.uploadPhoto(process/before/after)
 -> ApiTaskDataSource.submitTaskExecution()
 -> PUT 8086 /sm/tasks { action: submit, ... }
+   atau V2: POST 8083 /sm/job-plans/v2/{planId}/execution { action: hold|finish, commandId, expectedVersion, manualBreakMinutes }
 -> TaskDraftStorage.deleteDraft(plandailyId)
 -> refresh GET /sm/tasks
 ```
@@ -531,6 +533,8 @@ TaskExecutionSheet / SubmitExecutionEvent
 - Detail operator menampilkan target harian, target total, sisa target, dan akumulasi dikerjakan; list tetap ringkas.
 - `TaskExecutionSheet` menghitung progress submit terhadap target total (`targetHoursRevised`) dan meng-anchorkan waktu submit ke `taskDate`, bukan `DateTime.now()`.
 - Progress manual operator disimpan sebagai `submittedProgressPercent` bila backend mengirim field progress eksplisit; UI fallback ke kalkulasi `remainingHours` hanya jika field manual tidak ada.
+- Untuk task V2, `TaskEntity` membawa `planId`, `approvalState`, `executionState`, `ledgerState`, `version`, `accumulatedMinutes`, `verifiedMinutes`, dan `projectionReady`; action mobile wajib meneruskan `commandId` + `expectedVersion`.
+- Mapping state mobile V2: `APPROVED` siap start, `RUNNING` berjalan, `HOLD` bisa resume, `FINISHED_PENDING_VALIDATION` menunggu KD, `VALIDATED/FINALIZED` menunggu QC. Mobile tidak menandai QC/DONE.
 
 **Alarm side effects:**
 - `TaskBloc` timer tiap 15 detik untuk task in-progress

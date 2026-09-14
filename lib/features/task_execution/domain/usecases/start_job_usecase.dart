@@ -37,6 +37,10 @@ class StartJobParams {
   final String plandailyId;
   final String? photoBefore1Path;
   final String? photoBefore2Path;
+  final bool isV2;
+  final String? commandId;
+  final int? expectedVersion;
+  final String? v2Action;
 
   /// Creates a new StartJobParams instance.
   ///
@@ -46,6 +50,10 @@ class StartJobParams {
     required this.plandailyId,
     this.photoBefore1Path,
     this.photoBefore2Path,
+    this.isV2 = false,
+    this.commandId,
+    this.expectedVersion,
+    this.v2Action,
   });
 }
 
@@ -141,6 +149,10 @@ class StartJobUseCase {
       params.plandailyId,
       photoBefore1Path: params.photoBefore1Path,
       photoBefore2Path: params.photoBefore2Path,
+      isV2: params.isV2,
+      commandId: params.commandId,
+      expectedVersion: params.expectedVersion,
+      v2Action: params.v2Action,
     );
   }
 }

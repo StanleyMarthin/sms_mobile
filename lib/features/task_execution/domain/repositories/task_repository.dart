@@ -154,6 +154,10 @@ abstract class TaskRepository {
     String plandailyId, {
     String? photoBefore1Path,
     String? photoBefore2Path,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+    String? v2Action,
   });
 
   /// Finishes job execution and unlocks the panel.
@@ -177,7 +181,12 @@ abstract class TaskRepository {
   /// - Calculate elapsed time and update remaining hours
   /// - ATOMICALLY unlock the panel
   /// - Update task status based on remaining hours (DONE if 0, otherwise PROSES)
-  Future<Either<Failure, TaskEntity>> finishJobExecution(String plandailyId);
+  Future<Either<Failure, TaskEntity>> finishJobExecution(
+    String plandailyId, {
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+  });
 
   /// Submits a full task execution log from the mechanic's execution sheet.
   ///

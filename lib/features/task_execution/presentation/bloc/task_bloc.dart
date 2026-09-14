@@ -58,10 +58,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<SubmitExecutionEvent>(_onSubmitExecution);
 
     // Mulai background polling untuk alarm (Cek setiap 15 detik)
-    _jobTimer = Timer.periodic(
-      Duration(seconds: 15),
-      (_) => _checkAlarms(),
-    );
+    _jobTimer = Timer.periodic(Duration(seconds: 15), (_) => _checkAlarms());
   }
 
   @override
@@ -309,8 +306,17 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       ),
     );
 
+    final task = _taskById(currentTasks, event.plandailyId);
     final result = await startJobUseCase(
-      StartJobParams(plandailyId: event.plandailyId),
+      StartJobParams(
+        plandailyId: event.plandailyId,
+        isV2: task?.isV2 ?? false,
+        commandId: task?.isV2 == true
+            ? _newV2CommandId(_v2StartAction(task), event.plandailyId)
+            : null,
+        expectedVersion: task?.version,
+        v2Action: _v2StartAction(task),
+      ),
     );
 
     await result.fold(
@@ -405,14 +411,12 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     try {
       String? finalPhotoBeforePath = event.draft.photoBeforePath;
+      final task =
+          _taskById(currentTasks, event.plandailyId) ?? currentTasks.first;
 
       // Upload if it's a local file (doesn't start with http/https)
       if (finalPhotoBeforePath != null &&
           !finalPhotoBeforePath.startsWith('http')) {
-        final task = currentTasks.firstWhere(
-          (t) => t.plandailyId == event.plandailyId,
-          orElse: () => currentTasks.first,
-        );
         final uploadedUrl = await uploadService.uploadPhoto(
           localPath: finalPhotoBeforePath,
           unit: task.unitName,
@@ -431,6 +435,12 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         StartJobParams(
           plandailyId: event.plandailyId,
           photoBefore1Path: finalPhotoBeforePath,
+          isV2: task.isV2,
+          commandId: task.isV2
+              ? _newV2CommandId(_v2StartAction(task), event.plandailyId)
+              : null,
+          expectedVersion: task.version,
+          v2Action: _v2StartAction(task),
         ),
       );
 
@@ -511,7 +521,15 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       ),
     );
 
-    final result = await taskRepository.finishJobExecution(event.plandailyId);
+    final task = _taskById(currentTasks, event.plandailyId);
+    final result = await taskRepository.finishJobExecution(
+      event.plandailyId,
+      isV2: task?.isV2 ?? false,
+      commandId: task?.isV2 == true
+          ? _newV2CommandId('finish', event.plandailyId)
+          : null,
+      expectedVersion: task?.version,
+    );
 
     await result.fold(
       (failure) async {
@@ -637,6 +655,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         photoBefore: beforeUrl,
         photoProcess: processUrl,
         photoAfter: afterUrl,
+        isV2: task.isV2,
+        commandId: task.isV2
+            ? _newV2CommandId(log.isDone ? 'finish' : 'hold', log.plandailyId)
+            : null,
+        expectedVersion: task.version,
       );
 
       late TaskEntity lastUpdatedTask;
@@ -719,6 +742,22 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     if (s is TaskActionSuccess) return s.tasks;
     if (s is TaskActionError) return s.tasks;
     return [];
+  }
+
+  TaskEntity? _taskById(List<TaskEntity> tasks, String plandailyId) {
+    for (final task in tasks) {
+      if (task.plandailyId == plandailyId) return task;
+    }
+    return null;
+  }
+
+  String _newV2CommandId(String action, String planId) {
+    final now = DateTime.now().toUtc().microsecondsSinceEpoch;
+    return 'mobile-v2-$action-$planId-$now';
+  }
+
+  String _v2StartAction(TaskEntity? task) {
+    return task?.canResume == true ? 'resume' : 'start';
   }
 
   List<TaskEntity> _updateTaskInList(

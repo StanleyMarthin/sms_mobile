@@ -98,9 +98,32 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     String plandailyId, {
     String? photoBefore1Path,
     String? photoBefore2Path,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+    String? v2Action,
   }) async {
     _assertRemotePhotoUrl(photoBefore1Path, 'photoBefore1');
     _assertRemotePhotoUrl(photoBefore2Path, 'photoBefore2');
+
+    if (isV2) {
+      final action = v2Action == 'resume' ? 'resume' : 'start';
+      final payload = _v2ExecutionPayload(
+        planId: plandailyId,
+        action: action,
+        commandId: commandId,
+        expectedVersion: expectedVersion,
+        timestampField: action == 'resume' ? 'resumeAt' : 'startedAt',
+      );
+      final response = await apiClient.post(
+        ApiEndpoints.jobPlanV2Execution(plandailyId),
+        data: payload,
+      );
+      return TaskModel.fromJson({
+        'planId': plandailyId,
+        ..._responsePayload(response.data),
+      });
+    }
 
     // BE action=start: generates startTime itself — do NOT send startTime.
     // photoBefore1 wajib diisi (BE validates), photoBefore2/3 optional.
@@ -156,7 +179,28 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   Future<TaskModel> finishJobExecution(
     String plandailyId, {
     int breakDurationMinutes = 60,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
   }) async {
+    if (isV2) {
+      final payload = _v2ExecutionPayload(
+        planId: plandailyId,
+        action: 'finish',
+        commandId: commandId,
+        expectedVersion: expectedVersion,
+        timestampField: 'finishedAt',
+      )..['manualBreakMinutes'] = breakDurationMinutes;
+      final response = await apiClient.post(
+        ApiEndpoints.jobPlanV2Execution(plandailyId),
+        data: payload,
+      );
+      return TaskModel.fromJson({
+        'planId': plandailyId,
+        ..._responsePayload(response.data),
+      });
+    }
+
     final payload = <String, dynamic>{
       'action': 'submit',
       'plandailyId': plandailyId,
@@ -206,6 +250,27 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
     final normalizedStatus = log.status.trim().toLowerCase();
     _assertRemotePhotoUrl(log.photoProcess, 'photoProcess1');
     _assertRemotePhotoUrl(log.photoAfter, 'photoAfter1');
+
+    if (log.isV2) {
+      final action = normalizedStatus == 'done' ? 'finish' : 'hold';
+      final payload = _v2ExecutionPayload(
+        planId: log.plandailyId,
+        action: action,
+        commandId: log.commandId,
+        expectedVersion: log.expectedVersion,
+        timestampField: action == 'finish' ? 'finishedAt' : 'heldAt',
+        timestamp: log.finishTime,
+      )..['manualBreakMinutes'] = log.breakDurationMinutes;
+      if (log.dailyNotes != null) payload['note'] = log.dailyNotes;
+      final response = await apiClient.post(
+        ApiEndpoints.jobPlanV2Execution(log.plandailyId),
+        data: payload,
+      );
+      return TaskModel.fromJson({
+        'planId': log.plandailyId,
+        ..._responsePayload(response.data),
+      });
+    }
 
     // Logic Suggestion: Always use PUT action=submit even for pending status
     // so the backend can record finishTime, duration, and close the session.
@@ -326,5 +391,40 @@ class ApiTaskDataSource implements RemoteTaskDataSource {
   /// Maps a ViewTask-style JSON from GET /tasks response to TaskModel.
   TaskModel _viewTaskJsonToTaskModel(Map<String, dynamic> json) {
     return TaskModel.fromTaskApiJson(json);
+  }
+
+  Map<String, dynamic> _responsePayload(dynamic raw) {
+    if (raw is Map<String, dynamic>) {
+      final data = raw['data'];
+      if (data is Map<String, dynamic>) return data;
+      return raw;
+    }
+    return const {};
+  }
+
+  Map<String, dynamic> _v2ExecutionPayload({
+    required String planId,
+    required String action,
+    required String? commandId,
+    required int? expectedVersion,
+    required String timestampField,
+    String? timestamp,
+  }) {
+    if (commandId == null || commandId.trim().isEmpty) {
+      throw DataFormatException(message: 'commandId wajib untuk Job Plan V2.');
+    }
+    if (expectedVersion == null) {
+      throw DataFormatException(
+        message: 'expectedVersion wajib untuk Job Plan V2.',
+      );
+    }
+    return {
+      'action': action,
+      'userId': sessionManager.userId ?? sessionManager.employeeId ?? '',
+      'commandId': commandId,
+      'expectedVersion': expectedVersion,
+      timestampField:
+          timestamp ?? TimeParser.formatIsoWithOffset(DateTime.now()),
+    };
   }
 }

@@ -173,6 +173,10 @@ class TaskRepositoryImpl implements TaskRepository {
     String plandailyId, {
     String? photoBefore1Path,
     String? photoBefore2Path,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+    String? v2Action,
   }) async {
     try {
       /// Call data source to start job on backend
@@ -185,6 +189,10 @@ class TaskRepositoryImpl implements TaskRepository {
         plandailyId,
         photoBefore1Path: photoBefore1Path,
         photoBefore2Path: photoBefore2Path,
+        isV2: isV2,
+        commandId: commandId,
+        expectedVersion: expectedVersion,
+        v2Action: v2Action,
       );
 
       /// Convert model to entity and return success
@@ -200,11 +208,19 @@ class TaskRepositoryImpl implements TaskRepository {
 
   @override
   Future<Either<Failure, TaskEntity>> finishJobExecution(
-    String plandailyId,
-  ) async {
+    String plandailyId, {
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+  }) async {
     try {
       /// Call data source to finish job (unlock panel)
-      final taskModel = await remoteDataSource.finishJobExecution(plandailyId);
+      final taskModel = await remoteDataSource.finishJobExecution(
+        plandailyId,
+        isV2: isV2,
+        commandId: commandId,
+        expectedVersion: expectedVersion,
+      );
       return Right(taskModel.toEntity());
     } catch (e) {
       return Left(_mapExceptionToFailure(e));

@@ -42,6 +42,11 @@ class TaskExecutionLog extends Equatable {
   /// Optional daily notes / catatan harian.
   final String? dailyNotes;
 
+  /// V2 execution command metadata. Legacy payload leaves these null/false.
+  final bool isV2;
+  final String? commandId;
+  final int? expectedVersion;
+
   const TaskExecutionLog({
     required this.plandailyId,
     required this.startTime,
@@ -53,6 +58,9 @@ class TaskExecutionLog extends Equatable {
     this.photoProcess,
     this.photoAfter,
     this.dailyNotes,
+    this.isV2 = false,
+    this.commandId,
+    this.expectedVersion,
   });
 
   /// Whether this submission marks the job as done.
@@ -69,6 +77,9 @@ class TaskExecutionLog extends Equatable {
     String? photoProcess,
     String? photoAfter,
     String? dailyNotes,
+    bool? isV2,
+    String? commandId,
+    int? expectedVersion,
   }) {
     return TaskExecutionLog(
       plandailyId: plandailyId ?? this.plandailyId,
@@ -81,6 +92,9 @@ class TaskExecutionLog extends Equatable {
       photoProcess: photoProcess ?? this.photoProcess,
       photoAfter: photoAfter ?? this.photoAfter,
       dailyNotes: dailyNotes ?? this.dailyNotes,
+      isV2: isV2 ?? this.isV2,
+      commandId: commandId ?? this.commandId,
+      expectedVersion: expectedVersion ?? this.expectedVersion,
     );
   }
 
@@ -96,5 +110,8 @@ class TaskExecutionLog extends Equatable {
     photoProcess,
     photoAfter,
     dailyNotes,
+    isV2,
+    commandId,
+    expectedVersion,
   ];
 }

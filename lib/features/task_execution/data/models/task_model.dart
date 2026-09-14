@@ -28,6 +28,12 @@ bool _taskBool(dynamic value, {bool fallback = false}) {
   return fallback;
 }
 
+int _taskInt(dynamic value, {int fallback = 0}) {
+  if (value == null) return fallback;
+  if (value is num) return value.round();
+  return int.tryParse(value.toString().trim()) ?? fallback;
+}
+
 double _taskHours(dynamic value, {double fallback = 0.0}) {
   if (value == null) return fallback;
   if (value is num) return value.toDouble();
@@ -171,6 +177,13 @@ class TaskModel {
   final bool isRework;
   final bool isOvertime;
   final bool isPriority;
+  final String? approvalState;
+  final String? executionState;
+  final String? ledgerState;
+  final int? version;
+  final int accumulatedMinutes;
+  final int verifiedMinutes;
+  final bool projectionReady;
 
   TaskModel({
     required this.plandailyId,
@@ -202,12 +215,19 @@ class TaskModel {
     this.isRework = false,
     this.isOvertime = false,
     this.isPriority = false,
+    this.approvalState,
+    this.executionState,
+    this.ledgerState,
+    this.version,
+    this.accumulatedMinutes = 0,
+    this.verifiedMinutes = 0,
+    this.projectionReady = false,
   });
 
   /// Factory constructor for deserializing JSON from API responses.
   factory TaskModel.fromJson(Map<String, dynamic> json) {
     return TaskModel(
-      plandailyId: _taskString(json['plandailyId']),
+      plandailyId: _taskString(json['planId'] ?? json['plandailyId']),
       coreId: _taskString(json['coreId']),
       carId: _taskString(json['carId']),
       unitName: _taskString(json['unitName']),
@@ -245,6 +265,26 @@ class TaskModel {
       isRework: _taskBool(json['isRework']),
       isOvertime: _taskBool(json['isOvertime']),
       isPriority: _taskBool(json['isPriority']),
+      approvalState: _taskNullableString([
+        json['approvalState'],
+        json['approval_state'],
+      ]),
+      executionState: _taskNullableString([
+        json['executionState'],
+        json['execution_state'],
+      ]),
+      ledgerState: _taskNullableString([
+        json['ledgerState'],
+        json['ledger_state'],
+      ]),
+      version: json.containsKey('version') ? _taskInt(json['version']) : null,
+      accumulatedMinutes: _taskInt(
+        json['accumulatedMinutes'] ?? json['accumulatedWorkMinutes'],
+      ),
+      verifiedMinutes: _taskInt(
+        json['verifiedMinutes'] ?? json['persistedWorkMinutes'],
+      ),
+      projectionReady: _taskBool(json['projectionReady']),
     );
   }
 
@@ -455,7 +495,9 @@ class TaskModel {
     }
 
     return TaskModel(
-      plandailyId: _taskString(json['planDailyId'] ?? json['plandailyId']),
+      plandailyId: _taskString(
+        json['planId'] ?? json['planDailyId'] ?? json['plandailyId'],
+      ),
       coreId: _taskString(json['coreId'] ?? json['core_id']),
       carId: _taskString(unit['unitId'] ?? json['carId'] ?? json['car_id']),
       unitName: _taskString(
@@ -542,6 +584,32 @@ class TaskModel {
       isPriority: _taskBool(
         task['is_priority'] ?? task['isPriority'] ?? json['isPriority'],
       ),
+      approvalState: _taskNullableString([
+        json['approvalState'],
+        json['approval_state'],
+      ]),
+      executionState: _taskNullableString([
+        json['executionState'],
+        json['execution_state'],
+      ]),
+      ledgerState: _taskNullableString([
+        json['ledgerState'],
+        json['ledger_state'],
+      ]),
+      version: json.containsKey('version') ? _taskInt(json['version']) : null,
+      accumulatedMinutes: _taskInt(
+        json['accumulatedMinutes'] ??
+            json['accumulatedWorkMinutes'] ??
+            json['accumulated_work_minutes'],
+      ),
+      verifiedMinutes: _taskInt(
+        json['verifiedMinutes'] ??
+            json['persistedWorkMinutes'] ??
+            json['persisted_work_minutes'],
+      ),
+      projectionReady: _taskBool(
+        json['projectionReady'] ?? json['projection_ready'],
+      ),
     );
   }
 
@@ -575,6 +643,13 @@ class TaskModel {
     'isRework': isRework,
     'isOvertime': isOvertime,
     'isPriority': isPriority,
+    'approvalState': approvalState,
+    'executionState': executionState,
+    'ledgerState': ledgerState,
+    'version': version,
+    'accumulatedMinutes': accumulatedMinutes,
+    'verifiedMinutes': verifiedMinutes,
+    'projectionReady': projectionReady,
   };
 
   /// Converts this data model to a domain entity.
@@ -615,6 +690,13 @@ class TaskModel {
     isRework: isRework,
     isOvertime: isOvertime,
     isPriority: isPriority,
+    approvalState: approvalState,
+    executionState: executionState,
+    ledgerState: ledgerState,
+    version: version,
+    accumulatedMinutes: accumulatedMinutes,
+    verifiedMinutes: verifiedMinutes,
+    projectionReady: projectionReady,
   );
 
   /// Creates a copy of this model with some fields replaced.
@@ -649,6 +731,13 @@ class TaskModel {
     bool? isRework,
     bool? isOvertime,
     bool? isPriority,
+    String? approvalState,
+    String? executionState,
+    String? ledgerState,
+    int? version,
+    int? accumulatedMinutes,
+    int? verifiedMinutes,
+    bool? projectionReady,
   }) {
     return TaskModel(
       plandailyId: plandailyId ?? this.plandailyId,
@@ -679,6 +768,13 @@ class TaskModel {
       isRework: isRework ?? this.isRework,
       isOvertime: isOvertime ?? this.isOvertime,
       isPriority: isPriority ?? this.isPriority,
+      approvalState: approvalState ?? this.approvalState,
+      executionState: executionState ?? this.executionState,
+      ledgerState: ledgerState ?? this.ledgerState,
+      version: version ?? this.version,
+      accumulatedMinutes: accumulatedMinutes ?? this.accumulatedMinutes,
+      verifiedMinutes: verifiedMinutes ?? this.verifiedMinutes,
+      projectionReady: projectionReady ?? this.projectionReady,
     );
   }
 }

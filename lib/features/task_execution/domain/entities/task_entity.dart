@@ -2,7 +2,7 @@
 Tujuan: Entity domain task execution operator untuk menentukan state start, progress, submit, dan selesai.
 Caller: TaskBloc, TaskListPage, TaskCard, dan use case task execution.
 Dependensi: Equatable.
-Main Functions: canStart, isMonitoringLocked, isInProgress, isCompleted, progressPercent.
+Main Functions: planId, canStart, isMonitoringLocked, isInProgress, isCompleted, mobileExecutionState.
 Side Effects: Tidak ada; hanya komputasi state bisnis in-memory.
 */
 library;
@@ -159,6 +159,15 @@ class TaskEntity extends Equatable {
   /// Indicates if this task is marked as priority
   final bool isPriority;
 
+  /// Job Plan V2 semantic fields. Null means legacy task payload.
+  final String? approvalState;
+  final String? executionState;
+  final String? ledgerState;
+  final int? version;
+  final int accumulatedMinutes;
+  final int verifiedMinutes;
+  final bool projectionReady;
+
   const TaskEntity({
     required this.plandailyId,
     required this.coreId,
@@ -189,12 +198,67 @@ class TaskEntity extends Equatable {
     this.isRework = false,
     this.isOvertime = false,
     this.isPriority = false,
+    this.approvalState,
+    this.executionState,
+    this.ledgerState,
+    this.version,
+    this.accumulatedMinutes = 0,
+    this.verifiedMinutes = 0,
+    this.projectionReady = false,
   });
+
+  String get planId => plandailyId;
+
+  bool get isV2 =>
+      approvalState != null || executionState != null || ledgerState != null;
+
+  int get unverifiedMinutes =>
+      (accumulatedMinutes - verifiedMinutes).clamp(0, accumulatedMinutes);
+
+  String get mobileExecutionState {
+    if (!isV2) return status.trim().toUpperCase();
+    final execution = executionState?.trim().toUpperCase();
+    final ledger = ledgerState?.trim().toUpperCase();
+    if (execution == 'RUNNING') return 'RUNNING';
+    if (execution == 'HOLD') return 'HOLD';
+    if (execution == 'FINISHED_PENDING_VALIDATION') {
+      return 'WAITING_VALIDATION';
+    }
+    if (execution == 'VALIDATED' && ledger == 'FINALIZED') {
+      return 'WAITING_QC';
+    }
+    if (approvalState?.trim().toUpperCase() == 'APPROVED') {
+      return projectionReady ? 'APPROVED' : 'SYNCING';
+    }
+    return approvalState?.trim().toUpperCase() ?? 'ON_PROGRESS';
+  }
+
+  String get mobileExecutionLabel => switch (mobileExecutionState) {
+    'APPROVED' => 'Siap',
+    'RUNNING' => 'Berjalan',
+    'HOLD' => 'Hold',
+    'WAITING_VALIDATION' => 'Menunggu KD',
+    'WAITING_QC' => 'Menunggu QC',
+    'DONE' => 'Selesai',
+    'SYNCING' => 'Sinkron',
+    _ => mobileExecutionState,
+  };
+
+  bool get canResume =>
+      isV2 &&
+      approvalState?.trim().toUpperCase() == 'APPROVED' &&
+      executionState?.trim().toUpperCase() == 'HOLD' &&
+      projectionReady;
 
   /// Returns true if the mechanic can start this task now.
   /// Business Rule #1: Panel must NOT be locked and task must be assigned/ready.
   /// Also must not already be in progress or completed.
   bool get canStart {
+    if (isV2) {
+      return approvalState?.trim().toUpperCase() == 'APPROVED' &&
+          executionState?.trim().toUpperCase() == 'NOT_STARTED' &&
+          projectionReady;
+    }
     final normalizedStatus = status.trim().toUpperCase();
     final blockedByOtherWorker = isPanelLocked && lockedByName != null;
     return !blockedByOtherWorker &&
@@ -222,6 +286,9 @@ class TaskEntity extends Equatable {
 
   /// Returns true if work has started on this task.
   bool get isInProgress {
+    if (isV2) {
+      return executionState?.trim().toUpperCase() == 'RUNNING';
+    }
     final normalizedStatus = status.trim().toUpperCase();
     final isActiveStatus =
         normalizedStatus == 'ONPROGRESS' ||
@@ -243,6 +310,9 @@ class TaskEntity extends Equatable {
   /// Note: completedAt != null does NOT mean completed — a task can have
   /// a finish_time from a submitted session but still need more work (< 100%).
   bool get isCompleted {
+    if (isV2) {
+      return executionState?.trim().toUpperCase() == 'VALIDATED';
+    }
     final normalizedStatus = status.trim().toUpperCase();
     final noRemainingWork = remainingHours <= 0.0001;
     return normalizedStatus == 'READY_QC' ||
@@ -303,5 +373,12 @@ class TaskEntity extends Equatable {
     isRework,
     isOvertime,
     isPriority,
+    approvalState,
+    executionState,
+    ledgerState,
+    version,
+    accumulatedMinutes,
+    verifiedMinutes,
+    projectionReady,
   ];
 }

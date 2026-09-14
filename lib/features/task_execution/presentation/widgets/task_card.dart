@@ -303,10 +303,7 @@ class TaskCard extends StatelessWidget {
               SizedBox(height: 2),
               Text(
                 task.unitName,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textMuted,
-                ),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -324,13 +321,13 @@ class TaskCard extends StatelessWidget {
 
     if (task.isCompleted) {
       dotColor = AppColors.statusDone;
-      label = 'Selesai';
+      label = task.isV2 ? task.mobileExecutionLabel : 'Selesai';
     } else if (task.isInProgress || hasDraft) {
       dotColor = AppColors.gold;
-      label = 'Berjalan';
+      label = task.isV2 ? task.mobileExecutionLabel : 'Berjalan';
     } else {
       dotColor = AppColors.orange;
-      label = 'Siap';
+      label = task.isV2 ? task.mobileExecutionLabel : 'Siap';
     }
 
     return Row(
@@ -502,11 +499,7 @@ class TaskCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.lock_rounded,
-            size: 14,
-            color: AppColors.statusLocked,
-          ),
+          Icon(Icons.lock_rounded, size: 14, color: AppColors.statusLocked),
           SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -589,7 +582,7 @@ class TaskCard extends StatelessWidget {
             Icon(Icons.check_circle, size: 16, color: AppColors.statusDone),
             SizedBox(width: 6),
             Text(
-              'Selesai',
+              task.isV2 ? task.mobileExecutionLabel : 'Selesai',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -615,7 +608,33 @@ class TaskCard extends StatelessWidget {
             Icon(Icons.visibility_outlined, size: 16, color: AppColors.gold),
             SizedBox(width: 6),
             Text(
-              'Tercatat',
+              task.isV2 ? task.mobileExecutionLabel : 'Tercatat',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.gold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (task.isV2 && !task.canStart && !task.canResume && !task.isInProgress) {
+      return Container(
+        width: double.infinity,
+        padding: EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.gold.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.hourglass_bottom, size: 16, color: AppColors.gold),
+            SizedBox(width: 6),
+            Text(
+              task.mobileExecutionLabel,
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -655,7 +674,7 @@ class TaskCard extends StatelessWidget {
       );
     }
 
-    final canAct = task.canStart && !isActionLoading;
+    final canAct = (task.canStart || task.canResume) && !isActionLoading;
     return SizedBox(
       width: double.infinity,
       child: FilledButton.icon(
@@ -670,7 +689,13 @@ class TaskCard extends StatelessWidget {
                 ),
               )
             : Icon(Icons.play_circle_outline, size: 18),
-        label: Text(isActionLoading ? 'Memulai...' : 'Mulai Kerjakan'),
+        label: Text(
+          isActionLoading
+              ? 'Memulai...'
+              : task.canResume
+              ? 'Resume'
+              : 'Mulai Kerjakan',
+        ),
         style: FilledButton.styleFrom(
           backgroundColor: canAct ? AppColors.gold : AppColors.border,
           foregroundColor: canAct

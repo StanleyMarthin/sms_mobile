@@ -40,6 +40,8 @@ abstract class ApiEndpoints {
 
   // ── Job Plans (sm_job_plan) ──────────────────────────────
   static String get jobPlans => '$_jobPlanBase/job-plans';
+  static String jobPlanV2Execution(String planId) =>
+      '$_jobPlanBase/job-plans/v2/$planId/execution';
   static String get jobPlanDropdowns => '$_jobPlanBase/job-plans/dropdowns';
   static String get jobPlanDropdownUsers =>
       '$_jobPlanBase/job-plans/dropdowns/users';

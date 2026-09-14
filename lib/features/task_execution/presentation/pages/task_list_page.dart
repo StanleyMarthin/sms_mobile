@@ -120,8 +120,7 @@ class _TaskListPageState extends State<TaskListPage> {
 
         if (tasks == null || tasks.isEmpty) {
           return _EmptyView(
-            onRefresh: () =>
-                context.read<TaskBloc>().add(RefreshTasksEvent()),
+            onRefresh: () => context.read<TaskBloc>().add(RefreshTasksEvent()),
           );
         }
 
@@ -288,10 +287,7 @@ class _TaskListPageState extends State<TaskListPage> {
               SizedBox(width: 6),
               Text(
                 '|  $dateStr',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textMuted,
-                ),
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
               ),
             ],
           ),
@@ -352,11 +348,7 @@ class _ErrorView extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 56,
-              color: AppColors.statusLocked,
-            ),
+            Icon(Icons.error_outline, size: 56, color: AppColors.statusLocked),
             SizedBox(height: 16),
             Text(
               'Terjadi Kesalahan',
@@ -380,10 +372,7 @@ class _ErrorView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: Icon(Icons.refresh, color: AppColors.gold),
-              label: Text(
-                'Coba Lagi',
-                style: TextStyle(color: AppColors.gold),
-              ),
+              label: Text('Coba Lagi', style: TextStyle(color: AppColors.gold)),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
@@ -442,10 +431,7 @@ class _EmptyView extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onRefresh,
               icon: Icon(Icons.refresh, color: AppColors.gold),
-              label: Text(
-                'Refresh',
-                style: TextStyle(color: AppColors.gold),
-              ),
+              label: Text('Refresh', style: TextStyle(color: AppColors.gold)),
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: AppColors.gold),
                 shape: RoundedRectangleBorder(
@@ -506,10 +492,7 @@ class _DrilldownTile extends StatelessWidget {
                   SizedBox(height: 3),
                   Text(
                     subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                    ),
+                    style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                   ),
                 ],
               ),
@@ -677,6 +660,16 @@ class _MechanicJobdescPageState extends State<_MechanicJobdescPage> {
             'Panel dikunci oleh ${task.lockedByName ?? "Divisi lain"}. Tidak dapat memulai pekerjaan.',
           ),
           backgroundColor: AppColors.statusLocked.withValues(alpha: 0.9),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (task.isV2 && !task.canStart && !task.canResume && !task.isInProgress) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(task.mobileExecutionLabel),
           behavior: SnackBarBehavior.floating,
         ),
       );

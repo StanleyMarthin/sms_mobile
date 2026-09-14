@@ -90,6 +90,10 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
     String plandailyId, {
     String? photoBefore1Path,
     String? photoBefore2Path,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+    String? v2Action,
   }) async {
     await Future<void>.delayed(Duration(milliseconds: 600));
     final tasks = await _loadTasks();
@@ -129,6 +133,9 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
   Future<TaskModel> finishJobExecution(
     String plandailyId, {
     int breakDurationMinutes = 60,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
   }) async {
     await Future<void>.delayed(Duration(milliseconds: 600));
     final tasks = await _loadTasks();
@@ -358,7 +365,10 @@ class LocalTaskDataSource implements RemoteTaskDataSource {
           'countdownId': coreId,
           'employeeName': taskRow['assignedTo'] as String? ?? '-',
           'job': taskRow['divisionName'] as String? ?? '-',
-          'detailJob': taskRow['jobDescription'] ?? taskRow['customDescription'] as String? ?? '-',
+          'detailJob':
+              taskRow['jobDescription'] ??
+              taskRow['customDescription'] as String? ??
+              '-',
           'workDate': taskRow['taskDate'] as String? ?? '',
           'startTime': _clockFromIso(executionLog.startTime),
           'finishTime': _clockFromIso(executionLog.finishTime),

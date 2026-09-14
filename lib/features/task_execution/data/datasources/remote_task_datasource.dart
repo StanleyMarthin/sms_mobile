@@ -195,6 +195,10 @@ abstract class RemoteTaskDataSource {
     String plandailyId, {
     String? photoBefore1Path,
     String? photoBefore2Path,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
+    String? v2Action,
   });
 
   /// Finishes job execution and unlocks the panel.
@@ -223,6 +227,9 @@ abstract class RemoteTaskDataSource {
   Future<TaskModel> finishJobExecution(
     String plandailyId, {
     int breakDurationMinutes = 60,
+    bool isV2 = false,
+    String? commandId,
+    int? expectedVersion,
   });
 
   /// Submits a full task execution log with times, progress, and photos.
