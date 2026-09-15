@@ -97,7 +97,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   Widget _buildItemCard(NotificationItem item) {
     final isRead = item.isRead;
-    final meta = _metaFor(item.targetRoute);
+    final meta = _metaFor(item.targetRoute, item.category);
 
     return InkWell(
       onTap: () => context.push(item.targetRoute),
@@ -309,7 +309,35 @@ class _NotificationsPageState extends State<NotificationsPage> {
     return '$hh:$min';
   }
 
-  _NotifMeta _metaFor(String route) {
+  _NotifMeta _metaFor(String route, String category) {
+    if (category == 'approval') {
+      return _NotifMeta(
+        label: 'Approval',
+        icon: Icons.fact_check_outlined,
+        color: AppColors.gold,
+      );
+    }
+    if (category == 'job_plan') {
+      return _NotifMeta(
+        label: 'Job Plan',
+        icon: Icons.event_note_outlined,
+        color: AppColors.gold,
+      );
+    }
+    if (category == 'execution') {
+      return _NotifMeta(
+        label: 'Execution',
+        icon: Icons.play_circle_outline,
+        color: AppColors.gold,
+      );
+    }
+    if (category == 'validation') {
+      return _NotifMeta(
+        label: 'Validation',
+        icon: Icons.checklist_rtl_outlined,
+        color: AppColors.gold,
+      );
+    }
     final value = route.toLowerCase();
     if (value.contains('/warehouse')) {
       return _NotifMeta(

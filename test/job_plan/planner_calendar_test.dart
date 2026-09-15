@@ -9,6 +9,7 @@ Side Effects: Tidak ada.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/features/job_plan/domain/entities/job_plan.dart';
+import 'package:sm_system/features/job_plan/domain/repositories/job_plan_repository.dart';
 import 'package:sm_system/features/job_plan/presentation/pages/job_plan_calendar_page.dart';
 
 void main() {
@@ -23,6 +24,7 @@ void main() {
               _plan('plan-2', '10:00', 600),
               _plan('plan-1', '08:00', 480),
             ],
+            divisionId: 'DIV-1',
           ),
         ),
       ),
@@ -34,10 +36,73 @@ void main() {
     expect(find.text('Tanggal'), findsOneWidget);
     expect(find.text('Unit ID'), findsOneWidget);
     expect(find.text('PIC ID'), findsOneWidget);
+    expect(find.text('Division ID'), findsOneWidget);
+    expect(find.text('Day'), findsOneWidget);
+    expect(find.text('Week'), findsOneWidget);
     expect(find.text('Filter'), findsOneWidget);
     expect(find.text('START'), findsNothing);
     expect(find.text('Approve'), findsNothing);
   });
+
+  testWidgets('calendar sends day week and division filters to repository', (
+    tester,
+  ) async {
+    final repository = _CalendarRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JobPlanCalendarPage(
+            repository: repository,
+            date: '2026-09-15',
+            unitId: 'UNIT-1',
+            employeeId: 'EMP-1',
+            divisionId: 'DIV-1',
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Week'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastDate, '2026-09-15');
+    expect(repository.lastUnitId, 'UNIT-1');
+    expect(repository.lastEmployeeId, 'EMP-1');
+    expect(repository.lastDivisionId, 'DIV-1');
+    expect(repository.lastCalendarView, 'week');
+  });
+}
+
+class _CalendarRepository implements JobPlanRepository {
+  String? lastDate;
+  String? lastUnitId;
+  String? lastEmployeeId;
+  String? lastDivisionId;
+  String? lastCalendarView;
+
+  @override
+  Future<List<JobPlan>> listV2Plans({
+    int page = 1,
+    int limit = 20,
+    String? unitId,
+    String? employeeId,
+    String? date,
+    String? divisionId,
+    String? calendarView,
+    String? approvalState,
+    String? executionState,
+  }) async {
+    lastDate = date;
+    lastUnitId = unitId;
+    lastEmployeeId = employeeId;
+    lastDivisionId = divisionId;
+    lastCalendarView = calendarView;
+    return [_plan('plan-1', '08:00', 480)];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 JobPlan _plan(String id, String start, int startMinute) {

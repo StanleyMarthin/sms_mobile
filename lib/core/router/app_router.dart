@@ -157,6 +157,7 @@ GoRouter createRouter() {
             date: state.uri.queryParameters['date'],
             unitId: state.uri.queryParameters['unitId'],
             employeeId: state.uri.queryParameters['employeeId'],
+            divisionId: state.uri.queryParameters['divisionId'],
           ),
         ),
       ),

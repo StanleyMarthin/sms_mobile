@@ -29,6 +29,14 @@ abstract class JobPlanV2Access {
       _enabled(session) &&
       session.hasAnyPerm([Perms.monitoringView, Perms.monitoringDetail]);
 
+  static bool canExecute(SessionManager session) =>
+      _enabled(session) &&
+      session.hasAnyPerm([
+        Perms.taskExecute,
+        Perms.taskSubmit,
+        Perms.taskPending,
+      ]);
+
   static bool canOpenAny(SessionManager session) =>
       canCreate(session) ||
       canApprove(session) ||

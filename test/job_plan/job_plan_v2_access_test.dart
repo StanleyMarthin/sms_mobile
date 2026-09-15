@@ -76,6 +76,27 @@ void main() {
       );
     },
   );
+
+  test('operator execution access stays on task route only', () async {
+    final session = await _session(const ['TASK_EXECUTE']);
+
+    expect(JobPlanV2Access.canExecute(session), isTrue);
+    expect(JobPlanV2Access.canOpenAny(session), isFalse);
+    expect(
+      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/approval'),
+      isFalse,
+    );
+  });
+
+  test('calendar permission follows backend task view permission', () async {
+    final session = await _session(const ['TASK_VIEW']);
+
+    expect(JobPlanV2Access.canTrack(session), isTrue);
+    expect(
+      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/calendar'),
+      isTrue,
+    );
+  });
 }
 
 Future<SessionManager> _session(List<String> permissions) async {

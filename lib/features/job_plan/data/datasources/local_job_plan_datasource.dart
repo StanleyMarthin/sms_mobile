@@ -330,6 +330,8 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     String? unitId,
     String? employeeId,
     String? date,
+    String? divisionId,
+    String? calendarView,
     String? approvalState,
     String? executionState,
   }) async {
@@ -340,6 +342,12 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
           final map = Map<String, dynamic>.from(plan);
           return _matches(map, 'carId', unitId) &&
               _matches(map, 'assignedUserId', employeeId) &&
+              _matches(
+                map,
+                'divisionId',
+                divisionId,
+                fallback: 'division_id',
+              ) &&
               ((date ?? '').isEmpty ||
                   (map['taskDate'] ?? map['workDate']).toString() == date) &&
               _matches(
@@ -634,6 +642,7 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
     return {
       'cars': DummyCars.all.map(Map<String, dynamic>.from).toList(),
       'panels': panels,
+      'countdowns': const <Map<String, dynamic>>[],
       'jobTypes': DummyJobTypes.all
           .map(Map<String, dynamic>.from)
           .map(_normalizeDropdownJobType)

@@ -8,10 +8,12 @@ Side Effects: HTTP call, upload foto, simpan draft lokal, alarm/notifikasi.
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../core/errors/failures.dart';
 import '../../../../core/errors/error_message.dart';
 import '../../../../core/services/alarm_timer_service.dart';
 import '../../../../core/services/fcm_service.dart';
 import '../../../../core/services/upload_service.dart';
+import '../../../job_plan/presentation/utils/job_plan_v2_command_feedback.dart';
 import '../../data/datasources/task_draft_storage.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -321,12 +323,12 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     await result.fold(
       (failure) async {
-        emit(
-          TaskActionError(
-            tasks: currentTasks,
-            drafts: currentDrafts,
-            message: failure.message ?? 'Gagal memulai pekerjaan',
-          ),
+        await _emitActionFailure(
+          emit,
+          failure,
+          tasks: currentTasks,
+          drafts: currentDrafts,
+          fallback: 'Gagal memulai pekerjaan',
         );
       },
       (updatedTask) async {
@@ -446,12 +448,12 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
       await result.fold(
         (failure) async {
-          emit(
-            TaskActionError(
-              tasks: currentTasks,
-              drafts: currentDrafts,
-              message: failure.message ?? 'Gagal memulai pekerjaan',
-            ),
+          await _emitActionFailure(
+            emit,
+            failure,
+            tasks: currentTasks,
+            drafts: currentDrafts,
+            fallback: 'Gagal memulai pekerjaan',
           );
         },
         (updatedTask) async {
@@ -533,12 +535,12 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
 
     await result.fold(
       (failure) async {
-        emit(
-          TaskActionError(
-            tasks: currentTasks,
-            drafts: currentDrafts,
-            message: failure.message ?? 'Gagal menyelesaikan pekerjaan',
-          ),
+        await _emitActionFailure(
+          emit,
+          failure,
+          tasks: currentTasks,
+          drafts: currentDrafts,
+          fallback: 'Gagal menyelesaikan pekerjaan',
         );
       },
       (updatedTask) async {
@@ -667,18 +669,18 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       final result = await taskRepository.submitTaskExecution(updatedLog);
 
       bool isError = false;
-      result.fold(
-        (failure) {
+      await result.fold(
+        (failure) async {
           isError = true;
-          emit(
-            TaskActionError(
-              tasks: currentTasks,
-              drafts: currentDrafts,
-              message: 'Gagal mensubmit pekerjaan: ${failure.message}',
-            ),
+          await _emitActionFailure(
+            emit,
+            failure,
+            tasks: currentTasks,
+            drafts: currentDrafts,
+            fallback: 'Gagal mensubmit pekerjaan',
           );
         },
-        (updatedTask) {
+        (updatedTask) async {
           lastUpdatedTask = updatedTask;
         },
       );
@@ -754,6 +756,45 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   String _newV2CommandId(String action, String planId) {
     final now = DateTime.now().toUtc().microsecondsSinceEpoch;
     return 'mobile-v2-$action-$planId-$now';
+  }
+
+  Future<void> _emitActionFailure(
+    Emitter<TaskState> emit,
+    Object failure, {
+    required List<TaskEntity> tasks,
+    required Map<String, TaskDraft> drafts,
+    required String fallback,
+  }) async {
+    if (!JobPlanV2CommandFeedback.shouldRefresh(failure)) {
+      final message = failure is Failure
+          ? failure.message ?? fallback
+          : friendlyMessage(failure, fallback: fallback);
+      emit(TaskActionError(tasks: tasks, drafts: drafts, message: message));
+      return;
+    }
+
+    final message = JobPlanV2CommandFeedback.message(failure);
+    final refreshResult = await taskRepository.getTodaysTasks(
+      date: _selectedDate,
+      isOvertime: _isOvertime,
+      forceOwnOnly: _forceOwnOnly,
+    );
+    refreshResult.fold(
+      (_) => emit(
+        TaskActionError(
+          tasks: tasks,
+          drafts: drafts,
+          message: message.isEmpty ? fallback : message,
+        ),
+      ),
+      (freshTasks) => emit(
+        TaskActionError(
+          tasks: freshTasks,
+          drafts: drafts,
+          message: message.isEmpty ? fallback : message,
+        ),
+      ),
+    );
   }
 
   String _v2StartAction(TaskEntity? task) {

@@ -19,6 +19,7 @@ class JobPlanCalendarPage extends StatefulWidget {
     this.date,
     this.unitId,
     this.employeeId,
+    this.divisionId,
     this.repository,
     this.initialPlans,
   });
@@ -26,6 +27,7 @@ class JobPlanCalendarPage extends StatefulWidget {
   final String? date;
   final String? unitId;
   final String? employeeId;
+  final String? divisionId;
   final JobPlanRepository? repository;
   final List<JobPlan>? initialPlans;
 
@@ -37,7 +39,9 @@ class _JobPlanCalendarPageState extends State<JobPlanCalendarPage> {
   late final _date = TextEditingController(text: widget.date ?? '');
   late final _unit = TextEditingController(text: widget.unitId ?? '');
   late final _employee = TextEditingController(text: widget.employeeId ?? '');
+  late final _division = TextEditingController(text: widget.divisionId ?? '');
   late Future<List<JobPlan>> _future;
+  bool _weekView = false;
 
   @override
   void initState() {
@@ -50,6 +54,7 @@ class _JobPlanCalendarPageState extends State<JobPlanCalendarPage> {
     _date.dispose();
     _unit.dispose();
     _employee.dispose();
+    _division.dispose();
     super.dispose();
   }
 
@@ -59,6 +64,8 @@ class _JobPlanCalendarPageState extends State<JobPlanCalendarPage> {
       date: _emptyToNull(_date.text),
       unitId: _emptyToNull(_unit.text),
       employeeId: _emptyToNull(_employee.text),
+      divisionId: _emptyToNull(_division.text),
+      calendarView: _weekView ? 'week' : 'day',
     );
   }
 
@@ -71,7 +78,11 @@ class _JobPlanCalendarPageState extends State<JobPlanCalendarPage> {
           return const Center(child: CircularProgressIndicator());
         }
         final plans = [...snapshot.data!]
-          ..sort((a, b) => (a.startMinute ?? 0).compareTo(b.startMinute ?? 0));
+          ..sort((a, b) {
+            final byDate = a.resolvedTaskDate.compareTo(b.resolvedTaskDate);
+            if (byDate != 0) return byDate;
+            return (a.startMinute ?? 0).compareTo(b.startMinute ?? 0);
+          });
         return ListView.separated(
           padding: const EdgeInsets.all(12),
           itemCount: plans.length + 1,
@@ -103,6 +114,22 @@ class _JobPlanCalendarPageState extends State<JobPlanCalendarPage> {
         TextField(
           controller: _employee,
           decoration: const InputDecoration(labelText: 'PIC ID'),
+        ),
+        TextField(
+          controller: _division,
+          decoration: const InputDecoration(labelText: 'Division ID'),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment(value: false, label: Text('Day')),
+            ButtonSegment(value: true, label: Text('Week')),
+          ],
+          selected: {_weekView},
+          onSelectionChanged: (value) => setState(() {
+            _weekView = value.first;
+            _future = _load();
+          }),
         ),
         const SizedBox(height: 8),
         Align(

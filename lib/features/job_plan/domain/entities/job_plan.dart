@@ -42,6 +42,7 @@ class JobPlan {
     this.ledgerState,
     this.version = 0,
     this.createdAt,
+    this.updatedAt,
     this.waitingFor,
     this.currentApproverType,
     this.accumulatedMinutes = 0,
@@ -89,6 +90,7 @@ class JobPlan {
   final String? ledgerState;
   final int version;
   final DateTime? createdAt;
+  final DateTime? updatedAt;
   final String? waitingFor;
   final String? currentApproverType;
   final int accumulatedMinutes;

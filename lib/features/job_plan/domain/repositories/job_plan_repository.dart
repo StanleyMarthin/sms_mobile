@@ -50,6 +50,8 @@ abstract class JobPlanRepository {
     String? unitId,
     String? employeeId,
     String? date,
+    String? divisionId,
+    String? calendarView,
     String? approvalState,
     String? executionState,
   });

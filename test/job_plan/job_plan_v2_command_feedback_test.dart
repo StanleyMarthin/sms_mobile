@@ -30,4 +30,24 @@ void main() {
       'Command ID sudah dipakai untuk data berbeda.',
     );
   });
+
+  test('invalid transition asks UI to reload latest state', () {
+    const failure = ClientFailure(errorCode: 'ERR_INVALID_TRANSITION');
+
+    expect(JobPlanV2CommandFeedback.shouldRefresh(failure), isTrue);
+    expect(
+      JobPlanV2CommandFeedback.message(failure),
+      'Status Job Plan sudah berubah. Memuat ulang data terbaru.',
+    );
+  });
+
+  test('employee already running uses execution-specific message', () {
+    const failure = ClientFailure(errorCode: 'ERR_EMPLOYEE_ALREADY_RUNNING');
+
+    expect(JobPlanV2CommandFeedback.shouldRefresh(failure), isTrue);
+    expect(
+      JobPlanV2CommandFeedback.message(failure),
+      'PIC masih menjalankan pekerjaan lain. Memuat ulang jadwal terbaru.',
+    );
+  });
 }

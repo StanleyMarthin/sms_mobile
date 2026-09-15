@@ -604,7 +604,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 /job-plans/v2 → JobPlanListPage
 -> JobPlanRepositoryImpl.listV2Plans()
 -> RemoteJobPlanDataSource.listV2Plans()
--> GET 8083 /sm/job-plans/v2?page=&limit=&unitId=&employeeId=&date=&approvalState=&executionState=
+-> GET 8083 /sm/job-plans/v2?page=&limit=&unitId=&employeeId=&date=&approvalState=&executionState=&divisionId=&calendarView=
 
 /job-plan/:id → JobPlanDetailPage
 -> JobPlanRepositoryImpl.getV2Plan()
@@ -612,6 +612,8 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> GET 8083 /sm/job-plans/v2/{planId}
 
 /job-plans/v2/create → JobPlanCreatePage
+-> JobPlanRepositoryImpl.getV2Options()
+-> GET 8083 /sm/job-plans/dropdowns
 -> JobPlanRepositoryImpl.createV2Plan()
 -> RemoteJobPlanDataSource.createV2Plan()
 -> POST 8083 /sm/job-plans/v2 { coreId, employeeId, taskDate, plannedStartMinute, plannedWorkMinutes, jobDescription, commandId, isPriority, isRework }
@@ -626,8 +628,8 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> read-only timeline from backend approvalState
 
 /job-plans/v2/calendar → JobPlanCalendarPage
--> JobPlanRepositoryImpl.listV2Plans(date/unitId/employeeId)
--> read-only schedule display; no mobile collision logic
+-> JobPlanRepositoryImpl.listV2Plans(date/unitId/employeeId/divisionId/calendarView)
+-> read-only day/week schedule display; no mobile collision logic
 
 /job-plans/v2/monitoring → JobPlanMonitoringPage
 -> JobPlanRepositoryImpl.monitorV2Plan()
@@ -645,6 +647,11 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 - Execution mobile V2 tetap melalui `TaskExecution` adapter ke `POST /sm/job-plans/v2/{planId}/execution`; Flutter tidak menulis actual/validation/countdown.
 - Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
 - Phase 7H hardening: Home menampilkan menu `Job Plan V2` hanya saat `JobPlanV2Access.canOpenAny(session)` true; route V2 dibungkus guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanV2CommandFeedback` dan refresh list backend; dropdown foundation memakai `JobPlanV2Options.fromDropdowns()` dari `/sm/job-plans/dropdowns`; calendar filter `Tanggal`, `Unit ID`, `PIC ID` diteruskan ke `GET /sm/job-plans/v2`.
+- Phase 7I UX completion: form create memakai typed dropdown `cars/units`, `panels`, `countdowns/cores`, `users`, dan `divisions` dari `/sm/job-plans/dropdowns`; payload tetap ID dan backend tetap menentukan validasi PIC/division/schedule.
+- `JobPlanDetailPage` sekarang menjadi pusat informasi read-only: work context, schedule, approval timeline, execution state, monitoring minutes/progress, ledger state, dan version seluruhnya berasal dari backend model.
+- `JobPlanCalendarPage` mendukung mode `Day` / `Week` dan filter tanggal, unit, PIC, division; mobile hanya meneruskan filter terstruktur ke backend.
+- Notification foundation membaca kategori event backend untuk Approval, Job Plan, Execution, dan Validation; belum ada push engine dan belum ada QC contract.
+- Command conflict handling V2 mencakup `ERR_STALE_PLAN`, `ERR_IDEMPOTENCY_CONFLICT`, `ERR_INVALID_TRANSITION`, dan `ERR_EMPLOYEE_ALREADY_RUNNING`; UI menampilkan pesan lalu refresh state backend tanpa retry mutation otomatis.
 
 Kemampuan runtime:
 - Load personal plans, load approval queue, browse by date/division/unit

@@ -48,6 +48,10 @@ void main() {
       ledgerState: 'UNMATERIALIZED',
       version: 12,
       createdAt: DateTime.parse('2026-09-14T08:00:00+07:00'),
+      accumulatedMinutes: 300,
+      verifiedMinutes: 120,
+      unverifiedMinutes: 180,
+      progress: 40,
     );
 
     await tester.pumpWidget(
@@ -56,14 +60,38 @@ void main() {
       ),
     );
 
-    expect(find.text('MB 220S'), findsOneWidget);
-    expect(find.text('Dashboard Wood Trim'), findsOneWidget);
-    expect(find.text('Restore Dashboard Wood'), findsOneWidget);
+    expect(find.text('MB 220S'), findsWidgets);
+    expect(find.text('Dashboard Wood Trim'), findsWidgets);
+    expect(find.text('Restore Dashboard Wood'), findsWidgets);
+    expect(find.text('Interior'), findsOneWidget);
+    expect(find.text('Job Description'), findsOneWidget);
     expect(find.text('Budi'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+
     expect(find.text('15 Sept 2026'), findsOneWidget);
     expect(find.text('08:00 - 12:00'), findsOneWidget);
+    expect(find.text('Approval Timeline'), findsOneWidget);
+    expect(find.text('Review KP'), findsOneWidget);
+    expect(find.text('Review Management'), findsOneWidget);
     expect(find.text('Review Divisi'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Monitoring'), findsOneWidget);
+    expect(find.text('Verified Hours'), findsOneWidget);
+    expect(find.text('2 jam 0 menit'), findsOneWidget);
+    expect(find.text('Pending Verification'), findsOneWidget);
+    expect(find.text('3 jam 0 menit'), findsOneWidget);
+    expect(find.text('Progress'), findsOneWidget);
+    expect(find.text('40%'), findsOneWidget);
     expect(find.text('Belum Mulai'), findsOneWidget);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+
     expect(find.text('Belum Terverifikasi'), findsOneWidget);
     expect(find.text('12'), findsOneWidget);
     expect(find.text('Approve'), findsNothing);

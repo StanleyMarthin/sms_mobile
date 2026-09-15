@@ -148,6 +148,8 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     String? unitId,
     String? employeeId,
     String? date,
+    String? divisionId,
+    String? calendarView,
     String? approvalState,
     String? executionState,
   }) async {
@@ -157,6 +159,8 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       unitId: unitId,
       employeeId: employeeId,
       date: date,
+      divisionId: divisionId,
+      calendarView: calendarView,
       approvalState: approvalState,
       executionState: executionState,
     );

@@ -92,6 +92,8 @@ class RemoteNotificationsDataSource implements NotificationsDataSource {
         '${item['createdAt'] ?? item['created_at'] ?? DateTime.now().toIso8601String()}',
       ),
       'targetRoute': NotificationInboxService.resolveRoute(routeData),
+      'category': data['category'] ?? item['category'],
+      'eventType': data['eventType'] ?? data['event_type'] ?? item['eventType'],
     };
   }
 

@@ -15,7 +15,12 @@ import 'package:sm_system/core/network/api_client.dart';
 abstract class JobPlanV2CommandFeedback {
   static bool shouldRefresh(Object error) {
     final code = _code(error);
-    return code == 'ERR_STALE_PLAN' || code == 'ERR_IDEMPOTENCY_CONFLICT';
+    return {
+      'ERR_STALE_PLAN',
+      'ERR_IDEMPOTENCY_CONFLICT',
+      'ERR_INVALID_TRANSITION',
+      'ERR_EMPLOYEE_ALREADY_RUNNING',
+    }.contains(code);
   }
 
   static String message(Object error) {
@@ -23,6 +28,10 @@ abstract class JobPlanV2CommandFeedback {
       'ERR_STALE_PLAN' => 'Data Job Plan berubah. Memuat ulang data terbaru.',
       'ERR_IDEMPOTENCY_CONFLICT' =>
         'Command ID sudah dipakai untuk data berbeda.',
+      'ERR_INVALID_TRANSITION' =>
+        'Status Job Plan sudah berubah. Memuat ulang data terbaru.',
+      'ERR_EMPLOYEE_ALREADY_RUNNING' =>
+        'PIC masih menjalankan pekerjaan lain. Memuat ulang jadwal terbaru.',
       _ => friendlyMessage(error, fallback: 'Gagal memproses Job Plan'),
     };
   }

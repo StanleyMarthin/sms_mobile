@@ -10,6 +10,8 @@ library;
 class JobPlanV2Options {
   const JobPlanV2Options({
     this.units = const [],
+    this.panels = const [],
+    this.countdowns = const [],
     this.employees = const [],
     this.divisions = const [],
   });
@@ -17,9 +19,19 @@ class JobPlanV2Options {
   factory JobPlanV2Options.fromDropdowns(Map<String, dynamic> json) {
     return JobPlanV2Options(
       units: _items(
-        json['units'],
+        json['units'] ?? json['cars'],
         const ['id', 'unitId', 'carId'],
-        const ['unitName', 'unit_name', 'name'],
+        const ['unitName', 'unit_name', 'carName', 'name'],
+      ),
+      panels: _items(
+        json['panels'],
+        const ['panelId', 'panel_id', 'id'],
+        const ['panelName', 'panel_name', 'namaPanel', 'name'],
+      ),
+      countdowns: _items(
+        json['countdowns'] ?? json['cores'],
+        const ['coreId', 'core_id', 'countdownId', 'id'],
+        const ['countdownName', 'countdown_name', 'jobdescription', 'name'],
       ),
       employees: _items(
         json['users'] ?? json['employees'],
@@ -35,6 +47,8 @@ class JobPlanV2Options {
   }
 
   final List<JobPlanV2Option> units;
+  final List<JobPlanV2Option> panels;
+  final List<JobPlanV2Option> countdowns;
   final List<JobPlanV2Option> employees;
   final List<JobPlanV2Option> divisions;
 

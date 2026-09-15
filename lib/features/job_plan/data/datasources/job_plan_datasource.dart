@@ -40,6 +40,8 @@ abstract class JobPlanDataSource {
     String? unitId,
     String? employeeId,
     String? date,
+    String? divisionId,
+    String? calendarView,
     String? approvalState,
     String? executionState,
   });

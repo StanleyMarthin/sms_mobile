@@ -1,3 +1,10 @@
+/*
+Tujuan: Entity read model notifikasi mobile termasuk kategori Job Plan V2.
+Caller: NotificationsRepository, NotificationInboxService, NotificationsPage.
+Dependensi: Tidak ada.
+Main Functions: NotificationItem, fromMap, copyWith.
+Side Effects: Tidak ada.
+*/
 library;
 
 class NotificationItem {
@@ -8,7 +15,8 @@ class NotificationItem {
     required this.isRead,
     required this.createdAt,
     required this.targetRoute,
-  });
+    String? category,
+  }) : category = category ?? 'general';
 
   final String id;
   final String title;
@@ -16,6 +24,7 @@ class NotificationItem {
   final bool isRead;
   final String createdAt;
   final String targetRoute;
+  final String category;
 
   NotificationItem copyWith({
     String? id,
@@ -24,6 +33,7 @@ class NotificationItem {
     bool? isRead,
     String? createdAt,
     String? targetRoute,
+    String? category,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -32,6 +42,7 @@ class NotificationItem {
       isRead: isRead ?? this.isRead,
       createdAt: createdAt ?? this.createdAt,
       targetRoute: targetRoute ?? this.targetRoute,
+      category: category ?? this.category,
     );
   }
 
@@ -43,6 +54,7 @@ class NotificationItem {
       'isRead': isRead,
       'createdAt': createdAt,
       'targetRoute': targetRoute,
+      'category': category,
     };
   }
 
@@ -54,6 +66,41 @@ class NotificationItem {
       isRead: map['isRead'] == true,
       createdAt: '${map['createdAt'] ?? DateTime.now().toIso8601String()}',
       targetRoute: '${map['targetRoute'] ?? '/notifications'}',
+      category: _category(map),
     );
+  }
+
+  static String _category(Map<String, dynamic> map) {
+    final explicit = '${map['category'] ?? ''}'.trim().toLowerCase();
+    if (explicit.isNotEmpty && explicit != 'null') return explicit;
+
+    final event = '${map['eventType'] ?? map['event_type'] ?? ''}'
+        .trim()
+        .toUpperCase();
+    if ({
+      'PLAN_WAITING_APPROVAL',
+      'WAITING_APPROVAL',
+      'PLAN_APPROVED',
+      'APPROVED',
+      'PLAN_REJECTED',
+      'REJECTED',
+    }.contains(event)) {
+      return 'approval';
+    }
+    if ({
+      'SCHEDULE_CHANGED',
+      'PIC_CHANGED',
+      'DEADLINE_CHANGED',
+      'PLAN_CORRECTED',
+    }.contains(event)) {
+      return 'job_plan';
+    }
+    if ({'TASK_READY', 'STARTED', 'FINISHED'}.contains(event)) {
+      return 'execution';
+    }
+    if (event == 'VALIDATION_REQUESTED' || event == 'KD_VALIDATED') {
+      return 'validation';
+    }
+    return 'general';
   }
 }

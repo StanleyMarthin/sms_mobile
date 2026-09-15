@@ -10,10 +10,14 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/core/network/api_client.dart';
 import 'package:sm_system/core/session/session_manager.dart';
 import 'package:sm_system/features/job_plan/data/datasources/remote_job_plan_datasource.dart';
+import 'package:sm_system/features/job_plan/domain/entities/job_plan_v2_options.dart';
+import 'package:sm_system/features/job_plan/domain/repositories/job_plan_repository.dart';
+import 'package:sm_system/features/job_plan/presentation/pages/job_plan_create_page.dart';
 
 class _MemoryStorage {
   final Map<String, String> values = {};
@@ -97,4 +101,44 @@ void main() {
     expect(payload['commandId'], 'cmd-create-1');
     expect(payload.containsKey('panelId'), isFalse);
   });
+
+  testWidgets('create page uses typed options instead of raw id fields', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: JobPlanCreatePage(
+            coreId: 'CORE-1',
+            repository: _CreateRepository(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Unit'), findsOneWidget);
+    expect(find.text('Panel'), findsOneWidget);
+    expect(find.text('Countdown'), findsOneWidget);
+    expect(find.text('PIC'), findsOneWidget);
+    expect(find.text('Core ID'), findsNothing);
+    expect(find.text('PIC ID'), findsNothing);
+  });
+}
+
+class _CreateRepository implements JobPlanRepository {
+  @override
+  Future<JobPlanV2Options> getV2Options({String? divisionId, String? unitId}) {
+    return Future.value(
+      const JobPlanV2Options(
+        units: [JobPlanV2Option(id: 'UNIT-1', label: 'MB 220S')],
+        panels: [JobPlanV2Option(id: 'PANEL-1', label: 'Door RH')],
+        countdowns: [JobPlanV2Option(id: 'CORE-1', label: 'Painting Door RH')],
+        employees: [JobPlanV2Option(id: 'EMP-1', label: 'Budi')],
+      ),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

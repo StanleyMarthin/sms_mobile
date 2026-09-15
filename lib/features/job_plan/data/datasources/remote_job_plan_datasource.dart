@@ -300,6 +300,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     String? unitId,
     String? employeeId,
     String? date,
+    String? divisionId,
+    String? calendarView,
     String? approvalState,
     String? executionState,
   }) async {
@@ -311,6 +313,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         if ((unitId ?? '').isNotEmpty) 'unitId': unitId,
         if ((employeeId ?? '').isNotEmpty) 'employeeId': employeeId,
         if ((date ?? '').isNotEmpty) 'date': date,
+        if ((divisionId ?? '').isNotEmpty) 'divisionId': divisionId,
+        if ((calendarView ?? '').isNotEmpty) 'calendarView': calendarView,
         if ((approvalState ?? '').isNotEmpty) 'approvalState': approvalState,
         if ((executionState ?? '').isNotEmpty) 'executionState': executionState,
       },
@@ -473,6 +477,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return {
       'cars': _asMapList(payload['cars']), // BE key: "cars"
       'panels': _asMapList(payload['panels']),
+      'countdowns': _asMapList(payload['countdowns'] ?? payload['cores']),
       'jobTypes': _asMapList(
         payload['jobTypes'],
       ).map(_normalizeDropdownJobType).toList(),

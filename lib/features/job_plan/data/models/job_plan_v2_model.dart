@@ -82,6 +82,7 @@ class JobPlanV2Model {
       ledgerState: _string(['ledgerState', 'ledger_state']),
       version: _int('version') ?? 0,
       createdAt: DateTime.tryParse(_string(['createdAt', 'created_at'])),
+      updatedAt: DateTime.tryParse(_string(['updatedAt', 'updated_at'])),
       waitingFor: _string(['waitingFor', 'waiting_for']),
       currentApproverType: _string([
         'currentApproverType',
