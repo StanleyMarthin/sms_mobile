@@ -53,6 +53,46 @@ abstract class JobPlanRepository {
     String? executionState,
   });
 
+  Future<JobPlan> createV2Plan({
+    required String coreId,
+    required String employeeId,
+    required String taskDate,
+    required int plannedStartMinute,
+    required int plannedWorkMinutes,
+    required String jobDescription,
+    required String commandId,
+    bool isPriority = false,
+    bool isRework = false,
+  });
+
+  Future<JobPlan> mutateV2Approval({
+    required String planId,
+    required String action,
+    required CommandMetadata metadata,
+    String? employeeId,
+    String? taskDate,
+    int? plannedStartMinute,
+    int? plannedWorkMinutes,
+    String? note,
+    String? rejectReason,
+  });
+
+  Future<JobPlan> monitorV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  });
+
+  Future<JobPlan> validateV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  });
+
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
 
   Future<List<Map<String, dynamic>>> getDropdownUsers({

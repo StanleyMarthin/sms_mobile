@@ -44,6 +44,10 @@ abstract class ApiEndpoints {
   static String jobPlanV2(String planId) => '$jobPlansV2/$planId';
   static String jobPlanV2Execution(String planId) =>
       '$_jobPlanBase/job-plans/v2/$planId/execution';
+  static String jobPlanV2Monitor(String planId) =>
+      '$_jobPlanBase/job-plans/v2/$planId/monitor';
+  static String jobPlanV2Validate(String planId) =>
+      '$_jobPlanBase/job-plans/v2/$planId/validate';
   static String get jobPlanDropdowns => '$_jobPlanBase/job-plans/dropdowns';
   static String get jobPlanDropdownUsers =>
       '$_jobPlanBase/job-plans/dropdowns/users';

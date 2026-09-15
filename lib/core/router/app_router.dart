@@ -20,6 +20,12 @@ import '../../features/qc/presentation/pages/qc_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_detail_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_list_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_approval_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_approval_tracking_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_calendar_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_create_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_monitoring_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_validation_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/pr/presentation/pages/pr_page.dart';
 import '../../features/wov/presentation/pages/wov_page.dart';
@@ -109,6 +115,56 @@ GoRouter createRouter() {
             approvalState: state.uri.queryParameters['approvalState'],
             executionState: state.uri.queryParameters['executionState'],
           ),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/create',
+        builder: (context, state) => FeatureShellPage(
+          title: 'Create Job Plan',
+          child: JobPlanCreatePage(
+            coreId: state.uri.queryParameters['coreId'],
+            panelName: state.uri.queryParameters['panelName'],
+            countdownName: state.uri.queryParameters['countdownName'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/approval',
+        builder: (context, state) => const FeatureShellPage(
+          title: 'Job Approval',
+          child: JobPlanApprovalPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/approval-tracking',
+        builder: (context, state) => const FeatureShellPage(
+          title: 'Approval Tracking',
+          child: JobPlanApprovalTrackingPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/calendar',
+        builder: (context, state) => FeatureShellPage(
+          title: 'Planner Calendar',
+          child: JobPlanCalendarPage(
+            date: state.uri.queryParameters['date'],
+            unitId: state.uri.queryParameters['unitId'],
+            employeeId: state.uri.queryParameters['employeeId'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/monitoring',
+        builder: (context, state) => const FeatureShellPage(
+          title: 'Job Monitoring',
+          child: JobPlanMonitoringPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/validation',
+        builder: (context, state) => const FeatureShellPage(
+          title: 'Final Validation',
+          child: JobPlanValidationPage(),
         ),
       ),
       GoRoute(

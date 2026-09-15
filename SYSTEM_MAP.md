@@ -169,6 +169,12 @@ Files touched:
 | `/overtime` | `FeatureShellPage → TaskSectionPage(kind: overtime)` | `taskId`, `date` | Sama dengan tasks |
 | `/plans` | `FeatureShellPage → TaskSectionPage(kind: plan)` | `date`, `source`, `sourceRefId`, `autoOpenCreate` | Membuka `JobPlanPage` |
 | `/job-plans/v2` | `FeatureShellPage → JobPlanListPage` | `date`, `unitId`, `employeeId`, `approvalState`, `executionState` | Read-only Job Plan V2 list |
+| `/job-plans/v2/create` | `FeatureShellPage → JobPlanCreatePage` | `coreId`, `panelName`, `countdownName` | Create Job Plan V2 dari Countdown |
+| `/job-plans/v2/approval` | `FeatureShellPage → JobPlanApprovalPage` | — | Approval command V2: approve/correct/reject |
+| `/job-plans/v2/approval-tracking` | `FeatureShellPage → JobPlanApprovalTrackingPage` | — | Read-only tracking approval V2 |
+| `/job-plans/v2/calendar` | `FeatureShellPage → JobPlanCalendarPage` | `date`, `unitId`, `employeeId` | Read-only planner calendar V2 |
+| `/job-plans/v2/monitoring` | `FeatureShellPage → JobPlanMonitoringPage` | — | KD/QA monitoring verified minutes |
+| `/job-plans/v2/validation` | `FeatureShellPage → JobPlanValidationPage` | — | Final labor validation PASS-only |
 | `/job-plan/:id` | `FeatureShellPage → JobPlanDetailPage` | path `id` | Read-only Job Plan V2 detail |
 | `/countdown` | `FeatureShellPage → CountdownPage` | `carId` | PM/KP mendapat tab revision approval tambahan |
 | `/monitoring` | `FeatureShellPage → MonitoringPage` | `carId` | Weekly monitoring overview |
@@ -588,7 +594,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> GET/POST/PUT 8083 /sm/job-plans*
 ```
 
-**Job Plan V2 read model (mobile Phase 7A):**
+**Job Plan V2 mobile lifecycle foundation (mobile Phase 7A-7F):**
 ```text
 /job-plans/v2 → JobPlanListPage
 -> JobPlanRepositoryImpl.listV2Plans()
@@ -599,13 +605,40 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> JobPlanRepositoryImpl.getV2Plan()
 -> RemoteJobPlanDataSource.getV2Plan()
 -> GET 8083 /sm/job-plans/v2/{planId}
+
+/job-plans/v2/create → JobPlanCreatePage
+-> JobPlanRepositoryImpl.createV2Plan()
+-> RemoteJobPlanDataSource.createV2Plan()
+-> POST 8083 /sm/job-plans/v2 { coreId, employeeId, taskDate, plannedStartMinute, plannedWorkMinutes, jobDescription, commandId, isPriority, isRework }
+
+/job-plans/v2/approval → JobPlanApprovalPage
+-> JobPlanRepositoryImpl.mutateV2Approval()
+-> RemoteJobPlanDataSource.mutateV2Approval()
+-> PUT 8083 /sm/job-plans/v2/{planId} { action: approve|correct|reject, userId, commandId, expectedVersion, ...correction/reject fields }
+
+/job-plans/v2/approval-tracking → JobPlanApprovalTrackingPage
+-> JobPlanRepositoryImpl.listV2Plans()
+-> read-only timeline from backend approvalState
+
+/job-plans/v2/calendar → JobPlanCalendarPage
+-> JobPlanRepositoryImpl.listV2Plans(date/unitId/employeeId)
+-> read-only schedule display; no mobile collision logic
+
+/job-plans/v2/monitoring → JobPlanMonitoringPage
+-> JobPlanRepositoryImpl.monitorV2Plan()
+-> POST 8083 /sm/job-plans/v2/{planId}/monitor { userId, commandId, expectedVersion, verifiedTotalMinutes, progressSeen, note }
+
+/job-plans/v2/validation → JobPlanValidationPage
+-> JobPlanRepositoryImpl.validateV2Plan()
+-> POST 8083 /sm/job-plans/v2/{planId}/validate { userId, commandId, expectedVersion, verifiedTotalMinutes, progressSeen, note }
 ```
 
 - V2 mobile read model memakai `JobPlanV2Model` dan tetap mengikuti boundary `Master Panel → Countdown(coreId) → Job Plan`.
 - Field identitas canonical: `planId`, `coreId`, `unitId/carId`, `panelId`, `employeeId`, `version`; `unitName`, `panelName`, `countdownName`, `employeeName` hanya snapshot display.
 - State display V2 dipusatkan di `JobPlanV2StateMapper`: approval (`DIVISION_REVIEW`, `UNIT_REVIEW`, `MANAGEMENT_REVIEW`, dst), execution (`NOT_STARTED`, `RUNNING`, `HOLD`, `FINISHED_PENDING_VALIDATION`, `VALIDATED`), ledger (`UNMATERIALIZED`, `MATERIALIZED`, `FINALIZED`).
-- Phase ini read-only: tidak ada create, approval mutation, execution mutation, monitoring mutation, dan tidak ada logic Redis/projection/reservation di Flutter.
-- `CommandMetadata(commandId, expectedVersion)` tersedia sebagai fondasi command phase berikutnya, tetapi belum dipakai untuk mutation Job Plan di Phase 7A.
+- Mobile mengirim command V2 dengan `CommandMetadata(commandId, expectedVersion)` dan tidak menghitung collision, reservation, projection, Redis state, break, verified delta, atau transisi state.
+- Execution mobile V2 tetap melalui `TaskExecution` adapter ke `POST /sm/job-plans/v2/{planId}/execution`; Flutter tidak menulis actual/validation/countdown.
+- Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
 
 Kemampuan runtime:
 - Load personal plans, load approval queue, browse by date/division/unit

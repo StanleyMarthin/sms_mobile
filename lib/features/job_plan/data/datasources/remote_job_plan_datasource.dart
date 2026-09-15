@@ -12,6 +12,7 @@ import 'package:dio/dio.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/session/session_manager.dart';
+import '../../domain/entities/job_plan.dart';
 import 'job_plan_datasource.dart';
 
 class RemoteJobPlanDataSource implements JobPlanDataSource {
@@ -324,6 +325,121 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
           .toList();
     }
     return <Map<String, dynamic>>[];
+  }
+
+  @override
+  Future<Map<String, dynamic>> createV2Plan({
+    required String coreId,
+    required String employeeId,
+    required String taskDate,
+    required int plannedStartMinute,
+    required int plannedWorkMinutes,
+    required String jobDescription,
+    required String commandId,
+    bool isPriority = false,
+    bool isRework = false,
+  }) async {
+    final response = await apiClient.post(
+      ApiEndpoints.jobPlansV2,
+      data: {
+        'coreId': coreId,
+        'employeeId': employeeId,
+        'taskDate': taskDate,
+        'plannedStartMinute': plannedStartMinute,
+        'plannedWorkMinutes': plannedWorkMinutes,
+        'jobDescription': jobDescription,
+        'commandId': commandId,
+        'isPriority': isPriority,
+        'isRework': isRework,
+      },
+    );
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) return payload;
+    return {'planId': payload?.toString() ?? ''};
+  }
+
+  @override
+  Future<Map<String, dynamic>> mutateV2Approval({
+    required String planId,
+    required String action,
+    required CommandMetadata metadata,
+    String? employeeId,
+    String? taskDate,
+    int? plannedStartMinute,
+    int? plannedWorkMinutes,
+    String? note,
+    String? rejectReason,
+  }) async {
+    final response = await apiClient.put(
+      ApiEndpoints.jobPlanV2(planId),
+      data: {
+        'action': action,
+        'userId': sessionManager.employeeId ?? '',
+        'commandId': metadata.commandId,
+        'expectedVersion': metadata.expectedVersion,
+        if ((employeeId ?? '').isNotEmpty) 'employeeId': employeeId,
+        if ((taskDate ?? '').isNotEmpty) 'taskDate': taskDate,
+        if (plannedStartMinute != null)
+          'plannedStartMinute': plannedStartMinute,
+        if (plannedWorkMinutes != null)
+          'plannedWorkMinutes': plannedWorkMinutes,
+        if ((note ?? '').isNotEmpty) 'note': note,
+        if ((rejectReason ?? '').isNotEmpty) 'rejectReason': rejectReason,
+      },
+    );
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) return payload;
+    return {'planId': planId};
+  }
+
+  @override
+  Future<Map<String, dynamic>> monitorV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  }) async {
+    final response = await apiClient.post(
+      ApiEndpoints.jobPlanV2Monitor(planId),
+      data: {
+        'userId': sessionManager.employeeId ?? '',
+        'commandId': metadata.commandId,
+        'expectedVersion': metadata.expectedVersion,
+        if (verifiedTotalMinutes != null)
+          'verifiedTotalMinutes': verifiedTotalMinutes,
+        if (progressSeen != null) 'progressSeen': progressSeen,
+        if ((note ?? '').isNotEmpty) 'note': note,
+      },
+    );
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) return payload;
+    return {'planId': planId};
+  }
+
+  @override
+  Future<Map<String, dynamic>> validateV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  }) async {
+    final response = await apiClient.post(
+      ApiEndpoints.jobPlanV2Validate(planId),
+      data: {
+        'userId': sessionManager.employeeId ?? '',
+        'commandId': metadata.commandId,
+        'expectedVersion': metadata.expectedVersion,
+        if (verifiedTotalMinutes != null)
+          'verifiedTotalMinutes': verifiedTotalMinutes,
+        if (progressSeen != null) 'progressSeen': progressSeen,
+        if ((note ?? '').isNotEmpty) 'note': note,
+      },
+    );
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) return payload;
+    return {'planId': planId};
   }
 
   // ─── GET /sm/job-plans/dropdowns ───────────────────────────────

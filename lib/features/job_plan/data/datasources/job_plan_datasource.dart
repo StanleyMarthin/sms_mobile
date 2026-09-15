@@ -7,6 +7,8 @@ Side Effects: Delegasi ke HTTP call atau mock storage.
 */
 library;
 
+import '../../domain/entities/job_plan.dart';
+
 abstract class JobPlanDataSource {
   Future<List<Map<String, dynamic>>> getPlans();
   Future<List<Map<String, dynamic>>> getApprovalQueue({
@@ -40,6 +42,42 @@ abstract class JobPlanDataSource {
     String? date,
     String? approvalState,
     String? executionState,
+  });
+  Future<Map<String, dynamic>> createV2Plan({
+    required String coreId,
+    required String employeeId,
+    required String taskDate,
+    required int plannedStartMinute,
+    required int plannedWorkMinutes,
+    required String jobDescription,
+    required String commandId,
+    bool isPriority = false,
+    bool isRework = false,
+  });
+  Future<Map<String, dynamic>> mutateV2Approval({
+    required String planId,
+    required String action,
+    required CommandMetadata metadata,
+    String? employeeId,
+    String? taskDate,
+    int? plannedStartMinute,
+    int? plannedWorkMinutes,
+    String? note,
+    String? rejectReason,
+  });
+  Future<Map<String, dynamic>> monitorV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  });
+  Future<Map<String, dynamic>> validateV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
   });
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
   Future<List<Map<String, dynamic>>> getDropdownUsers({

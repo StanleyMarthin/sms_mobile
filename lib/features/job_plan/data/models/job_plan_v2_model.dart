@@ -87,6 +87,29 @@ class JobPlanV2Model {
         'currentApproverType',
         'current_approver_type',
       ]),
+      accumulatedMinutes:
+          _int('accumulatedMinutes', 'accumulated_work_minutes') ?? 0,
+      verifiedMinutes:
+          _int(
+            'verifiedMinutes',
+            'persisted_work_minutes',
+            'verified_minutes',
+          ) ??
+          0,
+      unverifiedMinutes:
+          _int(
+            'unverifiedMinutes',
+            'unverified_work_minutes',
+            'unverifiedWorkMinutes',
+          ) ??
+          0,
+      countdownTargetMinutes:
+          _int(
+            'countdownTargetMinutes',
+            'countdown_target_minutes',
+            'targetMinutes',
+          ) ??
+          0,
       note: _string(['note']),
     );
   }

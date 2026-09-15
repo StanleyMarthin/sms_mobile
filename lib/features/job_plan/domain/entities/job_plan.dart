@@ -44,6 +44,10 @@ class JobPlan {
     this.createdAt,
     this.waitingFor,
     this.currentApproverType,
+    this.accumulatedMinutes = 0,
+    this.verifiedMinutes = 0,
+    this.unverifiedMinutes = 0,
+    this.countdownTargetMinutes = 0,
     this.panelCustomNote,
     this.rejectNote,
     this.targetHoursAlias,
@@ -87,6 +91,10 @@ class JobPlan {
   final DateTime? createdAt;
   final String? waitingFor;
   final String? currentApproverType;
+  final int accumulatedMinutes;
+  final int verifiedMinutes;
+  final int unverifiedMinutes;
+  final int countdownTargetMinutes;
   final String? panelCustomNote;
   final String? rejectNote;
   final String? targetHoursAlias;

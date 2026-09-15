@@ -42,5 +42,14 @@ class JobPlanV2StateMapper {
     };
   }
 
+  static String waitingFor(String? approvalState) {
+    return switch (_key(approvalState)) {
+      'DIVISION_REVIEW' => 'ADV / QA',
+      'UNIT_REVIEW' => 'KP Unit',
+      'MANAGEMENT_REVIEW' => 'MP / PM',
+      final _ => '-',
+    };
+  }
+
   static String _key(String? value) => (value ?? '').trim().toUpperCase();
 }

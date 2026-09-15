@@ -165,6 +165,94 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
+  Future<JobPlan> createV2Plan({
+    required String coreId,
+    required String employeeId,
+    required String taskDate,
+    required int plannedStartMinute,
+    required int plannedWorkMinutes,
+    required String jobDescription,
+    required String commandId,
+    bool isPriority = false,
+    bool isRework = false,
+  }) async {
+    final item = await dataSource.createV2Plan(
+      coreId: coreId,
+      employeeId: employeeId,
+      taskDate: taskDate,
+      plannedStartMinute: plannedStartMinute,
+      plannedWorkMinutes: plannedWorkMinutes,
+      jobDescription: jobDescription,
+      commandId: commandId,
+      isPriority: isPriority,
+      isRework: isRework,
+    );
+    return JobPlanV2Model.fromJson(item).toEntity();
+  }
+
+  @override
+  Future<JobPlan> mutateV2Approval({
+    required String planId,
+    required String action,
+    required CommandMetadata metadata,
+    String? employeeId,
+    String? taskDate,
+    int? plannedStartMinute,
+    int? plannedWorkMinutes,
+    String? note,
+    String? rejectReason,
+  }) async {
+    final item = await dataSource.mutateV2Approval(
+      planId: planId,
+      action: action,
+      metadata: metadata,
+      employeeId: employeeId,
+      taskDate: taskDate,
+      plannedStartMinute: plannedStartMinute,
+      plannedWorkMinutes: plannedWorkMinutes,
+      note: note,
+      rejectReason: rejectReason,
+    );
+    return JobPlanV2Model.fromJson(item).toEntity();
+  }
+
+  @override
+  Future<JobPlan> monitorV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  }) async {
+    final item = await dataSource.monitorV2Plan(
+      planId: planId,
+      metadata: metadata,
+      verifiedTotalMinutes: verifiedTotalMinutes,
+      progressSeen: progressSeen,
+      note: note,
+    );
+    return JobPlanV2Model.fromJson(item).toEntity();
+  }
+
+  @override
+  Future<JobPlan> validateV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  }) async {
+    final item = await dataSource.validateV2Plan(
+      planId: planId,
+      metadata: metadata,
+      verifiedTotalMinutes: verifiedTotalMinutes,
+      progressSeen: progressSeen,
+      note: note,
+    );
+    return JobPlanV2Model.fromJson(item).toEntity();
+  }
+
+  @override
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId}) {
     return dataSource.getAdditionalDropdowns(divisionId: divisionId);
   }

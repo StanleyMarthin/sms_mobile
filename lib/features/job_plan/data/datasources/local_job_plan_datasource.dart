@@ -9,6 +9,7 @@ library;
 
 import '../../../../core/data/dummy_data.dart';
 import '../../../../core/data/local_mock_api_store.dart';
+import '../../domain/entities/job_plan.dart';
 import 'job_plan_datasource.dart';
 
 class LocalJobPlanDataSource implements JobPlanDataSource {
@@ -353,6 +354,116 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
         .take(limit)
         .map(Map<String, dynamic>.from)
         .toList();
+  }
+
+  @override
+  Future<Map<String, dynamic>> createV2Plan({
+    required String coreId,
+    required String employeeId,
+    required String taskDate,
+    required int plannedStartMinute,
+    required int plannedWorkMinutes,
+    required String jobDescription,
+    required String commandId,
+    bool isPriority = false,
+    bool isRework = false,
+  }) async {
+    final plans = await _loadPlans();
+    final plan = {
+      'planId': 'v2-$commandId',
+      'coreId': coreId,
+      'sourceType': 'COUNTDOWN',
+      'sourceId': coreId,
+      'sourceRefId': coreId,
+      'assignedUserId': employeeId,
+      'employeeId': employeeId,
+      'taskDate': taskDate,
+      'workDate': taskDate,
+      'plannedStartMinute': plannedStartMinute,
+      'plannedWorkMinutes': plannedWorkMinutes,
+      'jobdescription': jobDescription,
+      'description': jobDescription,
+      'approvalState': 'DIVISION_REVIEW',
+      'executionState': 'NOT_STARTED',
+      'ledgerState': 'UNMATERIALIZED',
+      'version': 1,
+      'isPriority': isPriority,
+      'isRework': isRework,
+    };
+    plans.insert(0, plan);
+    await _savePlans(plans);
+    return plan;
+  }
+
+  @override
+  Future<Map<String, dynamic>> mutateV2Approval({
+    required String planId,
+    required String action,
+    required CommandMetadata metadata,
+    String? employeeId,
+    String? taskDate,
+    int? plannedStartMinute,
+    int? plannedWorkMinutes,
+    String? note,
+    String? rejectReason,
+  }) async {
+    final plans = await _loadPlans();
+    final index = plans.indexWhere((plan) => (plan['planId'] ?? '') == planId);
+    if (index < 0) return {'planId': planId};
+    final plan = Map<String, dynamic>.from(plans[index]);
+    if (action == 'reject') {
+      plan['approvalState'] = 'REJECTED';
+    }
+    plan['version'] = metadata.expectedVersion + 1;
+    plans[index] = plan;
+    await _savePlans(plans);
+    return plan;
+  }
+
+  @override
+  Future<Map<String, dynamic>> monitorV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  }) async {
+    final plans = await _loadPlans();
+    final index = plans.indexWhere((plan) => (plan['planId'] ?? '') == planId);
+    if (index < 0) return {'planId': planId};
+    final plan = Map<String, dynamic>.from(plans[index]);
+    if (verifiedTotalMinutes != null) {
+      plan['verifiedMinutes'] = verifiedTotalMinutes;
+    }
+    plan['version'] = metadata.expectedVersion + 1;
+    plans[index] = plan;
+    await _savePlans(plans);
+    return plan;
+  }
+
+  @override
+  Future<Map<String, dynamic>> validateV2Plan({
+    required String planId,
+    required CommandMetadata metadata,
+    int? verifiedTotalMinutes,
+    int? progressSeen,
+    String? note,
+  }) async {
+    final plans = await _loadPlans();
+    final index = plans.indexWhere((plan) => (plan['planId'] ?? '') == planId);
+    if (index < 0) return {'planId': planId};
+    final plan = Map<String, dynamic>.from(plans[index]);
+    final accumulated = plan['accumulatedMinutes'] is num
+        ? (plan['accumulatedMinutes'] as num).round()
+        : int.tryParse('${plan['accumulatedMinutes']}') ?? 0;
+    plan['verifiedMinutes'] = verifiedTotalMinutes ?? accumulated;
+    plan['unverifiedMinutes'] = 0;
+    plan['executionState'] = 'VALIDATED';
+    plan['ledgerState'] = 'FINALIZED';
+    plan['version'] = metadata.expectedVersion + 1;
+    plans[index] = plan;
+    await _savePlans(plans);
+    return plan;
   }
 
   bool _matches(
