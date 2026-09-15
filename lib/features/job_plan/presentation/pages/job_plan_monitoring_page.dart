@@ -12,6 +12,7 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
+import '../utils/job_plan_v2_command_feedback.dart';
 
 class JobPlanMonitoringPage extends StatefulWidget {
   const JobPlanMonitoringPage({super.key, this.initialPlans, this.repository});
@@ -64,18 +65,32 @@ class _JobPlanMonitoringPageState extends State<JobPlanMonitoringPage> {
     String? note,
   ) async {
     final repo = widget.repository ?? sl<JobPlanRepository>();
-    await repo.monitorV2Plan(
-      planId: plan.id,
-      metadata: CommandMetadata(
-        commandId:
-            'mobile-v2-monitor-${plan.id}-${DateTime.now().microsecondsSinceEpoch}',
-        expectedVersion: plan.version,
-      ),
-      verifiedTotalMinutes: verifiedTotal,
-      progressSeen: progress,
-      note: note,
-    );
-    setState(() => _future = repo.listV2Plans());
+    try {
+      await repo.monitorV2Plan(
+        planId: plan.id,
+        metadata: CommandMetadata(
+          commandId:
+              'mobile-v2-monitor-${plan.id}-${DateTime.now().microsecondsSinceEpoch}',
+          expectedVersion: plan.version,
+        ),
+        verifiedTotalMinutes: verifiedTotal,
+        progressSeen: progress,
+        note: note,
+      );
+      setState(() {
+        _future = repo.listV2Plans();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+      );
+      if (JobPlanV2CommandFeedback.shouldRefresh(e)) {
+        setState(() {
+          _future = repo.listV2Plans();
+        });
+      }
+    }
   }
 }
 

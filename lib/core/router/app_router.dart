@@ -6,6 +6,7 @@ Main Functions: createRouter.
 Side Effects: Menginisialisasi global appRouter.
 */
 
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../di/injection.dart';
@@ -26,6 +27,7 @@ import '../../features/job_plan/presentation/pages/job_plan_calendar_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_create_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_monitoring_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_validation_page.dart';
+import '../../features/job_plan/presentation/utils/job_plan_v2_access.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/pr/presentation/pages/pr_page.dart';
 import '../../features/wov/presentation/pages/wov_page.dart';
@@ -106,7 +108,8 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/job-plans/v2',
-        builder: (context, state) => FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2',
           title: 'Job Plan V2',
           child: JobPlanListPage(
             date: state.uri.queryParameters['date'],
@@ -119,7 +122,8 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/job-plans/v2/create',
-        builder: (context, state) => FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2/create',
           title: 'Create Job Plan',
           child: JobPlanCreatePage(
             coreId: state.uri.queryParameters['coreId'],
@@ -130,21 +134,24 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/job-plans/v2/approval',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2/approval',
           title: 'Job Approval',
-          child: JobPlanApprovalPage(),
+          child: const JobPlanApprovalPage(),
         ),
       ),
       GoRoute(
         path: '/job-plans/v2/approval-tracking',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2/approval-tracking',
           title: 'Approval Tracking',
-          child: JobPlanApprovalTrackingPage(),
+          child: const JobPlanApprovalTrackingPage(),
         ),
       ),
       GoRoute(
         path: '/job-plans/v2/calendar',
-        builder: (context, state) => FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2/calendar',
           title: 'Planner Calendar',
           child: JobPlanCalendarPage(
             date: state.uri.queryParameters['date'],
@@ -155,16 +162,18 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/job-plans/v2/monitoring',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2/monitoring',
           title: 'Job Monitoring',
-          child: JobPlanMonitoringPage(),
+          child: const JobPlanMonitoringPage(),
         ),
       ),
       GoRoute(
         path: '/job-plans/v2/validation',
-        builder: (context, state) => const FeatureShellPage(
+        builder: (context, state) => _v2Shell(
+          route: '/job-plans/v2/validation',
           title: 'Final Validation',
-          child: JobPlanValidationPage(),
+          child: const JobPlanValidationPage(),
         ),
       ),
       GoRoute(
@@ -261,4 +270,18 @@ GoRouter createRouter() {
 DateTime? _parseDate(String? value) {
   if (value == null || value.isEmpty) return null;
   return DateTime.tryParse(value);
+}
+
+FeatureShellPage _v2Shell({
+  required String route,
+  required String title,
+  required Widget child,
+}) {
+  final session = sl<SessionManager>();
+  return FeatureShellPage(
+    title: title,
+    child: JobPlanV2Access.canOpenRoute(session, route)
+        ? child
+        : const Center(child: Text('Akses Job Plan V2 tidak tersedia')),
+  );
 }

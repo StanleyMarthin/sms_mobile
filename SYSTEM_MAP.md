@@ -209,6 +209,11 @@ Files touched:
 - Konstanta di bawah `Perms`
 - Disimpan dari login response ke session
 - Dicek via `SessionManager.hasPerm()` dan `PermGuard`
+- Job Plan V2 memakai `JobPlanV2Access` untuk menu/route visibility berbasis permission snapshot backend:
+  - create: `CREATE_TASK`
+  - approval: `REVIEW_TASK`
+  - tracking/calendar/list: izin Job Plan/task view terkait
+  - monitoring/final validation: `LIST_CAR_PROGRESS` / `CAR_PROGRESS_DETAIL`
 
 > Jika backend permissions berkembang tapi FE role alias mapping tidak ikut diupdate, menu exposure dan fine-grained access bisa drift.
 
@@ -639,6 +644,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 - Mobile mengirim command V2 dengan `CommandMetadata(commandId, expectedVersion)` dan tidak menghitung collision, reservation, projection, Redis state, break, verified delta, atau transisi state.
 - Execution mobile V2 tetap melalui `TaskExecution` adapter ke `POST /sm/job-plans/v2/{planId}/execution`; Flutter tidak menulis actual/validation/countdown.
 - Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
+- Phase 7H hardening: Home menampilkan menu `Job Plan V2` hanya saat `JobPlanV2Access.canOpenAny(session)` true; route V2 dibungkus guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanV2CommandFeedback` dan refresh list backend; dropdown foundation memakai `JobPlanV2Options.fromDropdowns()` dari `/sm/job-plans/dropdowns`; calendar filter `Tanggal`, `Unit ID`, `PIC ID` diteruskan ke `GET /sm/job-plans/v2`.
 
 Kemampuan runtime:
 - Load personal plans, load approval queue, browse by date/division/unit

@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/repositories/job_plan_repository.dart';
+import '../utils/job_plan_v2_command_feedback.dart';
 
 class JobPlanCreatePage extends StatefulWidget {
   const JobPlanCreatePage({
@@ -120,6 +121,12 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
         isRework: _rework,
       );
       if (mounted) context.go('/job-plan/${plan.id}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

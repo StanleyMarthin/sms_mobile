@@ -31,6 +31,10 @@ void main() {
 
     expect(find.text('08:00 - 12:00'), findsOneWidget);
     expect(find.text('10:00 - 14:00'), findsOneWidget);
+    expect(find.text('Tanggal'), findsOneWidget);
+    expect(find.text('Unit ID'), findsOneWidget);
+    expect(find.text('PIC ID'), findsOneWidget);
+    expect(find.text('Filter'), findsOneWidget);
     expect(find.text('START'), findsNothing);
     expect(find.text('Approve'), findsNothing);
   });

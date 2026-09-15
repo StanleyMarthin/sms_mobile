@@ -12,6 +12,7 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
+import '../utils/job_plan_v2_command_feedback.dart';
 import '../utils/job_plan_v2_state_mapper.dart';
 
 class JobPlanApprovalPage extends StatefulWidget {
@@ -74,18 +75,32 @@ class _JobPlanApprovalPageState extends State<JobPlanApprovalPage> {
     String? rejectReason,
   }) async {
     final repo = widget.repository ?? sl<JobPlanRepository>();
-    await repo.mutateV2Approval(
-      planId: plan.id,
-      action: action,
-      metadata: CommandMetadata(
-        commandId: _commandId(action, plan.id),
-        expectedVersion: plan.version,
-      ),
-      plannedStartMinute: plannedStartMinute,
-      plannedWorkMinutes: plannedWorkMinutes,
-      rejectReason: rejectReason,
-    );
-    setState(() => _future = repo.listV2Plans());
+    try {
+      await repo.mutateV2Approval(
+        planId: plan.id,
+        action: action,
+        metadata: CommandMetadata(
+          commandId: _commandId(action, plan.id),
+          expectedVersion: plan.version,
+        ),
+        plannedStartMinute: plannedStartMinute,
+        plannedWorkMinutes: plannedWorkMinutes,
+        rejectReason: rejectReason,
+      );
+      setState(() {
+        _future = repo.listV2Plans();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+      );
+      if (JobPlanV2CommandFeedback.shouldRefresh(e)) {
+        setState(() {
+          _future = repo.listV2Plans();
+        });
+      }
+    }
   }
 
   String _commandId(String action, String planId) {

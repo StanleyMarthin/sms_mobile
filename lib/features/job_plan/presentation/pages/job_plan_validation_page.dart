@@ -12,6 +12,7 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
+import '../utils/job_plan_v2_command_feedback.dart';
 
 class JobPlanValidationPage extends StatefulWidget {
   const JobPlanValidationPage({super.key, this.initialPlans, this.repository});
@@ -68,18 +69,32 @@ class _JobPlanValidationPageState extends State<JobPlanValidationPage> {
 
   Future<void> _pass(JobPlan plan, String? note) async {
     final repo = widget.repository ?? sl<JobPlanRepository>();
-    await repo.validateV2Plan(
-      planId: plan.id,
-      metadata: CommandMetadata(
-        commandId:
-            'mobile-v2-validate-${plan.id}-${DateTime.now().microsecondsSinceEpoch}',
-        expectedVersion: plan.version,
-      ),
-      verifiedTotalMinutes: plan.accumulatedMinutes,
-      progressSeen: 100,
-      note: note,
-    );
-    setState(() => _future = _load());
+    try {
+      await repo.validateV2Plan(
+        planId: plan.id,
+        metadata: CommandMetadata(
+          commandId:
+              'mobile-v2-validate-${plan.id}-${DateTime.now().microsecondsSinceEpoch}',
+          expectedVersion: plan.version,
+        ),
+        verifiedTotalMinutes: plan.accumulatedMinutes,
+        progressSeen: 100,
+        note: note,
+      );
+      setState(() {
+        _future = _load();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+      );
+      if (JobPlanV2CommandFeedback.shouldRefresh(e)) {
+        setState(() {
+          _future = _load();
+        });
+      }
+    }
   }
 }
 

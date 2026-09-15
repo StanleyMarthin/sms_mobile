@@ -11,6 +11,7 @@ import 'package:fpdart/fpdart.dart' as fp;
 import 'package:sm_system/core/errors/failures.dart';
 import 'package:sm_system/core/errors/error_message.dart';
 import '../../domain/entities/job_plan.dart';
+import '../../domain/entities/job_plan_v2_options.dart';
 import '../../domain/repositories/job_plan_repository.dart';
 import '../datasources/job_plan_datasource.dart';
 import '../models/job_plan_v2_model.dart';
@@ -250,6 +251,18 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       note: note,
     );
     return JobPlanV2Model.fromJson(item).toEntity();
+  }
+
+  @override
+  Future<JobPlanV2Options> getV2Options({
+    String? divisionId,
+    String? unitId,
+  }) async {
+    final raw = await dataSource.getDropdowns(
+      divisionId: divisionId,
+      carId: unitId,
+    );
+    return JobPlanV2Options.fromDropdowns(raw);
   }
 
   @override

@@ -10,6 +10,7 @@ library;
 import 'package:fpdart/fpdart.dart' as fp;
 import 'package:sm_system/core/errors/failures.dart';
 import '../entities/job_plan.dart';
+import '../entities/job_plan_v2_options.dart';
 
 abstract class JobPlanRepository {
   Future<List<JobPlan>> getPlans();
@@ -92,6 +93,8 @@ abstract class JobPlanRepository {
     int? progressSeen,
     String? note,
   });
+
+  Future<JobPlanV2Options> getV2Options({String? divisionId, String? unitId});
 
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
 
