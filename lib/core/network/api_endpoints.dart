@@ -54,6 +54,8 @@ abstract class ApiEndpoints {
 
   // ── QC (sm_job_QC) ───────────────────────────────────────
   static String get qc => '$_qcBase/qc';
+  static String get qcV2Queue => '$_qcBase/qc/v2/queue';
+  static String qcV2Core(String coreId) => '$_qcBase/qc/v2/$coreId';
   static String get qcMonitoring => '$_qcBase/qc/monitoring';
   static String get qcUploadTicket => '$_qcBase/qc/upload-ticket';
 

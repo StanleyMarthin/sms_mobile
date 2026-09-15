@@ -26,6 +26,14 @@ void main() {
       );
       expect(ApiEndpoints.tasks, 'https://api.stanleymarthin.com/sm/tasks');
       expect(
+        ApiEndpoints.qcV2Queue,
+        'https://api.stanleymarthin.com/sm/qc/v2/queue',
+      );
+      expect(
+        ApiEndpoints.qcV2Core('CORE-1'),
+        'https://api.stanleymarthin.com/sm/qc/v2/CORE-1',
+      );
+      expect(
         ApiEndpoints.jobPlans,
         'https://api.stanleymarthin.com/sm/job-plans',
       );

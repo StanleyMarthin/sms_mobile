@@ -179,6 +179,7 @@ Files touched:
 | `/countdown` | `FeatureShellPage → CountdownPage` | `carId` | PM/KP mendapat tab revision approval tambahan |
 | `/monitoring` | `FeatureShellPage → MonitoringPage` | `carId` | Weekly monitoring overview |
 | `/qc` | `FeatureShellPage → QcTab` | `qcId` | QC queue dan submit flow |
+| `/qc/v2` | `FeatureShellPage → QcV2QueuePage` | — | QC V2 queue/detail/submit berbasis Countdown + validated Job Plan evidence |
 | `/work-orders` | `FeatureShellPage → WorkOrderPage` | `woId` | WO list aktif/selesai |
 | `/warehouse` | `FeatureShellPage → WarehouseRequestPage` | — | Request/approval/storage tabs |
 | `/pr` | `FeatureShellPage → PrPage` | — | Purchase Request list/create/approve |
@@ -392,7 +393,7 @@ Source: `lib/core/network/api_endpoints.dart`
 | Identity/session/profile | `/api/v1/auth/*`, `/api/v1/notifications`, `/api/v1/users/profile` | `8085` | Login, refresh, remote notif, profile |
 | Job plan | `/sm/job-plans*` | `8083` | Job plan, WO dropdown reuse, PR car picker |
 | Tasks | `/sm/tasks*` | `8086` | Operator task execution, management task monitoring, upload ticket |
-| QC | `/sm/qc*`, `/sm/qc/monitoring*` | `8088` | QC queue/submit; QC monitoring data |
+| QC | `/sm/qc*`, `/sm/qc/monitoring*`, `/sm/qc/v2/*` | `8088` | QC queue/submit; QC V2 adapter; QC monitoring data |
 | Countdown | `/sm/countdown*`, `/sm/countdown/action`, `/sm/countdown/revision` | `8090` | Countdown, revision, monitoring synthesis |
 | Warehouse | `/sm/warehouse*` | `8091` | Request/approval/storage/logs/upload |
 | Work order | `/sm/wo*`, `/sm/wo/extensions` | `8093` | WO list/detail/create/approve/reject/extensions |
@@ -802,6 +803,19 @@ Upload: GET 8088 /sm/qc/upload-ticket → PUT binary langsung
 ```
 
 Recovery: QC page simpan pending recovery data di `SharedPreferences` (`pending_qc_item`) — bisa reopen unfinished QC submit setelah app interrupt.
+
+**QC V2 adapter:**
+```text
+/qc/v2 → QcV2QueuePage → QcRepository.getV2Queue()
+-> GET 8088 /sm/qc/v2/queue?userId=...&page=...
+
+QcV2SubmitPage → PASS / NOT_PASS command
+-> POST 8088 /sm/qc/v2/{coreId}
+```
+
+- Identity V2 QC tetap `coreId` / Countdown; mobile hanya menampilkan validated Job Plan IDs sebagai evidence.
+- Payload mutation membawa `commandId` + `expectedVersion`; Flutter tidak menghitung labor validation, eligibility, scope, atau collision.
+- PASS/NOT_PASS tidak membuat Rework/Adjustment di mobile; backend QC V2 menjaga boundary Countdown/QC.
 
 ### 10.10 Warehouse request & approval
 

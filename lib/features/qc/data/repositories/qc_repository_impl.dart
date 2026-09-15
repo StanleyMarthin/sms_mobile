@@ -1,3 +1,11 @@
+/*
+Tujuan: Implementasi repository QC yang memetakan data source ke entity domain.
+Caller: QC pages, Bloc, dan tests.
+Dependensi: QcDataSource, entity QC.
+Main Functions: QcRepositoryImpl.
+Side Effects: Delegasi HTTP lewat datasource remote.
+*/
+
 library;
 
 import '../../domain/entities/qc_item.dart';
@@ -103,10 +111,87 @@ class QcRepositoryImpl implements QcRepository {
   }
 
   @override
+  Future<QcV2PagedResponse> getV2Queue({
+    String? divisionId,
+    String? unitId,
+    String? panelId,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final response = await dataSource.getV2Queue(
+      divisionId: divisionId,
+      unitId: unitId,
+      panelId: panelId,
+      page: page,
+      pageSize: pageSize,
+    );
+    final items = (response['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(_mapV2Item)
+        .toList();
+    return QcV2PagedResponse(
+      items: items,
+      hasMore: response['hasMore'] as bool? ?? false,
+      page: (response['page'] as num?)?.toInt() ?? page,
+      total: (response['total'] as num?)?.toInt() ?? items.length,
+    );
+  }
+
+  @override
+  Future<QcV2SubmitResult> submitV2Qc({
+    required String coreId,
+    required String commandId,
+    required int expectedVersion,
+    required String action,
+    String? notes,
+    List<String>? photos,
+    int? inspectionDurationMinutes,
+  }) async {
+    final row = await dataSource.submitV2Qc(
+      coreId: coreId,
+      commandId: commandId,
+      expectedVersion: expectedVersion,
+      action: action,
+      notes: notes,
+      photos: photos,
+      inspectionDurationMinutes: inspectionDurationMinutes,
+    );
+    return QcV2SubmitResult(
+      qcId: row['qcId']?.toString() ?? '',
+      result: row['result']?.toString() ?? action,
+      reused: row['reused'] as bool? ?? false,
+      version: (row['version'] as num?)?.toInt() ?? expectedVersion,
+      remainingHours: (row['remainingHours'] as num?)?.toDouble(),
+      nextAction: row['nextAction']?.toString(),
+    );
+  }
+
+  @override
   Future<QcItem?> findQcItemByCoreId(String coreId) async {
     final item = await dataSource.findQcItemByCoreId(coreId);
     if (item == null) return null;
     return _mapItem(item);
+  }
+
+  QcV2QueueItem _mapV2Item(Map<String, dynamic> item) {
+    return QcV2QueueItem(
+      coreId: item['coreId']?.toString() ?? '',
+      carId: item['carId']?.toString() ?? '',
+      unitName: item['unitName']?.toString() ?? '-',
+      panelId: item['panelId']?.toString() ?? '',
+      panelName: item['panelName']?.toString() ?? '-',
+      countdownName: item['countdownName']?.toString() ?? '-',
+      countdownStatus: item['countdownStatus']?.toString() ?? '',
+      remainingHours: (item['remainingHours'] as num?)?.toDouble() ?? 0,
+      qcState: item['qcState']?.toString() ?? 'PENDING',
+      latestQcResult: item['latestQcResult']?.toString(),
+      latestQcLevel: item['latestQcLevel']?.toString(),
+      validatedPlanCount: (item['validatedPlanCount'] as num?)?.toInt() ?? 0,
+      validatedPlanIds: (item['validatedPlanIds'] as List<dynamic>? ?? [])
+          .map((value) => value.toString())
+          .toList(),
+      version: (item['version'] as num?)?.toInt() ?? 0,
+    );
   }
 
   QcItem _mapItem(Map<String, dynamic> item) {

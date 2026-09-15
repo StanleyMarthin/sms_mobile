@@ -1,3 +1,11 @@
+/*
+Tujuan: Halaman QC legacy dan pintu masuk QC V2.
+Caller: Router /qc dan notifikasi QC.
+Dependensi: QcRepository, RemoteQcDataSource, RBAC/session, upload/camera helpers.
+Main Functions: QcTab, QcUnitsPage, QcItemsPage, QcSubmitPage.
+Side Effects: HTTP read/submit QC legacy, upload foto, SharedPreferences draft.
+*/
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -21,6 +29,7 @@ import '../../../../core/widgets/in_app_camera_page.dart';
 import '../../data/datasources/remote_qc_datasource.dart';
 import '../../domain/entities/qc_item.dart';
 import '../../domain/repositories/qc_repository.dart';
+import 'qc_v2_page.dart';
 import '../../../job_plan/data/datasources/job_plan_datasource.dart';
 
 // ─── PAGE 1: LIST DIVISI (TAB UTAMA) ──────────────────────────────────────────
@@ -108,64 +117,86 @@ class _QcTabState extends State<QcTab> {
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.all(16),
-      itemCount: _divisions.length,
-      separatorBuilder: (_, __) => SizedBox(height: 12),
-      itemBuilder: (context, i) {
-        final div = _divisions[i];
-        return InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => QcUnitsPage(
-                  divisionId: div.divisionId,
-                  divisionName: div.divisionName,
-                ),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceCard,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const QcV2QueuePage()),
+                );
+              },
+              icon: const Icon(Icons.verified_outlined),
+              label: const Text('QC V2 Queue'),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        div.divisionName,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.all(16),
+            itemCount: _divisions.length,
+            separatorBuilder: (_, __) => SizedBox(height: 12),
+            itemBuilder: (context, i) {
+              final div = _divisions[i];
+              return InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => QcUnitsPage(
+                        divisionId: div.divisionId,
+                        divisionName: div.divisionName,
                       ),
-                      SizedBox(height: 4),
-                      Text(
-                        div.totalItem > 0
-                            ? '${div.totalItem} antrian pekerjaan'
-                            : 'Ketuk untuk memuat antrian QC',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textMuted,
+                    ),
+                  );
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceCard,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              div.divisionName,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              div.totalItem > 0
+                                  ? '${div.totalItem} antrian pekerjaan'
+                                  : 'Ketuk untuk memuat antrian QC',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              );
+            },
           ),
-        );
-      },
+        ),
+      ],
     );
   }
 }
@@ -551,10 +582,7 @@ class _QcItemsPageState extends State<QcItemsPage> {
                   style: TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Cari panel/section/pekerjaan...',
-                    prefixIcon: Icon(
-                      Icons.search,
-                      color: AppColors.textMuted,
-                    ),
+                    prefixIcon: Icon(Icons.search, color: AppColors.textMuted),
                     suffixIcon: _searchCtrl.text.isEmpty
                         ? null
                         : IconButton(
@@ -1566,10 +1594,7 @@ class _QcCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -1590,10 +1615,7 @@ class _QcCard extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 14),
             child: Text(
               item.jobName,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-              ),
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ),
           Padding(

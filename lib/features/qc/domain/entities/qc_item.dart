@@ -1,3 +1,11 @@
+/*
+Tujuan: Entity domain QC legacy dan QC V2 queue/result.
+Caller: QcRepository, QC pages, dan Flutter tests.
+Dependensi: dart:convert.
+Main Functions: QcItem, QcV2QueueItem, QcV2SubmitResult.
+Side Effects: Tidak ada; hanya struktur data dan serialization helper.
+*/
+
 import 'dart:convert';
 
 class QcDivision {
@@ -55,23 +63,23 @@ class QcItem {
   final String? reworkDate;
 
   String toJson() => jsonEncode({
-        'qcId': qcId,
-        'coreId': coreId,
-        'unitId': unitId,
-        'unitName': unitName,
-        'panelName': panelName,
-        'jobName': jobName,
-        'mechanicDivision': mechanicDivision,
-        'totalActualHours': totalActualHours,
-        'targetHoursRevised': targetHoursRevised,
-        'countdownStatus': countdownStatus,
-        'qcLevel': qcLevel,
-        'qcLastStatus': qcLastStatus,
-        'qcNotes': qcNotes,
-        'inspectionDurationMinutes': inspectionDurationMinutes,
-        'remainingHours': remainingHours,
-        'reworkDate': reworkDate,
-      });
+    'qcId': qcId,
+    'coreId': coreId,
+    'unitId': unitId,
+    'unitName': unitName,
+    'panelName': panelName,
+    'jobName': jobName,
+    'mechanicDivision': mechanicDivision,
+    'totalActualHours': totalActualHours,
+    'targetHoursRevised': targetHoursRevised,
+    'countdownStatus': countdownStatus,
+    'qcLevel': qcLevel,
+    'qcLastStatus': qcLastStatus,
+    'qcNotes': qcNotes,
+    'inspectionDurationMinutes': inspectionDurationMinutes,
+    'remainingHours': remainingHours,
+    'reworkDate': reworkDate,
+  });
 
   factory QcItem.fromJson(String jsonStr) {
     final map = jsonDecode(jsonStr) as Map<String, dynamic>;
@@ -120,4 +128,70 @@ class QcPagedResponse {
     required this.page,
     required this.total,
   });
+}
+
+class QcV2QueueItem {
+  const QcV2QueueItem({
+    required this.coreId,
+    required this.carId,
+    required this.unitName,
+    required this.panelId,
+    required this.panelName,
+    required this.countdownName,
+    required this.countdownStatus,
+    required this.remainingHours,
+    required this.qcState,
+    required this.validatedPlanCount,
+    required this.validatedPlanIds,
+    required this.version,
+    this.latestQcResult,
+    this.latestQcLevel,
+  });
+
+  final String coreId;
+  final String carId;
+  final String unitName;
+  final String panelId;
+  final String panelName;
+  final String countdownName;
+  final String countdownStatus;
+  final double remainingHours;
+  final String qcState;
+  final String? latestQcResult;
+  final String? latestQcLevel;
+  final int validatedPlanCount;
+  final List<String> validatedPlanIds;
+  final int version;
+}
+
+class QcV2PagedResponse {
+  const QcV2PagedResponse({
+    required this.items,
+    required this.hasMore,
+    required this.page,
+    required this.total,
+  });
+
+  final List<QcV2QueueItem> items;
+  final bool hasMore;
+  final int page;
+  final int total;
+}
+
+class QcV2SubmitResult {
+  const QcV2SubmitResult({
+    required this.qcId,
+    required this.result,
+    required this.reused,
+    required this.version,
+    this.remainingHours,
+    this.nextAction,
+  });
+
+  final String qcId;
+  final String result;
+  final bool reused;
+  final int version;
+  final double? remainingHours;
+  final String? nextAction;
 }

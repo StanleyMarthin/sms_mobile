@@ -18,6 +18,7 @@ import '../../features/countdown/presentation/pages/countdown_page.dart';
 import '../../features/monitoring/presentation/pages/monitoring_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/qc/presentation/pages/qc_page.dart';
+import '../../features/qc/presentation/pages/qc_v2_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_detail_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_list_page.dart';
@@ -215,6 +216,11 @@ GoRouter createRouter() {
           title: 'QC',
           child: QcTab(focusCoreId: state.uri.queryParameters['qcId']),
         ),
+      ),
+      GoRoute(
+        path: '/qc/v2',
+        builder: (context, state) =>
+            const FeatureShellPage(title: 'QC V2', child: QcV2QueuePage()),
       ),
       GoRoute(
         path: '/work-orders',

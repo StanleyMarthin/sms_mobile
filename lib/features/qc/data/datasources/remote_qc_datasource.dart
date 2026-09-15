@@ -1,3 +1,11 @@
+/*
+Tujuan: Datasource remote QC legacy dan adapter QC V2.
+Caller: QcRepositoryImpl.
+Dependensi: ApiClient, ApiEndpoints, SessionManager.
+Main Functions: RemoteQcDataSource.
+Side Effects: HTTP GET/POST ke service sm_job_QC.
+*/
+
 library;
 
 import '../../../../core/network/api_client.dart';
@@ -6,10 +14,7 @@ import '../../../../core/session/session_manager.dart';
 import 'qc_datasource.dart';
 
 class RemoteQcDataSource implements QcDataSource {
-  RemoteQcDataSource({
-    required this.apiClient,
-    required this.sessionManager,
-  });
+  RemoteQcDataSource({required this.apiClient, required this.sessionManager});
 
   final ApiClient apiClient;
   final SessionManager sessionManager;
@@ -189,6 +194,72 @@ class RemoteQcDataSource implements QcDataSource {
     }
 
     await apiClient.post(ApiEndpoints.qc, data: body);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getV2Queue({
+    String? divisionId,
+    String? unitId,
+    String? panelId,
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    final queryParams = <String, dynamic>{
+      'userId': _userId,
+      'page': page,
+      'pageSize': pageSize,
+    };
+    if (divisionId != null && divisionId.isNotEmpty) {
+      queryParams['divisionId'] = divisionId;
+    }
+    if (unitId != null && unitId.isNotEmpty) {
+      queryParams['unitId'] = unitId;
+    }
+    if (panelId != null && panelId.isNotEmpty) {
+      queryParams['panelId'] = panelId;
+    }
+
+    final response = await apiClient.get(
+      ApiEndpoints.qcV2Queue,
+      queryParameters: queryParams,
+    );
+    final raw = response.data as Map<String, dynamic>? ?? {};
+    final data = raw['data'] is Map<String, dynamic>
+        ? raw['data'] as Map<String, dynamic>
+        : raw;
+    return data;
+  }
+
+  @override
+  Future<Map<String, dynamic>> submitV2Qc({
+    required String coreId,
+    required String commandId,
+    required int expectedVersion,
+    required String action,
+    String? notes,
+    List<String>? photos,
+    int? inspectionDurationMinutes,
+  }) async {
+    final body = <String, dynamic>{
+      'userId': _userId,
+      'commandId': commandId,
+      'expectedVersion': expectedVersion,
+      'action': action,
+    };
+    if (notes != null && notes.isNotEmpty) body['notes'] = notes;
+    if (photos != null && photos.isNotEmpty) body['photos'] = photos;
+    if (inspectionDurationMinutes != null) {
+      body['inspectionDurationMinutes'] = inspectionDurationMinutes;
+    }
+
+    final response = await apiClient.post(
+      ApiEndpoints.qcV2Core(coreId),
+      data: body,
+    );
+    final raw = response.data as Map<String, dynamic>? ?? {};
+    return raw['data'] is Map<String, dynamic>
+        ? raw['data'] as Map<String, dynamic>
+        : raw;
   }
 
   Future<Map<String, String>> getQcUploadTicket(String filename) async {
