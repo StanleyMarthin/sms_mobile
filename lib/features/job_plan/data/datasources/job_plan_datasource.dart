@@ -31,6 +31,16 @@ abstract class JobPlanDataSource {
     int limit = 100,
     int offset = 0,
   });
+  Future<Map<String, dynamic>> getV2Plan(String planId);
+  Future<List<Map<String, dynamic>>> listV2Plans({
+    int page = 1,
+    int limit = 20,
+    String? unitId,
+    String? employeeId,
+    String? date,
+    String? approvalState,
+    String? executionState,
+  });
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
   Future<List<Map<String, dynamic>>> getDropdownUsers({
     required String divisionId,

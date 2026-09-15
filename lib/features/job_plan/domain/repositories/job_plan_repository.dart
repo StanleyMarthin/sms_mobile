@@ -1,3 +1,10 @@
+/*
+Tujuan: Kontrak repository Job Plan untuk legacy flow dan read-only Job Plan V2.
+Caller: UI job_plan, countdown integration, dan datasource adapter.
+Dependensi: Failure, Either, JobPlan entity.
+Main Functions: getPlans, browsePlans, getV2Plan, listV2Plans.
+Side Effects: Delegasi data access via implementasi repository.
+*/
 library;
 
 import 'package:fpdart/fpdart.dart' as fp;
@@ -32,6 +39,18 @@ abstract class JobPlanRepository {
     String? taskDate,
     int limit = 100,
     int offset = 0,
+  });
+
+  Future<JobPlan> getV2Plan(String planId);
+
+  Future<List<JobPlan>> listV2Plans({
+    int page = 1,
+    int limit = 20,
+    String? unitId,
+    String? employeeId,
+    String? date,
+    String? approvalState,
+    String? executionState,
   });
 
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});

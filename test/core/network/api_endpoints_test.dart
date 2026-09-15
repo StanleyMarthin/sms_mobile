@@ -30,6 +30,14 @@ void main() {
         'https://api.stanleymarthin.com/sm/job-plans',
       );
       expect(
+        ApiEndpoints.jobPlansV2,
+        'https://api.stanleymarthin.com/sm/job-plans/v2',
+      );
+      expect(
+        ApiEndpoints.jobPlanV2('plan-1'),
+        'https://api.stanleymarthin.com/sm/job-plans/v2/plan-1',
+      );
+      expect(
         ApiEndpoints.warehouse,
         'https://api.stanleymarthin.com/sm/warehouse',
       );

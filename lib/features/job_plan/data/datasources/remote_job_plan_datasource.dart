@@ -284,6 +284,48 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return <Map<String, dynamic>>[];
   }
 
+  @override
+  Future<Map<String, dynamic>> getV2Plan(String planId) async {
+    final response = await apiClient.get(ApiEndpoints.jobPlanV2(planId));
+    final payload = response.data;
+    if (payload is Map<String, dynamic>) return payload;
+    return <String, dynamic>{};
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listV2Plans({
+    int page = 1,
+    int limit = 20,
+    String? unitId,
+    String? employeeId,
+    String? date,
+    String? approvalState,
+    String? executionState,
+  }) async {
+    final response = await apiClient.get(
+      ApiEndpoints.jobPlansV2,
+      queryParameters: {
+        'page': page,
+        'limit': limit,
+        if ((unitId ?? '').isNotEmpty) 'unitId': unitId,
+        if ((employeeId ?? '').isNotEmpty) 'employeeId': employeeId,
+        if ((date ?? '').isNotEmpty) 'date': date,
+        if ((approvalState ?? '').isNotEmpty) 'approvalState': approvalState,
+        if ((executionState ?? '').isNotEmpty) 'executionState': executionState,
+      },
+    );
+    final payload = response.data;
+    if (payload is List) {
+      return payload.whereType<Map<String, dynamic>>().toList();
+    }
+    if (payload is Map<String, dynamic>) {
+      return (payload['items'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
   // ─── GET /sm/job-plans/dropdowns ───────────────────────────────
   // Returns { divisions, panels, units, users, jobTypes }
   @override

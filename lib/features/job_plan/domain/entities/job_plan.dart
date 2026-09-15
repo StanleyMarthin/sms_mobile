@@ -1,3 +1,10 @@
+/*
+Tujuan: Entity domain Job Plan untuk legacy plan dan read model Job Plan V2.
+Caller: JobPlanRepository, JobPlanPage, JobPlanDetailPage, dan unit test.
+Dependensi: Tidak ada.
+Main Functions: JobPlan, CommandMetadata, id, scheduleTimeLabel.
+Side Effects: Tidak ada; hanya struktur data dan getter.
+*/
 library;
 
 class JobPlan {
@@ -21,6 +28,22 @@ class JobPlan {
     required this.deadline,
     required this.status,
     required this.note,
+    this.sourceId,
+    this.panelId,
+    this.unitId,
+    this.countdownName,
+    this.employeeId,
+    this.employeeName,
+    this.taskDate,
+    this.startMinute,
+    this.durationMinutes,
+    this.approvalState,
+    this.executionState,
+    this.ledgerState,
+    this.version = 0,
+    this.createdAt,
+    this.waitingFor,
+    this.currentApproverType,
     this.panelCustomNote,
     this.rejectNote,
     this.targetHoursAlias,
@@ -34,24 +57,82 @@ class JobPlan {
   final String carId;
   final String sourceType;
   final String sourceRefId;
+  final String? sourceId;
   final String unitName;
   final String panelName;
+  final String? panelId;
+  final String? unitId;
+  final String? countdownName;
   final String assignedDivision;
   final String assignedUserId;
   final String assignedTo;
+  final String? employeeId;
+  final String? employeeName;
   final String description;
   final double targetHours;
   final String workDate;
+  final String? taskDate;
   final String startTime;
   final String finishTime;
+  final int? startMinute;
+  final int? durationMinutes;
   final bool isOvertime;
   final String deadline;
   final String status;
   final String note;
+  final String? approvalState;
+  final String? executionState;
+  final String? ledgerState;
+  final int version;
+  final DateTime? createdAt;
+  final String? waitingFor;
+  final String? currentApproverType;
   final String? panelCustomNote;
   final String? rejectNote;
   final String? targetHoursAlias;
   final String? remainingHoursAlias;
   final int progress;
   final double totalActualHours;
+
+  String get id => planId;
+
+  String get resolvedSourceId {
+    final explicit = sourceId?.trim() ?? '';
+    if (explicit.isNotEmpty) return explicit;
+    final ref = sourceRefId.trim();
+    if (ref.isNotEmpty) return ref;
+    return coreId;
+  }
+
+  String get resolvedCountdownName {
+    final value = countdownName?.trim() ?? '';
+    return value.isNotEmpty ? value : description;
+  }
+
+  String get resolvedEmployeeId {
+    final value = employeeId?.trim() ?? '';
+    return value.isNotEmpty ? value : assignedUserId;
+  }
+
+  String get resolvedEmployeeName {
+    final value = employeeName?.trim() ?? '';
+    return value.isNotEmpty ? value : assignedTo;
+  }
+
+  String get resolvedTaskDate {
+    final value = taskDate?.trim() ?? '';
+    return value.isNotEmpty ? value : workDate;
+  }
+
+  String get scheduleTimeLabel => '$startTime - $finishTime';
+}
+
+class CommandMetadata {
+  const CommandMetadata({
+    required this.commandId,
+    required this.expectedVersion,
+  });
+
+  final String commandId;
+  final int expectedVersion;
 }

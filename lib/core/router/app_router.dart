@@ -18,6 +18,8 @@ import '../../features/monitoring/presentation/pages/monitoring_page.dart';
 import '../../features/profile/presentation/pages/profile_page.dart';
 import '../../features/qc/presentation/pages/qc_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_detail_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_list_page.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/pr/presentation/pages/pr_page.dart';
 import '../../features/wov/presentation/pages/wov_page.dart';
@@ -94,6 +96,26 @@ GoRouter createRouter() {
             planAutoOpenCreate:
                 state.uri.queryParameters['autoOpenCreate'] == '1',
           ),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plans/v2',
+        builder: (context, state) => FeatureShellPage(
+          title: 'Job Plan V2',
+          child: JobPlanListPage(
+            date: state.uri.queryParameters['date'],
+            unitId: state.uri.queryParameters['unitId'],
+            employeeId: state.uri.queryParameters['employeeId'],
+            approvalState: state.uri.queryParameters['approvalState'],
+            executionState: state.uri.queryParameters['executionState'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/job-plan/:id',
+        builder: (context, state) => FeatureShellPage(
+          title: 'Job Plan',
+          child: JobPlanDetailPage(planId: state.pathParameters['id'] ?? ''),
         ),
       ),
       GoRoute(

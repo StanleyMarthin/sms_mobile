@@ -315,6 +315,57 @@ class LocalJobPlanDataSource implements JobPlanDataSource {
   }
 
   @override
+  Future<Map<String, dynamic>> getV2Plan(String planId) async {
+    final plans = await _loadPlans();
+    return plans
+        .map(Map<String, dynamic>.from)
+        .firstWhere((plan) => (plan['planId'] ?? plan['id']) == planId);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listV2Plans({
+    int page = 1,
+    int limit = 20,
+    String? unitId,
+    String? employeeId,
+    String? date,
+    String? approvalState,
+    String? executionState,
+  }) async {
+    final plans = await _loadPlans();
+    final offset = (page - 1).clamp(0, 1 << 31) * limit;
+    return plans
+        .where((plan) {
+          final map = Map<String, dynamic>.from(plan);
+          return _matches(map, 'carId', unitId) &&
+              _matches(map, 'assignedUserId', employeeId) &&
+              ((date ?? '').isEmpty ||
+                  (map['taskDate'] ?? map['workDate']).toString() == date) &&
+              _matches(
+                map,
+                'approvalState',
+                approvalState,
+                fallback: 'status',
+              ) &&
+              _matches(map, 'executionState', executionState);
+        })
+        .skip(offset)
+        .take(limit)
+        .map(Map<String, dynamic>.from)
+        .toList();
+  }
+
+  bool _matches(
+    Map<String, dynamic> map,
+    String key,
+    String? expected, {
+    String? fallback,
+  }) {
+    final value = map[key] ?? (fallback == null ? null : map[fallback]);
+    return (expected ?? '').isEmpty || value?.toString() == expected;
+  }
+
+  @override
   Future<Map<String, dynamic>> getAdditionalDropdowns({
     String? divisionId,
   }) async {

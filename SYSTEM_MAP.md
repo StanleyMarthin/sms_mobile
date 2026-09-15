@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-09-11
+- Last verified: 2026-09-15
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -168,6 +168,8 @@ Files touched:
 | `/tasks` | `FeatureShellPage → TaskSectionPage(kind: tasks)` | `taskId`, `date` | Anggota → langsung `MechanicTaskPage`; KD → tab Monitoring/PIC Saya; management lain → `TaskViewPage` |
 | `/overtime` | `FeatureShellPage → TaskSectionPage(kind: overtime)` | `taskId`, `date` | Sama dengan tasks |
 | `/plans` | `FeatureShellPage → TaskSectionPage(kind: plan)` | `date`, `source`, `sourceRefId`, `autoOpenCreate` | Membuka `JobPlanPage` |
+| `/job-plans/v2` | `FeatureShellPage → JobPlanListPage` | `date`, `unitId`, `employeeId`, `approvalState`, `executionState` | Read-only Job Plan V2 list |
+| `/job-plan/:id` | `FeatureShellPage → JobPlanDetailPage` | path `id` | Read-only Job Plan V2 detail |
 | `/countdown` | `FeatureShellPage → CountdownPage` | `carId` | PM/KP mendapat tab revision approval tambahan |
 | `/monitoring` | `FeatureShellPage → MonitoringPage` | `carId` | Weekly monitoring overview |
 | `/qc` | `FeatureShellPage → QcTab` | `qcId` | QC queue dan submit flow |
@@ -585,6 +587,25 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> JobPlanRepositoryImpl → RemoteJobPlanDataSource
 -> GET/POST/PUT 8083 /sm/job-plans*
 ```
+
+**Job Plan V2 read model (mobile Phase 7A):**
+```text
+/job-plans/v2 → JobPlanListPage
+-> JobPlanRepositoryImpl.listV2Plans()
+-> RemoteJobPlanDataSource.listV2Plans()
+-> GET 8083 /sm/job-plans/v2?page=&limit=&unitId=&employeeId=&date=&approvalState=&executionState=
+
+/job-plan/:id → JobPlanDetailPage
+-> JobPlanRepositoryImpl.getV2Plan()
+-> RemoteJobPlanDataSource.getV2Plan()
+-> GET 8083 /sm/job-plans/v2/{planId}
+```
+
+- V2 mobile read model memakai `JobPlanV2Model` dan tetap mengikuti boundary `Master Panel → Countdown(coreId) → Job Plan`.
+- Field identitas canonical: `planId`, `coreId`, `unitId/carId`, `panelId`, `employeeId`, `version`; `unitName`, `panelName`, `countdownName`, `employeeName` hanya snapshot display.
+- State display V2 dipusatkan di `JobPlanV2StateMapper`: approval (`DIVISION_REVIEW`, `UNIT_REVIEW`, `MANAGEMENT_REVIEW`, dst), execution (`NOT_STARTED`, `RUNNING`, `HOLD`, `FINISHED_PENDING_VALIDATION`, `VALIDATED`), ledger (`UNMATERIALIZED`, `MATERIALIZED`, `FINALIZED`).
+- Phase ini read-only: tidak ada create, approval mutation, execution mutation, monitoring mutation, dan tidak ada logic Redis/projection/reservation di Flutter.
+- `CommandMetadata(commandId, expectedVersion)` tersedia sebagai fondasi command phase berikutnya, tetapi belum dipakai untuk mutation Job Plan di Phase 7A.
 
 Kemampuan runtime:
 - Load personal plans, load approval queue, browse by date/division/unit

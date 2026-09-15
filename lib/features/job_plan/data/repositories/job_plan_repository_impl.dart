@@ -1,3 +1,10 @@
+/*
+Tujuan: Implementasi repository Job Plan untuk mapping legacy dan read model V2.
+Caller: DI, JobPlanPage, JobPlanDetailPage, JobPlanListPage.
+Dependensi: JobPlanDataSource, JobPlan, JobPlanV2Model, Failure helper.
+Main Functions: getPlans, browsePlans, getV2Plan, listV2Plans.
+Side Effects: Delegasi HTTP/mock melalui datasource.
+*/
 library;
 
 import 'package:fpdart/fpdart.dart' as fp;
@@ -6,6 +13,7 @@ import 'package:sm_system/core/errors/error_message.dart';
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
 import '../datasources/job_plan_datasource.dart';
+import '../models/job_plan_v2_model.dart';
 
 class JobPlanRepositoryImpl implements JobPlanRepository {
   JobPlanRepositoryImpl({required this.dataSource});
@@ -124,6 +132,36 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
         ),
       );
     }
+  }
+
+  @override
+  Future<JobPlan> getV2Plan(String planId) async {
+    final item = await dataSource.getV2Plan(planId);
+    return JobPlanV2Model.fromJson(item).toEntity();
+  }
+
+  @override
+  Future<List<JobPlan>> listV2Plans({
+    int page = 1,
+    int limit = 20,
+    String? unitId,
+    String? employeeId,
+    String? date,
+    String? approvalState,
+    String? executionState,
+  }) async {
+    final items = await dataSource.listV2Plans(
+      page: page,
+      limit: limit,
+      unitId: unitId,
+      employeeId: employeeId,
+      date: date,
+      approvalState: approvalState,
+      executionState: executionState,
+    );
+    return items
+        .map((item) => JobPlanV2Model.fromJson(item).toEntity())
+        .toList();
   }
 
   @override
