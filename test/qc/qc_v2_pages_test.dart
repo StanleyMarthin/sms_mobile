@@ -34,6 +34,27 @@ void main() {
     expect(find.text('NOT PASS'), findsOneWidget);
     expect(find.text('REWORK'), findsNothing);
   });
+
+  testWidgets('QC V2 NOT PASS with no remaining offers time adjustment', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: QcV2SubmitPage(
+          item: _item,
+          action: 'NOT_PASS',
+          repository: _AdjustmentRepo(),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('NOT_PASS'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ajukan Tambahan Waktu'), findsWidgets);
+    expect(find.textContaining('QC tidak lolos'), findsOneWidget);
+    expect(find.text('REWORK'), findsNothing);
+  });
 }
 
 const _item = QcV2QueueItem(
@@ -68,4 +89,26 @@ class _Repo implements QcRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _AdjustmentRepo extends _Repo {
+  @override
+  Future<QcV2SubmitResult> submitV2Qc({
+    required String coreId,
+    required String commandId,
+    required int expectedVersion,
+    required String action,
+    String? notes,
+    List<String>? photos,
+    int? inspectionDurationMinutes,
+  }) async {
+    return QcV2SubmitResult(
+      qcId: 'QC-1',
+      result: action,
+      reused: false,
+      version: expectedVersion + 1,
+      remainingHours: 0,
+      nextAction: 'TIME_ADJUSTMENT_REQUIRED',
+    );
+  }
 }

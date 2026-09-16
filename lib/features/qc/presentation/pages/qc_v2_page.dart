@@ -11,6 +11,8 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../countdown/domain/entities/countdown_entities.dart';
+import '../../../countdown/presentation/widgets/countdown_dialogs.dart';
 import '../../domain/entities/qc_item.dart';
 import '../../domain/repositories/qc_repository.dart';
 import '../utils/qc_v2_command_feedback.dart';
@@ -219,7 +221,7 @@ class _QcV2SubmitPageState extends State<QcV2SubmitPage> {
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
-      await _repo.submitV2Qc(
+      final result = await _repo.submitV2Qc(
         coreId: widget.item.coreId,
         commandId:
             'mobile-qc-v2-${widget.item.coreId}-${DateTime.now().microsecondsSinceEpoch}',
@@ -233,6 +235,10 @@ class _QcV2SubmitPageState extends State<QcV2SubmitPage> {
         inspectionDurationMinutes: int.tryParse(_duration.text.trim()),
       );
       if (!mounted) return;
+      if (result.nextAction == 'TIME_ADJUSTMENT_REQUIRED') {
+        await _showAdjustmentPrompt(result.qcId);
+        if (!mounted) return;
+      }
       Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
@@ -245,6 +251,66 @@ class _QcV2SubmitPageState extends State<QcV2SubmitPage> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<void> _showAdjustmentPrompt(String qcId) async {
+    final openRevision = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ajukan Tambahan Waktu'),
+        content: const Text(
+          'QC tidak lolos dan sisa jam sudah habis. Ajukan adjustment countdown untuk menambah waktu kerja.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Nanti'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ajukan Tambahan Waktu'),
+          ),
+        ],
+      ),
+    );
+    if (openRevision != true || !mounted) return;
+    await CountdownDialogs.showCountdownRevisionDialog(
+      context: context,
+      item: _countdownSeed(),
+      initialReason: 'QC_ADJUSTMENT',
+      sourceType: 'QC',
+      referenceId: qcId,
+    );
+  }
+
+  CountdownJobdesc _countdownSeed() {
+    final tomorrow = DateTime.now().add(const Duration(days: 1));
+    final deadline =
+        '${tomorrow.year}-${tomorrow.month.toString().padLeft(2, '0')}-${tomorrow.day.toString().padLeft(2, '0')}';
+    return CountdownJobdesc(
+      id: widget.item.coreId,
+      carId: widget.item.carId,
+      divisionId: '',
+      panelName: widget.item.panelName,
+      sectionName: widget.item.panelName,
+      jobdesc: widget.item.countdownName,
+      taskCategory: 'MAIN',
+      progress: 100,
+      status: widget.item.countdownStatus,
+      targetHoursInitial: 0,
+      timeExtensionHours: 0,
+      targetHoursRevised: 0,
+      totalActualHours: 0,
+      remainingHours: widget.item.remainingHours,
+      startDate: deadline,
+      deadlineDate: deadline,
+      qcLastStatus: widget.item.latestQcResult,
+      qcValidationStatus: null,
+      qcResultStatus: widget.item.latestQcResult,
+      qcEstimatedReworkHours: null,
+      qcReworkDeadlineDate: null,
+      qcAdvisorNotes: null,
+    );
   }
 }
 

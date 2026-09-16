@@ -764,6 +764,8 @@ Mark QC rdy → PUT 8090 /sm/countdown/action { action: mark_qc_ready }
 ```
 
 PM/KP mendapat tab revision approval tambahan; role lain hanya melihat countdown list.
+QC V2 NOT_PASS dengan `remainingHours == 0` memakai flow yang sama dengan source context:
+`source_type=QC`, `reference_id=qcId`, `reason=QC_ADJUSTMENT`. Backend menyimpan history sebagai revision `EXTENSION` dengan `reason_code=QC_ADJUSTMENT`; ini adjustment Countdown, bukan Rework/Job Plan baru.
 
 ### 10.8 Monitoring
 
@@ -815,7 +817,7 @@ QcV2SubmitPage → PASS / NOT_PASS command
 
 - Identity V2 QC tetap `coreId` / Countdown; mobile hanya menampilkan validated Job Plan IDs sebagai evidence.
 - Payload mutation membawa `commandId` + `expectedVersion`; Flutter tidak menghitung labor validation, eligibility, scope, atau collision.
-- PASS/NOT_PASS tidak membuat Rework/Adjustment di mobile; backend QC V2 menjaga boundary Countdown/QC.
+- PASS tidak membuat Job Plan. NOT_PASS tidak membuat Rework; jika backend return `TIME_ADJUSTMENT_REQUIRED`, mobile menawarkan dialog existing Countdown Revision dengan `QC_ADJUSTMENT`.
 
 ### 10.10 Warehouse request & approval
 

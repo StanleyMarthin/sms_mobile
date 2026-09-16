@@ -58,6 +58,8 @@ abstract class CountdownDataSource {
     required double requestedHours,
     required String requestedDeadline,
     required String reason,
+    String? sourceType,
+    String? referenceId,
   });
 
   Future<List<Map<String, dynamic>>> getRevisionRequests({String? carId});

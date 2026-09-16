@@ -170,10 +170,8 @@ class CountdownDialogs {
                             Expanded(
                               child: ListView.separated(
                                 itemCount: filtered.length,
-                                separatorBuilder: (_, __) => Divider(
-                                  height: 1,
-                                  color: AppColors.border,
-                                ),
+                                separatorBuilder: (_, __) =>
+                                    Divider(height: 1, color: AppColors.border),
                                 itemBuilder: (_, i) {
                                   final e = filtered[i];
                                   final name =
@@ -284,10 +282,7 @@ class CountdownDialogs {
               onTap: onTap,
               borderRadius: BorderRadius.circular(10),
               child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceCard,
                   borderRadius: BorderRadius.circular(10),
@@ -969,9 +964,12 @@ class CountdownDialogs {
   static Future<bool> showCountdownRevisionDialog({
     required BuildContext context,
     required CountdownJobdesc item,
+    String? initialReason,
+    String? sourceType,
+    String? referenceId,
   }) async {
     final hoursCtrl = TextEditingController();
-    final reasonCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController(text: initialReason ?? '');
     var deadline =
         DateTime.tryParse(item.deadlineDate)?.add(Duration(days: 1)) ??
         DateTime.now().add(Duration(days: 1));
@@ -1004,10 +1002,7 @@ class CountdownDialogs {
                 SizedBox(height: 6),
                 Text(
                   'Deadline saat ini ${item.deadlineDate} • Target saat ini ${item.targetHoursRevised.toStringAsFixed(1)} jam',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textMuted,
-                  ),
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 SizedBox(height: 12),
                 TextFormField(
@@ -1101,10 +1096,7 @@ class CountdownDialogs {
                 if (inlineError != null) ...[
                   SizedBox(height: 10),
                   Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                     decoration: BoxDecoration(
                       color: AppColors.statusLocked.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
@@ -1190,6 +1182,8 @@ class CountdownDialogs {
                           requestedHours: requestedHours,
                           requestedDeadline: selectedDeadline,
                           reason: reasonCtrl.text.trim(),
+                          sourceType: sourceType,
+                          referenceId: referenceId,
                         );
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx, true);

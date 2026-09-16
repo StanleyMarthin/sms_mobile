@@ -26,6 +26,7 @@ void main() {
     );
 
     expect(result.result, 'PASS');
+    expect(result.nextAction, 'TIME_ADJUSTMENT_REQUIRED');
     expect(dataSource.lastPayload['coreId'], 'CORE-1');
     expect(dataSource.lastPayload['commandId'], 'cmd-qc-1');
     expect(dataSource.lastPayload['expectedVersion'], 4);
@@ -61,6 +62,7 @@ class _CaptureQcV2DataSource implements QcDataSource {
       'result': action,
       'version': expectedVersion + 1,
       'reused': false,
+      'nextAction': 'TIME_ADJUSTMENT_REQUIRED',
     };
   }
 

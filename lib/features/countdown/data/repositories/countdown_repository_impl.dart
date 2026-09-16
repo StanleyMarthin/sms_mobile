@@ -553,12 +553,16 @@ class CountdownRepositoryImpl implements CountdownRepository {
     required double requestedHours,
     required String requestedDeadline,
     required String reason,
+    String? sourceType,
+    String? referenceId,
   }) {
     return dataSource.requestRevision(
       countdownId: countdownId,
       requestedHours: requestedHours,
       requestedDeadline: requestedDeadline,
       reason: reason,
+      sourceType: sourceType,
+      referenceId: referenceId,
     );
   }
 

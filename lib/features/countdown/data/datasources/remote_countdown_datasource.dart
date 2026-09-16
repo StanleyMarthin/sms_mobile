@@ -365,17 +365,19 @@ class RemoteCountdownDataSource implements CountdownDataSource {
     required double requestedHours,
     required String requestedDeadline,
     required String reason,
+    String? sourceType,
+    String? referenceId,
   }) async {
-    await apiClient.post(
-      ApiEndpoints.countdownRevision,
-      data: {
-        'user_id': _userId,
-        'countdown_id': countdownId,
-        'requested_hours': requestedHours,
-        'requested_deadline': requestedDeadline,
-        'reason': reason,
-      },
-    );
+    final data = {
+      'user_id': _userId,
+      'countdown_id': countdownId,
+      'requested_hours': requestedHours,
+      'requested_deadline': requestedDeadline,
+      'reason': reason,
+      if ((sourceType ?? '').isNotEmpty) 'source_type': sourceType,
+      if ((referenceId ?? '').isNotEmpty) 'reference_id': referenceId,
+    };
+    await apiClient.post(ApiEndpoints.countdownRevision, data: data);
   }
 
   @override
