@@ -1,3 +1,11 @@
+/*
+Tujuan: Helper tampilan status Countdown, QC, jam kerja, dan revision banner.
+Caller: Countdown UI dan grouped monitoring pages.
+Dependensi: AppColors, CountdownJobdesc, Flutter material.
+Main Functions: CountdownHelper, CountdownStatusVisual, RevisionBannerData.
+Side Effects: Tidak ada; helper display-only.
+*/
+
 library;
 
 import 'package:flutter/material.dart';
@@ -123,7 +131,9 @@ class CountdownHelper {
   /// Checks whether a [CountdownJobdesc] matches the given status/progress
   /// filter value.
   static bool matchesStatusProgressWithValue(
-      CountdownJobdesc item, String filterValue) {
+    CountdownJobdesc item,
+    String filterValue,
+  ) {
     if (filterValue == 'all') return true;
     final effective = effectiveCountdownStatus(item).toUpperCase();
     switch (filterValue) {
@@ -203,9 +213,10 @@ class CountdownHelper {
     if (date == null) return '-';
     if (date is DateTime) {
       return _formatDateParts(
-          date.year.toString(),
-          date.month.toString().padLeft(2, '0'),
-          date.day.toString().padLeft(2, '0'));
+        date.year.toString(),
+        date.month.toString().padLeft(2, '0'),
+        date.day.toString().padLeft(2, '0'),
+      );
     }
     final str = '$date';
     if (str.isEmpty) return '-';
@@ -228,7 +239,7 @@ class CountdownHelper {
       'Sep',
       'Okt',
       'Nov',
-      'Des'
+      'Des',
     ];
     final m = int.tryParse(month) ?? 0;
     return '${day.replaceAll('-', '').padLeft(2, '0')} ${m < months.length ? months[m] : month} $year';
@@ -251,22 +262,26 @@ class CountdownHelper {
   /// Formats hours to a string including workdays (1 day = 8 hours).
   static String formatWorkHours(double hours) {
     if (hours <= 0) return '0j';
-    
+
     // Jika kurang dari 1 jam, tampilkan menit
     if (hours < 1.0) {
       final mins = (hours * 60).round();
       return '${mins}m';
     }
-    
-    final hrsStr = hours.toStringAsFixed(hours.truncateToDouble() == hours ? 0 : 1);
-    
+
+    final hrsStr = hours.toStringAsFixed(
+      hours.truncateToDouble() == hours ? 0 : 1,
+    );
+
     // Hanya tampilkan hari jika durasi cukup signifikan (misal >= 4 jam / 0.5 hari)
     if (hours >= 4.0) {
       final workDays = hours / 8.0;
-      final daysStr = workDays.toStringAsFixed(workDays.truncateToDouble() == workDays ? 0 : 2);
+      final daysStr = workDays.toStringAsFixed(
+        workDays.truncateToDouble() == workDays ? 0 : 2,
+      );
       return '${hrsStr}j ($daysStr hari)';
     }
-    
+
     return '${hrsStr}j';
   }
 
@@ -285,8 +300,9 @@ class CountdownHelper {
   /// Break start time in minutes from midnight for a given [date].
   static int breakStartMinutesForDate(DateTime date) {
     return date.weekday == DateTime.friday
-        ? 11 * 60 + 30   // 11:30
-        : 12 * 60;       // 12:00
+        ? 11 * 60 +
+              30 // 11:30
+        : 12 * 60; // 12:00
   }
 
   /// Returns true if finish time is into overtime territory based on day of week.
@@ -369,6 +385,15 @@ class CountdownHelper {
           detail:
               '+${item.approvedRevisionHours?.toStringAsFixed(1) ?? '?'} jam'
               '${item.approvedRevisionDeadline != null ? " • DL baru ${item.approvedRevisionDeadline}" : ""}',
+        );
+      case 'MO_REVIEW':
+        return RevisionBannerData(
+          color: AppColors.orange,
+          icon: Icons.manage_accounts_rounded,
+          title: 'Menunggu MO/PM',
+          detail:
+              'Permintaan +${item.requestedRevisionHours?.toStringAsFixed(1) ?? '?'} jam'
+              '${item.requestedRevisionDeadline != null ? " • DL ${item.requestedRevisionDeadline}" : ""}',
         );
       case 'REJECTED':
         return RevisionBannerData(

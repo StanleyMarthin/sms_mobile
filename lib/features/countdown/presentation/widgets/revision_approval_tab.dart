@@ -1,8 +1,41 @@
+/*
+Tujuan: Widget tab approval Countdown Revision termasuk QC Adjustment.
+Caller: CountdownPage.
+Dependensi: CountdownRepository, CountdownJobdesc, Countdown shared widgets.
+Main Functions: RevisionApprovalTab, RevisionRequestCard.
+Side Effects: HTTP read/mutation revision via repository.
+*/
+
 import 'package:flutter/material.dart';
 import '../../domain/entities/countdown_entities.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../widgets/countdown_shared.dart';
 import '../../domain/repositories/countdown_repository.dart';
+
+bool _isActiveRevisionStatus(CountdownJobdesc item) {
+  final status = item.revisionRequestStatus?.toUpperCase();
+  return status == 'REQUESTED' || status == 'MO_REVIEW';
+}
+
+bool _isQcAdjustment(CountdownJobdesc item) {
+  return item.revisionSourceType?.toUpperCase() == 'QC' ||
+      item.requestedRevisionReason?.toUpperCase() == 'QC_ADJUSTMENT';
+}
+
+String _revisionStatusLabel(String status) {
+  switch (status) {
+    case 'REQUESTED':
+      return 'Menunggu KP';
+    case 'MO_REVIEW':
+      return 'Menunggu MO/PM';
+    case 'APPROVED':
+      return 'Disetujui';
+    case 'REJECTED':
+      return 'Ditolak';
+    default:
+      return status.isEmpty ? '-' : status;
+  }
+}
 
 class RevisionApprovalTab extends StatefulWidget {
   const RevisionApprovalTab({
@@ -30,21 +63,25 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
   }
 
   void _loadRequests() {
-    _requestsFuture = widget.repository.getRevisionRequests(carId: widget.carId).then((all) {
-      return all
-          .where((item) =>
-              item.revisionRequestStatus != null &&
-              item.revisionRequestStatus!.isNotEmpty)
-          .toList()
-        ..sort((a, b) {
-          final timeA = a.requestedRevisionAt;
-          final timeB = b.requestedRevisionAt;
-          if (timeA == null && timeB == null) return 0;
-          if (timeA == null) return 1;
-          if (timeB == null) return -1;
-          return timeB.compareTo(timeA);
+    _requestsFuture = widget.repository
+        .getRevisionRequests(carId: widget.carId)
+        .then((all) {
+          return all
+              .where(
+                (item) =>
+                    item.revisionRequestStatus != null &&
+                    item.revisionRequestStatus!.isNotEmpty,
+              )
+              .toList()
+            ..sort((a, b) {
+              final timeA = a.requestedRevisionAt;
+              final timeB = b.requestedRevisionAt;
+              if (timeA == null && timeB == null) return 0;
+              if (timeA == null) return 1;
+              if (timeB == null) return -1;
+              return timeB.compareTo(timeA);
+            });
         });
-    });
   }
 
   @override
@@ -68,35 +105,38 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
           );
         }
 
-        final pending = requests.where((r) => r.revisionRequestStatus?.toUpperCase() == 'REQUESTED').toList();
-        final history = requests.where((r) => r.revisionRequestStatus?.toUpperCase() != 'REQUESTED').toList();
+        final pending = requests.where(_isActiveRevisionStatus).toList();
+        final history = requests
+            .where((r) => !_isActiveRevisionStatus(r))
+            .toList();
 
         return ListView(
           padding: EdgeInsets.all(16),
           children: [
             RevisionSectionHeader(
               title: 'Menunggu Persetujuan',
-              subtitle: 'Pengajuan revisi yang butuh review PM',
+              subtitle: 'Pengajuan revisi yang butuh review KP/MO',
             ),
             SizedBox(height: 12),
             if (pending.isEmpty)
-              CountdownEmptyMessage(message: 'Tidak ada pengajuan yang menunggu.')
+              CountdownEmptyMessage(
+                message: 'Tidak ada pengajuan yang menunggu.',
+              )
             else
-              ...pending.map((item) => RevisionRequestCard(
-                    item: item,
-                    onApprove: (hours, deadline) => _handleAction(
-                      context,
-                      item,
-                      'APPROVED',
-                      approvedHours: hours,
-                      approvedDeadline: deadline,
-                    ),
-                    onReject: (reason) => _handleAction(
-                      context,
-                      item,
-                      'REJECTED',
-                    ),
-                  )),
+              ...pending.map(
+                (item) => RevisionRequestCard(
+                  item: item,
+                  onApprove: (hours, deadline) => _handleAction(
+                    context,
+                    item,
+                    'APPROVED',
+                    approvedHours: hours,
+                    approvedDeadline: deadline,
+                  ),
+                  onReject: (reason) =>
+                      _handleAction(context, item, 'REJECTED'),
+                ),
+              ),
             SizedBox(height: 24),
             RevisionSectionHeader(
               title: 'Riwayat Pengajuan',
@@ -107,7 +147,9 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
               CountdownEmptyMessage(message: 'Belum ada riwayat pengajuan.')
             else
               ...history.map((item) {
-                final isApproved = item.revisionRequestStatus?.toUpperCase() == 'APPROVED';
+                final status = item.revisionRequestStatus?.toUpperCase() ?? '';
+                final isApproved = status == 'APPROVED';
+                final isRejected = status == 'REJECTED';
                 return ExpansionTile(
                   collapsedBackgroundColor: AppColors.surfaceInput,
                   backgroundColor: AppColors.surfaceCard,
@@ -120,18 +162,32 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                     side: BorderSide(color: AppColors.border),
                   ),
                   leading: Icon(
-                    isApproved ? Icons.check_circle_rounded : Icons.cancel_rounded,
-                    color: isApproved ? AppColors.statusDone : AppColors.statusLocked,
+                    isApproved
+                        ? Icons.check_circle_rounded
+                        : Icons.cancel_rounded,
+                    color: isApproved
+                        ? AppColors.statusDone
+                        : isRejected
+                        ? AppColors.statusLocked
+                        : AppColors.orange,
                   ),
                   title: Text(
                     '${item.panelName} • ${item.jobdesc}',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   subtitle: Text(
-                    isApproved ? 'Disetujui' : 'Ditolak',
+                    _revisionStatusLabel(status),
                     style: TextStyle(
                       fontSize: 11,
-                      color: isApproved ? AppColors.statusDone : AppColors.statusLocked,
+                      color: isApproved
+                          ? AppColors.statusDone
+                          : isRejected
+                          ? AppColors.statusLocked
+                          : AppColors.orange,
                     ),
                   ),
                   children: [
@@ -140,27 +196,67 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _detailRow('Pengaju', item.requestedRevisionByName ?? '-'),
                           _detailRow(
-                              'Waktu Pengajuan',
-                              item.requestedRevisionAt != null
-                                  ? _formatDateTime(item.requestedRevisionAt!)
-                                  : '-'),
-                          _detailRow('Alasan', item.requestedRevisionReason ?? '-'),
-                          _detailRow('Usulan Tambahan', '${item.requestedRevisionHours?.toStringAsFixed(1) ?? '0.0'} jam'),
-                          _detailRow('Usulan Deadline', item.requestedRevisionDeadline ?? '-'),
+                            'Pengaju',
+                            item.requestedRevisionByName ?? '-',
+                          ),
+                          _detailRow(
+                            'Waktu Pengajuan',
+                            item.requestedRevisionAt != null
+                                ? _formatDateTime(item.requestedRevisionAt!)
+                                : '-',
+                          ),
+                          _detailRow(
+                            'Alasan',
+                            item.requestedRevisionReason ?? '-',
+                          ),
+                          if (_isQcAdjustment(item)) ...[
+                            _detailRow('Source', 'QC Adjustment'),
+                            _detailRow(
+                              'QC Reference',
+                              item.revisionReferenceId ?? '-',
+                            ),
+                          ],
+                          _detailRow(
+                            'Usulan Tambahan',
+                            '${item.requestedRevisionHours?.toStringAsFixed(1) ?? '0.0'} jam',
+                          ),
+                          _detailRow(
+                            'Usulan Deadline',
+                            item.requestedRevisionDeadline ?? '-',
+                          ),
                           Divider(height: 16),
                           if (isApproved) ...[
-                            _detailRow('Disetujui Oleh', item.approvedRevisionByName ?? '-'),
-                            _detailRow('Waktu ACC',
-                                item.approvedRevisionAt != null ? _formatDateTime(item.approvedRevisionAt!) : '-'),
-                            _detailRow('ACC Tambahan', '${item.approvedRevisionHours?.toStringAsFixed(1) ?? '0.0'} jam'),
-                            _detailRow('ACC Deadline', item.approvedRevisionDeadline ?? '-'),
+                            _detailRow(
+                              'Disetujui Oleh',
+                              item.approvedRevisionByName ?? '-',
+                            ),
+                            _detailRow(
+                              'Waktu ACC',
+                              item.approvedRevisionAt != null
+                                  ? _formatDateTime(item.approvedRevisionAt!)
+                                  : '-',
+                            ),
+                            _detailRow(
+                              'ACC Tambahan',
+                              '${item.approvedRevisionHours?.toStringAsFixed(1) ?? '0.0'} jam',
+                            ),
+                            _detailRow(
+                              'ACC Deadline',
+                              item.approvedRevisionDeadline ?? '-',
+                            ),
                           ] else ...[
-                            _detailRow('Ditolak Oleh', item.rejectedRevisionByName ?? '-'),
-                            _detailRow('Waktu Tolak',
-                                item.rejectedRevisionAt != null ? _formatDateTime(item.rejectedRevisionAt!) : '-'),
-                          ]
+                            _detailRow(
+                              'Ditolak Oleh',
+                              item.rejectedRevisionByName ?? '-',
+                            ),
+                            _detailRow(
+                              'Waktu Tolak',
+                              item.rejectedRevisionAt != null
+                                  ? _formatDateTime(item.rejectedRevisionAt!)
+                                  : '-',
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -193,9 +289,13 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            finalStatus == 'APPROVED' ? 'Revisi disetujui.' : 'Pengajuan revisi ditolak.',
+            finalStatus == 'APPROVED'
+                ? 'Revisi disetujui.'
+                : 'Pengajuan revisi ditolak.',
           ),
-          backgroundColor: finalStatus == 'APPROVED' ? AppColors.statusDone : AppColors.statusLocked,
+          backgroundColor: finalStatus == 'APPROVED'
+              ? AppColors.statusDone
+              : AppColors.statusLocked,
         ),
       );
       setState(() => _loadRequests());
@@ -211,11 +311,17 @@ class _RevisionApprovalTabState extends State<RevisionApprovalTab> {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label, style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
           ),
           SizedBox(width: 8),
           Expanded(
-            child: Text(value, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),
@@ -298,10 +404,20 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                         children: [
                           Text(
                             widget.item.panelName,
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                           SizedBox(height: 2),
-                          Text(widget.item.jobdesc, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                          Text(
+                            widget.item.jobdesc,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -312,18 +428,53 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                         color: AppColors.orange.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('New Request', style: TextStyle(fontSize: 10, color: AppColors.orange, fontWeight: FontWeight.w700)),
+                      child: Text(
+                        'New Request',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.orange,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 SizedBox(height: 12),
-                _detailRow('Pengaju', widget.item.requestedRevisionByName ?? '-'),
-                _detailRow('Waktu Pengajuan', widget.item.requestedRevisionAt != null ? _formatDateTime(widget.item.requestedRevisionAt!) : '-'),
-                _detailRow('Alasan Revisi', widget.item.requestedRevisionReason ?? '-'),
-                _detailRow('Target Saat Ini', '${widget.item.targetHoursRevised.toStringAsFixed(1)} jam'),
+                _detailRow(
+                  'Pengaju',
+                  widget.item.requestedRevisionByName ?? '-',
+                ),
+                _detailRow(
+                  'Waktu Pengajuan',
+                  widget.item.requestedRevisionAt != null
+                      ? _formatDateTime(widget.item.requestedRevisionAt!)
+                      : '-',
+                ),
+                _detailRow(
+                  'Alasan Revisi',
+                  widget.item.requestedRevisionReason ?? '-',
+                ),
+                if (_isQcAdjustment(widget.item)) ...[
+                  _detailRow('Source', 'QC Adjustment'),
+                  _detailRow(
+                    'QC Reference',
+                    widget.item.revisionReferenceId ?? '-',
+                  ),
+                ],
+                _detailRow(
+                  'Target Saat Ini',
+                  '${widget.item.targetHoursRevised.toStringAsFixed(1)} jam',
+                ),
                 _detailRow('Deadline Saat Ini', widget.item.deadlineDate),
                 Divider(),
-                Text('Persetujuan (Bisa disesuaikan PM)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                Text(
+                  'Persetujuan (Bisa disesuaikan PM)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
                 SizedBox(height: 8),
                 Row(
                   children: [
@@ -331,8 +482,13 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                       flex: 2,
                       child: TextField(
                         controller: _hoursCtrl,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                        keyboardType: TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textPrimary,
+                        ),
                         decoration: InputDecoration(
                           labelText: 'ACC Tambahan Jam',
                           isDense: true,
@@ -360,11 +516,17 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                         child: AbsorbPointer(
                           child: TextField(
                             controller: _deadlineCtrl,
-                            style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textPrimary,
+                            ),
                             decoration: InputDecoration(
                               labelText: 'ACC Deadline Baru',
                               isDense: true,
-                              suffixIcon: Icon(Icons.calendar_today_rounded, size: 16),
+                              suffixIcon: Icon(
+                                Icons.calendar_today_rounded,
+                                size: 16,
+                              ),
                             ),
                           ),
                         ),
@@ -381,10 +543,14 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                 child: FilledButton.tonal(
                   onPressed: () => widget.onReject(null),
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.statusLocked.withValues(alpha: 0.1),
+                    backgroundColor: AppColors.statusLocked.withValues(
+                      alpha: 0.1,
+                    ),
                     foregroundColor: AppColors.statusLocked,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12)),
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(12),
+                      ),
                     ),
                   ),
                   child: Text('Tolak'),
@@ -393,7 +559,8 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
               Expanded(
                 child: FilledButton(
                   onPressed: () {
-                    final hours = double.tryParse(_hoursCtrl.text.trim()) ?? 0.0;
+                    final hours =
+                        double.tryParse(_hoursCtrl.text.trim()) ?? 0.0;
                     final deadline = _deadlineCtrl.text.trim();
                     widget.onApprove(hours, deadline);
                   },
@@ -401,7 +568,9 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
                     backgroundColor: AppColors.statusDone,
                     foregroundColor: AppColors.background,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.only(bottomRight: Radius.circular(12)),
+                      borderRadius: BorderRadius.only(
+                        bottomRight: Radius.circular(12),
+                      ),
                     ),
                   ),
                   child: Text('ACC Revisi'),
@@ -422,11 +591,17 @@ class _RevisionRequestCardState extends State<RevisionRequestCard> {
         children: [
           SizedBox(
             width: 110,
-            child: Text(label, style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
           ),
           SizedBox(width: 8),
           Expanded(
-            child: Text(value, style: TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+            ),
           ),
         ],
       ),

@@ -84,6 +84,11 @@ class NotificationItem {
       'APPROVED',
       'PLAN_REJECTED',
       'REJECTED',
+      'ADJUSTMENT_REQUESTED',
+      'ADJUSTMENT_KP_APPROVED',
+      'ADJUSTMENT_MO_REVIEW_REQUIRED',
+      'ADJUSTMENT_APPROVED',
+      'ADJUSTMENT_REJECTED',
     }.contains(event)) {
       return 'approval';
     }

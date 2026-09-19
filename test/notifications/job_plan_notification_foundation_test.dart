@@ -51,5 +51,15 @@ void main() {
       }).category,
       'validation',
     );
+    expect(
+      NotificationItem.fromMap({
+        'id': 'n-5',
+        'title': 'Tambahan Waktu QC',
+        'body': 'Menunggu KP',
+        'eventType': 'ADJUSTMENT_REQUESTED',
+        'targetRoute': '/countdown',
+      }).category,
+      'approval',
+    );
   });
 }

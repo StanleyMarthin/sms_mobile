@@ -362,6 +362,8 @@ class CountdownJobdesc {
     this.requestedRevisionHours,
     this.requestedRevisionDeadline,
     this.requestedRevisionReason,
+    this.revisionSourceType,
+    this.revisionReferenceId,
     this.requestedRevisionByName,
     this.requestedRevisionAt,
     this.approvedRevisionHours,
@@ -405,6 +407,8 @@ class CountdownJobdesc {
   final double? requestedRevisionHours;
   final String? requestedRevisionDeadline;
   final String? requestedRevisionReason;
+  final String? revisionSourceType;
+  final String? revisionReferenceId;
   final String? requestedRevisionByName;
   final DateTime? requestedRevisionAt;
   final double? approvedRevisionHours;

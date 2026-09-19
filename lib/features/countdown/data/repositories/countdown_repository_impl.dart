@@ -471,6 +471,8 @@ class CountdownRepositoryImpl implements CountdownRepository {
           ?.toDouble(),
       requestedRevisionDeadline: item['extensionRequestedDeadline'] as String?,
       requestedRevisionReason: item['extensionRequestReason'] as String?,
+      revisionSourceType: item['extensionSourceType'] as String?,
+      revisionReferenceId: item['extensionReferenceId'] as String?,
       approvedRevisionHours: (item['extensionApprovedHours'] as num?)
           ?.toDouble(),
       approvedRevisionDeadline: item['extensionApprovedDeadline'] as String?,
@@ -539,6 +541,8 @@ class CountdownRepositoryImpl implements CountdownRepository {
         requestedRevisionHours: (item['requestedHours'] as num?)?.toDouble(),
         requestedRevisionDeadline: item['requestedDeadline'] as String?,
         requestedRevisionReason: item['reason'] as String?,
+        revisionSourceType: item['sourceType'] as String?,
+        revisionReferenceId: item['referenceId'] as String?,
         requestedRevisionByName: item['requestedByName'] as String?,
         requestedRevisionAt: DateTime.tryParse(
           item['requestedAt']?.toString() ?? '',

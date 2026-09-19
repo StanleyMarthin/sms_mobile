@@ -338,6 +338,10 @@ class RemoteCountdownDataSource implements CountdownDataSource {
                 ?.toDouble(),
             'requestedDeadline': _toDate(item['requested_deadline']),
             'reason': item['revision_reason'] as String?,
+            'sourceType':
+                item['source_type'] as String? ??
+                item['reference_type'] as String?,
+            'referenceId': item['reference_id'] as String?,
             'requestedByName': item['requested_by_name'] as String?,
             'requestedAt': '${item['created_at'] ?? ''}',
             'currentHours': (item['current_hours'] as num?)?.toDouble(),

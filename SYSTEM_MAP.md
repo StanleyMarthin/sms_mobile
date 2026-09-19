@@ -764,6 +764,7 @@ Mark QC rdy → PUT 8090 /sm/countdown/action { action: mark_qc_ready }
 ```
 
 PM/KP mendapat tab revision approval tambahan; role lain hanya melihat countdown list.
+Status `MO_REVIEW` tetap masuk antrian aktif, bukan riwayat.
 QC V2 NOT_PASS dengan `remainingHours == 0` memakai flow yang sama dengan source context:
 `source_type=QC`, `reference_id=qcId`, `reason=QC_ADJUSTMENT`. Backend menyimpan history sebagai revision `EXTENSION` dengan `reason_code=QC_ADJUSTMENT`; ini adjustment Countdown, bukan Rework/Job Plan baru.
 
