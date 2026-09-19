@@ -14,7 +14,7 @@ Side Effects: Tidak ada. Wajib diperbarui saat flow utama, route, struktur modul
 
 ## 0. Verification Scope
 
-- Last verified: 2026-09-15
+- Last verified: 2026-09-20
 - Source-of-truth priority (mobile):
   1. `lib/main.dart`
   2. `lib/core/router/app_router.dart`
@@ -766,7 +766,27 @@ Mark QC rdy → PUT 8090 /sm/countdown/action { action: mark_qc_ready }
 PM/KP mendapat tab revision approval tambahan; role lain hanya melihat countdown list.
 Status `MO_REVIEW` tetap masuk antrian aktif, bukan riwayat.
 QC V2 NOT_PASS dengan `remainingHours == 0` memakai flow yang sama dengan source context:
-`source_type=QC`, `reference_id=qcId`, `reason=QC_ADJUSTMENT`. Backend menyimpan history sebagai revision `EXTENSION` dengan `reason_code=QC_ADJUSTMENT`; ini adjustment Countdown, bukan Rework/Job Plan baru.
+`source_type=QC`, `reference_id=qcId`, `reason=QC_ADJUSTMENT`. Ini adjustment Countdown,
+bukan Rework/Job Plan baru.
+
+**QC Adjustment architecture reconciliation (Phase 9B.7):**
+- Redis adalah owner operational state untuk request/approval QC Adjustment:
+  `REQUESTED` → `MO_REVIEW` → `APPROVED|REJECTED`.
+- MySQL bukan tempat menyimpan state approval sementara. Jangan menambah/bergantung pada
+  kolom legacy seperti `extension_request_status`, `requested_extension_hours`,
+  `requested_deadline`, atau `revision_reason` di `sm_jobdesc_countdown`.
+- Setelah adjustment final approved/applied, MySQL menjadi durable ledger:
+  - insert `sm_jobdesc_countdown_revisions`
+  - `revision_type=EXTENSION`
+  - `reason_code=QC_ADJUSTMENT`
+  - `reference_type=QC`
+  - `reference_id=<qcInspectionId>`
+  - update budget/remaining/deadline Countdown existing sesuai approval.
+- `sm_jobdesc_countdown` tetap menyimpan fakta Countdown durable seperti target,
+  remaining, latest QC, dan status lifecycle; bukan workflow approval transient.
+- QC Adjustment tidak membuat Countdown baru, Job Plan baru, WO baru, Rework, atau
+  Repeat Work. Legacy core tetap memakai legacy rework path; V2-owned core memakai
+  adjustment path.
 
 ### 10.8 Monitoring
 
