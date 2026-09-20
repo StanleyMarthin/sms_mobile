@@ -617,7 +617,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> GET 8083 /sm/job-plans/dropdowns
 -> JobPlanRepositoryImpl.createCountdownPlan()
 -> RemoteJobPlanDataSource.createCountdownPlan()
--> POST 8083 /sm/job-plans/v2 { coreId, employeeId, taskDate, plannedStartMinute, plannedWorkMinutes, jobDescription, commandId, isPriority, isRework }
+-> POST 8083 /sm/job-plans/v2 { userId, coreId, employeeId, taskDate, plannedStartMinute, plannedWorkMinutes, jobDescription, commandId, isPriority, isRework }
 
 /plans?tab=approval → JobPlanApprovalPage
 -> JobPlanRepositoryImpl.mutateApproval()

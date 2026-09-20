@@ -97,6 +97,7 @@ void main() {
       expect(adapter.request!.method, 'POST');
       expect(adapter.request!.path.endsWith('/sm/job-plans/v2'), isTrue);
       expect(payload['coreId'], 'core-1');
+      expect(payload['userId'], 'KD-1');
       expect(payload['employeeId'], 'emp-1');
       expect(payload['plannedStartMinute'], 480);
       expect(payload['plannedWorkMinutes'], 240);

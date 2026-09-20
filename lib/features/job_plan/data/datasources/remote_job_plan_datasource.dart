@@ -352,6 +352,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final response = await apiClient.post(
       ApiEndpoints.jobPlansV2,
       data: {
+        'userId': sessionManager.employeeId ?? '',
         'coreId': coreId,
         'employeeId': employeeId,
         'taskDate': taskDate,
