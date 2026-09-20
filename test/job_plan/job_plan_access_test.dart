@@ -1,14 +1,14 @@
 /*
-Tujuan: Mengunci akses menu/route Job Plan V2 berbasis permission backend.
+Tujuan: Mengunci akses menu/route Job Plan berbasis permission backend.
 Caller: Flutter test runner.
-Dependensi: SessionManager dan JobPlanV2Access.
+Dependensi: SessionManager dan JobPlanAccess.
 Main Functions: main().
 Side Effects: Tidak ada.
 */
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/core/session/session_manager.dart';
-import 'package:sm_system/features/job_plan/presentation/utils/job_plan_v2_access.dart';
+import 'package:sm_system/features/job_plan/presentation/utils/job_plan_access.dart';
 
 class _MemoryStorage {
   final Map<String, String> values = {};
@@ -21,24 +21,35 @@ class _MemoryStorage {
 }
 
 void main() {
-  test('V2 routes are hidden when backend permissions are absent', () async {
-    final session = await _session(const []);
+  test(
+    'canonical routes preserve permission checks and reject unknown routes',
+    () async {
+      final session = await _session(const ['TASK_VIEW']);
+      expect(JobPlanAccess.canOpenRoute(session, '/plans'), isTrue);
+      expect(JobPlanAccess.canOpenRoute(session, '/plans/create'), isFalse);
+      expect(JobPlanAccess.canOpenRoute(session, '/plans/approval'), isFalse);
+      expect(JobPlanAccess.canOpenRoute(session, '/plans/unknown'), isFalse);
+    },
+  );
 
-    expect(JobPlanV2Access.canOpenAny(session), isFalse);
-    expect(JobPlanV2Access.canOpenRoute(session, '/job-plans/v2'), isFalse);
-  });
+  test(
+    'legacy deep-link routes are hidden when backend permissions are absent',
+    () async {
+      final session = await _session(const []);
+
+      expect(JobPlanAccess.canOpenAny(session), isFalse);
+      expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2'), isFalse);
+    },
+  );
 
   test('planning permission exposes V2 list create and calendar', () async {
     final session = await _session(const ['CREATE_TASK']);
 
-    expect(JobPlanV2Access.canCreate(session), isTrue);
-    expect(JobPlanV2Access.canOpenRoute(session, '/job-plans/v2'), isTrue);
+    expect(JobPlanAccess.canCreate(session), isTrue);
+    expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2'), isTrue);
+    expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2/create'), isTrue);
     expect(
-      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/create'),
-      isTrue,
-    );
-    expect(
-      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/calendar'),
+      JobPlanAccess.canOpenRoute(session, '/job-plans/v2/calendar'),
       isTrue,
     );
   });
@@ -46,13 +57,13 @@ void main() {
   test('review permission exposes approval and tracking', () async {
     final session = await _session(const ['REVIEW_TASK']);
 
-    expect(JobPlanV2Access.canApprove(session), isTrue);
+    expect(JobPlanAccess.canApprove(session), isTrue);
     expect(
-      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/approval'),
+      JobPlanAccess.canOpenRoute(session, '/job-plans/v2/approval'),
       isTrue,
     );
     expect(
-      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/approval-tracking'),
+      JobPlanAccess.canOpenRoute(session, '/job-plans/v2/approval-tracking'),
       isTrue,
     );
   });
@@ -63,15 +74,15 @@ void main() {
       final session = await _session(const ['LIST_CAR_PROGRESS']);
 
       expect(
-        JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/monitoring'),
+        JobPlanAccess.canOpenRoute(session, '/job-plans/v2/monitoring'),
         isTrue,
       );
       expect(
-        JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/validation'),
+        JobPlanAccess.canOpenRoute(session, '/job-plans/v2/validation'),
         isTrue,
       );
       expect(
-        JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/approval'),
+        JobPlanAccess.canOpenRoute(session, '/job-plans/v2/approval'),
         isFalse,
       );
     },
@@ -80,10 +91,10 @@ void main() {
   test('operator execution access stays on task route only', () async {
     final session = await _session(const ['TASK_EXECUTE']);
 
-    expect(JobPlanV2Access.canExecute(session), isTrue);
-    expect(JobPlanV2Access.canOpenAny(session), isFalse);
+    expect(JobPlanAccess.canExecute(session), isTrue);
+    expect(JobPlanAccess.canOpenAny(session), isFalse);
     expect(
-      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/approval'),
+      JobPlanAccess.canOpenRoute(session, '/job-plans/v2/approval'),
       isFalse,
     );
   });
@@ -91,9 +102,9 @@ void main() {
   test('calendar permission follows backend task view permission', () async {
     final session = await _session(const ['TASK_VIEW']);
 
-    expect(JobPlanV2Access.canTrack(session), isTrue);
+    expect(JobPlanAccess.canTrack(session), isTrue);
     expect(
-      JobPlanV2Access.canOpenRoute(session, '/job-plans/v2/calendar'),
+      JobPlanAccess.canOpenRoute(session, '/job-plans/v2/calendar'),
       isTrue,
     );
   });

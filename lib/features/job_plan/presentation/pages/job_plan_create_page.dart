@@ -1,9 +1,9 @@
 /*
-Tujuan: Halaman create Job Plan V2 dari Countdown.
-Caller: Router /job-plans/v2/create.
+Tujuan: Halaman create Job Plan dari Countdown.
+Caller: Router /plans/create.
 Dependensi: JobPlanRepository, CommandMetadata foundation, GoRouter.
 Main Functions: JobPlanCreatePage.
-Side Effects: HTTP POST Job Plan V2 saat submit.
+Side Effects: HTTP POST Job Plan saat submit.
 */
 library;
 
@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sm_system/core/di/injection.dart';
 
-import '../../domain/entities/job_plan_v2_options.dart';
+import '../../domain/entities/job_plan_options.dart';
 import '../../domain/repositories/job_plan_repository.dart';
-import '../utils/job_plan_v2_command_feedback.dart';
+import '../utils/job_plan_command_feedback.dart';
 
 class JobPlanCreatePage extends StatefulWidget {
   const JobPlanCreatePage({
@@ -47,7 +47,7 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
   bool _priority = false;
   bool _rework = false;
   bool _loading = false;
-  late Future<JobPlanV2Options> _optionsFuture;
+  late Future<JobPlanOptions> _optionsFuture;
   String? _unitId;
   String? _panelId;
   String? _countdownId;
@@ -57,7 +57,7 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
   void initState() {
     super.initState();
     _optionsFuture = (widget.repository ?? sl<JobPlanRepository>())
-        .getV2Options();
+        .getOptions();
     _countdownId = widget.coreId;
   }
 
@@ -85,10 +85,10 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
         if ((widget.countdownName ?? '').isNotEmpty)
           Text('Countdown: ${widget.countdownName}'),
         const SizedBox(height: 16),
-        FutureBuilder<JobPlanV2Options>(
+        FutureBuilder<JobPlanOptions>(
           future: _optionsFuture,
           builder: (context, snapshot) {
-            final options = snapshot.data ?? const JobPlanV2Options();
+            final options = snapshot.data ?? const JobPlanOptions();
             return Column(
               children: [
                 _dropdown(
@@ -167,8 +167,8 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
   Widget _dropdown({
     required String label,
     required String? value,
-    required List<JobPlanV2Option> items,
-    required ValueChanged<JobPlanV2Option?> onChanged,
+    required List<JobPlanOption> items,
+    required ValueChanged<JobPlanOption?> onChanged,
     String? fallback,
   }) {
     if (items.isEmpty) {
@@ -206,7 +206,7 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
     setState(() => _loading = true);
     try {
       final repo = widget.repository ?? sl<JobPlanRepository>();
-      final plan = await repo.createV2Plan(
+      final plan = await repo.createCountdownPlan(
         coreId: _core.text.trim(),
         employeeId: (_employeeId ?? _employee.text).trim(),
         taskDate: _date.text.trim(),
@@ -221,7 +221,7 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+          SnackBar(content: Text(JobPlanCommandFeedback.message(e))),
         );
       }
     } finally {

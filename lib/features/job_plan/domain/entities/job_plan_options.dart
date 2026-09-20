@@ -1,14 +1,14 @@
 /*
-Tujuan: Entity opsi dropdown Job Plan V2 dari kontrak dropdown existing.
-Caller: JobPlanRepository dan form Job Plan V2.
+Tujuan: Entity opsi dropdown Job Plan dari kontrak dropdown existing.
+Caller: JobPlanRepository dan form Job Plan.
 Dependensi: Tidak ada.
-Main Functions: JobPlanV2Options, JobPlanV2Option.
+Main Functions: JobPlanOptions, JobPlanOption.
 Side Effects: Tidak ada.
 */
 library;
 
-class JobPlanV2Options {
-  const JobPlanV2Options({
+class JobPlanOptions {
+  const JobPlanOptions({
     this.units = const [],
     this.panels = const [],
     this.countdowns = const [],
@@ -16,8 +16,8 @@ class JobPlanV2Options {
     this.divisions = const [],
   });
 
-  factory JobPlanV2Options.fromDropdowns(Map<String, dynamic> json) {
-    return JobPlanV2Options(
+  factory JobPlanOptions.fromDropdowns(Map<String, dynamic> json) {
+    return JobPlanOptions(
       units: _items(
         json['units'] ?? json['cars'],
         const ['id', 'unitId', 'carId'],
@@ -46,13 +46,13 @@ class JobPlanV2Options {
     );
   }
 
-  final List<JobPlanV2Option> units;
-  final List<JobPlanV2Option> panels;
-  final List<JobPlanV2Option> countdowns;
-  final List<JobPlanV2Option> employees;
-  final List<JobPlanV2Option> divisions;
+  final List<JobPlanOption> units;
+  final List<JobPlanOption> panels;
+  final List<JobPlanOption> countdowns;
+  final List<JobPlanOption> employees;
+  final List<JobPlanOption> divisions;
 
-  static List<JobPlanV2Option> _items(
+  static List<JobPlanOption> _items(
     Object? value,
     List<String> idKeys,
     List<String> labelKeys,
@@ -61,7 +61,7 @@ class JobPlanV2Options {
     return rows
         .whereType<Map<String, dynamic>>()
         .map((row) {
-          return JobPlanV2Option(
+          return JobPlanOption(
             id: _first(row, idKeys),
             label: _first(row, labelKeys),
           );
@@ -79,8 +79,8 @@ class JobPlanV2Options {
   }
 }
 
-class JobPlanV2Option {
-  const JobPlanV2Option({required this.id, required this.label});
+class JobPlanOption {
+  const JobPlanOption({required this.id, required this.label});
 
   final String id;
   final String label;

@@ -1,5 +1,5 @@
 /*
-Tujuan: Mengunci approval tracking Job Plan V2 tetap read-only.
+Tujuan: Mengunci approval tracking Job Plan tetap read-only.
 Caller: Flutter test runner.
 Dependensi: JobPlanApprovalTrackingPage dan JobPlan entity.
 Main Functions: main().

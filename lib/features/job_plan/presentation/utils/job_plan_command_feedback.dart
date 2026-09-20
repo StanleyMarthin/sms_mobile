@@ -1,8 +1,8 @@
 /*
-Tujuan: Helper pesan aman dan sinyal refresh untuk konflik command Job Plan V2.
-Caller: Page mutation Job Plan V2 dan unit test.
+Tujuan: Helper pesan aman dan sinyal refresh untuk konflik command Job Plan.
+Caller: Page mutation Job Plan dan unit test.
 Dependensi: DioException, Failure, ApiClient, friendlyMessage.
-Main Functions: JobPlanV2CommandFeedback.
+Main Functions: JobPlanCommandFeedback.
 Side Effects: Tidak ada.
 */
 library;
@@ -12,7 +12,7 @@ import 'package:sm_system/core/errors/error_message.dart';
 import 'package:sm_system/core/errors/failures.dart';
 import 'package:sm_system/core/network/api_client.dart';
 
-abstract class JobPlanV2CommandFeedback {
+abstract class JobPlanCommandFeedback {
   static bool shouldRefresh(Object error) {
     final code = _code(error);
     return {

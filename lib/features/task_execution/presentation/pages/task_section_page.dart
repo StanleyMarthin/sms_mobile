@@ -1,7 +1,7 @@
 /*
-Tujuan: Router-level section chooser untuk membuka halaman task yang sesuai berdasarkan role dan jenis section.
-Caller: app_router.dart untuk route /tasks, /overtime, dan /plans.
-Dependensi: RBAC, SessionManager, MechanicTaskPage, TaskViewPage, JobPlanPage.
+Tujuan: Router-level section chooser untuk membuka halaman task sesuai role dan jenis section.
+Caller: app_router.dart untuk route /tasks dan /overtime.
+Dependensi: RBAC, SessionManager, MechanicTaskPage, TaskViewPage.
 Main Functions: build.
 Side Effects: Menentukan navigasi tampilan task execution atau monitoring management.
 */
@@ -10,12 +10,11 @@ import 'package:flutter/material.dart';
 import '../../../../core/auth/rbac.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/session/session_manager.dart';
-import '../../../job_plan/presentation/pages/job_plan_page.dart';
 import '../../domain/entities/task_filter.dart';
 import 'mechanic_task_page.dart';
 import 'task_view_page.dart';
 
-enum TaskSectionKind { tasks, overtime, plan }
+enum TaskSectionKind { tasks, overtime }
 
 enum TaskSectionPresentation { pic, kdModes, monitoring }
 
@@ -34,17 +33,11 @@ class TaskSectionPage extends StatelessWidget {
     required this.kind,
     this.focusTaskId,
     this.initialDate,
-    this.planSourceType,
-    this.planSourceRefId,
-    this.planAutoOpenCreate = false,
   });
 
   final TaskSectionKind kind;
   final String? focusTaskId;
   final DateTime? initialDate;
-  final String? planSourceType;
-  final String? planSourceRefId;
-  final bool planAutoOpenCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -100,13 +93,6 @@ class TaskSectionPage extends StatelessWidget {
           taskType: TaskType.overtime,
           focusTaskId: focusTaskId,
           initialDate: initialDate,
-        );
-      case TaskSectionKind.plan:
-        return JobPlanPage(
-          initialDate: initialDate,
-          initialSourceType: planSourceType,
-          initialSourceRefId: planSourceRefId,
-          autoOpenCreate: planAutoOpenCreate,
         );
     }
   }

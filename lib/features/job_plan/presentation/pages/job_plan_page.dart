@@ -7,6 +7,10 @@ Side Effects: HTTP GET/POST/PUT job plan, navigasi ke source route, refresh appr
 */
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
+import 'job_plan_approval_page.dart';
+import '../widgets/job_plan_list.dart';
+import '../utils/job_plan_access.dart';
 
 import 'package:sm_system/core/constants/app_colors.dart';
 import 'package:sm_system/core/di/injection.dart';
@@ -662,6 +666,11 @@ class JobPlanPage extends StatefulWidget {
   final String? initialSourceType;
   final String? initialSourceRefId;
   final bool autoOpenCreate;
+  final String? initialTab;
+  final String? unitId;
+  final String? employeeId;
+  final String? approvalState;
+  final String? executionState;
 
   const JobPlanPage({
     super.key,
@@ -670,6 +679,11 @@ class JobPlanPage extends StatefulWidget {
     this.initialSourceType,
     this.initialSourceRefId,
     this.autoOpenCreate = false,
+    this.initialTab,
+    this.unitId,
+    this.employeeId,
+    this.approvalState,
+    this.executionState,
   });
 
   @override
@@ -697,9 +711,15 @@ class _JobPlanPageState extends State<JobPlanPage>
     super.initState();
     _repository = sl<JobPlanRepository>();
     _session = sl<SessionManager>();
-    // Rencana tab hanya untuk KD; ADV/KP/MP hanya Approval
     final isKd = _session.isKdAccess;
-    _tabController = TabController(length: isKd ? 2 : 1, vsync: this);
+    _tabController = TabController(
+      length: 1 + (JobPlanAccess.canApprove(_session) ? 1 : 0) + (isKd ? 1 : 0),
+      initialIndex:
+          widget.initialTab == 'approval' && JobPlanAccess.canApprove(_session)
+          ? 1
+          : 0,
+      vsync: this,
+    );
     if (widget.initialDate != null) {
       _browseDate = widget.initialDate!;
     }
@@ -1216,26 +1236,63 @@ class _JobPlanPageState extends State<JobPlanPage>
         backgroundColor: AppColors.surfaceCard,
         foregroundColor: AppColors.textPrimary,
         bottom: TabBar(
+          isScrollable: true,
           controller: _tabController,
           labelColor: AppColors.gold,
           unselectedLabelColor: AppColors.textMuted,
           indicatorColor: AppColors.gold,
           tabs: [
-            Tab(text: 'Approval Plan'),
+            Tab(text: 'Pekerjaan'),
+            if (JobPlanAccess.canApprove(_session)) Tab(text: 'Approval'),
             if (isKd) Tab(text: 'Rencana'),
           ],
         ),
-        actions: [],
+        actions: [
+          PopupMenuButton<String>(
+            tooltip: 'Menu Job Plan',
+            onSelected: (route) => context.push(route),
+            itemBuilder: (_) => [
+              if (JobPlanAccess.canCreate(_session))
+                const PopupMenuItem(
+                  value: '/plans/create',
+                  child: Text('Buat dari Countdown'),
+                ),
+              if (JobPlanAccess.canTrack(_session)) ...[
+                const PopupMenuItem(
+                  value: '/plans/calendar',
+                  child: Text('Kalender'),
+                ),
+                const PopupMenuItem(
+                  value: '/plans/approval-tracking',
+                  child: Text('Tracking Approval'),
+                ),
+              ],
+              if (JobPlanAccess.canMonitor(_session)) ...[
+                const PopupMenuItem(
+                  value: '/plans/monitoring',
+                  child: Text('Monitoring'),
+                ),
+                const PopupMenuItem(
+                  value: '/plans/validation',
+                  child: Text('Validasi Labor'),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _ApprovalTab(
-            onPlanTap: _showApprovalPlanDetail,
-            refreshNotifier: _refreshNotifier,
-            initialDate: _browseDate,
-            onRefresh: _triggerRefresh,
+          JobPlanList(
+            date: widget.initialDate?.toIso8601String().substring(0, 10),
+            unitId: widget.unitId,
+            employeeId: widget.employeeId,
+            approvalState: widget.approvalState,
+            executionState: widget.executionState,
           ),
+          if (JobPlanAccess.canApprove(_session))
+            JobPlanApprovalPage(onLegacyPlanTap: _showApprovalPlanDetail),
           if (isKd)
             _BrowseTab(
               initialDate: _browseDate,
@@ -4413,670 +4470,6 @@ class _SearchFieldTile extends StatelessWidget {
             ),
             Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.gold),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Tab Approval: Date → Divisi → Unit → Plans (dengan bulk approve)
-class _ApprovalTab extends StatefulWidget {
-  const _ApprovalTab({
-    required this.onPlanTap,
-    required this.refreshNotifier,
-    required this.onRefresh,
-    this.initialDate,
-  });
-  final Future<void> Function(JobPlan) onPlanTap;
-  final ValueNotifier<int> refreshNotifier;
-  final VoidCallback onRefresh;
-  final DateTime? initialDate;
-
-  @override
-  State<_ApprovalTab> createState() => _ApprovalTabState();
-}
-
-class _ApprovalTabState extends State<_ApprovalTab> {
-  late final JobPlanRepository _repo;
-  late final SessionManager _session;
-
-  bool _isLoading = false;
-  late DateTime _date;
-
-  // Navigasi drill-down
-  Map<String, dynamic>? _selDivision;
-  Map<String, dynamic>? _selUnit;
-
-  // Data per level
-  List<Map<String, dynamic>> _divisionItems = [];
-  List<Map<String, dynamic>> _unitItems = [];
-  List<JobPlan> _planItems = [];
-
-  // Bulk select
-  final Set<String> _selectedIds = {};
-  bool _isBulkApproving = false;
-
-  int get _level {
-    if (_selUnit == null) return 0; // no unit selected → show units
-    if (_selDivision == null) {
-      return 1; // unit selected, no division → show divisions
-    }
-    return 2; // both selected → show plans
-  }
-
-  String get _dateStr {
-    final d = _date;
-    return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _repo = sl<JobPlanRepository>();
-    _session = sl<SessionManager>();
-    _date = widget.initialDate ?? DateTime.now();
-    widget.refreshNotifier.addListener(_fetchCurrentLevel);
-    _fetchCurrentLevel();
-  }
-
-  @override
-  void dispose() {
-    widget.refreshNotifier.removeListener(_fetchCurrentLevel);
-    super.dispose();
-  }
-
-  Future<void> _fetchCurrentLevel() async {
-    setState(() => _isLoading = true);
-    if (_level < 2) {
-      // Level 0: no unitId → units; Level 1: unitId set, no divisionId → divisions
-      final res = await _repo.getApprovalRaw(
-        unitId: _selUnit?['id']?.toString() ?? _selUnit?['unitId']?.toString(),
-        taskDate: _dateStr,
-      );
-      res.fold(
-        (failure) {
-          if (!mounted) return;
-          setState(() => _isLoading = false);
-          AppNotification.showError(
-            context,
-            friendlyMessage(failure, fallback: 'Gagal memuat data'),
-          );
-        },
-        (raw) {
-          final items = (raw['items'] as List<dynamic>? ?? [])
-              .whereType<Map<String, dynamic>>()
-              .toList();
-          if (mounted) {
-            setState(() {
-              _isLoading = false;
-              if (_level == 0) _unitItems = items;
-              if (_level == 1) _divisionItems = items;
-            });
-          }
-        },
-      );
-    } else {
-      // Level 2: both unitId + divisionId → plans
-      _repo
-          .getApprovalQueue(
-            unitId:
-                _selUnit?['id']?.toString() ?? _selUnit?['unitId']?.toString(),
-            divisionId:
-                _selDivision?['id']?.toString() ??
-                _selDivision?['divisionId']?.toString(),
-            taskDate: _dateStr,
-          )
-          .then((result) {
-            result.fold(
-              (failure) {
-                if (!mounted) return;
-                setState(() => _isLoading = false);
-                AppNotification.showError(
-                  context,
-                  friendlyMessage(failure, fallback: 'Gagal memuat data'),
-                );
-              },
-              (plans) {
-                if (mounted) {
-                  setState(() {
-                    _planItems = plans;
-                    _isLoading = false;
-                  });
-                }
-              },
-            );
-          });
-    }
-  }
-
-  void _goBack() {
-    setState(() {
-      _selectedIds.clear();
-      if (_level == 2) {
-        _selDivision = null;
-        _divisionItems = [];
-        _planItems = [];
-      } else if (_level == 1) {
-        _selUnit = null;
-        _unitItems = [];
-      }
-    });
-    _fetchCurrentLevel();
-  }
-
-  void _selectUnit(Map<String, dynamic> unit) {
-    setState(() {
-      _selUnit = unit;
-      _unitItems = [];
-      _selectedIds.clear();
-    });
-    _fetchCurrentLevel();
-  }
-
-  void _selectDivision(Map<String, dynamic> div) {
-    setState(() {
-      _selDivision = div;
-      _divisionItems = [];
-      _selectedIds.clear();
-    });
-    _fetchCurrentLevel();
-  }
-
-  bool _canReview(String status) => _canReviewApprovalStatus(_session, status);
-
-  Future<void> _processBulkApproval() async {
-    if (_selectedIds.isEmpty) return;
-    setState(() => _isBulkApproving = true);
-    int ok = 0;
-    final failed = <String>[];
-    for (final id in _selectedIds) {
-      final res = await _repo.approvePlan(
-        planId: id,
-        userId: _session.employeeId ?? '',
-      );
-      res.isRight() ? ok++ : failed.add(id);
-    }
-    if (!mounted) return;
-    final msg = failed.isEmpty
-        ? '$ok plan berhasil disetujui.'
-        : '$ok plan disetujui, ${failed.length} gagal.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg),
-        backgroundColor: failed.isEmpty ? Color(0xFF2E7D32) : Color(0xFFFFA000),
-      ),
-    );
-    if (mounted) {
-      setState(() {
-        _isBulkApproving = false;
-        _selectedIds.clear();
-      });
-    }
-    widget.onRefresh();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Header: Date + Breadcrumb
-        Container(
-          color: AppColors.surfaceCard,
-          child: Column(
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: DateFilterBar(
-                  selectedDate: _date,
-                  onDateChanged: (d) {
-                    setState(() {
-                      _date = d;
-                      _selUnit = null;
-                      _selDivision = null;
-                      _unitItems = [];
-                      _divisionItems = [];
-                      _planItems = [];
-                      _selectedIds.clear();
-                    });
-                    _fetchCurrentLevel();
-                  },
-                ),
-              ),
-              if (_level > 0)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(8, 0, 16, 8),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.arrow_back_ios_rounded,
-                          size: 16,
-                          color: AppColors.gold,
-                        ),
-                        onPressed: _goBack,
-                      ),
-                      Expanded(
-                        child: Text(
-                          _level == 1
-                              ? (_selUnit?['name'] ??
-                                    _selUnit?['unitName'] ??
-                                    '')
-                              : '${_selUnit?['name'] ?? _selUnit?['unitName'] ?? ''} › ${_selDivision?['name'] ?? _selDivision?['divisionName'] ?? ''}',
-                          style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              Divider(height: 1, color: AppColors.border),
-            ],
-          ),
-        ),
-        // Content
-        Expanded(
-          child: _isLoading
-              ? Center(child: CircularProgressIndicator(color: AppColors.gold))
-              : _level == 0
-              ? _buildUnitList()
-              : _level == 1
-              ? _buildDivisionList()
-              : _buildPlanList(),
-        ),
-        // Bulk action bar
-        if (_level == 2 && _selectedIds.isNotEmpty)
-          _BulkApproveBar(
-            selectedCount: _selectedIds.length,
-            isLoading: _isBulkApproving,
-            onApprove: _processBulkApproval,
-          ),
-      ],
-    );
-  }
-
-  Widget _buildDivisionList() {
-    if (_divisionItems.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _fetchCurrentLevel,
-        child: ListView(
-          children: [
-            SizedBox(height: 100),
-            Center(child: Text('Tidak ada antrian approval.')),
-          ],
-        ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _fetchCurrentLevel,
-      child: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: _divisionItems.length,
-        itemBuilder: (ctx, i) {
-          final div = _divisionItems[i];
-          final name = (div['name'] ?? div['divisionName'] ?? '-').toString();
-          return _NavDrillCard(
-            title: name,
-            subtitle: 'Ketuk untuk lihat unit',
-            icon: Icons.business_rounded,
-            onTap: () => _selectDivision(div),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildUnitList() {
-    if (_unitItems.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _fetchCurrentLevel,
-        child: ListView(
-          children: [
-            SizedBox(height: 100),
-            Center(child: Text('Tidak ada unit dengan antrian.')),
-          ],
-        ),
-      );
-    }
-    return RefreshIndicator(
-      onRefresh: _fetchCurrentLevel,
-      child: ListView.builder(
-        padding: EdgeInsets.all(16),
-        itemCount: _unitItems.length,
-        itemBuilder: (ctx, i) {
-          final unit = _unitItems[i];
-          final name =
-              (unit['name'] ?? unit['unitName'] ?? unit['unit_name'] ?? '-')
-                  .toString();
-          return _NavDrillCard(
-            title: name,
-            subtitle: 'Ketuk untuk lihat rencana',
-            icon: Icons.directions_car_rounded,
-            onTap: () => _selectUnit(unit),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildPlanList() {
-    if (_planItems.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _fetchCurrentLevel,
-        child: ListView(
-          children: [
-            SizedBox(height: 100),
-            Center(child: Text('Tidak ada rencana.')),
-          ],
-        ),
-      );
-    }
-    final reviewablePlans = _planItems
-        .where((p) => _canReview(p.status))
-        .toList();
-    final allSelected =
-        reviewablePlans.isNotEmpty &&
-        reviewablePlans.every((p) => _selectedIds.contains(p.planId));
-    return Column(
-      children: [
-        if (reviewablePlans.isNotEmpty)
-          Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${_planItems.length} rencana',
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-                ),
-                TextButton(
-                  onPressed: () => setState(() {
-                    if (allSelected) {
-                      _selectedIds.clear();
-                    } else {
-                      _selectedIds.addAll(reviewablePlans.map((p) => p.planId));
-                    }
-                  }),
-                  child: Text(
-                    allSelected ? 'Batal Semua' : 'Pilih Semua',
-                    style: TextStyle(color: AppColors.gold, fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _fetchCurrentLevel,
-            child: ListView.builder(
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 80),
-              itemCount: _planItems.length,
-              itemBuilder: (ctx, i) {
-                final plan = _planItems[i];
-                final isSelected = _selectedIds.contains(plan.planId);
-                return _ApprovalPlanCard(
-                  key: ValueKey('appr_${plan.planId}'),
-                  plan: plan,
-                  onTap: () async {
-                    await widget.onPlanTap(plan);
-                    _fetchCurrentLevel();
-                  },
-                  isSelected: isSelected,
-                  onSelectionChanged: _canReview(plan.status)
-                      ? (val) => setState(
-                          () => val == true
-                              ? _selectedIds.add(plan.planId)
-                              : _selectedIds.remove(plan.planId),
-                        )
-                      : null,
-                );
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Card navigasi untuk drill-down Divisi/Unit
-class _NavDrillCard extends StatelessWidget {
-  const _NavDrillCard({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.onTap,
-  });
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        margin: EdgeInsets.only(bottom: 10),
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceCard,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: AppColors.gold, size: 20),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: TextStyle(fontSize: 11, color: AppColors.textMuted),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Bottom bar untuk bulk approve
-class _BulkApproveBar extends StatelessWidget {
-  const _BulkApproveBar({
-    required this.selectedCount,
-    required this.isLoading,
-    required this.onApprove,
-  });
-  final int selectedCount;
-  final bool isLoading;
-  final VoidCallback onApprove;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        border: Border(top: BorderSide(color: AppColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: FilledButton.icon(
-            onPressed: isLoading ? null : onApprove,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: AppColors.background,
-            ),
-            icon: isLoading
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      color: AppColors.background,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : Icon(Icons.check_circle_rounded),
-            label: Text(
-              isLoading ? 'Menyetujui...' : 'Setujui $selectedCount Rencana',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ApprovalPlanCard extends StatelessWidget {
-  const _ApprovalPlanCard({
-    super.key,
-    required this.plan,
-    required this.onTap,
-    required this.isSelected,
-    required this.onSelectionChanged,
-  });
-
-  final JobPlan plan;
-  final VoidCallback onTap;
-  final bool isSelected;
-  final ValueChanged<bool?>? onSelectionChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final canSelect = onSelectionChanged != null;
-
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? AppColors.gold : AppColors.borderSubtle,
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Row(
-            children: [
-              if (canSelect)
-                Checkbox(
-                  value: isSelected,
-                  activeColor: AppColors.gold,
-                  onChanged: onSelectionChanged,
-                ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      plan.unitName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      plan.description,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 12,
-                          color: AppColors.textMuted,
-                        ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            plan.assignedTo,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textMuted,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    plan.targetHoursAlias ?? _formatHours(plan.targetHours),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (plan.remainingHoursAlias != null &&
-                      plan.remainingHoursAlias!.isNotEmpty) ...[
-                    SizedBox(height: 2),
-                    Text(
-                      'Sisa: ${plan.remainingHoursAlias}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                  if (plan.status != 'DRAFT' &&
-                      (plan.totalActualHours > 0 || plan.progress > 0)) ...[
-                    SizedBox(height: 2),
-                    Text(
-                      'Riwayat: ${_formatHoursClock(plan.totalActualHours, zeroAsClock: true)} (${plan.progress}%)',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                  SizedBox(height: 4),
-                  _StatusChip(status: plan.status),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );

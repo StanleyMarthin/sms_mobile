@@ -1,18 +1,18 @@
 /*
-Tujuan: Mengunci kontrak parsing read model Job Plan V2 dari backend.
+Tujuan: Mengunci kontrak parsing read model Job Plan dari backend.
 Caller: Flutter test runner.
-Dependensi: JobPlanV2Model dan CommandMetadata.
+Dependensi: JobPlanApiModel dan CommandMetadata.
 Main Functions: main().
 Side Effects: Tidak ada.
 */
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sm_system/features/job_plan/data/models/job_plan_v2_model.dart';
+import 'package:sm_system/features/job_plan/data/models/job_plan_api_model.dart';
 import 'package:sm_system/features/job_plan/domain/entities/job_plan.dart';
 
 void main() {
-  test('JobPlanV2Model maps Countdown-owned V2 read contract', () {
-    final plan = JobPlanV2Model.fromJson({
+  test('JobPlanApiModel maps Countdown-owned V2 read contract', () {
+    final plan = JobPlanApiModel.fromJson({
       'planId': 'plan-1',
       'coreId': 'core-1',
       'panelId': 'panel-1',

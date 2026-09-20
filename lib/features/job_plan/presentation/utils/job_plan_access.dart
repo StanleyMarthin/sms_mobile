@@ -1,15 +1,16 @@
 /*
-Tujuan: Helper akses menu dan route Job Plan V2 berbasis permission backend.
+Tujuan: Helper akses menu dan route Job Plan berbasis permission backend.
 Caller: HomePage, app_router, dan unit test.
 Dependensi: SessionManager dan Perms.
-Main Functions: JobPlanV2Access.
+Main Functions: JobPlanAccess.
 Side Effects: Tidak ada.
 */
 library;
 
 import 'package:sm_system/core/session/session_manager.dart';
+import 'job_plan_navigation.dart';
 
-abstract class JobPlanV2Access {
+abstract class JobPlanAccess {
   static bool canCreate(SessionManager session) =>
       _enabled(session) && session.hasPerm(Perms.jobPlanCreate);
 
@@ -45,15 +46,16 @@ abstract class JobPlanV2Access {
 
   static bool canOpenRoute(SessionManager session, String route) {
     if (!_enabled(session)) return false;
-    return switch (route) {
-      '/job-plans/v2/create' => canCreate(session),
-      '/job-plans/v2/approval' => canApprove(session),
-      '/job-plans/v2/monitoring' ||
-      '/job-plans/v2/validation' => canMonitor(session),
-      '/job-plans/v2' ||
-      '/job-plans/v2/calendar' ||
-      '/job-plans/v2/approval-tracking' => canOpenAny(session),
-      _ => true,
+    final uri = Uri.parse(route);
+    final canonical = Uri.parse(JobPlanNavigation.redirect(uri) ?? route).path;
+    return switch (canonical) {
+      '/plans/create' => canCreate(session),
+      '/plans/approval' => canApprove(session),
+      '/plans/monitoring' || '/plans/validation' => canMonitor(session),
+      '/plans' ||
+      '/plans/calendar' ||
+      '/plans/approval-tracking' => canOpenAny(session),
+      _ => false,
     };
   }
 

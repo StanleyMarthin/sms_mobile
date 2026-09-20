@@ -21,14 +21,14 @@ import '../../features/qc/presentation/pages/qc_page.dart';
 import '../../features/qc/presentation/pages/qc_v2_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_detail_page.dart';
-import '../../features/job_plan/presentation/pages/job_plan_list_page.dart';
-import '../../features/job_plan/presentation/pages/job_plan_approval_page.dart';
+import '../../features/job_plan/presentation/pages/job_plan_page.dart';
+import '../../features/job_plan/presentation/utils/job_plan_navigation.dart';
 import '../../features/job_plan/presentation/pages/job_plan_approval_tracking_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_calendar_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_create_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_monitoring_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_validation_page.dart';
-import '../../features/job_plan/presentation/utils/job_plan_v2_access.dart';
+import '../../features/job_plan/presentation/utils/job_plan_access.dart';
 import '../../features/notifications/presentation/pages/notifications_page.dart';
 import '../../features/pr/presentation/pages/pr_page.dart';
 import '../../features/wov/presentation/pages/wov_page.dart';
@@ -64,6 +64,8 @@ GoRouter createRouter() {
         if (loc == '/login' || loc == '/splash') return '/home';
       }
 
+      final jobPlanRedirect = JobPlanNavigation.redirect(state.uri);
+      if (jobPlanRedirect != null) return jobPlanRedirect;
       return null;
     },
     routes: [
@@ -71,6 +73,14 @@ GoRouter createRouter() {
       GoRoute(path: '/login', builder: (context, state) => LoginPage()),
       GoRoute(path: '/home', builder: (context, state) => HomePage()),
       GoRoute(path: '/dashboard', redirect: (context, state) => '/home'),
+      GoRoute(
+        path: '/job-plans/v2',
+        redirect: (_, state) => JobPlanNavigation.redirect(state.uri),
+      ),
+      GoRoute(
+        path: '/job-plans/v2/:section',
+        redirect: (_, state) => JobPlanNavigation.redirect(state.uri),
+      ),
       GoRoute(
         path: '/tasks',
         builder: (context, state) => FeatureShellPage(
@@ -95,36 +105,26 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/plans',
-        builder: (context, state) => FeatureShellPage(
-          title: 'Plan',
-          child: TaskSectionPage(
-            kind: TaskSectionKind.plan,
+        builder: (context, state) => _jobPlanShell(
+          route: '/plans',
+          title: 'Job Plan',
+          child: JobPlanPage(
+            initialTab: state.uri.queryParameters['tab'],
             initialDate: _parseDate(state.uri.queryParameters['date']),
-            planSourceType: state.uri.queryParameters['source'],
-            planSourceRefId: state.uri.queryParameters['sourceRefId'],
-            planAutoOpenCreate:
-                state.uri.queryParameters['autoOpenCreate'] == '1',
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/job-plans/v2',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2',
-          title: 'Job Plan V2',
-          child: JobPlanListPage(
-            date: state.uri.queryParameters['date'],
+            initialSourceType: state.uri.queryParameters['source'],
+            initialSourceRefId: state.uri.queryParameters['sourceRefId'],
             unitId: state.uri.queryParameters['unitId'],
             employeeId: state.uri.queryParameters['employeeId'],
             approvalState: state.uri.queryParameters['approvalState'],
             executionState: state.uri.queryParameters['executionState'],
+            autoOpenCreate: state.uri.queryParameters['autoOpenCreate'] == '1',
           ),
         ),
       ),
       GoRoute(
-        path: '/job-plans/v2/create',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2/create',
+        path: '/plans/create',
+        builder: (context, state) => _jobPlanShell(
+          route: '/plans/create',
           title: 'Create Job Plan',
           child: JobPlanCreatePage(
             coreId: state.uri.queryParameters['coreId'],
@@ -134,25 +134,21 @@ GoRouter createRouter() {
         ),
       ),
       GoRoute(
-        path: '/job-plans/v2/approval',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2/approval',
-          title: 'Job Approval',
-          child: const JobPlanApprovalPage(),
-        ),
+        path: '/plans/approval',
+        redirect: (context, state) => '/plans?tab=approval',
       ),
       GoRoute(
-        path: '/job-plans/v2/approval-tracking',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2/approval-tracking',
+        path: '/plans/approval-tracking',
+        builder: (context, state) => _jobPlanShell(
+          route: '/plans/approval-tracking',
           title: 'Approval Tracking',
           child: const JobPlanApprovalTrackingPage(),
         ),
       ),
       GoRoute(
-        path: '/job-plans/v2/calendar',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2/calendar',
+        path: '/plans/calendar',
+        builder: (context, state) => _jobPlanShell(
+          route: '/plans/calendar',
           title: 'Planner Calendar',
           child: JobPlanCalendarPage(
             date: state.uri.queryParameters['date'],
@@ -163,17 +159,17 @@ GoRouter createRouter() {
         ),
       ),
       GoRoute(
-        path: '/job-plans/v2/monitoring',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2/monitoring',
+        path: '/plans/monitoring',
+        builder: (context, state) => _jobPlanShell(
+          route: '/plans/monitoring',
           title: 'Job Monitoring',
           child: const JobPlanMonitoringPage(),
         ),
       ),
       GoRoute(
-        path: '/job-plans/v2/validation',
-        builder: (context, state) => _v2Shell(
-          route: '/job-plans/v2/validation',
+        path: '/plans/validation',
+        builder: (context, state) => _jobPlanShell(
+          route: '/plans/validation',
           title: 'Final Validation',
           child: const JobPlanValidationPage(),
         ),
@@ -279,7 +275,7 @@ DateTime? _parseDate(String? value) {
   return DateTime.tryParse(value);
 }
 
-FeatureShellPage _v2Shell({
+FeatureShellPage _jobPlanShell({
   required String route,
   required String title,
   required Widget child,
@@ -287,8 +283,8 @@ FeatureShellPage _v2Shell({
   final session = sl<SessionManager>();
   return FeatureShellPage(
     title: title,
-    child: JobPlanV2Access.canOpenRoute(session, route)
+    child: JobPlanAccess.canOpenRoute(session, route)
         ? child
-        : const Center(child: Text('Akses Job Plan V2 tidak tersedia')),
+        : const Center(child: Text('Akses Job Plan tidak tersedia')),
   );
 }

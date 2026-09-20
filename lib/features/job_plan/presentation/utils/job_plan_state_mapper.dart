@@ -1,5 +1,5 @@
 /*
-Tujuan: Mapper label display untuk state Job Plan V2.
+Tujuan: Mapper label display untuk state Job Plan.
 Caller: JobPlan detail/list page dan unit test.
 Dependensi: Tidak ada.
 Main Functions: approvalLabel, executionLabel, ledgerLabel.
@@ -7,8 +7,8 @@ Side Effects: Tidak ada.
 */
 library;
 
-class JobPlanV2StateMapper {
-  JobPlanV2StateMapper._();
+class JobPlanStateMapper {
+  JobPlanStateMapper._();
 
   static String approvalLabel(String? value) {
     return switch (_key(value)) {

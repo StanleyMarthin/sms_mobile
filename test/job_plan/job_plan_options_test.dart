@@ -1,19 +1,19 @@
 /*
-Tujuan: Mengunci normalisasi dropdown/options Job Plan V2 dari kontrak dropdown existing.
+Tujuan: Mengunci normalisasi dropdown/options Job Plan dari kontrak dropdown existing.
 Caller: Flutter test runner.
-Dependensi: JobPlanV2Options.
+Dependensi: JobPlanOptions.
 Main Functions: main().
 Side Effects: Tidak ada.
 */
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sm_system/features/job_plan/domain/entities/job_plan_v2_options.dart';
+import 'package:sm_system/features/job_plan/domain/entities/job_plan_options.dart';
 
 void main() {
   test(
     'options normalize units employees and divisions from backend aliases',
     () {
-      final options = JobPlanV2Options.fromDropdowns({
+      final options = JobPlanOptions.fromDropdowns({
         'cars': [
           {'id': 'UNIT-1', 'unit_name': 'MB220S'},
         ],

@@ -1,5 +1,5 @@
 /*
-Tujuan: Mengunci payload dan tampilan monitoring KD Job Plan V2.
+Tujuan: Mengunci payload dan tampilan monitoring KD Job Plan.
 Caller: Flutter test runner.
 Dependensi: RemoteJobPlanDataSource, JobPlanMonitoringPage, fake Dio adapter.
 Main Functions: main().
@@ -56,7 +56,7 @@ class _CaptureAdapter implements HttpClientAdapter {
 
 void main() {
   test(
-    'monitorV2Plan posts verified total without changing execution state locally',
+    'monitorPlan posts verified total without changing execution state locally',
     () async {
       final adapter = _CaptureAdapter();
       final session = SessionManager(storage: _MemoryStorage());
@@ -80,7 +80,7 @@ void main() {
         sessionManager: session,
       );
 
-      await dataSource.monitorV2Plan(
+      await dataSource.monitorPlan(
         planId: 'plan-1',
         metadata: const CommandMetadata(
           commandId: 'cmd-monitor-1',

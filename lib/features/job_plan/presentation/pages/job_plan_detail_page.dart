@@ -1,7 +1,7 @@
 /*
-Tujuan: Halaman detail read-only Job Plan V2.
+Tujuan: Halaman detail read-only Job Plan.
 Caller: Router /job-plan/:id dan widget test.
-Dependensi: JobPlanRepository, JobPlan entity, JobPlanV2StateMapper.
+Dependensi: JobPlanRepository, JobPlan entity, JobPlanStateMapper.
 Main Functions: JobPlanDetailPage.
 Side Effects: HTTP GET V2 detail saat initialPlan tidak diberikan.
 */
@@ -12,7 +12,7 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
-import '../utils/job_plan_v2_state_mapper.dart';
+import '../utils/job_plan_state_mapper.dart';
 
 class JobPlanDetailPage extends StatefulWidget {
   const JobPlanDetailPage({
@@ -33,7 +33,9 @@ class JobPlanDetailPage extends StatefulWidget {
 class _JobPlanDetailPageState extends State<JobPlanDetailPage> {
   late final Future<JobPlan> _future = widget.initialPlan != null
       ? Future.value(widget.initialPlan)
-      : (widget.repository ?? sl<JobPlanRepository>()).getV2Plan(widget.planId);
+      : (widget.repository ?? sl<JobPlanRepository>()).getOperationalPlan(
+          widget.planId,
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +90,7 @@ class _JobPlanDetailView extends StatelessWidget {
         const _SectionTitle('Execution'),
         _InfoRow(
           label: 'Current',
-          value: JobPlanV2StateMapper.executionLabel(plan.executionState),
+          value: JobPlanStateMapper.executionLabel(plan.executionState),
         ),
         const Divider(height: 28),
         const _SectionTitle('Monitoring'),
@@ -109,15 +111,15 @@ class _JobPlanDetailView extends StatelessWidget {
         const _SectionTitle('Ledger'),
         _InfoRow(
           label: 'Approval',
-          value: JobPlanV2StateMapper.approvalLabel(plan.approvalState),
+          value: JobPlanStateMapper.approvalLabel(plan.approvalState),
         ),
         _InfoRow(
           label: 'Execution',
-          value: JobPlanV2StateMapper.executionLabel(plan.executionState),
+          value: JobPlanStateMapper.executionLabel(plan.executionState),
         ),
         _InfoRow(
           label: 'Ledger',
-          value: JobPlanV2StateMapper.ledgerLabel(plan.ledgerState),
+          value: JobPlanStateMapper.ledgerLabel(plan.ledgerState),
         ),
         _InfoRow(label: 'Version', value: '${plan.version}'),
       ],

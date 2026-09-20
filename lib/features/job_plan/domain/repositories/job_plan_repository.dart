@@ -1,8 +1,8 @@
 /*
-Tujuan: Kontrak repository Job Plan untuk legacy flow dan read-only Job Plan V2.
+Tujuan: Kontrak repository Job Plan untuk legacy flow dan read-only Job Plan.
 Caller: UI job_plan, countdown integration, dan datasource adapter.
 Dependensi: Failure, Either, JobPlan entity.
-Main Functions: getPlans, browsePlans, getV2Plan, listV2Plans.
+Main Functions: getPlans, browsePlans, getOperationalPlan, listOperationalPlans.
 Side Effects: Delegasi data access via implementasi repository.
 */
 library;
@@ -10,7 +10,7 @@ library;
 import 'package:fpdart/fpdart.dart' as fp;
 import 'package:sm_system/core/errors/failures.dart';
 import '../entities/job_plan.dart';
-import '../entities/job_plan_v2_options.dart';
+import '../entities/job_plan_options.dart';
 
 abstract class JobPlanRepository {
   Future<List<JobPlan>> getPlans();
@@ -42,9 +42,10 @@ abstract class JobPlanRepository {
     int offset = 0,
   });
 
-  Future<JobPlan> getV2Plan(String planId);
+  Future<JobPlan> getOperationalPlan(String planId);
 
-  Future<List<JobPlan>> listV2Plans({
+  Future<List<JobPlan>> listOperationalPlans({
+    String view = "browse",
     int page = 1,
     int limit = 20,
     String? unitId,
@@ -56,7 +57,7 @@ abstract class JobPlanRepository {
     String? executionState,
   });
 
-  Future<JobPlan> createV2Plan({
+  Future<JobPlan> createCountdownPlan({
     required String coreId,
     required String employeeId,
     required String taskDate,
@@ -68,7 +69,7 @@ abstract class JobPlanRepository {
     bool isRework = false,
   });
 
-  Future<JobPlan> mutateV2Approval({
+  Future<JobPlan> mutateApproval({
     required String planId,
     required String action,
     required CommandMetadata metadata,
@@ -80,7 +81,7 @@ abstract class JobPlanRepository {
     String? rejectReason,
   });
 
-  Future<JobPlan> monitorV2Plan({
+  Future<JobPlan> monitorPlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,
@@ -88,7 +89,7 @@ abstract class JobPlanRepository {
     String? note,
   });
 
-  Future<JobPlan> validateV2Plan({
+  Future<JobPlan> validatePlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,
@@ -96,7 +97,7 @@ abstract class JobPlanRepository {
     String? note,
   });
 
-  Future<JobPlanV2Options> getV2Options({String? divisionId, String? unitId});
+  Future<JobPlanOptions> getOptions({String? divisionId, String? unitId});
 
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
 

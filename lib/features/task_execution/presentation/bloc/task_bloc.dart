@@ -13,7 +13,7 @@ import '../../../../core/errors/error_message.dart';
 import '../../../../core/services/alarm_timer_service.dart';
 import '../../../../core/services/fcm_service.dart';
 import '../../../../core/services/upload_service.dart';
-import '../../../job_plan/presentation/utils/job_plan_v2_command_feedback.dart';
+import '../../../job_plan/presentation/utils/job_plan_command_feedback.dart';
 import '../../data/datasources/task_draft_storage.dart';
 import '../../domain/entities/task_draft.dart';
 import '../../domain/repositories/task_repository.dart';
@@ -765,7 +765,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     required Map<String, TaskDraft> drafts,
     required String fallback,
   }) async {
-    if (!JobPlanV2CommandFeedback.shouldRefresh(failure)) {
+    if (!JobPlanCommandFeedback.shouldRefresh(failure)) {
       final message = failure is Failure
           ? failure.message ?? fallback
           : friendlyMessage(failure, fallback: fallback);
@@ -773,7 +773,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       return;
     }
 
-    final message = JobPlanV2CommandFeedback.message(failure);
+    final message = JobPlanCommandFeedback.message(failure);
     final refreshResult = await taskRepository.getTodaysTasks(
       date: _selectedDate,
       isOvertime: _isOvertime,

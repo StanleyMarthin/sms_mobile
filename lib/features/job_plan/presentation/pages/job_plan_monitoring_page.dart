@@ -1,6 +1,6 @@
 /*
-Tujuan: Halaman monitoring KD/QA Job Plan V2.
-Caller: Router /job-plans/v2/monitoring dan widget test.
+Tujuan: Halaman monitoring KD/QA Job Plan.
+Caller: Router /plans/monitoring dan widget test.
 Dependensi: JobPlanRepository, CommandMetadata, JobPlan entity.
 Main Functions: JobPlanMonitoringPage.
 Side Effects: HTTP POST monitor saat VERIFY dikirim.
@@ -12,7 +12,7 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
-import '../utils/job_plan_v2_command_feedback.dart';
+import '../utils/job_plan_command_feedback.dart';
 
 class JobPlanMonitoringPage extends StatefulWidget {
   const JobPlanMonitoringPage({super.key, this.initialPlans, this.repository});
@@ -32,7 +32,7 @@ class _JobPlanMonitoringPageState extends State<JobPlanMonitoringPage> {
     super.initState();
     _future = widget.initialPlans != null
         ? Future.value(widget.initialPlans!)
-        : (widget.repository ?? sl<JobPlanRepository>()).listV2Plans();
+        : (widget.repository ?? sl<JobPlanRepository>()).listOperationalPlans();
   }
 
   @override
@@ -66,7 +66,7 @@ class _JobPlanMonitoringPageState extends State<JobPlanMonitoringPage> {
   ) async {
     final repo = widget.repository ?? sl<JobPlanRepository>();
     try {
-      await repo.monitorV2Plan(
+      await repo.monitorPlan(
         planId: plan.id,
         metadata: CommandMetadata(
           commandId:
@@ -78,16 +78,16 @@ class _JobPlanMonitoringPageState extends State<JobPlanMonitoringPage> {
         note: note,
       );
       setState(() {
-        _future = repo.listV2Plans();
+        _future = repo.listOperationalPlans();
       });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+        SnackBar(content: Text(JobPlanCommandFeedback.message(e))),
       );
-      if (JobPlanV2CommandFeedback.shouldRefresh(e)) {
+      if (JobPlanCommandFeedback.shouldRefresh(e)) {
         setState(() {
-          _future = repo.listV2Plans();
+          _future = repo.listOperationalPlans();
         });
       }
     }

@@ -1,9 +1,9 @@
 /*
-Tujuan: Kalender planner Job Plan V2 berbasis data backend.
-Caller: Router /job-plans/v2/calendar.
+Tujuan: Kalender planner Job Plan berbasis data backend.
+Caller: Router /plans/calendar.
 Dependensi: JobPlanRepository dan JobPlan entity.
 Main Functions: JobPlanCalendarPage.
-Side Effects: HTTP GET Job Plan V2 list.
+Side Effects: HTTP GET Job Plan list.
 */
 library;
 
@@ -60,7 +60,7 @@ class _JobPlanCalendarPageState extends State<JobPlanCalendarPage> {
 
   Future<List<JobPlan>> _load() {
     if (widget.initialPlans != null) return Future.value(widget.initialPlans!);
-    return (widget.repository ?? sl<JobPlanRepository>()).listV2Plans(
+    return (widget.repository ?? sl<JobPlanRepository>()).listOperationalPlans(
       date: _emptyToNull(_date.text),
       unitId: _emptyToNull(_unit.text),
       employeeId: _emptyToNull(_employee.text),

@@ -33,8 +33,9 @@ abstract class JobPlanDataSource {
     int limit = 100,
     int offset = 0,
   });
-  Future<Map<String, dynamic>> getV2Plan(String planId);
-  Future<List<Map<String, dynamic>>> listV2Plans({
+  Future<Map<String, dynamic>> getOperationalPlan(String planId);
+  Future<List<Map<String, dynamic>>> listOperationalPlans({
+    String view = "browse",
     int page = 1,
     int limit = 20,
     String? unitId,
@@ -45,7 +46,7 @@ abstract class JobPlanDataSource {
     String? approvalState,
     String? executionState,
   });
-  Future<Map<String, dynamic>> createV2Plan({
+  Future<Map<String, dynamic>> createCountdownPlan({
     required String coreId,
     required String employeeId,
     required String taskDate,
@@ -56,7 +57,7 @@ abstract class JobPlanDataSource {
     bool isPriority = false,
     bool isRework = false,
   });
-  Future<Map<String, dynamic>> mutateV2Approval({
+  Future<Map<String, dynamic>> mutateApproval({
     required String planId,
     required String action,
     required CommandMetadata metadata,
@@ -67,14 +68,14 @@ abstract class JobPlanDataSource {
     String? note,
     String? rejectReason,
   });
-  Future<Map<String, dynamic>> monitorV2Plan({
+  Future<Map<String, dynamic>> monitorPlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,
     int? progressSeen,
     String? note,
   });
-  Future<Map<String, dynamic>> validateV2Plan({
+  Future<Map<String, dynamic>> validatePlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,

@@ -1,5 +1,5 @@
 /*
-Tujuan: Entity domain Job Plan untuk legacy plan dan read model Job Plan V2.
+Tujuan: Entity domain Job Plan untuk legacy plan dan read model Job Plan.
 Caller: JobPlanRepository, JobPlanPage, JobPlanDetailPage, dan unit test.
 Dependensi: Tidak ada.
 Main Functions: JobPlan, CommandMetadata, id, scheduleTimeLabel.
@@ -41,6 +41,8 @@ class JobPlan {
     this.executionState,
     this.ledgerState,
     this.version = 0,
+    this.readSource,
+    this.readOnly = false,
     this.createdAt,
     this.updatedAt,
     this.waitingFor,
@@ -89,6 +91,8 @@ class JobPlan {
   final String? executionState;
   final String? ledgerState;
   final int version;
+  final String? readSource;
+  final bool readOnly;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final String? waitingFor;

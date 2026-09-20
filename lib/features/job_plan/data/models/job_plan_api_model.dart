@@ -1,19 +1,19 @@
 /*
-Tujuan: Model parser kontrak read-only Job Plan V2 dari backend.
+Tujuan: Model parser kontrak read-only Job Plan dari backend.
 Caller: JobPlanRepositoryImpl dan test model V2.
 Dependensi: JobPlan entity.
-Main Functions: JobPlanV2Model.fromJson, toEntity.
+Main Functions: JobPlanApiModel.fromJson, toEntity.
 Side Effects: Tidak ada.
 */
 library;
 
 import '../../domain/entities/job_plan.dart';
 
-class JobPlanV2Model {
-  const JobPlanV2Model({required this.json});
+class JobPlanApiModel {
+  const JobPlanApiModel({required this.json});
 
-  factory JobPlanV2Model.fromJson(Map<String, dynamic> json) {
-    return JobPlanV2Model(json: json);
+  factory JobPlanApiModel.fromJson(Map<String, dynamic> json) {
+    return JobPlanApiModel(json: json);
   }
 
   final Map<String, dynamic> json;
@@ -76,11 +76,13 @@ class JobPlanV2Model {
       durationMinutes: durationMinutes,
       isOvertime: _bool('isOvertime', 'is_overtime'),
       deadline: _string(['deadline'], fallback: taskDate),
-      status: _string(['approvalState', 'approval_state']),
+      status: _string(['legacy_status', 'approvalState', 'approval_state']),
       approvalState: _string(['approvalState', 'approval_state']),
       executionState: _string(['executionState', 'execution_state']),
       ledgerState: _string(['ledgerState', 'ledger_state']),
       version: _int('version') ?? 0,
+      readSource: _string(['source']),
+      readOnly: _bool('readOnly', 'read_only'),
       createdAt: DateTime.tryParse(_string(['createdAt', 'created_at'])),
       updatedAt: DateTime.tryParse(_string(['updatedAt', 'updated_at'])),
       waitingFor: _string(['waitingFor', 'waiting_for']),

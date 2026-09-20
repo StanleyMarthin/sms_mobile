@@ -1,5 +1,5 @@
 /*
-Tujuan: Mengunci tampilan planner calendar Job Plan V2 tetap read-only.
+Tujuan: Mengunci tampilan planner calendar Job Plan tetap read-only.
 Caller: Flutter test runner.
 Dependensi: JobPlanCalendarPage dan JobPlan entity.
 Main Functions: main().
@@ -82,7 +82,8 @@ class _CalendarRepository implements JobPlanRepository {
   String? lastCalendarView;
 
   @override
-  Future<List<JobPlan>> listV2Plans({
+  Future<List<JobPlan>> listOperationalPlans({
+    String view = "browse",
     int page = 1,
     int limit = 20,
     String? unitId,

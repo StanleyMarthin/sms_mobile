@@ -18,7 +18,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/services/notification_inbox_service.dart';
 import '../../../../core/session/session_manager.dart';
-import '../../../job_plan/presentation/utils/job_plan_v2_access.dart';
+import '../../../job_plan/presentation/utils/job_plan_access.dart';
 import '../../../notifications/domain/repositories/notifications_repository.dart';
 
 /// Grid-style home menu page — first screen after login.
@@ -645,23 +645,13 @@ List<_MenuItem> _buildMenusForSession(SessionManager session) {
 
   if (perms.contains(Permission.jobPlanCreate) ||
       perms.contains(Permission.jobPlanReview) ||
-      perms.contains(Permission.jobPlanUpdate)) {
+      perms.contains(Permission.jobPlanUpdate) ||
+      JobPlanAccess.canOpenAny(session)) {
     menus.add(
       _MenuItem(
         icon: Icons.event_note_outlined,
-        label: 'Plan',
+        label: 'Job Plan',
         route: '/plans',
-        color: alt(),
-      ),
-    );
-  }
-
-  if (JobPlanV2Access.canOpenAny(session)) {
-    menus.add(
-      _MenuItem(
-        icon: Icons.account_tree_outlined,
-        label: 'Job Plan\nV2',
-        route: '/job-plans/v2',
         color: alt(),
       ),
     );

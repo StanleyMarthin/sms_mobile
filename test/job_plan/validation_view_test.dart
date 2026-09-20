@@ -1,5 +1,5 @@
 /*
-Tujuan: Mengunci payload dan tampilan final validation Job Plan V2.
+Tujuan: Mengunci payload dan tampilan final validation Job Plan.
 Caller: Flutter test runner.
 Dependensi: RemoteJobPlanDataSource, JobPlanValidationPage, fake Dio adapter.
 Main Functions: main().
@@ -60,7 +60,7 @@ class _CaptureAdapter implements HttpClientAdapter {
 }
 
 void main() {
-  test('validateV2Plan posts final validation command', () async {
+  test('validatePlan posts final validation command', () async {
     final adapter = _CaptureAdapter();
     final session = SessionManager(storage: _MemoryStorage());
     await session.login(
@@ -83,7 +83,7 @@ void main() {
       sessionManager: session,
     );
 
-    await dataSource.validateV2Plan(
+    await dataSource.validatePlan(
       planId: 'plan-1',
       metadata: const CommandMetadata(
         commandId: 'cmd-validate-1',

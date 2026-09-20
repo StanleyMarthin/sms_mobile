@@ -1,9 +1,9 @@
 /*
-Tujuan: Halaman approval Job Plan V2 untuk approve/correct/reject.
-Caller: Router /job-plans/v2/approval.
-Dependensi: JobPlanRepository, CommandMetadata, JobPlanV2StateMapper.
+Tujuan: Halaman approval Job Plan untuk approve/correct/reject.
+Caller: Job Plan page approval tab and widget test.
+Dependensi: JobPlanRepository, CommandMetadata, JobPlanStateMapper.
 Main Functions: JobPlanApprovalPage.
-Side Effects: HTTP PUT Job Plan V2 saat user mengirim command approval.
+Side Effects: HTTP PUT Job Plan saat user mengirim command approval.
 */
 library;
 
@@ -12,14 +12,21 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
-import '../utils/job_plan_v2_command_feedback.dart';
-import '../utils/job_plan_v2_state_mapper.dart';
+import '../utils/job_plan_command_feedback.dart';
+import '../utils/job_plan_state_mapper.dart';
+import 'package:sm_system/core/errors/error_message.dart';
 
 class JobPlanApprovalPage extends StatefulWidget {
-  const JobPlanApprovalPage({super.key, this.initialPlans, this.repository});
+  const JobPlanApprovalPage({
+    super.key,
+    this.initialPlans,
+    this.repository,
+    this.onLegacyPlanTap,
+  });
 
   final List<JobPlan>? initialPlans;
   final JobPlanRepository? repository;
+  final Future<void> Function(JobPlan)? onLegacyPlanTap;
 
   @override
   State<JobPlanApprovalPage> createState() => _JobPlanApprovalPageState();
@@ -33,14 +40,32 @@ class _JobPlanApprovalPageState extends State<JobPlanApprovalPage> {
     super.initState();
     _future = widget.initialPlans != null
         ? Future.value(widget.initialPlans!)
-        : (widget.repository ?? sl<JobPlanRepository>()).listV2Plans();
+        : _load();
   }
+
+  Future<List<JobPlan>> _load() =>
+      (widget.repository ?? sl<JobPlanRepository>()).listOperationalPlans(
+        view: 'approval',
+      );
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<JobPlan>>(
       future: _future,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+            child: TextButton(
+              onPressed: () => setState(() => _future = _load()),
+              child: Text(
+                friendlyMessage(
+                  snapshot.error,
+                  fallback: 'Gagal memuat approval. Coba lagi',
+                ),
+              ),
+            ),
+          );
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
@@ -54,8 +79,33 @@ class _JobPlanApprovalPageState extends State<JobPlanApprovalPage> {
           padding: const EdgeInsets.all(12),
           itemCount: plans.length,
           separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) =>
-              _ApprovalCard(plan: plans[index], onAction: _sendAction),
+          itemBuilder: (context, index) {
+            final plan = plans[index];
+            if (plan.readSource == 'MYSQL_LEGACY') {
+              return Card(
+                child: ListTile(
+                  title: Text(plan.unitName),
+                  subtitle: Text(
+                    '${plan.panelName}\n${JobPlanStateMapper.approvalLabel(plan.approvalState)}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: plan.readOnly || widget.onLegacyPlanTap == null
+                      ? null
+                      : () async {
+                          await widget.onLegacyPlanTap!(plan);
+                          if (mounted) setState(() => _future = _load());
+                        },
+                ),
+              );
+            }
+            if (plan.readOnly) {
+              return ListTile(
+                title: Text(plan.unitName),
+                subtitle: Text(plan.panelName),
+              );
+            }
+            return _ApprovalCard(plan: plan, onAction: _sendAction);
+          },
         );
       },
     );
@@ -76,7 +126,7 @@ class _JobPlanApprovalPageState extends State<JobPlanApprovalPage> {
   }) async {
     final repo = widget.repository ?? sl<JobPlanRepository>();
     try {
-      await repo.mutateV2Approval(
+      await repo.mutateApproval(
         planId: plan.id,
         action: action,
         metadata: CommandMetadata(
@@ -88,16 +138,16 @@ class _JobPlanApprovalPageState extends State<JobPlanApprovalPage> {
         rejectReason: rejectReason,
       );
       setState(() {
-        _future = repo.listV2Plans();
+        _future = _load();
       });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+        SnackBar(content: Text(JobPlanCommandFeedback.message(e))),
       );
-      if (JobPlanV2CommandFeedback.shouldRefresh(e)) {
+      if (JobPlanCommandFeedback.shouldRefresh(e)) {
         setState(() {
-          _future = repo.listV2Plans();
+          _future = _load();
         });
       }
     }
@@ -123,7 +173,7 @@ class _ApprovalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final state = JobPlanV2StateMapper.approvalLabel(plan.approvalState);
+    final state = JobPlanStateMapper.approvalLabel(plan.approvalState);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -134,7 +184,7 @@ class _ApprovalCard extends StatelessWidget {
             Text(plan.panelName),
             Text(state),
             Text(
-              'Menunggu: ${JobPlanV2StateMapper.waitingFor(plan.approvalState)}',
+              'Menunggu: ${JobPlanStateMapper.waitingFor(plan.approvalState)}',
             ),
             const SizedBox(height: 8),
             Wrap(

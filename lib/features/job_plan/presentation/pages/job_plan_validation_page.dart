@@ -1,6 +1,6 @@
 /*
-Tujuan: Halaman final labor validation Job Plan V2.
-Caller: Router /job-plans/v2/validation dan widget test.
+Tujuan: Halaman final labor validation Job Plan.
+Caller: Router /plans/validation dan widget test.
 Dependensi: JobPlanRepository, CommandMetadata, JobPlan entity.
 Main Functions: JobPlanValidationPage.
 Side Effects: HTTP POST validate saat PASS dikirim.
@@ -12,7 +12,7 @@ import 'package:sm_system/core/di/injection.dart';
 
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
-import '../utils/job_plan_v2_command_feedback.dart';
+import '../utils/job_plan_command_feedback.dart';
 
 class JobPlanValidationPage extends StatefulWidget {
   const JobPlanValidationPage({super.key, this.initialPlans, this.repository});
@@ -35,7 +35,7 @@ class _JobPlanValidationPageState extends State<JobPlanValidationPage> {
 
   Future<List<JobPlan>> _load() {
     if (widget.initialPlans != null) return Future.value(widget.initialPlans!);
-    return (widget.repository ?? sl<JobPlanRepository>()).listV2Plans(
+    return (widget.repository ?? sl<JobPlanRepository>()).listOperationalPlans(
       executionState: 'FINISHED_PENDING_VALIDATION',
     );
   }
@@ -70,7 +70,7 @@ class _JobPlanValidationPageState extends State<JobPlanValidationPage> {
   Future<void> _pass(JobPlan plan, String? note) async {
     final repo = widget.repository ?? sl<JobPlanRepository>();
     try {
-      await repo.validateV2Plan(
+      await repo.validatePlan(
         planId: plan.id,
         metadata: CommandMetadata(
           commandId:
@@ -87,9 +87,9 @@ class _JobPlanValidationPageState extends State<JobPlanValidationPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(JobPlanV2CommandFeedback.message(e))),
+        SnackBar(content: Text(JobPlanCommandFeedback.message(e))),
       );
-      if (JobPlanV2CommandFeedback.shouldRefresh(e)) {
+      if (JobPlanCommandFeedback.shouldRefresh(e)) {
         setState(() {
           _future = _load();
         });

@@ -1,8 +1,8 @@
 /*
 Tujuan: Implementasi repository Job Plan untuk mapping legacy dan read model V2.
-Caller: DI, JobPlanPage, JobPlanDetailPage, JobPlanListPage.
-Dependensi: JobPlanDataSource, JobPlan, JobPlanV2Model, Failure helper.
-Main Functions: getPlans, browsePlans, getV2Plan, listV2Plans.
+Caller: DI, JobPlanPage, JobPlanDetailPage, JobPlanList.
+Dependensi: JobPlanDataSource, JobPlan, JobPlanApiModel, Failure helper.
+Main Functions: getPlans, browsePlans, getOperationalPlan, listOperationalPlans.
 Side Effects: Delegasi HTTP/mock melalui datasource.
 */
 library;
@@ -11,10 +11,10 @@ import 'package:fpdart/fpdart.dart' as fp;
 import 'package:sm_system/core/errors/failures.dart';
 import 'package:sm_system/core/errors/error_message.dart';
 import '../../domain/entities/job_plan.dart';
-import '../../domain/entities/job_plan_v2_options.dart';
+import '../../domain/entities/job_plan_options.dart';
 import '../../domain/repositories/job_plan_repository.dart';
 import '../datasources/job_plan_datasource.dart';
-import '../models/job_plan_v2_model.dart';
+import '../models/job_plan_api_model.dart';
 
 class JobPlanRepositoryImpl implements JobPlanRepository {
   JobPlanRepositoryImpl({required this.dataSource});
@@ -136,13 +136,14 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   }
 
   @override
-  Future<JobPlan> getV2Plan(String planId) async {
-    final item = await dataSource.getV2Plan(planId);
-    return JobPlanV2Model.fromJson(item).toEntity();
+  Future<JobPlan> getOperationalPlan(String planId) async {
+    final item = await dataSource.getOperationalPlan(planId);
+    return JobPlanApiModel.fromJson(item).toEntity();
   }
 
   @override
-  Future<List<JobPlan>> listV2Plans({
+  Future<List<JobPlan>> listOperationalPlans({
+    String view = "browse",
     int page = 1,
     int limit = 20,
     String? unitId,
@@ -153,7 +154,8 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     String? approvalState,
     String? executionState,
   }) async {
-    final items = await dataSource.listV2Plans(
+    final items = await dataSource.listOperationalPlans(
+      view: view,
       page: page,
       limit: limit,
       unitId: unitId,
@@ -165,12 +167,12 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       executionState: executionState,
     );
     return items
-        .map((item) => JobPlanV2Model.fromJson(item).toEntity())
+        .map((item) => JobPlanApiModel.fromJson(item).toEntity())
         .toList();
   }
 
   @override
-  Future<JobPlan> createV2Plan({
+  Future<JobPlan> createCountdownPlan({
     required String coreId,
     required String employeeId,
     required String taskDate,
@@ -181,7 +183,7 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     bool isPriority = false,
     bool isRework = false,
   }) async {
-    final item = await dataSource.createV2Plan(
+    final item = await dataSource.createCountdownPlan(
       coreId: coreId,
       employeeId: employeeId,
       taskDate: taskDate,
@@ -192,11 +194,11 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       isPriority: isPriority,
       isRework: isRework,
     );
-    return JobPlanV2Model.fromJson(item).toEntity();
+    return JobPlanApiModel.fromJson(item).toEntity();
   }
 
   @override
-  Future<JobPlan> mutateV2Approval({
+  Future<JobPlan> mutateApproval({
     required String planId,
     required String action,
     required CommandMetadata metadata,
@@ -207,7 +209,7 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     String? note,
     String? rejectReason,
   }) async {
-    final item = await dataSource.mutateV2Approval(
+    final item = await dataSource.mutateApproval(
       planId: planId,
       action: action,
       metadata: metadata,
@@ -218,47 +220,47 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       note: note,
       rejectReason: rejectReason,
     );
-    return JobPlanV2Model.fromJson(item).toEntity();
+    return JobPlanApiModel.fromJson(item).toEntity();
   }
 
   @override
-  Future<JobPlan> monitorV2Plan({
+  Future<JobPlan> monitorPlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,
     int? progressSeen,
     String? note,
   }) async {
-    final item = await dataSource.monitorV2Plan(
+    final item = await dataSource.monitorPlan(
       planId: planId,
       metadata: metadata,
       verifiedTotalMinutes: verifiedTotalMinutes,
       progressSeen: progressSeen,
       note: note,
     );
-    return JobPlanV2Model.fromJson(item).toEntity();
+    return JobPlanApiModel.fromJson(item).toEntity();
   }
 
   @override
-  Future<JobPlan> validateV2Plan({
+  Future<JobPlan> validatePlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,
     int? progressSeen,
     String? note,
   }) async {
-    final item = await dataSource.validateV2Plan(
+    final item = await dataSource.validatePlan(
       planId: planId,
       metadata: metadata,
       verifiedTotalMinutes: verifiedTotalMinutes,
       progressSeen: progressSeen,
       note: note,
     );
-    return JobPlanV2Model.fromJson(item).toEntity();
+    return JobPlanApiModel.fromJson(item).toEntity();
   }
 
   @override
-  Future<JobPlanV2Options> getV2Options({
+  Future<JobPlanOptions> getOptions({
     String? divisionId,
     String? unitId,
   }) async {
@@ -266,7 +268,7 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       divisionId: divisionId,
       carId: unitId,
     );
-    return JobPlanV2Options.fromDropdowns(raw);
+    return JobPlanOptions.fromDropdowns(raw);
   }
 
   @override

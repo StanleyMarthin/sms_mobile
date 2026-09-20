@@ -286,15 +286,19 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> getV2Plan(String planId) async {
-    final response = await apiClient.get(ApiEndpoints.jobPlanV2(planId));
+  Future<Map<String, dynamic>> getOperationalPlan(String planId) async {
+    final response = await apiClient.get(
+      ApiEndpoints.jobPlanV2(planId),
+      queryParameters: {'userId': sessionManager.employeeId ?? ''},
+    );
     final payload = response.data;
     if (payload is Map<String, dynamic>) return payload;
     return <String, dynamic>{};
   }
 
   @override
-  Future<List<Map<String, dynamic>>> listV2Plans({
+  Future<List<Map<String, dynamic>>> listOperationalPlans({
+    String view = "browse",
     int page = 1,
     int limit = 20,
     String? unitId,
@@ -308,6 +312,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final response = await apiClient.get(
       ApiEndpoints.jobPlansV2,
       queryParameters: {
+        'userId': sessionManager.employeeId ?? '',
+        'view': view,
         'page': page,
         'limit': limit,
         if ((unitId ?? '').isNotEmpty) 'unitId': unitId,
@@ -332,7 +338,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> createV2Plan({
+  Future<Map<String, dynamic>> createCountdownPlan({
     required String coreId,
     required String employeeId,
     required String taskDate,
@@ -363,7 +369,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> mutateV2Approval({
+  Future<Map<String, dynamic>> mutateApproval({
     required String planId,
     required String action,
     required CommandMetadata metadata,
@@ -397,7 +403,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> monitorV2Plan({
+  Future<Map<String, dynamic>> monitorPlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,
@@ -422,7 +428,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   @override
-  Future<Map<String, dynamic>> validateV2Plan({
+  Future<Map<String, dynamic>> validatePlan({
     required String planId,
     required CommandMetadata metadata,
     int? verifiedTotalMinutes,

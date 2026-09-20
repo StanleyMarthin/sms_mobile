@@ -1,9 +1,9 @@
 /*
-Tujuan: Halaman read-only tracking approval Job Plan V2.
-Caller: Router /job-plans/v2/approval-tracking dan widget test.
+Tujuan: Halaman read-only tracking approval Job Plan.
+Caller: Router /plans/approval-tracking dan widget test.
 Dependensi: JobPlanRepository, JobPlan entity.
 Main Functions: JobPlanApprovalTrackingPage.
-Side Effects: HTTP GET Job Plan V2 list.
+Side Effects: HTTP GET Job Plan list.
 */
 library;
 
@@ -27,7 +27,7 @@ class JobPlanApprovalTrackingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final future = initialPlans != null
         ? Future.value(initialPlans!)
-        : (repository ?? sl<JobPlanRepository>()).listV2Plans();
+        : (repository ?? sl<JobPlanRepository>()).listOperationalPlans();
     return FutureBuilder<List<JobPlan>>(
       future: future,
       builder: (context, snapshot) {

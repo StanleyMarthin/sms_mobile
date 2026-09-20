@@ -1,5 +1,5 @@
 /*
-Tujuan: Mengunci payload approve/correct/reject Job Plan V2.
+Tujuan: Mengunci payload approve/correct/reject Job Plan.
 Caller: Flutter test runner.
 Dependensi: RemoteJobPlanDataSource, CommandMetadata, fake Dio adapter.
 Main Functions: main().
@@ -60,7 +60,8 @@ class _ConflictRepository implements JobPlanRepository {
   int listCalls = 0;
 
   @override
-  Future<List<JobPlan>> listV2Plans({
+  Future<List<JobPlan>> listOperationalPlans({
+    String view = "browse",
     int page = 1,
     int limit = 20,
     String? unitId,
@@ -76,7 +77,7 @@ class _ConflictRepository implements JobPlanRepository {
   }
 
   @override
-  Future<JobPlan> mutateV2Approval({
+  Future<JobPlan> mutateApproval({
     required String planId,
     required String action,
     required CommandMetadata metadata,
@@ -118,7 +119,7 @@ void main() {
       sessionManager: session,
     );
 
-    await dataSource.mutateV2Approval(
+    await dataSource.mutateApproval(
       planId: 'plan-1',
       action: 'approve',
       metadata: const CommandMetadata(
@@ -126,7 +127,7 @@ void main() {
         expectedVersion: 5,
       ),
     );
-    await dataSource.mutateV2Approval(
+    await dataSource.mutateApproval(
       planId: 'plan-1',
       action: 'correct',
       metadata: const CommandMetadata(
@@ -136,7 +137,7 @@ void main() {
       plannedStartMinute: 540,
       plannedWorkMinutes: 180,
     );
-    await dataSource.mutateV2Approval(
+    await dataSource.mutateApproval(
       planId: 'plan-1',
       action: 'reject',
       metadata: const CommandMetadata(
