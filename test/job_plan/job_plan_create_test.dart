@@ -110,12 +110,22 @@ void main() {
     final adapter = _CaptureAdapter();
     final session = SessionManager(storage: _MemoryStorage());
     await session.login(
-      token: 'token', refreshToken: 'refresh', userId: 'KD-1', employeeId: 'KD-1',
-      fullName: 'KD', role: 'kd', divisionName: 'Interior', jabatan: 'KD', divisionId: 1,
+      token: 'token',
+      refreshToken: 'refresh',
+      userId: 'KD-1',
+      employeeId: 'KD-1',
+      fullName: 'KD',
+      role: 'kd',
+      divisionName: 'Interior',
+      jabatan: 'KD',
+      divisionId: 1,
       permissions: const [],
     );
     final dataSource = RemoteJobPlanDataSource(
-      apiClient: ApiClient(sessionManager: session, dio: Dio()..httpClientAdapter = adapter),
+      apiClient: ApiClient(
+        sessionManager: session,
+        dio: Dio()..httpClientAdapter = adapter,
+      ),
       sessionManager: session,
     );
 
@@ -145,12 +155,20 @@ void main() {
     expect(find.text('PIC'), findsOneWidget);
     expect(find.text('Core ID'), findsNothing);
     expect(find.text('PIC ID'), findsNothing);
+    expect(_CreateRepository.lastCoreId, 'CORE-1');
   });
 }
 
 class _CreateRepository implements JobPlanRepository {
+  static String? lastCoreId;
+
   @override
-  Future<JobPlanOptions> getOptions({String? divisionId, String? unitId}) {
+  Future<JobPlanOptions> getOptions({
+    String? divisionId,
+    String? unitId,
+    String? coreId,
+  }) {
+    lastCoreId = coreId;
     return Future.value(
       const JobPlanOptions(
         units: [JobPlanOption(id: 'UNIT-1', label: 'MB 220S')],

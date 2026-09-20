@@ -97,7 +97,11 @@ abstract class JobPlanRepository {
     String? note,
   });
 
-  Future<JobPlanOptions> getOptions({String? divisionId, String? unitId});
+  Future<JobPlanOptions> getOptions({
+    String? divisionId,
+    String? unitId,
+    String? coreId,
+  });
 
   Future<Map<String, dynamic>> getAdditionalDropdowns({String? divisionId});
 

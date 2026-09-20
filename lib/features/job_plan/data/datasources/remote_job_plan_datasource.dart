@@ -459,6 +459,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
     String? carId,
+    String? coreId,
     String? searchUser,
     int userLimit = 200,
   }) async {
@@ -474,6 +475,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       queryParameters: {
         if ((resolvedDivId ?? '').isNotEmpty) 'divisionId': resolvedDivId,
         if ((carId ?? '').trim().isNotEmpty) 'carId': carId,
+        if ((coreId ?? '').trim().isNotEmpty) 'coreId': coreId,
       },
       options: Options(
         extra: {'useCache': true, 'cacheDuration': Duration(minutes: 5)},

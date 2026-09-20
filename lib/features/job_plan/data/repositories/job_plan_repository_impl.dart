@@ -263,10 +263,12 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
   Future<JobPlanOptions> getOptions({
     String? divisionId,
     String? unitId,
+    String? coreId,
   }) async {
     final raw = await dataSource.getDropdowns(
       divisionId: divisionId,
       carId: unitId,
+      coreId: coreId,
     );
     return JobPlanOptions.fromDropdowns(raw);
   }

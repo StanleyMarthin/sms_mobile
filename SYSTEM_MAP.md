@@ -613,8 +613,8 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> GET 8083 /sm/job-plans/v2/{planId}
 
 /plans/create → JobPlanCreatePage
--> JobPlanRepositoryImpl.getOptions()
--> GET 8083 /sm/job-plans/dropdowns
+-> JobPlanRepositoryImpl.getOptions(coreId)
+-> GET 8083 /sm/job-plans/dropdowns?coreId={sm_jobdesc_countdown.id}
 -> JobPlanRepositoryImpl.createCountdownPlan()
 -> RemoteJobPlanDataSource.createCountdownPlan()
 -> POST 8083 /sm/job-plans/v2 { userId, coreId, employeeId, taskDate, plannedStartMinute, plannedWorkMinutes, jobDescription, commandId, isPriority, isRework }
@@ -647,8 +647,8 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 - Mobile mengirim command dengan `CommandMetadata(commandId, expectedVersion)` dan tidak menghitung collision, reservation, projection, Redis state, break, verified delta, atau transisi state.
 - Execution mobile tetap melalui `TaskExecution` adapter ke `POST /sm/job-plans/v2/{planId}/execution`; Flutter tidak menulis actual/validation/countdown.
 - Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
-- Home menampilkan satu menu `Job Plan` saat `JobPlanAccess.canOpenAny(session)` true; route memakai guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanCommandFeedback` dan refresh list backend; dropdown memakai `JobPlanOptions.fromDropdowns()` dari `/sm/job-plans/dropdowns`; calendar filter diteruskan ke `GET /sm/job-plans/v2`.
-- Phase 7I UX completion: form create memakai typed dropdown `cars/units`, `panels`, `countdowns/cores`, `users`, dan `divisions` dari `/sm/job-plans/dropdowns`; payload tetap ID dan backend tetap menentukan validasi PIC/division/schedule.
+- Home menampilkan satu menu `Job Plan` saat `JobPlanAccess.canOpenAny(session)` true; route memakai guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanCommandFeedback` dan refresh list backend; dropdown memakai `JobPlanOptions.fromDropdowns()` dari `/sm/job-plans/dropdowns`; form create Countdown wajib mengirim `coreId` agar backend hanya mengembalikan unit/panel/countdown terkait; calendar filter diteruskan ke `GET /sm/job-plans/v2`.
+- Phase 7I UX completion: form create memakai typed dropdown `cars/units`, `panels`, `countdowns/cores`, `users`, dan `divisions` dari `/sm/job-plans/dropdowns?coreId=...`; payload tetap ID dan backend tetap menentukan validasi PIC/division/schedule.
 - `JobPlanDetailPage` sekarang menjadi pusat informasi read-only: work context, schedule, approval timeline, execution state, monitoring minutes/progress, ledger state, dan version seluruhnya berasal dari backend model.
 - `JobPlanCalendarPage` mendukung mode `Day` / `Week` dan filter tanggal, unit, PIC, division; mobile hanya meneruskan filter terstruktur ke backend.
 - Notification foundation membaca kategori event backend untuk Approval, Job Plan, Execution, dan Validation; belum ada push engine dan belum ada QC contract.

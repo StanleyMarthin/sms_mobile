@@ -56,8 +56,9 @@ class _JobPlanCreatePageState extends State<JobPlanCreatePage> {
   @override
   void initState() {
     super.initState();
-    _optionsFuture = (widget.repository ?? sl<JobPlanRepository>())
-        .getOptions();
+    _optionsFuture = (widget.repository ?? sl<JobPlanRepository>()).getOptions(
+      coreId: widget.coreId,
+    );
     _countdownId = widget.coreId;
   }
 

@@ -91,6 +91,7 @@ abstract class JobPlanDataSource {
   Future<Map<String, List<Map<String, dynamic>>>> getDropdowns({
     String? divisionId,
     String? carId,
+    String? coreId,
     String? searchUser,
     int userLimit = 200,
   });
