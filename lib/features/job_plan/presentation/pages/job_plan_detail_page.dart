@@ -71,7 +71,7 @@ class _JobPlanDetailView extends StatelessWidget {
         const _SectionTitle('Work'),
         _InfoRow(label: 'Unit', value: plan.unitName),
         _InfoRow(label: 'Panel', value: plan.panelName),
-        _InfoRow(label: 'Countdown', value: plan.resolvedCountdownName),
+        _InfoRow(label: 'Jobdesc', value: plan.resolvedCountdownName),
         _InfoRow(label: 'Job Description', value: plan.description),
         _InfoRow(label: 'PIC', value: plan.resolvedEmployeeName),
         _InfoRow(label: 'Division', value: plan.assignedDivision),

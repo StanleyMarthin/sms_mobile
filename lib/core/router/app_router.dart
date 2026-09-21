@@ -108,8 +108,15 @@ GoRouter createRouter() {
           child: JobPlanPage(
             initialTab: state.uri.queryParameters['tab'],
             initialDate: _parseDate(state.uri.queryParameters['date']),
-            initialSourceType: state.uri.queryParameters['source'],
-            initialSourceRefId: state.uri.queryParameters['sourceRefId'],
+            initialSourceType:
+                state.uri.queryParameters['source'] ??
+                (state.uri.queryParameters['coreId'] == null
+                    ? null
+                    : 'COUNTDOWN'),
+            initialSourceRefId:
+                state.uri.queryParameters['sourceRefId'] ??
+                state.uri.queryParameters['coreId'],
+            divisionId: state.uri.queryParameters['divisionId'],
             unitId: state.uri.queryParameters['unitId'],
             employeeId: state.uri.queryParameters['employeeId'],
             approvalState: state.uri.queryParameters['approvalState'],
@@ -122,10 +129,7 @@ GoRouter createRouter() {
         path: '/plans/create',
         redirect: (context, state) => Uri(
           path: '/plans',
-          queryParameters: {
-            ...state.uri.queryParameters,
-            'autoOpenCreate': '1',
-          },
+          queryParameters: state.uri.queryParameters,
         ).toString(),
       ),
       GoRoute(
