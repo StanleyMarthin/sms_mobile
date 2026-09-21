@@ -23,9 +23,6 @@ import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_detail_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_page.dart';
 import '../../features/job_plan/presentation/utils/job_plan_navigation.dart';
-import '../../features/job_plan/presentation/pages/job_plan_approval_tracking_page.dart';
-import '../../features/job_plan/presentation/pages/job_plan_calendar_page.dart';
-import '../../features/job_plan/presentation/pages/job_plan_create_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_monitoring_page.dart';
 import '../../features/job_plan/presentation/pages/job_plan_validation_page.dart';
 import '../../features/job_plan/presentation/utils/job_plan_access.dart';
@@ -123,40 +120,17 @@ GoRouter createRouter() {
       ),
       GoRoute(
         path: '/plans/create',
-        builder: (context, state) => _jobPlanShell(
-          route: '/plans/create',
-          title: 'Create Job Plan',
-          child: JobPlanCreatePage(
-            coreId: state.uri.queryParameters['coreId'],
-            panelName: state.uri.queryParameters['panelName'],
-            countdownName: state.uri.queryParameters['countdownName'],
-          ),
-        ),
+        redirect: (context, state) => Uri(
+          path: '/plans',
+          queryParameters: {
+            ...state.uri.queryParameters,
+            'autoOpenCreate': '1',
+          },
+        ).toString(),
       ),
       GoRoute(
         path: '/plans/approval',
         redirect: (context, state) => '/plans?tab=approval',
-      ),
-      GoRoute(
-        path: '/plans/approval-tracking',
-        builder: (context, state) => _jobPlanShell(
-          route: '/plans/approval-tracking',
-          title: 'Approval Tracking',
-          child: const JobPlanApprovalTrackingPage(),
-        ),
-      ),
-      GoRoute(
-        path: '/plans/calendar',
-        builder: (context, state) => _jobPlanShell(
-          route: '/plans/calendar',
-          title: 'Planner Calendar',
-          child: JobPlanCalendarPage(
-            date: state.uri.queryParameters['date'],
-            unitId: state.uri.queryParameters['unitId'],
-            employeeId: state.uri.queryParameters['employeeId'],
-            divisionId: state.uri.queryParameters['divisionId'],
-          ),
-        ),
       ),
       GoRoute(
         path: '/plans/monitoring',

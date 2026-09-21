@@ -168,10 +168,8 @@ Files touched:
 | `/tasks` | `FeatureShellPage → TaskSectionPage(kind: tasks)` | `taskId`, `date` | Anggota → langsung `MechanicTaskPage`; KD → tab Monitoring/PIC Saya; management lain → `TaskViewPage` |
 | `/overtime` | `FeatureShellPage → TaskSectionPage(kind: overtime)` | `taskId`, `date` | Sama dengan tasks |
 | `/plans` | `FeatureShellPage → JobPlanPage` | `tab`, `date`, `unitId`, `employeeId`, `approvalState`, `executionState`, `source`, `sourceRefId`, `autoOpenCreate` | Satu entry point Job Plan; dual-read legacy + V2 |
-| `/plans/create` | `FeatureShellPage → JobPlanCreatePage` | `coreId`, `panelName`, `countdownName` | Create V2 dari Countdown |
+| `/plans/create` | redirect → `/plans?autoOpenCreate=1` | `coreId` | Legacy deep link ke create flow di JobPlanPage |
 | `/plans/approval` | redirect → `/plans?tab=approval` | — | Antrean approval terfilter scope backend |
-| `/plans/approval-tracking` | `FeatureShellPage → JobPlanApprovalTrackingPage` | — | Read-only tracking approval |
-| `/plans/calendar` | `FeatureShellPage → JobPlanCalendarPage` | `date`, `unitId`, `employeeId` | Planner kalender read-only |
 | `/plans/monitoring` | `FeatureShellPage → JobPlanMonitoringPage` | — | KD/QA monitoring verified minutes |
 | `/plans/validation` | `FeatureShellPage → JobPlanValidationPage` | — | Final labor validation PASS-only |
 | `/job-plans/v2*` | redirect → `/plans*` | legacy deep link | Kept for notification/client compatibility |
@@ -605,14 +603,14 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 /plans → JobPlanPage → JobPlanList
 -> JobPlanRepositoryImpl.listOperationalPlans()
 -> RemoteJobPlanDataSource.listOperationalPlans()
--> GET 8083 /sm/job-plans/v2?userId=&view=browse&page=&limit=&unitId=&employeeId=&date=&approvalState=&executionState=&divisionId=&calendarView=
+-> GET 8083 /sm/job-plans/v2?userId=&view=browse&page=&limit=&unitId=&employeeId=&date=&approvalState=&executionState=&divisionId=
 
 /job-plan/:id → JobPlanDetailPage
 -> JobPlanRepositoryImpl.getOperationalPlan()
 -> RemoteJobPlanDataSource.getOperationalPlan()
 -> GET 8083 /sm/job-plans/v2/{planId}
 
-/plans/create → JobPlanCreatePage
+/plans → JobPlanPage create sheet / legacy /plans/create redirect
 -> JobPlanRepositoryImpl.getOptions(coreId)
 -> GET 8083 /sm/job-plans/dropdowns?coreId={sm_jobdesc_countdown.id}
 -> JobPlanRepositoryImpl.createCountdownPlan()
@@ -623,14 +621,6 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> JobPlanRepositoryImpl.mutateApproval()
 -> RemoteJobPlanDataSource.mutateApproval()
 -> PUT 8083 /sm/job-plans/v2/{planId} { action: approve|correct|reject, userId, commandId, expectedVersion, ...correction/reject fields }
-
-/plans/approval-tracking → JobPlanApprovalTrackingPage
--> JobPlanRepositoryImpl.listOperationalPlans()
--> read-only timeline from backend approvalState
-
-/plans/calendar → JobPlanCalendarPage
--> JobPlanRepositoryImpl.listOperationalPlans(date/unitId/employeeId/divisionId/calendarView)
--> read-only day/week schedule display; no mobile collision logic
 
 /plans/monitoring → JobPlanMonitoringPage
 -> JobPlanRepositoryImpl.monitorPlan()
@@ -647,10 +637,10 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 - Mobile mengirim command dengan `CommandMetadata(commandId, expectedVersion)` dan tidak menghitung collision, reservation, projection, Redis state, break, verified delta, atau transisi state.
 - Execution mobile tetap melalui `TaskExecution` adapter ke `POST /sm/job-plans/v2/{planId}/execution`; Flutter tidak menulis actual/validation/countdown.
 - Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
-- Home menampilkan satu menu `Job Plan` saat `JobPlanAccess.canOpenAny(session)` true; route memakai guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanCommandFeedback` dan refresh list backend; dropdown memakai `JobPlanOptions.fromDropdowns()` dari `/sm/job-plans/dropdowns`; form create Countdown wajib mengirim `coreId` agar backend hanya mengembalikan unit/panel/countdown terkait; calendar filter diteruskan ke `GET /sm/job-plans/v2`.
+- Home menampilkan satu menu `Job Plan` saat `JobPlanAccess.canOpenAny(session)` true; route memakai guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanCommandFeedback` dan refresh list backend; dropdown memakai `JobPlanOptions.fromDropdowns()` dari `/sm/job-plans/dropdowns`; form create Countdown wajib mengirim `coreId` agar backend hanya mengembalikan unit/panel/countdown terkait.
 - Phase 7I UX completion: form create memakai typed dropdown `cars/units`, `panels`, `countdowns/cores`, `users`, dan `divisions` dari `/sm/job-plans/dropdowns?coreId=...`; payload tetap ID dan backend tetap menentukan validasi PIC/division/schedule.
 - `JobPlanDetailPage` sekarang menjadi pusat informasi read-only: work context, schedule, approval timeline, execution state, monitoring minutes/progress, ledger state, dan version seluruhnya berasal dari backend model.
-- `JobPlanCalendarPage` mendukung mode `Day` / `Week` dan filter tanggal, unit, PIC, division; mobile hanya meneruskan filter terstruktur ke backend.
+- Approval tracking dan jadwal tetap tampil di list/detail Job Plan utama; tidak ada page calendar/tracking terpisah.
 - Notification foundation membaca kategori event backend untuk Approval, Job Plan, Execution, dan Validation; belum ada push engine dan belum ada QC contract.
 - Command conflict handling V2 mencakup `ERR_STALE_PLAN`, `ERR_IDEMPOTENCY_CONFLICT`, `ERR_INVALID_TRANSITION`, dan `ERR_EMPLOYEE_ALREADY_RUNNING`; UI menampilkan pesan lalu refresh state backend tanpa retry mutation otomatis.
 

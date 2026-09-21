@@ -49,12 +49,9 @@ abstract class JobPlanAccess {
     final uri = Uri.parse(route);
     final canonical = Uri.parse(JobPlanNavigation.redirect(uri) ?? route).path;
     return switch (canonical) {
-      '/plans/create' => canCreate(session),
       '/plans/approval' => canApprove(session),
       '/plans/monitoring' || '/plans/validation' => canMonitor(session),
-      '/plans' ||
-      '/plans/calendar' ||
-      '/plans/approval-tracking' => canOpenAny(session),
+      '/plans' => canOpenAny(session),
       _ => false,
     };
   }

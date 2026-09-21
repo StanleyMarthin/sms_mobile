@@ -42,15 +42,16 @@ void main() {
     },
   );
 
-  test('planning permission exposes V2 list create and calendar', () async {
+  test('planning permission exposes only the unified job plan page', () async {
     final session = await _session(const ['CREATE_TASK']);
 
     expect(JobPlanAccess.canCreate(session), isTrue);
     expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2'), isTrue);
     expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2/create'), isTrue);
+    expect(JobPlanAccess.canOpenRoute(session, '/plans/create'), isFalse);
     expect(
       JobPlanAccess.canOpenRoute(session, '/job-plans/v2/calendar'),
-      isTrue,
+      isFalse,
     );
   });
 
@@ -64,7 +65,7 @@ void main() {
     );
     expect(
       JobPlanAccess.canOpenRoute(session, '/job-plans/v2/approval-tracking'),
-      isTrue,
+      isFalse,
     );
   });
 
@@ -99,13 +100,14 @@ void main() {
     );
   });
 
-  test('calendar permission follows backend task view permission', () async {
+  test('task view permission opens the unified list only', () async {
     final session = await _session(const ['TASK_VIEW']);
 
     expect(JobPlanAccess.canTrack(session), isTrue);
+    expect(JobPlanAccess.canOpenRoute(session, '/plans'), isTrue);
     expect(
       JobPlanAccess.canOpenRoute(session, '/job-plans/v2/calendar'),
-      isTrue,
+      isFalse,
     );
   });
 }

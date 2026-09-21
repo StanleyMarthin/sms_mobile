@@ -1252,21 +1252,6 @@ class _JobPlanPageState extends State<JobPlanPage>
             tooltip: 'Menu Job Plan',
             onSelected: (route) => context.push(route),
             itemBuilder: (_) => [
-              if (JobPlanAccess.canCreate(_session))
-                const PopupMenuItem(
-                  value: '/plans/create',
-                  child: Text('Buat dari Countdown'),
-                ),
-              if (JobPlanAccess.canTrack(_session)) ...[
-                const PopupMenuItem(
-                  value: '/plans/calendar',
-                  child: Text('Kalender'),
-                ),
-                const PopupMenuItem(
-                  value: '/plans/approval-tracking',
-                  child: Text('Tracking Approval'),
-                ),
-              ],
               if (JobPlanAccess.canMonitor(_session)) ...[
                 const PopupMenuItem(
                   value: '/plans/monitoring',

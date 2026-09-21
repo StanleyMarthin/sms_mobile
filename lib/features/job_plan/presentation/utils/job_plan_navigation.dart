@@ -9,6 +9,14 @@ abstract class JobPlanNavigation {
   static String? redirect(Uri uri) {
     const oldRoot = '/job-plans/v2';
     if (uri.path != oldRoot && !uri.path.startsWith('$oldRoot/')) return null;
+    if (uri.path == '$oldRoot/create') {
+      return uri
+          .replace(
+            path: '/plans',
+            queryParameters: {...uri.queryParameters, 'autoOpenCreate': '1'},
+          )
+          .toString();
+    }
     return uri
         .replace(
           path: uri.path.replaceFirst(oldRoot, '/plans'),

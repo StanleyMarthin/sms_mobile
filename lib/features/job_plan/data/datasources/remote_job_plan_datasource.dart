@@ -305,7 +305,6 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     String? employeeId,
     String? date,
     String? divisionId,
-    String? calendarView,
     String? approvalState,
     String? executionState,
   }) async {
@@ -320,7 +319,6 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         if ((employeeId ?? '').isNotEmpty) 'employeeId': employeeId,
         if ((date ?? '').isNotEmpty) 'date': date,
         if ((divisionId ?? '').isNotEmpty) 'divisionId': divisionId,
-        if ((calendarView ?? '').isNotEmpty) 'calendarView': calendarView,
         if ((approvalState ?? '').isNotEmpty) 'approvalState': approvalState,
         if ((executionState ?? '').isNotEmpty) 'executionState': executionState,
       },

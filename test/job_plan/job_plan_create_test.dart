@@ -10,14 +10,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/core/network/api_client.dart';
 import 'package:sm_system/core/session/session_manager.dart';
 import 'package:sm_system/features/job_plan/data/datasources/remote_job_plan_datasource.dart';
-import 'package:sm_system/features/job_plan/domain/entities/job_plan_options.dart';
-import 'package:sm_system/features/job_plan/domain/repositories/job_plan_repository.dart';
-import 'package:sm_system/features/job_plan/presentation/pages/job_plan_create_page.dart';
 
 class _MemoryStorage {
   final Map<String, String> values = {};
@@ -133,52 +129,4 @@ void main() {
 
     expect(adapter.request!.queryParameters['userId'], 'KD-1');
   });
-
-  testWidgets('create page uses typed options instead of raw id fields', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: JobPlanCreatePage(
-            coreId: 'CORE-1',
-            repository: _CreateRepository(),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Unit'), findsOneWidget);
-    expect(find.text('Panel'), findsOneWidget);
-    expect(find.text('Countdown'), findsOneWidget);
-    expect(find.text('PIC'), findsOneWidget);
-    expect(find.text('Core ID'), findsNothing);
-    expect(find.text('PIC ID'), findsNothing);
-    expect(_CreateRepository.lastCoreId, 'CORE-1');
-  });
-}
-
-class _CreateRepository implements JobPlanRepository {
-  static String? lastCoreId;
-
-  @override
-  Future<JobPlanOptions> getOptions({
-    String? divisionId,
-    String? unitId,
-    String? coreId,
-  }) {
-    lastCoreId = coreId;
-    return Future.value(
-      const JobPlanOptions(
-        units: [JobPlanOption(id: 'UNIT-1', label: 'MB 220S')],
-        panels: [JobPlanOption(id: 'PANEL-1', label: 'Door RH')],
-        countdowns: [JobPlanOption(id: 'CORE-1', label: 'Painting Door RH')],
-        employees: [JobPlanOption(id: 'EMP-1', label: 'Budi')],
-      ),
-    );
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
