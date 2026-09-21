@@ -20,7 +20,7 @@ void main() {
   test('old command route keeps its core identity', () {
     expect(
       JobPlanNavigation.redirect(Uri.parse('/job-plans/v2/create?coreId=CD-1')),
-      '/plans?coreId=CD-1',
+      '/plans?coreId=CD-1&autoOpenCreate=1',
     );
     expect(JobPlanNavigation.redirect(Uri.parse('/plans')), isNull);
     expect(JobPlanNavigation.redirect(Uri.parse('/qc/v2')), isNull);

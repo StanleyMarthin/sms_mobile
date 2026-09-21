@@ -129,7 +129,10 @@ GoRouter createRouter() {
         path: '/plans/create',
         redirect: (context, state) => Uri(
           path: '/plans',
-          queryParameters: state.uri.queryParameters,
+          queryParameters: {
+            ...state.uri.queryParameters,
+            'autoOpenCreate': '1',
+          },
         ).toString(),
       ),
       GoRoute(

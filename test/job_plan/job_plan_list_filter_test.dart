@@ -8,6 +8,9 @@ Side Effects: Tidak ada.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sm_system/core/di/injection.dart';
+import 'package:sm_system/core/session/session_manager.dart';
+import 'package:sm_system/features/job_plan/presentation/pages/job_plan_page.dart';
 import 'package:sm_system/features/job_plan/domain/entities/job_plan.dart';
 import 'package:sm_system/features/job_plan/domain/entities/job_plan_options.dart';
 import 'package:sm_system/features/job_plan/domain/repositories/job_plan_repository.dart';
@@ -15,6 +18,10 @@ import 'package:sm_system/features/job_plan/presentation/widgets/job_plan_list.d
 
 class _FakeRepository implements JobPlanRepository {
   final calls = <Map<String, String?>>[];
+
+  @override
+  Future<Map<String, dynamic>?> getDraft({required String userId}) async =>
+      null;
 
   @override
   Future<List<JobPlan>> listOperationalPlans({
@@ -79,7 +86,37 @@ class _FakeRepository implements JobPlanRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+class _PlannerSession extends SessionManager {
+  @override
+  bool get isKdAccess => true;
+  @override
+  bool get mobileEnabled => true;
+  @override
+  bool hasPerm(String permission) => permission == Perms.jobPlanCreate;
+  @override
+  bool hasAnyPerm(List<String> permissions) => permissions.any(hasPerm);
+}
+
 void main() {
+  testWidgets('planner retains Rencana and the existing create source sheet', (
+    tester,
+  ) async {
+    sl.registerSingleton<JobPlanRepository>(_FakeRepository());
+    sl.registerSingleton<SessionManager>(_PlannerSession());
+    addTearDown(sl.reset);
+
+    await tester.pumpWidget(const MaterialApp(home: JobPlanPage()));
+    await tester.pumpAndSettle();
+    expect(find.text('Rencana'), findsOneWidget);
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Buat Rencana Kerja Dari:'), findsOneWidget);
+    expect(find.text('Jobdesc List'), findsOneWidget);
+    expect(find.text('Work Order / WOV'), findsOneWidget);
+    expect(find.text('Additional Task'), findsOneWidget);
+    expect(find.text('Core ID'), findsNothing);
+  });
+
   testWidgets('JobPlanList uses hierarchy filters and Jobdesc label', (
     tester,
   ) async {

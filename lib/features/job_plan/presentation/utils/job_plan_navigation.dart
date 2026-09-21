@@ -11,7 +11,10 @@ abstract class JobPlanNavigation {
     if (uri.path != oldRoot && !uri.path.startsWith('$oldRoot/')) return null;
     if (uri.path == '$oldRoot/create') {
       return uri
-          .replace(path: '/plans', queryParameters: uri.queryParameters)
+          .replace(
+            path: '/plans',
+            queryParameters: {...uri.queryParameters, 'autoOpenCreate': '1'},
+          )
           .toString();
     }
     return uri

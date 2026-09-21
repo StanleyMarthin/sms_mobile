@@ -48,7 +48,7 @@ void main() {
     expect(JobPlanAccess.canCreate(session), isTrue);
     expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2'), isTrue);
     expect(JobPlanAccess.canOpenRoute(session, '/job-plans/v2/create'), isTrue);
-    expect(JobPlanAccess.canOpenRoute(session, '/plans/create'), isFalse);
+    expect(JobPlanAccess.canOpenRoute(session, '/plans/create'), isTrue);
     expect(
       JobPlanAccess.canOpenRoute(session, '/job-plans/v2/calendar'),
       isFalse,

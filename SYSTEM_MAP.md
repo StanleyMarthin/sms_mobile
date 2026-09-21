@@ -167,8 +167,8 @@ Files touched:
 | `/dashboard` | redirect → `/home` | — | Legacy alias; `DashboardPage` tidak diroute |
 | `/tasks` | `FeatureShellPage → TaskSectionPage(kind: tasks)` | `taskId`, `date` | Anggota → langsung `MechanicTaskPage`; KD → tab Monitoring/PIC Saya; management lain → `TaskViewPage` |
 | `/overtime` | `FeatureShellPage → TaskSectionPage(kind: overtime)` | `taskId`, `date` | Sama dengan tasks |
-| `/plans` | `FeatureShellPage → JobPlanPage` | `tab`, `date`, `divisionId`, `unitId`, `employeeId`, `approvalState`, `executionState`, `source`, `sourceRefId` | Satu entry point daftar pekerjaan V2 + approval |
-| `/plans/create` | redirect → `/plans` | `coreId` | Legacy deep link dibawa ke daftar pekerjaan; tidak membuka create flow lama |
+| `/plans` | `FeatureShellPage → JobPlanPage` | `tab`, `date`, `divisionId`, `unitId`, `employeeId`, `approvalState`, `executionState`, `source`, `sourceRefId`, `autoOpenCreate` | Pekerjaan + approval, dengan tab Rencana dan form tambah existing untuk KD |
+| `/plans/create` | redirect → `/plans?autoOpenCreate=1` | `coreId` | Membuka pilihan sumber form existing; tidak membuat halaman create kedua |
 | `/plans/approval` | redirect → `/plans?tab=approval` | — | Antrean approval terfilter scope backend |
 | `/plans/monitoring` | `FeatureShellPage → JobPlanMonitoringPage` | — | KD/QA monitoring verified minutes |
 | `/plans/validation` | `FeatureShellPage → JobPlanValidationPage` | — | Final labor validation PASS-only |

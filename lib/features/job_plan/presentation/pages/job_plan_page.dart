@@ -1,9 +1,9 @@
 /*
-Tujuan: Halaman Job Plan utama untuk daftar pekerjaan V2 dan approval.
+Tujuan: Halaman job plan untuk approval queue, creator draft/plan, dan alokasi jam kerja harian.
 Caller: Route /plans, dashboard management, dan task section plan.
-Dependensi: RBAC, SessionManager, JobPlanRepository, CountdownRepository, DateFilterBar.
-Main Functions: JobPlanPage, approval detail bottom sheet.
-Side Effects: HTTP GET/PUT Job Plan dan navigasi ke detail/approval.
+Dependensi: RBAC, SessionManager, JobPlanRepository, WorkOrderRepository, CountdownRepository, JobPlanAllocationHelper, DateFilterBar.
+Main Functions: _loadPlans, _save, _showCreateSourceSheet, _showAdditionalTaskDialog, BrowseTab.
+Side Effects: HTTP GET/POST/PUT job plan, navigasi ke source route, refresh approval dan browse state.
 */
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +19,9 @@ import 'package:sm_system/core/session/session_manager.dart';
 import 'package:sm_system/features/task_execution/presentation/widgets/date_filter_bar.dart';
 import '../../domain/entities/job_plan.dart';
 import '../../domain/repositories/job_plan_repository.dart';
+
+import 'package:sm_system/features/work_order/domain/repositories/work_order_repository.dart';
+import 'package:sm_system/features/work_order/domain/entities/work_order.dart';
 
 import 'package:sm_system/core/widgets/clock_time_input.dart';
 import 'package:sm_system/core/widgets/duration_input.dart';
@@ -702,19 +705,32 @@ class _JobPlanPageState extends State<JobPlanPage>
     if (mounted) _refreshNotifier.value++;
   }
 
+  // Browse state
+  DateTime _browseDate = DateTime.now();
+
   @override
   void initState() {
     super.initState();
     _repository = sl<JobPlanRepository>();
     _session = sl<SessionManager>();
+    final isKd = _session.isKdAccess && JobPlanAccess.canCreate(_session);
     _tabController = TabController(
-      length: 1 + (JobPlanAccess.canApprove(_session) ? 1 : 0),
+      length: 1 + (JobPlanAccess.canApprove(_session) ? 1 : 0) + (isKd ? 1 : 0),
       initialIndex:
           widget.initialTab == 'approval' && JobPlanAccess.canApprove(_session)
           ? 1
           : 0,
       vsync: this,
     );
+    if (widget.initialDate != null) {
+      _browseDate = widget.initialDate!;
+    }
+
+    if (widget.autoOpenCreate && isKd) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showCreateSourceSheet();
+      });
+    }
   }
 
   @override
@@ -1088,8 +1104,133 @@ class _JobPlanPageState extends State<JobPlanPage>
     return sourceType;
   }
 
+  void _showCreateSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surfaceCard,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Buat Rencana Kerja Dari:',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.timer_outlined, color: AppColors.gold),
+              title: Text('Jobdesc List'),
+              subtitle: Text('Gunakan sisa jam dari project car aktif'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final res = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        _CountdownPlanFormPage(initialDate: _browseDate),
+                  ),
+                );
+                if (res == true) _triggerRefresh();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                Icons.assignment_turned_in_outlined,
+                color: AppColors.gold,
+              ),
+              title: Text('Work Order / WOV'),
+              subtitle: Text('Tarik dari WO internal atau vendor'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showWoSourcePicker();
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.add_task_rounded, color: AppColors.gold),
+              title: Text('Additional Task'),
+              subtitle: Text('Input pekerjaan manual atau urgent'),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final res = await _showAdditionalTaskDialog();
+                if (res == true) _triggerRefresh();
+              },
+            ),
+            SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showWoSourcePicker() async {
+    final woRepo = sl<WorkOrderRepository>();
+    final result = await woRepo.getWorkOrders(view: 'ACTIVE');
+
+    result.fold<void>(
+      (failure) => AppNotification.showError(
+        context,
+        failure.message ?? 'Mohon maaf, terjadi kendala. Silakan coba lagi.',
+      ),
+      (orders) {
+        // Filter those already hasCountdownLink?
+        // Actually, JobPlan BE will handle duplication.
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: AppColors.surfaceCard,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (ctx) => _WoSourcePicker(
+            orders: orders,
+            onSelect: (wo) async {
+              Navigator.pop(ctx);
+              final res = await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => _SourcePlanFormPage(
+                    seed: _PlanSourceSeed(
+                      sourceLabel: 'WO',
+                      sourceType: 'WO',
+                      sourceRefId: wo.id,
+                      sourceRoute: '/work-orders?woId=${wo.id}',
+                      unitName: wo.unitName,
+                      carId: wo.carId,
+                      panelName: wo.panelName ?? '-',
+                      assignedDivision: wo.toDivName,
+                      description: wo.jobDetail,
+                      targetHours: wo.estimatedHours ?? 0.0,
+                    ),
+                    initialDate: _browseDate,
+                  ),
+                ),
+              );
+              if (res == true) _triggerRefresh();
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _showAdditionalTaskDialog() {
+    return Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => _AdditionalPlanFormPage(initialDate: _browseDate),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isKd = _session.isKdAccess && JobPlanAccess.canCreate(_session);
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -1105,6 +1246,7 @@ class _JobPlanPageState extends State<JobPlanPage>
           tabs: [
             Tab(text: 'Pekerjaan'),
             if (JobPlanAccess.canApprove(_session)) Tab(text: 'Approval'),
+            if (isKd) Tab(text: 'Rencana'),
           ],
         ),
         actions: [
@@ -1139,8 +1281,27 @@ class _JobPlanPageState extends State<JobPlanPage>
           ),
           if (JobPlanAccess.canApprove(_session))
             JobPlanApprovalPage(onLegacyPlanTap: _showApprovalPlanDetail),
+          if (isKd)
+            _BrowseTab(
+              initialDate: _browseDate,
+              refreshNotifier: _refreshNotifier,
+              onRefresh: _triggerRefresh,
+              onParamsChanged: (date, divId, carId) {
+                setState(() {
+                  _browseDate = date;
+                });
+              },
+            ),
         ],
       ),
+      // FAB untuk KD membuat plan (bila tidak di tab Rencana, tetap bisa akses)
+      floatingActionButton: !isKd
+          ? null
+          : FloatingActionButton(
+              backgroundColor: AppColors.gold,
+              onPressed: _showCreateSourceSheet,
+              child: Icon(Icons.add_rounded, color: Colors.black),
+            ),
     );
   }
 }
@@ -3560,6 +3721,73 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
 
   String _formatDate(DateTime dt) {
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+  }
+}
+
+// ── Work Order / WOV Source Picker ───────────────────────────────────────────
+
+class _WoSourcePicker extends StatelessWidget {
+  const _WoSourcePicker({required this.orders, required this.onSelect});
+
+  final List<WorkOrder> orders;
+  final ValueChanged<WorkOrder> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: FractionallySizedBox(
+        heightFactor: 0.8,
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.all(20),
+              child: Text(
+                'Pilih Work Order',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            Expanded(
+              child: orders.isEmpty
+                  ? Center(
+                      child: Text(
+                        'Tidak ada WO aktif',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: orders.length,
+                      itemBuilder: (ctx, i) {
+                        final wo = orders[i];
+                        return ListTile(
+                          title: Text(
+                            wo.unitName,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${wo.jobDetail}\nPanel: ${wo.panelName ?? '-'}',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                          trailing: Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppColors.gold,
+                          ),
+                          isThreeLine: true,
+                          onTap: () => onSelect(wo),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
