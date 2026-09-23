@@ -157,6 +157,7 @@ class ApiClient {
   Interceptor _responseInterceptor() {
     return InterceptorsWrapper(
       onResponse: (response, handler) {
+        _connectivityMonitor?.reportServerAvailable();
         final data = response.data;
         if (data is Map<String, dynamic>) {
           final success = data['success'] as bool? ?? true;
@@ -184,6 +185,9 @@ class ApiClient {
       },
       onError: (error, handler) async {
         final statusCode = error.response?.statusCode ?? 0;
+        if (statusCode > 0 && statusCode < 500) {
+          _connectivityMonitor?.reportServerAvailable();
+        }
         final isAuthError =
             statusCode == 401 || statusCode == 403 || statusCode == 404;
 

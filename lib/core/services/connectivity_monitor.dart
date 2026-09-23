@@ -1,10 +1,10 @@
 /*
 Tujuan: Memantau status koneksi global aplikasi (online/offline/server mati)
         dan menjadi sumber kebenaran untuk popup opsi Keluar/Coba Lagi.
-Caller: ConnectivityGuard (overlay global), ApiClient (lapor server down),
+Caller: ConnectivityGuard (overlay global), ApiClient (lapor server up/down),
         main.dart (init).
 Dependensi: connectivity_plus, flutter foundation (ValueNotifier).
-Main Functions: init(), recheck(), reportServerDown(), status.
+Main Functions: init(), recheck(), reportServerDown(), reportServerAvailable(), status.
 Side Effects: Listen stream koneksi OS; membaca konektivitas perangkat.
 */
 
@@ -64,6 +64,13 @@ class ConnectivityMonitor {
   void reportServerDown() {
     if (status.value != ConnectionStatus.offline) {
       status.value = ConnectionStatus.serverDown;
+    }
+  }
+
+  /// Server sudah menjawab request lagi, jadi status down lama harus ditutup.
+  void reportServerAvailable() {
+    if (status.value == ConnectionStatus.serverDown) {
+      status.value = ConnectionStatus.online;
     }
   }
 

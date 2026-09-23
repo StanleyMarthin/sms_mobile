@@ -28,6 +28,14 @@ void main() {
       monitor.dispose();
     });
 
+    test('reportServerAvailable clears stale serverDown', () {
+      final monitor = ConnectivityMonitor();
+      monitor.reportServerDown();
+      monitor.reportServerAvailable();
+      expect(monitor.status.value, ConnectionStatus.online);
+      monitor.dispose();
+    });
+
     test('checkConnectivity marks offline when no connection', () async {
       final monitor = ConnectivityMonitor(
         check: () async => [ConnectivityResult.none],
