@@ -283,6 +283,8 @@ class SessionManager extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _tempToken = null;
+    _deviceId = null;
     _token = null;
     _refreshToken = null;
     _userId = null;
@@ -306,6 +308,7 @@ class SessionManager extends ChangeNotifier {
 
     await Future.wait([
       _delete(keyTempToken),
+      _delete(keyDeviceId),
       _delete(keyToken),
       _delete(keyRefreshToken),
       _delete(keyUserId),

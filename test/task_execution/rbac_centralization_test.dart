@@ -23,6 +23,22 @@ void main() {
     await sl.reset();
   });
 
+  test('SessionManager logout clears temporary device attestation', () async {
+    final storage = _MemoryStorage();
+    final session = SessionManager(storage: storage);
+
+    await session.setDeviceAttestation(
+      tempToken: 'temp-token',
+      deviceId: 'device-1',
+    );
+    await session.logout();
+
+    expect(session.tempToken, isNull);
+    expect(session.deviceId, isNull);
+    expect(storage._values[SessionManager.keyTempToken], isNull);
+    expect(storage._values[SessionManager.keyDeviceId], isNull);
+  });
+
   test('LoginModel parses centralized role profile and scope payload', () {
     final model = LoginModel.fromJson({
       'token': 'session:SM-08.005',
