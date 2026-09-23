@@ -1,14 +1,16 @@
 /*
-Tujuan: Mengunci daftar Job Plan V2 agar memakai filter tanggal-divisi-unit-PIC dan label Jobdesc.
+Tujuan: Mengunci flow mobile Job Plan agar UI lama tetap dipakai dan list read model tidak memanggil dropdown V2.
 Caller: Flutter test runner.
-Dependensi: JobPlanList, JobPlanRepository fake, JobPlanOptions.
+Dependensi: JobPlanPage, JobPlanList, JobPlanRepository fake, JobPlanOptions.
 Main Functions: main().
 Side Effects: Tidak ada.
 */
 
+import 'package:fpdart/fpdart.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/core/di/injection.dart';
+import 'package:sm_system/core/errors/failures.dart';
 import 'package:sm_system/core/session/session_manager.dart';
 import 'package:sm_system/features/job_plan/presentation/pages/job_plan_page.dart';
 import 'package:sm_system/features/job_plan/domain/entities/job_plan.dart';
@@ -23,6 +25,17 @@ class _FakeRepository implements JobPlanRepository {
   @override
   Future<Map<String, dynamic>?> getDraft({required String userId}) async =>
       null;
+
+  @override
+  Future<fp.Either<Failure, Map<String, dynamic>>> getApprovalRaw({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 100,
+    int offset = 0,
+  }) async {
+    return const fp.Right({'items': <Map<String, dynamic>>[]});
+  }
 
   @override
   Future<List<JobPlan>> listOperationalPlans({

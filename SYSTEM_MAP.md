@@ -167,7 +167,7 @@ Files touched:
 | `/dashboard` | redirect → `/home` | — | Legacy alias; `DashboardPage` tidak diroute |
 | `/tasks` | `FeatureShellPage → TaskSectionPage(kind: tasks)` | `taskId`, `date` | Anggota → langsung `MechanicTaskPage`; KD → tab Monitoring/PIC Saya; management lain → `TaskViewPage` |
 | `/overtime` | `FeatureShellPage → TaskSectionPage(kind: overtime)` | `taskId`, `date` | Sama dengan tasks |
-| `/plans` | `FeatureShellPage → JobPlanPage` | `tab`, `date`, `divisionId`, `unitId`, `employeeId`, `approvalState`, `executionState`, `source`, `sourceRefId`, `autoOpenCreate` | Pekerjaan + approval, dengan tab Rencana dan form tambah existing untuk KD |
+| `/plans` | `FeatureShellPage → JobPlanPage` | `tab`, `date`, `divisionId`, `unitId`, `employeeId`, `approvalState`, `executionState`, `source`, `sourceRefId`, `autoOpenCreate` | UI lama Job Plan: `Approval Plan` + tab `Rencana` untuk KD |
 | `/plans/create` | redirect → `/plans?autoOpenCreate=1` | `coreId` | Membuka pilihan sumber form existing; tidak membuat halaman create kedua |
 | `/plans/approval` | redirect → `/plans?tab=approval` | — | Antrean approval terfilter scope backend |
 | `/plans/monitoring` | `FeatureShellPage → JobPlanMonitoringPage` | — | KD/QA monitoring verified minutes |
@@ -600,10 +600,9 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 
 **Job Plan mobile lifecycle foundation (mobile Phase 7A-7F):**
 ```text
-/plans → JobPlanPage → JobPlanList
--> JobPlanRepositoryImpl.listOperationalPlans()
--> RemoteJobPlanDataSource.listOperationalPlans()
--> GET 8083 /sm/job-plans/v2?userId=&view=browse&page=&limit=&unitId=&employeeId=&date=&approvalState=&executionState=&divisionId=
+/plans → JobPlanPage → Approval Plan tab
+-> JobPlanRepositoryImpl.getApprovalRaw()/getApprovalQueue()
+-> GET/POST existing approval hierarchy API lewat sm_job_plan
 
 /job-plan/:id → JobPlanDetailPage
 -> JobPlanRepositoryImpl.getOperationalPlan()
@@ -615,7 +614,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 -> JobPlanRepositoryImpl.saveDraft()/submitDraft()
 -> POST/PUT 8083 /sm/job-plans draft/submit flow existing
 
-/plans?tab=approval → JobPlanApprovalPage
+/plans?tab=approval → JobPlanPage Approval Plan tab
 -> JobPlanRepositoryImpl.mutateApproval()
 -> RemoteJobPlanDataSource.mutateApproval()
 -> PUT 8083 /sm/job-plans/v2/{planId} { action: approve|correct|reject, userId, commandId, expectedVersion, ...correction/reject fields }
@@ -636,7 +635,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 - Execution mobile tetap melalui `TaskExecution` adapter ke `POST /sm/job-plans/v2/{planId}/execution`; Flutter tidak menulis actual/validation/countdown.
 - Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
 - Home menampilkan satu menu `Job Plan` saat `JobPlanAccess.canOpenAny(session)` true; route memakai guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanCommandFeedback` dan refresh list backend tanpa retry mutation otomatis.
-- Tab `Pekerjaan` memakai data list per tanggal; filter Divisi -> Unit -> PIC dibuat lokal dari data yang sudah dimuat supaya tidak memanggil dropdown V2 saat membuka halaman.
+- Tab utama kembali ke UI lama `Approval Plan`; drill-down tetap tanggal -> unit -> divisi -> rencana, memakai API approval hierarchy existing.
 - Form create tetap memakai flow lama dari tab `Rencana`: pilih sumber `Jobdesc List`, `Work Order / WOV`, atau `Additional Task`; `Jobdesc List` mengambil Unit/Panel/Jobdesc dari Countdown API, bukan `/sm/job-plans/dropdowns`.
 - `JobPlanDetailPage` sekarang menjadi pusat informasi read-only: work context, schedule, approval timeline, execution state, monitoring minutes/progress, ledger state, dan version seluruhnya berasal dari backend model.
 - Approval tracking dan jadwal tetap tampil di list/detail Job Plan utama; tidak ada page calendar/tracking terpisah.
