@@ -34,7 +34,7 @@ class _CacheEntry {
 
 /// Central HTTP client wrapping Dio with auth & error interceptors.
 class ApiClient {
-  static const Duration requestTimeout = Duration(seconds: 3);
+  static const Duration requestTimeout = Duration(seconds: 5);
   static const Duration authTimeout = Duration(seconds: 15);
 
   final Dio _dio;

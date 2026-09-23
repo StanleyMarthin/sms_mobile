@@ -81,7 +81,7 @@ void main() {
       await datasource.deviceInit(const {'deviceId': 'device-1'});
       await datasource.login(employeeId: 'KD-1', password: 'secret');
 
-      expect(ApiClient.requestTimeout, const Duration(seconds: 3));
+    expect(ApiClient.requestTimeout, const Duration(seconds: 5));
       expect(adapter.requests, hasLength(2));
       for (final request in adapter.requests) {
         expect(request.connectTimeout, ApiClient.authTimeout);
