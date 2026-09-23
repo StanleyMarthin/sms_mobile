@@ -32,6 +32,8 @@ class _CacheEntry {
 
 /// Central HTTP client wrapping Dio with auth & error interceptors.
 class ApiClient {
+  static const Duration requestTimeout = Duration(seconds: 3);
+
   final Dio _dio;
   final SessionManager _sessionManager;
   final ConnectivityMonitor? _connectivityMonitor;
@@ -46,8 +48,8 @@ class ApiClient {
        _connectivityMonitor = connectivityMonitor,
        _dio = dio ?? Dio() {
     _dio.options
-      ..connectTimeout = Duration(seconds: 10)
-      ..receiveTimeout = Duration(seconds: 30)
+      ..connectTimeout = requestTimeout
+      ..receiveTimeout = requestTimeout
       ..headers = {'Content-Type': 'application/json'};
 
     _dio.interceptors.add(_authInterceptor());
@@ -256,7 +258,7 @@ class ApiClient {
       case DioExceptionType.sendTimeout:
       case DioExceptionType.receiveTimeout:
       case DioExceptionType.connectionError:
-        return true;
+        return false;
       case DioExceptionType.badResponse:
         return error.response?.statusCode == 503;
       default:
@@ -316,8 +318,8 @@ class ApiClient {
 
       final refreshDio = Dio(
         BaseOptions(
-          connectTimeout: Duration(seconds: 10),
-          receiveTimeout: Duration(seconds: 30),
+          connectTimeout: requestTimeout,
+          receiveTimeout: requestTimeout,
           headers: {'Content-Type': 'application/json'},
         ),
       );

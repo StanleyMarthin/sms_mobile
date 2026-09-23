@@ -60,6 +60,7 @@ class JobPlanApiModel {
       panelName: _string(['panelName', 'panel_name']),
       panelId: _string(['panelId', 'panel_id']),
       unitId: _string(['unitId', 'unit_id', 'carId', 'car_id']),
+      divisionId: _string(['divisionId', 'division_id']),
       countdownName: description,
       assignedDivision: _string(['divisionName', 'division_name']),
       assignedUserId: employeeId,

@@ -31,6 +31,7 @@ class JobPlan {
     this.sourceId,
     this.panelId,
     this.unitId,
+    this.divisionId,
     this.countdownName,
     this.employeeId,
     this.employeeName,
@@ -69,6 +70,7 @@ class JobPlan {
   final String panelName;
   final String? panelId;
   final String? unitId;
+  final String? divisionId;
   final String? countdownName;
   final String assignedDivision;
   final String assignedUserId;

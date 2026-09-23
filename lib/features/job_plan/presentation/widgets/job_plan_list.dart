@@ -49,40 +49,14 @@ class _JobPlanListState extends State<JobPlanList> {
   late String? _unitId = _emptyAsNull(widget.unitId);
   late String? _employeeId = _emptyAsNull(widget.employeeId);
   late Future<List<JobPlan>> _future = _load();
-  List<JobPlanOption> _divisions = const [];
-  List<JobPlanOption> _units = const [];
-  List<JobPlanOption> _employees = const [];
-  bool _filtersLoading = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFilters();
-  }
-
-  Future<List<JobPlan>> _load() => _repository.listOperationalPlans(
-    date: _dateString(_date),
-    divisionId: _divisionId,
-    unitId: _unitId,
-    employeeId: _employeeId,
-    approvalState: widget.approvalState,
-    executionState: widget.executionState,
-  );
-
-  Future<void> _loadFilters() async {
-    try {
-      final options = await _repository.getOptions(divisionId: _divisionId);
-      if (!mounted) return;
-      setState(() {
-        _divisions = options.divisions;
-        _units = options.units;
-        _employees = options.employees;
-        _filtersLoading = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _filtersLoading = false);
-    }
-  }
+  Future<List<JobPlan>> _load() => _repository
+      .listOperationalPlans(
+        date: _dateString(_date),
+        approvalState: widget.approvalState,
+        executionState: widget.executionState,
+      )
+      .timeout(const Duration(seconds: 3));
 
   Future<void> _refresh() async {
     setState(() => _future = _load());
@@ -110,6 +84,9 @@ class _JobPlanListState extends State<JobPlanList> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
+        final allPlans = snapshot.data!;
+        final visiblePlans = _applyLocalFilters(allPlans);
+        final options = _optionsFromPlans(allPlans);
         return RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
@@ -118,13 +95,12 @@ class _JobPlanListState extends State<JobPlanList> {
             children: [
               _JobPlanFilters(
                 date: _date,
-                divisions: _divisions,
-                units: _units,
-                employees: _employees,
+                divisions: options.divisions,
+                units: options.units,
+                employees: options.employees,
                 divisionId: _divisionId,
                 unitId: _unitId,
                 employeeId: _employeeId,
-                loading: _filtersLoading,
                 onDateChanged: (date) {
                   setState(() {
                     _date = date;
@@ -136,22 +112,17 @@ class _JobPlanListState extends State<JobPlanList> {
                     _divisionId = id;
                     _unitId = null;
                     _employeeId = null;
-                    _filtersLoading = true;
-                    _future = _load();
                   });
-                  _loadFilters();
                 },
                 onUnitChanged: (id) => setState(() {
                   _unitId = id;
-                  _future = _load();
                 }),
                 onEmployeeChanged: (id) => setState(() {
                   _employeeId = id;
-                  _future = _load();
                 }),
               ),
               const SizedBox(height: 12),
-              ..._items(snapshot.data!),
+              ..._items(visiblePlans),
             ],
           ),
         );
@@ -172,6 +143,88 @@ class _JobPlanListState extends State<JobPlanList> {
         if (i < plans.length - 1) const SizedBox(height: 8),
       ],
     ];
+  }
+
+  List<JobPlan> _applyLocalFilters(List<JobPlan> plans) {
+    return plans.where((plan) {
+      if (_divisionId != null && !_matchesDivision(plan, _divisionId!)) {
+        return false;
+      }
+      if (_unitId != null && plan.unitId != _unitId && plan.carId != _unitId) {
+        return false;
+      }
+      if (_employeeId != null && plan.resolvedEmployeeId != _employeeId) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  JobPlanOptions _optionsFromPlans(List<JobPlan> plans) {
+    final selectedDivision = _divisionId;
+    final selectedUnit = _unitId;
+    return JobPlanOptions(
+      divisions: _uniqueOptions(
+        plans,
+        idOf: (plan) => _optionId(plan.divisionId, plan.assignedDivision),
+        labelOf: (plan) => plan.assignedDivision,
+      ),
+      units: _uniqueOptions(
+        plans.where(
+          (plan) =>
+              selectedDivision == null ||
+              _matchesDivision(plan, selectedDivision),
+        ),
+        idOf: (plan) => _optionId(plan.unitId, plan.carId),
+        labelOf: (plan) => plan.unitName,
+      ),
+      employees: _uniqueOptions(
+        plans.where((plan) {
+          final divisionOk =
+              selectedDivision == null ||
+              _matchesDivision(plan, selectedDivision);
+          final unitOk =
+              selectedUnit == null ||
+              plan.unitId == selectedUnit ||
+              plan.carId == selectedUnit;
+          return divisionOk && unitOk;
+        }),
+        idOf: (plan) => plan.resolvedEmployeeId,
+        labelOf: (plan) => plan.resolvedEmployeeName,
+      ),
+    );
+  }
+
+  bool _matchesDivision(JobPlan plan, String value) =>
+      plan.divisionId == value || plan.assignedDivision == value;
+
+  List<JobPlanOption> _uniqueOptions(
+    Iterable<JobPlan> plans, {
+    required String Function(JobPlan) idOf,
+    required String Function(JobPlan) labelOf,
+  }) {
+    final byId = <String, JobPlanOption>{};
+    for (final plan in plans) {
+      final id = idOf(plan).trim();
+      if (id.isEmpty) continue;
+      byId[id] = JobPlanOption(
+        id: id,
+        label: _fallbackLabel(labelOf(plan), id),
+      );
+    }
+    final values = byId.values.toList();
+    values.sort((a, b) => a.label.compareTo(b.label));
+    return values;
+  }
+
+  String _optionId(String? preferred, String fallback) {
+    final text = preferred?.trim() ?? '';
+    return text.isNotEmpty ? text : fallback.trim();
+  }
+
+  String _fallbackLabel(String preferred, String fallback) {
+    final text = preferred.trim();
+    return text.isNotEmpty ? text : fallback;
   }
 }
 
@@ -208,7 +261,6 @@ class _JobPlanFilters extends StatelessWidget {
     required this.divisionId,
     required this.unitId,
     required this.employeeId,
-    required this.loading,
     required this.onDateChanged,
     required this.onDivisionChanged,
     required this.onUnitChanged,
@@ -222,7 +274,6 @@ class _JobPlanFilters extends StatelessWidget {
   final String? divisionId;
   final String? unitId;
   final String? employeeId;
-  final bool loading;
   final ValueChanged<DateTime> onDateChanged;
   final ValueChanged<String?> onDivisionChanged;
   final ValueChanged<String?> onUnitChanged;
@@ -255,7 +306,7 @@ class _JobPlanFilters extends StatelessWidget {
               label: 'Divisi',
               value: divisionId,
               options: divisions,
-              emptyLabel: loading ? 'Memuat divisi...' : 'Semua divisi',
+              emptyLabel: 'Semua divisi',
               onChanged: onDivisionChanged,
             ),
             const SizedBox(height: 8),
@@ -263,7 +314,7 @@ class _JobPlanFilters extends StatelessWidget {
               label: 'Unit',
               value: unitId,
               options: units,
-              emptyLabel: loading ? 'Memuat unit...' : 'Semua unit',
+              emptyLabel: 'Semua unit',
               onChanged: onUnitChanged,
             ),
             const SizedBox(height: 8),
@@ -271,7 +322,7 @@ class _JobPlanFilters extends StatelessWidget {
               label: 'PIC',
               value: employeeId,
               options: employees,
-              emptyLabel: loading ? 'Memuat PIC...' : 'Semua PIC',
+              emptyLabel: 'Semua PIC',
               onChanged: onEmployeeChanged,
             ),
           ],

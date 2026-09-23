@@ -18,6 +18,7 @@ import 'package:sm_system/features/job_plan/presentation/widgets/job_plan_list.d
 
 class _FakeRepository implements JobPlanRepository {
   final calls = <Map<String, String?>>[];
+  int optionCalls = 0;
 
   @override
   Future<Map<String, dynamic>?> getDraft({required String userId}) async =>
@@ -46,6 +47,8 @@ class _FakeRepository implements JobPlanRepository {
         planId: 'PLAN-1',
         coreId: 'CORE-1',
         carId: 'UNIT-1',
+        unitId: 'UNIT-1',
+        divisionId: 'DIV-1',
         sourceType: 'COUNTDOWN',
         sourceRefId: 'CORE-1',
         unitName: 'MB220S',
@@ -75,6 +78,7 @@ class _FakeRepository implements JobPlanRepository {
     String? unitId,
     String? coreId,
   }) async {
+    optionCalls++;
     return const JobPlanOptions(
       divisions: [JobPlanOption(id: 'DIV-1', label: 'Interior')],
       units: [JobPlanOption(id: 'UNIT-1', label: 'MB220S')],
@@ -117,7 +121,7 @@ void main() {
     expect(find.text('Core ID'), findsNothing);
   });
 
-  testWidgets('JobPlanList uses hierarchy filters and Jobdesc label', (
+  testWidgets('JobPlanList filters locally and keeps Jobdesc label', (
     tester,
   ) async {
     final repository = _FakeRepository();
@@ -138,9 +142,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.calls.single['date'], '2026-09-21');
-    expect(repository.calls.single['divisionId'], 'DIV-1');
-    expect(repository.calls.single['unitId'], 'UNIT-1');
-    expect(repository.calls.single['employeeId'], 'EMP-1');
+    expect(repository.calls.single['divisionId'], isNull);
+    expect(repository.calls.single['unitId'], isNull);
+    expect(repository.calls.single['employeeId'], isNull);
+    expect(repository.optionCalls, 0);
     expect(find.text('Tanggal'), findsOneWidget);
     expect(find.text('Divisi'), findsOneWidget);
     expect(find.text('Unit'), findsOneWidget);
