@@ -24,6 +24,7 @@ class _FakeRepository implements JobPlanRepository {
   final calls = <Map<String, String?>>[];
   final savedDrafts = <List<Map<String, dynamic>>>[];
   int optionCalls = 0;
+  int dropdownUserCalls = 0;
 
   @override
   Future<List<JobPlan>> getPlans() async => const [];
@@ -38,9 +39,8 @@ class _FakeRepository implements JobPlanRepository {
     String? search,
     int limit = 200,
   }) async {
-    return const [
-      {'id': 'EMP-1', 'full_name': 'Budi', 'employee_id': 'EMP-1'},
-    ];
+    dropdownUserCalls++;
+    return const [];
   }
 
   @override
@@ -222,6 +222,19 @@ class _FakeCountdownRepository implements CountdownRepository {
   }
 
   @override
+  Future<CountdownCreateOptions> getCountdownCreateOptions(
+    String unitId,
+  ) async {
+    return CountdownCreateOptions(
+      divisions: [CountdownCreateDivisionOption(id: 1, name: 'Interior')],
+      jobTypes: const [],
+      users: [
+        CountdownCreateUserOption(id: 'EMP-1', name: 'Budi', divisionId: 1),
+      ],
+    );
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -317,6 +330,7 @@ void main() {
       repository.savedDrafts.single.single['jobDescription'],
       'Painting Door RH',
     );
+    expect(repository.dropdownUserCalls, 0);
   });
 
   testWidgets('JobPlanList filters locally and keeps Jobdesc label', (

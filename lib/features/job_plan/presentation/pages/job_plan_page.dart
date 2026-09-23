@@ -1370,6 +1370,27 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>> _loadEmployeesForDivision({
+    required String unitId,
+    required int divisionId,
+  }) async {
+    final options = await _countdownRepo.getCountdownCreateOptions(unitId);
+    return options.users
+        .where(
+          (user) => user.divisionId == null || user.divisionId == divisionId,
+        )
+        .map(
+          (user) => {
+            'id': user.id,
+            'employee_id': user.id,
+            'name': user.name,
+            'full_name': user.name,
+            'division_id': user.divisionId,
+          },
+        )
+        .toList();
+  }
+
   Future<void> _hydrateDraft(
     Map<String, dynamic> draft,
     List<CountdownUnit> units,
@@ -1397,8 +1418,9 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         divisionId: division.divisionId,
         plannable: true,
       );
-      final employees = await _repository.getDropdownUsers(
-        divisionId: division.divisionId.toString(),
+      final employees = await _loadEmployeesForDivision(
+        unitId: unit.carId,
+        divisionId: division.divisionId,
       );
 
       final coreId = draft['coreId']?.toString() ?? '';
@@ -1505,8 +1527,9 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
         divisionId: matchingDiv.divisionId,
         plannable: true,
       );
-      final employees = await _repository.getDropdownUsers(
-        divisionId: matchingDiv.divisionId.toString(),
+      final employees = await _loadEmployeesForDivision(
+        unitId: unit.carId,
+        divisionId: matchingDiv.divisionId,
       );
 
       if (!mounted) return;

@@ -636,7 +636,7 @@ ViewTaskCard timeline tap → TaskViewPage review dialog → TaskViewPage edit d
 - Final validation mobile hanya PASS ke `/validate`; tidak ada QC screen, REWORK action, local rework state, atau fake QC contract.
 - Home menampilkan satu menu `Job Plan` saat `JobPlanAccess.canOpenAny(session)` true; route memakai guard permission; konflik `ERR_STALE_PLAN`/`ERR_IDEMPOTENCY_CONFLICT` memakai `JobPlanCommandFeedback` dan refresh list backend tanpa retry mutation otomatis.
 - Tab utama kembali ke UI lama `Approval Plan`; drill-down tetap tanggal -> unit -> divisi -> rencana, memakai API approval hierarchy existing.
-- Form create tetap memakai flow lama dari tab `Rencana`: pilih sumber `Jobdesc List`, `Work Order / WOV`, atau `Additional Task`; `Jobdesc List` mengambil Unit/Panel/Jobdesc dari Countdown API, bukan `/sm/job-plans/dropdowns`.
+- Form create tetap memakai flow lama dari tab `Rencana`: pilih sumber `Jobdesc List`, `Work Order / WOV`, atau `Additional Task`; `Jobdesc List` mengambil Unit/Panel/Jobdesc/PIC dari Countdown API, bukan `/sm/job-plans/dropdowns`.
 - `JobPlanDetailPage` sekarang menjadi pusat informasi read-only: work context, schedule, approval timeline, execution state, monitoring minutes/progress, ledger state, dan version seluruhnya berasal dari backend model.
 - Approval tracking dan jadwal tetap tampil di list/detail Job Plan utama; tidak ada page calendar/tracking terpisah.
 - Notification foundation membaca kategori event backend untuk Approval, Job Plan, Execution, dan Validation; belum ada push engine dan belum ada QC contract.
