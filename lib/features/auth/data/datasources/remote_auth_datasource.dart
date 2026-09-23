@@ -1,3 +1,13 @@
+/*
+Tujuan: Datasource auth remote untuk device init dan login ke backend.
+Caller: AuthRepositoryImpl melalui LoginUseCase dan DeviceInitUseCase.
+Dependensi: ApiClient, ApiEndpoints, SessionManager, service locator.
+Main Functions: deviceInit(), login().
+Side Effects: HTTP POST ke auth service; membaca deviceId dari SessionManager.
+*/
+
+import 'package:dio/dio.dart';
+
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_endpoints.dart';
 import '../../../../core/di/injection.dart';
@@ -18,6 +28,11 @@ class RemoteAuthDataSource implements AuthDataSource {
     final response = await apiClient.post(
       ApiEndpoints.deviceInit,
       data: deviceInfo,
+      options: Options(
+        connectTimeout: ApiClient.authTimeout,
+        receiveTimeout: ApiClient.authTimeout,
+        sendTimeout: ApiClient.authTimeout,
+      ),
     );
     final data = response.data as Map<String, dynamic>? ?? {};
     return DeviceInitModel.fromJson(data);
@@ -38,6 +53,11 @@ class RemoteAuthDataSource implements AuthDataSource {
         'deviceId': sl<SessionManager>().deviceId,
         if (fcmToken != null) 'fcmToken': fcmToken,
       },
+      options: Options(
+        connectTimeout: ApiClient.authTimeout,
+        receiveTimeout: ApiClient.authTimeout,
+        sendTimeout: ApiClient.authTimeout,
+      ),
     );
     final data = response.data as Map<String, dynamic>? ?? {};
     final user = data['user'] as Map<String, dynamic>? ?? {};

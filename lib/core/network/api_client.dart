@@ -1,8 +1,10 @@
-/// Dio-based HTTP client with interceptors for auth, response parsing,
-/// and error mapping.
-///
-/// All feature datasources should use [ApiClient] instead of raw Dio.
-/// Standard response format: `{ "success": true, "message": "...", "data": {} }`
+/*
+Tujuan: HTTP client terpusat untuk auth, timeout, cache, retry, response parsing, dan error mapping API mobile.
+Caller: Seluruh remote datasource feature melalui dependency injection.
+Dependensi: Dio, SessionManager, ConnectivityMonitor, ApiEndpoints.
+Main Functions: ApiClient.get/post/put/delete/postMultipart, auth/cache/retry/response interceptors.
+Side Effects: HTTP request, refresh session, cache response GET in-memory, update connectivity state.
+*/
 library;
 
 import 'dart:async';
@@ -33,6 +35,7 @@ class _CacheEntry {
 /// Central HTTP client wrapping Dio with auth & error interceptors.
 class ApiClient {
   static const Duration requestTimeout = Duration(seconds: 3);
+  static const Duration authTimeout = Duration(seconds: 15);
 
   final Dio _dio;
   final SessionManager _sessionManager;
@@ -449,11 +452,13 @@ class ApiClient {
     String path, {
     dynamic data,
     CancelToken? cancelToken,
+    Options? options,
   }) async {
     final response = await _dio.post(
       path,
       data: data,
       cancelToken: cancelToken,
+      options: options,
     );
     return _parseResponse(response);
   }
