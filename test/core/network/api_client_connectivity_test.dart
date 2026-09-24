@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sm_system/core/network/api_client.dart';
+import 'package:sm_system/core/network/api_endpoints.dart';
 import 'package:sm_system/core/services/connectivity_monitor.dart';
 import 'package:sm_system/core/session/session_manager.dart';
 
@@ -97,5 +98,34 @@ void main() {
 
     expect(monitor.status.value, ConnectionStatus.online);
     monitor.dispose();
+  });
+
+  test('login auth error keeps device attestation for retry', () async {
+    final storage = _MemoryStorage();
+    final session = SessionManager(storage: storage);
+    await session.setDeviceAttestation(
+      tempToken: 'temp-token',
+      deviceId: 'device-1',
+    );
+    final client = ApiClient(
+      sessionManager: session,
+      dio: Dio()
+        ..httpClientAdapter = _Adapter({
+          'success': false,
+          'message': 'Credential salah.',
+          'errorCode': 'INVALID_CREDENTIALS',
+        }, 401),
+    );
+
+    try {
+      await client.post(ApiEndpoints.login);
+    } on DioException {
+      // Expected: login failed, but device attestation must remain retryable.
+    }
+
+    expect(session.tempToken, 'temp-token');
+    expect(session.deviceId, 'device-1');
+    expect(storage.values[SessionManager.keyTempToken], 'temp-token');
+    expect(storage.values[SessionManager.keyDeviceId], 'device-1');
   });
 }

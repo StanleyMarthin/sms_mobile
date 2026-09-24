@@ -202,7 +202,7 @@ class ApiClient {
           return;
         }
 
-        if (isAuthError) {
+        if (isAuthError && !_isAuthBootstrapRequest(error.requestOptions)) {
           clearAllCache();
           await _sessionManager.logout();
         }
@@ -277,10 +277,16 @@ class ApiClient {
     final statusCode = error.response?.statusCode ?? 0;
     final request = error.requestOptions;
     return statusCode == 401 &&
+        !_isAuthBootstrapRequest(request) &&
         request.extra['skipRefresh'] != true &&
         request.path != ApiEndpoints.refresh &&
         (_sessionManager.refreshToken ?? '').isNotEmpty &&
         (_sessionManager.deviceId ?? '').isNotEmpty;
+  }
+
+  bool _isAuthBootstrapRequest(RequestOptions request) {
+    return request.path == ApiEndpoints.deviceInit ||
+        request.path == ApiEndpoints.login;
   }
 
   Future<void> _retryAfterRefresh(
