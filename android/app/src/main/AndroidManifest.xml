@@ -1,3 +1,10 @@
+<!--
+Tujuan: Manifest Android utama untuk izin, activity, Flutter embedding, dan konfigurasi notifikasi SM System.
+Caller: Android runtime dan Flutter Gradle build.
+Dependensi: MainActivity, styles.xml, Firebase Messaging, Flutter embedding v2.
+Main Functions: Deklarasi permission, application, MainActivity, metadata Firebase/Flutter.
+Side Effects: Mengatur izin device, activity launch, notifikasi, dan render engine Android.
+-->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
@@ -48,10 +55,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <meta-data
-            android:name="io.flutter.embedding.android.EnableImpeller"
-            android:value="false" />
-
         <!-- Firebase Cloud Messaging: ikon & channel notifikasi -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"

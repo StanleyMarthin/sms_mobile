@@ -2,9 +2,11 @@
 Tujuan: Entry point aplikasi mobile SM Workshop dan inisialisasi runtime global.
 Caller: Android/iOS Flutter runner.
 Dependensi: DI, router, SessionManager, FCMService, NotificationInboxService, AppTheme.
-Main Functions: main(), SmWorkshopApp.
+Main Functions: main(), initFcmOrExit(), SmWorkshopApp.
 Side Effects: Init session lokal, FCM permission/token, notification inbox, wakelock, runApp.
 */
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,20 +33,30 @@ void main() async {
   await ThemeController.load();
   await sl<NotificationInboxService>().init();
 
+  runApp(SmWorkshopApp());
+  unawaited(_startPostRenderServices());
+}
+
+Future<void> _startPostRenderServices() async {
+  await initFcmOrExit(
+    init: () => FCMService().init(),
+    exit: SystemNavigator.pop,
+  );
+  unawaited(WakelockPlus.enable());
+}
+
+@visibleForTesting
+Future<void> initFcmOrExit({
+  required Future<void> Function() init,
+  required Future<void> Function() exit,
+}) async {
   try {
-    // Wajib dipanggil sebelum runApp agar getToken() tersedia saat login
-    // Jika izin notifikasi ditolak, init() akan melempar error
-    await FCMService().init();
+    await init();
   } catch (e) {
     if (e == 'NOTIFICATION_PERMISSION_DENIED') {
-      // Jika ditolak, keluar dari aplikasi sesuai instruksi
-      await SystemNavigator.pop();
-      return;
+      await exit();
     }
   }
-
-  WakelockPlus.enable();
-  runApp(SmWorkshopApp());
 }
 
 class SmWorkshopApp extends StatelessWidget {
