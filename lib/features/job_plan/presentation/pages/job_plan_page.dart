@@ -3678,7 +3678,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                       SizedBox(height: 16),
 
                       _FormSection(
-                        title: 'Catatan Rencana',
+                        title: 'Instruksi / SPOK',
                         child: TextField(
                           controller: _noteCtrl,
                           maxLines: 2,
@@ -4324,7 +4324,7 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                       ),
                       SizedBox(height: 16),
                       _FormSection(
-                        title: 'Catatan Rencana',
+                        title: 'Instruksi / SPOK',
                         child: TextField(
                           controller: _noteCtrl,
                           maxLines: 2,
@@ -5761,7 +5761,7 @@ class _BrowseTabState extends State<_BrowseTab> {
                   value: plan.description.isNotEmpty ? plan.description : '-',
                 ),
                 if (plan.note.isNotEmpty)
-                  _DetailRow(label: 'Catatan', value: plan.note),
+                  _DetailRow(label: 'Instruksi', value: plan.note),
                 SizedBox(height: 20),
                 Row(
                   children: [
