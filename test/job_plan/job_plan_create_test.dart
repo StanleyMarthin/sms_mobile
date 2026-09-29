@@ -27,6 +27,7 @@ class _MemoryStorage {
 
 class _CaptureAdapter implements HttpClientAdapter {
   RequestOptions? request;
+  final requests = <RequestOptions>[];
 
   @override
   Future<ResponseBody> fetch(
@@ -35,6 +36,7 @@ class _CaptureAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     request = options;
+    requests.add(options);
     return ResponseBody.fromString(
       jsonEncode({
         'success': true,
@@ -99,6 +101,67 @@ void main() {
       expect(payload['plannedWorkMinutes'], 240);
       expect(payload['commandId'], 'cmd-create-1');
       expect(payload.containsKey('panelId'), isFalse);
+    },
+  );
+
+  test(
+    'submitDraft sends Countdown draft items to operational V2 endpoint',
+    () async {
+      final adapter = _CaptureAdapter();
+      final session = SessionManager(storage: _MemoryStorage());
+      await session.login(
+        token: 'token',
+        refreshToken: 'refresh',
+        userId: 'KD-1',
+        employeeId: 'KD-1',
+        fullName: 'KD',
+        role: 'kd',
+        divisionName: 'Interior',
+        jabatan: 'KD',
+        divisionId: 1,
+        permissions: const [],
+      );
+      final dataSource = RemoteJobPlanDataSource(
+        apiClient: ApiClient(
+          sessionManager: session,
+          dio: Dio()..httpClientAdapter = adapter,
+        ),
+        sessionManager: session,
+      );
+
+      final createdIds = await dataSource.submitDraft(
+        userId: 'KD-1',
+        sourceType: 'COUNTDOWN',
+        items: [
+          {
+            'draftItemId': 'draft-1',
+            'sourceType': 'COUNTDOWN',
+            'coreId': 'core-1',
+            'assignedUserId': 'emp-1',
+            'taskDate': '2026-09-29',
+            'startTime': '08:00',
+            'targetHours': 1.65,
+            'jobDescription': 'Repair',
+            'note': 'Repair part',
+            'isOvertime': false,
+          },
+        ],
+      );
+
+      final payload = adapter.request!.data as Map<String, dynamic>;
+      expect(createdIds, ['plan-v2-1']);
+      expect(adapter.requests, hasLength(1));
+      expect(adapter.request!.method, 'POST');
+      expect(adapter.request!.path.endsWith('/sm/job-plans/v2'), isTrue);
+      expect(payload['action'], isNull);
+      expect(payload['userId'], 'KD-1');
+      expect(payload['coreId'], 'core-1');
+      expect(payload['employeeId'], 'emp-1');
+      expect(payload['plannedStartMinute'], 480);
+      expect(payload['plannedWorkMinutes'], 99);
+      expect(payload['jobDescription'], 'Repair');
+      expect(payload['note'], 'Repair part');
+      expect(payload['commandId'], 'mobile-submit-KD-1-draft-1');
     },
   );
 

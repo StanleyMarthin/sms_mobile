@@ -125,6 +125,58 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return null;
   }
 
+  bool _isCountdownDraftItem(Map<String, dynamic> item) {
+    final sourceType = '${item['sourceType'] ?? item['source_type'] ?? ''}'
+        .trim()
+        .toUpperCase();
+    final coreId = '${item['coreId'] ?? item['core_id'] ?? ''}'.trim();
+    return sourceType == 'COUNTDOWN' && coreId.isNotEmpty;
+  }
+
+  String _draftCommandId(String userId, Map<String, dynamic> item) {
+    final draftId = '${item['draftItemId'] ?? ''}'.trim();
+    if (draftId.isNotEmpty) return 'mobile-submit-$userId-$draftId';
+    final coreId = '${item['coreId'] ?? item['core_id'] ?? ''}'.trim();
+    final employeeId = '${item['assignedUserId'] ?? item['employeeId'] ?? ''}'
+        .trim();
+    final taskDate = '${item['taskDate'] ?? item['workDate'] ?? ''}'.trim();
+    final startTime = '${item['startTime'] ?? ''}'.trim();
+    return 'mobile-submit-$userId-$coreId-$employeeId-$taskDate-$startTime';
+  }
+
+  int _clockToMinutes(Object? value) {
+    final raw = '$value'.trim();
+    final parts = raw.split(':');
+    if (parts.length < 2) {
+      throw ArgumentError('Jam mulai draft tidak valid.');
+    }
+    final hours = int.tryParse(parts[0]);
+    final minutes = int.tryParse(parts[1]);
+    if (hours == null || minutes == null || hours < 0 || minutes < 0) {
+      throw ArgumentError('Jam mulai draft tidak valid.');
+    }
+    return (hours * 60) + minutes;
+  }
+
+  int _draftStartMinute(Map<String, dynamic> item) {
+    final value = _intValue(item['plannedStartMinute'] ?? item['startMinute']);
+    if (value != null) return value;
+    return _clockToMinutes(item['startTime'] ?? item['targetStartHours']);
+  }
+
+  int _draftWorkMinutes(Map<String, dynamic> item) {
+    final value = _intValue(
+      item['plannedWorkMinutes'] ?? item['durationMinutes'],
+    );
+    if (value != null && value > 0) return value;
+    final hours = _parseHours(item['targetHours'] ?? item['dailyTargetHours']);
+    final minutes = (hours * 60).round();
+    if (minutes <= 0) {
+      throw ArgumentError('Target jam draft wajib lebih dari 0.');
+    }
+    return minutes;
+  }
+
   Map<String, dynamic> _normalizeDraftPayloadMap(Map<String, dynamic> payload) {
     final items = (payload['items'] as List<dynamic>? ?? <dynamic>[])
         .whereType<Map<String, dynamic>>()
@@ -658,10 +710,49 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     final normalizedItems = items
         .map((item) => _normalizeDraftItem(item, draftNote: note))
         .toList();
-    final firstItem = normalizedItems.isNotEmpty
-        ? normalizedItems.first
+    if (normalizedItems.isEmpty) return <String>[];
+
+    final countdownItems = normalizedItems
+        .where(_isCountdownDraftItem)
+        .toList();
+    final legacyItems = normalizedItems
+        .where((item) => !_isCountdownDraftItem(item))
+        .toList();
+    final createdIds = <String>[];
+
+    for (final item in countdownItems) {
+      final response = await apiClient.post(
+        ApiEndpoints.jobPlansV2,
+        data: {
+          'userId': userId,
+          'coreId': '${item['coreId'] ?? item['core_id'] ?? ''}'.trim(),
+          'employeeId': '${item['assignedUserId'] ?? item['employeeId'] ?? ''}'
+              .trim(),
+          'taskDate': '${item['taskDate'] ?? item['workDate'] ?? ''}'.trim(),
+          'plannedStartMinute': _draftStartMinute(item),
+          'plannedWorkMinutes': _draftWorkMinutes(item),
+          'jobDescription': _itemJobDescription(item),
+          'note': item['note']?.toString(),
+          'commandId': _draftCommandId(userId, item),
+          'isOvertime': _toBool(item['isOvertime'] ?? item['is_overtime']),
+        },
+      );
+      final payload = response.data;
+      if (payload is Map<String, dynamic>) {
+        final data = payload['data'];
+        final planId = data is Map<String, dynamic>
+            ? data['planId'] ?? data['plan_id']
+            : payload['planId'] ?? payload['plan_id'];
+        if (planId != null) createdIds.add(planId.toString());
+      }
+    }
+
+    if (legacyItems.isEmpty) return createdIds;
+
+    final firstItem = legacyItems.isNotEmpty
+        ? legacyItems.first
         : <String, dynamic>{};
-    final sourceRefId = _resolveSharedSourceRefId(normalizedItems);
+    final sourceRefId = _resolveSharedSourceRefId(legacyItems);
     final normalizedNote = _resolveNote(
       note: note,
       jobDescription: _itemJobDescription(firstItem),
@@ -675,7 +766,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         'sourceType': sourceType,
         if (sourceRefId != null) 'sourceRefId': sourceRefId,
         'note': normalizedNote,
-        'items': normalizedItems,
+        'items': legacyItems,
       },
     );
     final payload = response.data;
@@ -683,7 +774,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     if (payload is Map<String, dynamic>) {
       ids = payload['createdIds'] as List<dynamic>? ?? [];
     }
-    return ids.map((e) => e.toString()).toList();
+    createdIds.addAll(ids.map((e) => e.toString()));
+    return createdIds;
   }
 
   // ─── POST /sm/job-plans  action=submit (shortcut for createPlan) ─

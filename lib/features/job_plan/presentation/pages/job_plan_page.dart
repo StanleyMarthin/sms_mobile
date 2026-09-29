@@ -5368,6 +5368,19 @@ class _BrowseTabState extends State<_BrowseTab> {
   DateTime _selectedDate = DateTime.now();
   final Set<String> _selectedDraftIds = {};
 
+  List<_PlanPicGroup> _groupDraftsByPic(List<JobPlan> plans) {
+    final grouped = <String, List<JobPlan>>{};
+    for (final plan in plans) {
+      final pic = plan.assignedTo.trim().isNotEmpty
+          ? plan.assignedTo.trim()
+          : 'Tanpa PIC';
+      grouped.putIfAbsent(pic, () => <JobPlan>[]).add(plan);
+    }
+    return grouped.entries
+        .map((entry) => _PlanPicGroup(picName: entry.key, plans: entry.value))
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -5451,33 +5464,6 @@ class _BrowseTabState extends State<_BrowseTab> {
         _plans = fetchedPlans;
         _isLoading = false;
       });
-    }
-  }
-
-  /// Deletes a REJECTED plan from DB (not Redis draft).
-  Future<void> _deleteRejectedItem(JobPlan plan) async {
-    setState(() {
-      _plans.removeWhere((p) => p.planId == plan.planId);
-      _isLoading = true;
-    });
-    try {
-      final uid = _session.employeeId ?? '';
-      await _repository.deleteRejectedPlan(planId: plan.planId, userId: uid);
-      if (mounted) {
-        AppNotification.showSuccess(
-          context,
-          'Rencana ditolak berhasil dihapus.',
-        );
-        widget.onRefresh();
-      }
-    } catch (e) {
-      if (mounted) {
-        AppNotification.showError(
-          context,
-          friendlyMessage(e, fallback: 'Gagal menghapus rencana'),
-        );
-        _fetch(); // Re-fetch to restore list on error
-      }
     }
   }
 
@@ -5812,6 +5798,7 @@ class _BrowseTabState extends State<_BrowseTab> {
   @override
   Widget build(BuildContext context) {
     final draftPlans = _plans.where((p) => p.status == 'DRAFT').toList();
+    final draftGroups = _groupDraftsByPic(draftPlans);
     final hasDrafts = draftPlans.isNotEmpty;
     final allDraftsSelected =
         draftPlans.isNotEmpty &&
@@ -5860,35 +5847,25 @@ class _BrowseTabState extends State<_BrowseTab> {
               ? Center(child: CircularProgressIndicator(color: AppColors.gold))
               : _plans.isEmpty
               ? Center(child: Text('Tidak ada rencana kerja.'))
-              : ListView.builder(
+              : ListView(
                   padding: EdgeInsets.all(16),
-                  itemCount: _plans.length,
-                  itemBuilder: (ctx, i) {
-                    final plan = _plans[i];
-                    final isDraft = plan.status == 'DRAFT';
-                    final isRejected = plan.status == 'REJECTED';
-                    final isEditable = isDraft || isRejected;
-                    return _SubmittedPlanCard(
-                      key: ValueKey('browse_${plan.planId}'),
-                      plan: plan,
-                      onDelete: isDraft
-                          ? () => _deleteDraftItem(plan)
-                          : isRejected
-                          ? () => _deleteRejectedItem(plan)
-                          : null,
-                      onTap: isEditable ? () => _showDraftDetail(plan) : null,
-                      onEdit: isDraft ? () => _editDraftItem(plan) : null,
-                      isSelected:
-                          isDraft && _selectedDraftIds.contains(plan.planId),
-                      onSelectionChanged: isDraft
-                          ? (val) => setState(
-                              () => val == true
-                                  ? _selectedDraftIds.add(plan.planId)
-                                  : _selectedDraftIds.remove(plan.planId),
-                            )
-                          : null,
-                    );
-                  },
+                  children: [
+                    for (final group in draftGroups)
+                      _DraftPicGroupCard(
+                        key: ValueKey('draft_group_${group.picName}'),
+                        picName: group.picName,
+                        plans: group.plans,
+                        selectedDraftIds: _selectedDraftIds,
+                        onTap: _showDraftDetail,
+                        onEdit: _editDraftItem,
+                        onDelete: _deleteDraftItem,
+                        onSelectionChanged: (plan, selected) => setState(
+                          () => selected
+                              ? _selectedDraftIds.add(plan.planId)
+                              : _selectedDraftIds.remove(plan.planId),
+                        ),
+                      ),
+                  ],
                 ),
         ),
         if (hasDrafts)
@@ -5924,171 +5901,251 @@ class _BrowseTabState extends State<_BrowseTab> {
   }
 }
 
-class _SubmittedPlanCard extends StatelessWidget {
-  const _SubmittedPlanCard({
+class _PlanPicGroup {
+  const _PlanPicGroup({required this.picName, required this.plans});
+
+  final String picName;
+  final List<JobPlan> plans;
+}
+
+class _DraftPicGroupCard extends StatelessWidget {
+  const _DraftPicGroupCard({
     super.key,
-    required this.plan,
-    this.onDelete,
-    this.onTap,
-    this.onEdit,
-    this.isSelected = false,
-    this.onSelectionChanged,
+    required this.picName,
+    required this.plans,
+    required this.selectedDraftIds,
+    required this.onSelectionChanged,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
   });
 
-  final JobPlan plan;
-  final VoidCallback? onDelete;
-  final VoidCallback? onTap;
-  final VoidCallback? onEdit;
-  final bool isSelected;
-  final ValueChanged<bool?>? onSelectionChanged;
+  final String picName;
+  final List<JobPlan> plans;
+  final Set<String> selectedDraftIds;
+  final void Function(JobPlan plan, bool selected) onSelectionChanged;
+  final ValueChanged<JobPlan> onTap;
+  final ValueChanged<JobPlan> onEdit;
+  final ValueChanged<JobPlan> onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final isDraft = plan.status == 'DRAFT';
-    final isOt = plan.isOvertime;
+    return Container(
+      margin: EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
+              children: [
+                Icon(Icons.person_outline, size: 17, color: AppColors.gold),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'PIC: $picName',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary,
+                    ),
+                    softWrap: true,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  '${plans.length} draft',
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: AppColors.borderSubtle),
+          for (var i = 0; i < plans.length; i++) ...[
+            _DraftPlanGroupedTile(
+              plan: plans[i],
+              isSelected: selectedDraftIds.contains(plans[i].planId),
+              onSelectionChanged: (selected) =>
+                  onSelectionChanged(plans[i], selected),
+              onTap: () => onTap(plans[i]),
+              onEdit: () => onEdit(plans[i]),
+              onDelete: () => onDelete(plans[i]),
+            ),
+            if (i < plans.length - 1)
+              Divider(
+                height: 1,
+                indent: 58,
+                endIndent: 14,
+                color: AppColors.borderSubtle,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DraftPlanGroupedTile extends StatelessWidget {
+  const _DraftPlanGroupedTile({
+    required this.plan,
+    required this.isSelected,
+    required this.onSelectionChanged,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final JobPlan plan;
+  final bool isSelected;
+  final ValueChanged<bool> onSelectionChanged;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final unitText = plan.unitName.trim().isNotEmpty
+        ? plan.unitName.trim()
+        : '-';
+    final panelText = plan.panelName.trim().isNotEmpty
+        ? plan.panelName.trim()
+        : '-';
+    final jobText = plan.description.trim().isNotEmpty
+        ? plan.description.trim()
+        : '-';
+    final instructionText = plan.note.trim().isNotEmpty
+        ? plan.note.trim()
+        : '-';
     final targetText = plan.targetHoursAlias ?? _formatHours(plan.targetHours);
     final workText = '${plan.startTime} - ${plan.finishTime}';
-    final jobText = plan.description.isNotEmpty ? plan.description : '-';
-    final panelText = plan.panelName.trim();
-    final assigneeText = plan.assignedTo.isNotEmpty ? plan.assignedTo : '-';
-    final editAction = onEdit;
-    final deleteAction = onDelete;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? AppColors.gold.withValues(alpha: 0.08)
-            : AppColors.surfaceCard,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? AppColors.gold : AppColors.borderSubtle,
-          width: isSelected ? 1.5 : 1.0,
-        ),
-      ),
+    return Material(
+      color: isSelected
+          ? AppColors.gold.withValues(alpha: 0.08)
+          : Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(12, 10, 10, 10),
-          child: Column(
+          padding: EdgeInsets.fromLTRB(8, 10, 8, 10),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  if (onSelectionChanged != null)
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: onSelectionChanged,
-                        activeColor: AppColors.gold,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  if (onSelectionChanged != null) SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      plan.unitName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (isOt) ...[
-                    SizedBox(width: 4),
-                    Icon(
-                      Icons.nights_stay_rounded,
-                      size: 14,
-                      color: AppColors.gold,
-                    ),
-                  ],
-                  SizedBox(width: 8),
-                  _StatusChip(status: plan.status),
-                  if (isDraft && deleteAction != null) ...[
-                    SizedBox(width: 6),
-                    if (editAction != null)
-                      _PlanCardIconButton(
-                        icon: Icons.edit_outlined,
-                        color: AppColors.gold,
-                        onTap: editAction,
-                      ),
-                    _PlanCardIconButton(
-                      icon: Icons.delete_outline,
-                      color: AppColors.statusLocked,
-                      onTap: deleteAction,
-                    ),
-                  ],
-                ],
-              ),
-              SizedBox(height: 6),
-              RichText(
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                text: TextSpan(
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.35,
-                    color: AppColors.textSecondary,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: jobText,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    if (panelText.isNotEmpty)
-                      TextSpan(
-                        text: '  /  $panelText',
-                        style: TextStyle(color: AppColors.textMuted),
-                      ),
-                  ],
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (value) => onSelectionChanged(value == true),
+                  activeColor: AppColors.gold,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
                 ),
               ),
-              SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              SizedBox(width: 6),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _DraftPlanLine(
+                        label: 'Unit',
+                        value: unitText,
+                        emphasize: true,
+                      ),
+                      _DraftPlanLine(label: 'Panel', value: panelText),
+                      _DraftPlanLine(
+                        label: 'Jobdesc',
+                        value: jobText,
+                        maxLines: 2,
+                      ),
+                      _DraftPlanLine(
+                        label: 'Instruksi',
+                        value: instructionText,
+                        maxLines: 2,
+                      ),
+                      _DraftPlanLine(
+                        label: 'Jam',
+                        value: '$workText  |  $targetText',
+                        emphasize: true,
+                        valueColor: AppColors.gold,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 4),
+              Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _PlanMetaPill(
-                    icon: Icons.person_outline,
-                    text: assigneeText,
-                    color: AppColors.textMuted,
-                  ),
-                  _PlanMetaPill(
-                    icon: Icons.timer_outlined,
-                    text: '$workText  |  $targetText',
+                  _PlanCardIconButton(
+                    icon: Icons.edit_outlined,
                     color: AppColors.gold,
+                    onTap: onEdit,
                   ),
-                  if (plan.remainingHoursAlias != null &&
-                      plan.remainingHoursAlias!.isNotEmpty)
-                    _PlanMetaPill(
-                      icon: Icons.hourglass_bottom,
-                      text: 'Sisa ${plan.remainingHoursAlias}',
-                      color: AppColors.textSecondary,
-                    ),
-                  if (!isDraft && plan.totalActualHours > 0)
-                    _PlanMetaPill(
-                      icon: Icons.history,
-                      text:
-                          '${plan.totalActualHours.toStringAsFixed(1)}j (${plan.progress}%)',
-                      color: AppColors.textSecondary,
-                    ),
+                  _PlanCardIconButton(
+                    icon: Icons.delete_outline,
+                    color: AppColors.statusLocked,
+                    onTap: onDelete,
+                  ),
                 ],
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DraftPlanLine extends StatelessWidget {
+  const _DraftPlanLine({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+    this.maxLines,
+    this.valueColor,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+  final int? maxLines;
+  final Color? valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 4),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: TextStyle(
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: TextStyle(
+                color: valueColor ?? AppColors.textPrimary,
+                fontWeight: emphasize ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        maxLines: maxLines,
+        overflow: maxLines == null
+            ? TextOverflow.visible
+            : TextOverflow.ellipsis,
+        softWrap: true,
+        style: TextStyle(fontSize: 13, height: 1.32),
       ),
     );
   }
@@ -6115,43 +6172,6 @@ class _PlanCardIconButton extends StatelessWidget {
         height: 44,
         child: Icon(icon, size: 17, color: color),
       ),
-    );
-  }
-}
-
-class _PlanMetaPill extends StatelessWidget {
-  const _PlanMetaPill({
-    required this.icon,
-    required this.text,
-    required this.color,
-  });
-
-  final IconData icon;
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 13, color: color),
-        SizedBox(width: 4),
-        ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: 220),
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: color == AppColors.gold
-                  ? FontWeight.w700
-                  : FontWeight.w500,
-              color: color,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
     );
   }
 }
