@@ -5722,24 +5722,22 @@ class _BrowseTabState extends State<_BrowseTab> {
                 ),
                 Divider(color: AppColors.borderSubtle),
                 SizedBox(height: 8),
+                _DetailSectionTitle('Pekerjaan'),
                 _DetailRow(
-                  label: 'Unit',
-                  value: plan.unitName.isNotEmpty ? plan.unitName : '-',
+                  label: 'Jobdesc',
+                  value: plan.description.isNotEmpty ? plan.description : '-',
                 ),
-                _DetailRow(
-                  label: 'Panel',
-                  value: plan.panelName.isNotEmpty ? plan.panelName : '-',
-                ),
+                if (plan.note.isNotEmpty)
+                  _DetailRow(label: 'Instruksi', value: plan.note),
                 _DetailRow(
                   label: 'Divisi',
                   value: plan.assignedDivision.isNotEmpty
                       ? plan.assignedDivision
                       : '-',
                 ),
-                _DetailRow(
-                  label: 'Pelaksana',
-                  value: plan.assignedTo.isNotEmpty ? plan.assignedTo : '-',
-                ),
+                Divider(color: AppColors.borderSubtle),
+                SizedBox(height: 4),
+                _DetailSectionTitle('Jadwal'),
                 _DetailRow(label: 'Tanggal Kerja', value: plan.workDate),
                 _DetailRow(
                   label: 'Jam Kerja',
@@ -5756,12 +5754,19 @@ class _BrowseTabState extends State<_BrowseTab> {
                 ),
                 Divider(color: AppColors.borderSubtle),
                 SizedBox(height: 4),
+                _DetailSectionTitle('Unit & Pelaksana'),
                 _DetailRow(
-                  label: 'Jobdesc',
-                  value: plan.description.isNotEmpty ? plan.description : '-',
+                  label: 'Unit',
+                  value: plan.unitName.isNotEmpty ? plan.unitName : '-',
                 ),
-                if (plan.note.isNotEmpty)
-                  _DetailRow(label: 'Instruksi', value: plan.note),
+                _DetailRow(
+                  label: 'Panel',
+                  value: plan.panelName.isNotEmpty ? plan.panelName : '-',
+                ),
+                _DetailRow(
+                  label: 'Pelaksana',
+                  value: plan.assignedTo.isNotEmpty ? plan.assignedTo : '-',
+                ),
                 SizedBox(height: 20),
                 Row(
                   children: [
@@ -5941,6 +5946,13 @@ class _SubmittedPlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDraft = plan.status == 'DRAFT';
     final isOt = plan.isOvertime;
+    final targetText = plan.targetHoursAlias ?? _formatHours(plan.targetHours);
+    final workText = '${plan.startTime} - ${plan.finishTime}';
+    final jobText = plan.description.isNotEmpty ? plan.description : '-';
+    final panelText = plan.panelName.trim();
+    final assigneeText = plan.assignedTo.isNotEmpty ? plan.assignedTo : '-';
+    final editAction = onEdit;
+    final deleteAction = onDelete;
 
     return Container(
       margin: EdgeInsets.only(bottom: 12),
@@ -5958,11 +5970,10 @@ class _SubmittedPlanCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: EdgeInsets.fromLTRB(12, 10, 10, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Top row: checkbox / status / actions ──────────────
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -5980,163 +5991,186 @@ class _SubmittedPlanCard extends StatelessWidget {
                     ),
                   if (onSelectionChanged != null) SizedBox(width: 8),
                   Expanded(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            plan.unitName,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (isOt) ...[
-                          SizedBox(width: 4),
-                          Icon(
-                            Icons.nights_stay_rounded,
-                            size: 14,
-                            color: AppColors.gold,
-                          ),
-                        ],
-                        SizedBox(width: 8),
-                        _StatusChip(status: plan.status),
-                      ],
+                    child: Text(
+                      plan.unitName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Edit & Delete — only for drafts
-                  if (isDraft && onDelete != null) ...[
+                  if (isOt) ...[
                     SizedBox(width: 4),
-                    if (onEdit != null)
-                      GestureDetector(
-                        onTap: onEdit,
-                        child: Padding(
-                          padding: EdgeInsets.all(4),
-                          child: Icon(
-                            Icons.edit_outlined,
-                            size: 16,
-                            color: AppColors.gold,
-                          ),
-                        ),
+                    Icon(
+                      Icons.nights_stay_rounded,
+                      size: 14,
+                      color: AppColors.gold,
+                    ),
+                  ],
+                  SizedBox(width: 8),
+                  _StatusChip(status: plan.status),
+                  if (isDraft && deleteAction != null) ...[
+                    SizedBox(width: 6),
+                    if (editAction != null)
+                      _PlanCardIconButton(
+                        icon: Icons.edit_outlined,
+                        color: AppColors.gold,
+                        onTap: editAction,
                       ),
-                    GestureDetector(
-                      onTap: onDelete,
-                      child: Padding(
-                        padding: EdgeInsets.all(4),
-                        child: Icon(
-                          Icons.delete_outline,
-                          size: 16,
-                          color: AppColors.statusLocked,
-                        ),
-                      ),
+                    _PlanCardIconButton(
+                      icon: Icons.delete_outline,
+                      color: AppColors.statusLocked,
+                      onTap: deleteAction,
                     ),
                   ],
                 ],
               ),
               SizedBox(height: 6),
-              // ── Job description ──────────────────────────────────
-              Text(
-                plan.description,
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              RichText(
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-              ),
-              SizedBox(height: 4),
-              // ── Panel name ───────────────────────────────────────
-              if (plan.panelName.isNotEmpty)
-                Text(
-                  plan.panelName,
-                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                text: TextSpan(
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: AppColors.textSecondary,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: jobText,
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (panelText.isNotEmpty)
+                      TextSpan(
+                        text: '  /  $panelText',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                  ],
                 ),
-              SizedBox(height: 10),
-              // ── Bottom row: assignee + hours + history ───────────
+              ),
+              SizedBox(height: 8),
               Wrap(
-                spacing: 8,
-                runSpacing: 4,
+                spacing: 10,
+                runSpacing: 6,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.person_outline,
-                        size: 13,
-                        color: AppColors.textMuted,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        plan.assignedTo,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    ],
+                  _PlanMetaPill(
+                    icon: Icons.person_outline,
+                    text: assigneeText,
+                    color: AppColors.textMuted,
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.timer_outlined,
-                        size: 13,
-                        color: AppColors.gold,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        '${plan.startTime} - ${plan.finishTime}  |  ${plan.targetHoursAlias ?? _formatHours(plan.targetHours)}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.gold,
-                        ),
-                      ),
-                    ],
+                  _PlanMetaPill(
+                    icon: Icons.timer_outlined,
+                    text: '$workText  |  $targetText',
+                    color: AppColors.gold,
                   ),
                   if (plan.remainingHoursAlias != null &&
                       plan.remainingHoursAlias!.isNotEmpty)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.hourglass_bottom,
-                          size: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Sisa: ${plan.remainingHoursAlias}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
+                    _PlanMetaPill(
+                      icon: Icons.hourglass_bottom,
+                      text: 'Sisa ${plan.remainingHoursAlias}',
+                      color: AppColors.textSecondary,
                     ),
                   if (!isDraft && plan.totalActualHours > 0)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.history,
-                          size: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
+                    _PlanMetaPill(
+                      icon: Icons.history,
+                      text:
                           '${plan.totalActualHours.toStringAsFixed(1)}j (${plan.progress}%)',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
+                      color: AppColors.textSecondary,
                     ),
                 ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanCardIconButton extends StatelessWidget {
+  const _PlanCardIconButton({
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkResponse(
+      onTap: onTap,
+      radius: 22,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Icon(icon, size: 17, color: color),
+      ),
+    );
+  }
+}
+
+class _PlanMetaPill extends StatelessWidget {
+  const _PlanMetaPill({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 220),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: color == AppColors.gold
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+              color: color,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DetailSectionTitle extends StatelessWidget {
+  const _DetailSectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: 4, bottom: 6),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: AppColors.gold,
         ),
       ),
     );
