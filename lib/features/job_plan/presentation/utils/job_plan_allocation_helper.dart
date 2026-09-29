@@ -38,6 +38,21 @@ class JobPlanAllocationResult {
 class JobPlanAllocationHelper {
   JobPlanAllocationHelper._();
 
+  static int hoursToMinutes(double hours) {
+    return (hours.clamp(0.0, 9999.0).toDouble() * 60).round();
+  }
+
+  static double minutesToHours(int minutes) {
+    return minutes.clamp(0, 9999 * 60) / 60.0;
+  }
+
+  static bool exceedsAvailableByMinute({
+    required double targetHours,
+    required double availableHours,
+  }) {
+    return hoursToMinutes(targetHours) > hoursToMinutes(availableHours);
+  }
+
   /// Sisa jam kerja harian yang boleh dipakai operator.
   /// Normal: maksimal 8 jam. Lembur: 8 jam normal + kuota lembur (5/7 jam).
   static double allowedDayHours({
@@ -60,20 +75,19 @@ class JobPlanAllocationHelper {
     required List<JobPlanAllocationTarget> jobs,
   }) {
     final allocations = <JobPlanAllocationResult>[];
-    var remainingSessionHours = totalSessionHours;
+    var remainingSessionMinutes = hoursToMinutes(totalSessionHours);
     var currentStartTime = sessionStartTime;
 
     for (final job in jobs) {
-      if (remainingSessionHours <= 0) break;
+      if (remainingSessionMinutes <= 0) break;
 
-      final availablePlanHours = job.availablePlanHours
-          .clamp(0.0, 9999.0)
-          .toDouble();
-      if (availablePlanHours <= 0) continue;
+      final availablePlanMinutes = hoursToMinutes(job.availablePlanHours);
+      if (availablePlanMinutes <= 0) continue;
 
-      final allocatedHours = remainingSessionHours <= availablePlanHours
-          ? remainingSessionHours
-          : availablePlanHours;
+      final allocatedMinutes = remainingSessionMinutes <= availablePlanMinutes
+          ? remainingSessionMinutes
+          : availablePlanMinutes;
+      final allocatedHours = minutesToHours(allocatedMinutes);
       final finishTime = CountdownHelper.calculateFinishTime(
         startTime: currentStartTime,
         durationHours: allocatedHours,
@@ -93,9 +107,7 @@ class JobPlanAllocationHelper {
         ),
       );
 
-      remainingSessionHours = (remainingSessionHours - allocatedHours)
-          .clamp(0.0, 9999.0)
-          .toDouble();
+      remainingSessionMinutes -= allocatedMinutes;
       currentStartTime = finishTime;
     }
 

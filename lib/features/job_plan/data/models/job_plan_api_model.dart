@@ -19,7 +19,15 @@ class JobPlanApiModel {
   final Map<String, dynamic> json;
 
   JobPlan toEntity() {
-    final planId = _string(['planId', 'plan_id', 'id']);
+    final planId = _string([
+      'planId',
+      'plan_id',
+      'jobPlanId',
+      'job_plan_id',
+      'operationalPlanId',
+      'operational_plan_id',
+      'id',
+    ]);
     final coreId = _string(['coreId', 'core_id']);
     final employeeId = _string([
       'employeeId',

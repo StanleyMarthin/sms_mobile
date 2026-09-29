@@ -31,11 +31,18 @@ class JobPlanDetailPage extends StatefulWidget {
 }
 
 class _JobPlanDetailPageState extends State<JobPlanDetailPage> {
-  late final Future<JobPlan> _future = widget.initialPlan != null
-      ? Future.value(widget.initialPlan)
-      : (widget.repository ?? sl<JobPlanRepository>()).getOperationalPlan(
-          widget.planId,
-        );
+  late final Future<JobPlan> _future = _loadPlan();
+
+  Future<JobPlan> _loadPlan() {
+    final planId = widget.initialPlan?.operationalPlanId ?? widget.planId;
+    if (widget.initialPlan != null) return Future.value(widget.initialPlan);
+    if (planId.trim().isEmpty || planId.trim().toLowerCase() == 'pending') {
+      return Future.error(StateError('Job Plan belum memiliki ID detail.'));
+    }
+    return (widget.repository ?? sl<JobPlanRepository>()).getOperationalPlan(
+      planId.trim(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +50,20 @@ class _JobPlanDetailPageState extends State<JobPlanDetailPage> {
       future: _future,
       initialData: widget.initialPlan,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  'Detail rencana belum tersedia. Kembali lalu refresh daftar.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ),
+          );
+        }
         if (!snapshot.hasData) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),

@@ -188,8 +188,7 @@ class ApiClient {
         if (statusCode > 0 && statusCode < 500) {
           _connectivityMonitor?.reportServerAvailable();
         }
-        final isAuthError =
-            statusCode == 401 || statusCode == 403 || statusCode == 404;
+        final isAuthError = statusCode == 401;
 
         // If already mapped (from response interceptor) and not an auth HTTP error, pass through
         if (error.error is Failure && !isAuthError) {
@@ -225,6 +224,12 @@ class ApiClient {
       _ => false,
     };
     if (isConnection || statusCode >= 500) {
+      if (kDebugMode) {
+        debugPrint(
+          'SERVER DOWN: ${error.requestOptions.method} '
+          '${error.requestOptions.uri} type=${error.type} status=$statusCode',
+        );
+      }
       _connectivityMonitor?.reportServerDown();
     }
   }

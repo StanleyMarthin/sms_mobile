@@ -9,6 +9,7 @@ Side Effects: Tidak ada.
 import 'package:fpdart/fpdart.dart' as fp;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:sm_system/core/di/injection.dart';
 import 'package:sm_system/core/errors/failures.dart';
 import 'package:sm_system/core/session/session_manager.dart';
@@ -21,10 +22,43 @@ import 'package:sm_system/features/job_plan/domain/repositories/job_plan_reposit
 import 'package:sm_system/features/job_plan/presentation/widgets/job_plan_list.dart';
 
 class _FakeRepository implements JobPlanRepository {
+  _FakeRepository({List<JobPlan>? operationalPlans})
+    : operationalPlans = operationalPlans ?? [_defaultPlan()];
+
   final calls = <Map<String, String?>>[];
   final savedDrafts = <List<Map<String, dynamic>>>[];
+  final List<JobPlan> operationalPlans;
   int optionCalls = 0;
   int dropdownUserCalls = 0;
+
+  static JobPlan _defaultPlan() {
+    return JobPlan(
+      planId: 'PLAN-1',
+      coreId: 'CORE-1',
+      carId: 'UNIT-1',
+      unitId: 'UNIT-1',
+      divisionId: 'DIV-1',
+      sourceType: 'COUNTDOWN',
+      sourceRefId: 'CORE-1',
+      unitName: 'MB220S',
+      panelName: 'Door RH',
+      assignedDivision: 'Interior',
+      assignedUserId: 'EMP-1',
+      assignedTo: 'Budi',
+      description: 'Painting Door RH',
+      countdownName: 'Painting Door RH',
+      targetHours: 4,
+      workDate: '2026-09-21',
+      taskDate: '2026-09-21',
+      startTime: '08:00',
+      finishTime: '12:00',
+      isOvertime: false,
+      deadline: '',
+      status: 'APPROVED',
+      note: '',
+      approvalState: 'APPROVED',
+    );
+  }
 
   @override
   Future<List<JobPlan>> getPlans() async => const [];
@@ -40,7 +74,15 @@ class _FakeRepository implements JobPlanRepository {
     int limit = 200,
   }) async {
     dropdownUserCalls++;
-    return const [];
+    return const [
+      {
+        'id': 'EMP-1',
+        'employee_id': 'EMP-1',
+        'name': 'Budi',
+        'full_name': 'Budi',
+        'division_id': 1,
+      },
+    ];
   }
 
   @override
@@ -83,34 +125,7 @@ class _FakeRepository implements JobPlanRepository {
       'unitId': unitId,
       'employeeId': employeeId,
     });
-    return [
-      JobPlan(
-        planId: 'PLAN-1',
-        coreId: 'CORE-1',
-        carId: 'UNIT-1',
-        unitId: 'UNIT-1',
-        divisionId: 'DIV-1',
-        sourceType: 'COUNTDOWN',
-        sourceRefId: 'CORE-1',
-        unitName: 'MB220S',
-        panelName: 'Door RH',
-        assignedDivision: 'Interior',
-        assignedUserId: 'EMP-1',
-        assignedTo: 'Budi',
-        description: 'Painting Door RH',
-        countdownName: 'Painting Door RH',
-        targetHours: 4,
-        workDate: '2026-09-21',
-        taskDate: '2026-09-21',
-        startTime: '08:00',
-        finishTime: '12:00',
-        isOvertime: false,
-        deadline: '',
-        status: 'APPROVED',
-        note: '',
-        approvalState: 'APPROVED',
-      ),
-    ];
+    return operationalPlans;
   }
 
   @override
@@ -225,13 +240,7 @@ class _FakeCountdownRepository implements CountdownRepository {
   Future<CountdownCreateOptions> getCountdownCreateOptions(
     String unitId,
   ) async {
-    return CountdownCreateOptions(
-      divisions: [CountdownCreateDivisionOption(id: 1, name: 'Interior')],
-      jobTypes: const [],
-      users: [
-        CountdownCreateUserOption(id: 'EMP-1', name: 'Budi', divisionId: 1),
-      ],
-    );
+    throw StateError('create flow must not call countdown options for PIC');
   }
 
   @override
@@ -330,7 +339,7 @@ void main() {
       repository.savedDrafts.single.single['jobDescription'],
       'Painting Door RH',
     );
-    expect(repository.dropdownUserCalls, 0);
+    expect(repository.dropdownUserCalls, 1);
   });
 
   testWidgets('JobPlanList filters locally and keeps Jobdesc label', (
@@ -363,5 +372,74 @@ void main() {
     expect(find.text('Unit'), findsOneWidget);
     expect(find.text('PIC'), findsOneWidget);
     expect(find.textContaining('Jobdesc: Painting Door RH'), findsOneWidget);
+  });
+
+  testWidgets('JobPlanList does not open detail when plan id is pending', (
+    tester,
+  ) async {
+    String? visitedPlanId;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => Scaffold(
+            body: JobPlanList(
+              date: '2026-09-21',
+              repository: _FakeRepository(
+                operationalPlans: [
+                  JobPlan(
+                    planId: 'pending',
+                    coreId: 'CORE-1',
+                    carId: 'UNIT-1',
+                    unitId: 'UNIT-1',
+                    divisionId: 'DIV-1',
+                    sourceType: 'COUNTDOWN',
+                    sourceRefId: 'CORE-1',
+                    unitName: 'MB220S',
+                    panelName: 'Door RH',
+                    assignedDivision: 'Interior',
+                    assignedUserId: 'EMP-1',
+                    assignedTo: 'Budi',
+                    description: 'Painting Door RH',
+                    countdownName: 'Painting Door RH',
+                    targetHours: 4,
+                    workDate: '2026-09-21',
+                    taskDate: '2026-09-21',
+                    startTime: '08:00',
+                    finishTime: '12:00',
+                    isOvertime: false,
+                    deadline: '',
+                    status: 'APPROVED',
+                    note: '',
+                    approvalState: 'APPROVED',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/job-plan/:id',
+          builder: (context, state) {
+            visitedPlanId = state.pathParameters['id'];
+            return const Scaffold(body: Text('detail route'));
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.ancestor(of: find.text('MB220S'), matching: find.byType(ListTile)),
+    );
+    await tester.pump();
+
+    expect(visitedPlanId, isNull);
+    expect(
+      find.text('Detail rencana belum siap. Tarik untuk refresh daftar.'),
+      findsOneWidget,
+    );
   });
 }

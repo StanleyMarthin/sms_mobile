@@ -1374,21 +1374,7 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
     required String unitId,
     required int divisionId,
   }) async {
-    final options = await _countdownRepo.getCountdownCreateOptions(unitId);
-    return options.users
-        .where(
-          (user) => user.divisionId == null || user.divisionId == divisionId,
-        )
-        .map(
-          (user) => {
-            'id': user.id,
-            'employee_id': user.id,
-            'name': user.name,
-            'full_name': user.name,
-            'division_id': user.divisionId,
-          },
-        )
-        .toList();
+    return _repository.getDropdownUsers(divisionId: '$divisionId');
   }
 
   Future<void> _hydrateDraft(
@@ -1800,7 +1786,10 @@ class _CountdownPlanFormPageState extends State<_CountdownPlanFormPage> {
       0.0,
       (sum, j) => sum + _availablePlanHours(j),
     );
-    if (hrs > totalRemaining) {
+    if (JobPlanAllocationHelper.exceedsAvailableByMinute(
+      targetHours: hrs,
+      availableHours: totalRemaining,
+    )) {
       AppNotification.showWarning(
         context,
         'Target jam melebihi sisa jam countdown (maks ${_formatHoursClock(totalRemaining, zeroAsClock: true)}).',
@@ -2431,6 +2420,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
   final TextEditingController _sectionNameCtrl = TextEditingController();
   final TextEditingController _hoursCtrl = TextEditingController();
   final TextEditingController _totalProjectHoursCtrl = TextEditingController();
+  final TextEditingController _initialFindingCtrl = TextEditingController();
   final TextEditingController _noteCtrl = TextEditingController();
   final Set<String> _selectedJobs = {};
 
@@ -2487,6 +2477,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     _hoursCtrl.removeListener(_syncFinishTimeFromHours);
     _hoursCtrl.dispose();
     _totalProjectHoursCtrl.dispose();
+    _initialFindingCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
   }
@@ -2567,6 +2558,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
     _isRework = draft['isRework'] == true || draft['isRework'] == 1;
     _isNonTechnicalJob =
         draft['isNonTechnicalJob'] == true || draft['isNonTechnicalJob'] == 1;
+    _initialFindingCtrl.text =
+        (draft['initialFinding'] ?? draft['temuanAwal'] ?? '').toString();
     _noteCtrl.text = draft['note']?.toString() ?? '';
 
     _loadDivisionStaff();
@@ -2737,6 +2730,11 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
             break;
           }
         }
+        final jobTypeChoices =
+            await JobPlanJobTypeHelper.loadAdditionalJobTypeChoices(
+              divisionId: _selectedDivision,
+              loadDropdowns: _repository.getAdditionalDropdowns,
+            );
         final newItems = <Map<String, dynamic>>[];
 
         // Calculate individual job duration by splitting the total session time
@@ -2753,6 +2751,10 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
             rejectedPlanId.isNotEmpty || widget.editIndex != null;
 
         for (final job in jobsToCreate) {
+          final jobTypeChoice = JobPlanJobTypeHelper.findChoiceByName(
+            jobTypeChoices,
+            job,
+          );
           final existingDraftItemId =
               widget.initialDraft?['draftItemId']?.toString() ?? '';
           final nextDraftItemId =
@@ -2789,7 +2791,8 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                 ? _selectedCategory
                 : null,
             'addPanelToMaster': false,
-            'jobTypeId': null,
+            'jobTypeId': jobTypeChoice?.id,
+            'jobTypeName': jobTypeChoice == null ? job : jobTypeChoice.name,
             'sourceType': 'ADDITIONAL',
             'isManualInput': usesManualInput,
             'assignedUserId': _selectedEmployeeId!,
@@ -2799,6 +2802,9 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                 '',
             'taskDate': _formatDate(_selectedDate),
             'jobDescription': job,
+            'initialFinding': _initialFindingCtrl.text.trim().isEmpty
+                ? null
+                : _initialFindingCtrl.text.trim(),
             'targetHours': durationPerJob,
             'totalProjectHours': _isNonTechnicalJob
                 ? null
@@ -2843,6 +2849,7 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
         }
 
         final isKd = _session.isKdAccess;
+        var rejectedCleanupFailed = false;
 
         if (isKd) {
           final existingDraft = await _repository.getDraft(userId: uid);
@@ -2929,18 +2936,19 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                 planId: rejectedPlanId,
                 userId: uid,
               );
-            } catch (_) {}
+            } catch (_) {
+              rejectedCleanupFailed = true;
+            }
           }
         }
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '${newItems.length} rencana kerja berhasil dikirim.',
-              ),
-            ),
-          );
+          final successMessage = rejectedCleanupFailed
+              ? '${newItems.length} rencana kerja berhasil dikirim. Plan rejected lama belum terhapus otomatis.'
+              : '${newItems.length} rencana kerja berhasil dikirim.';
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(successMessage)));
         }
       }
       if (!mounted) return;
@@ -3304,6 +3312,18 @@ class _AdditionalPlanFormPageState extends State<_AdditionalPlanFormPage> {
                                   .toList(),
                               onChanged: (v) =>
                                   setState(() => _selectedCategory = v),
+                            ),
+                            SizedBox(height: 12),
+                            TextField(
+                              controller: _initialFindingCtrl,
+                              minLines: 2,
+                              maxLines: 4,
+                              style: TextStyle(color: AppColors.textPrimary),
+                              decoration: InputDecoration(
+                                labelText: 'Temuan Awal',
+                                hintText:
+                                    'Opsional, contoh: retak halus di panel bawah',
+                              ),
                             ),
                           ],
                         ),
@@ -4081,42 +4101,21 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
                     children: [
                       _FormSection(
                         title: 'Info Sumber',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.gold.withValues(
-                                      alpha: 0.15,
-                                    ),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    widget.seed.sourceLabel,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.gold,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Unit: ${widget.seed.unitName}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textMuted,
-                              ),
-                            ),
-                          ],
+                        child: _SourcePlanSummary(
+                          sourceLabel: widget.seed.sourceLabel,
+                          unitName: widget.seed.unitName,
+                          panelName: _panelCtrl.text.trim().isNotEmpty
+                              ? _panelCtrl.text.trim()
+                              : widget.seed.panelName,
+                          jobDescription: _jobdescCtrl.text.trim().isNotEmpty
+                              ? _jobdescCtrl.text.trim()
+                              : widget.seed.description,
+                          picName: selectedEmployeeName,
+                          startTime: CountdownHelper.formatTime(_startTime),
+                          finishTime: CountdownHelper.formatTime(_finishTime),
+                          totalHours: _hoursCtrl.text.trim().isNotEmpty
+                              ? _hoursCtrl.text.trim()
+                              : _formatHours(widget.seed.targetHours),
                         ),
                       ),
                       SizedBox(height: 12),
@@ -4378,6 +4377,150 @@ class _SourcePlanFormPageState extends State<_SourcePlanFormPage> {
 }
 
 // ── Reusable Form Widgets ──────────────────────────────────────────────────
+
+class _SourcePlanSummary extends StatelessWidget {
+  const _SourcePlanSummary({
+    required this.sourceLabel,
+    required this.unitName,
+    required this.panelName,
+    required this.jobDescription,
+    required this.picName,
+    required this.startTime,
+    required this.finishTime,
+    required this.totalHours,
+  });
+
+  final String sourceLabel;
+  final String unitName;
+  final String panelName;
+  final String jobDescription;
+  final String picName;
+  final String startTime;
+  final String finishTime;
+  final String totalHours;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceInput,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  sourceLabel.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              Spacer(),
+              Text(
+                totalHours,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.gold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          _SourceSummaryRow(
+            icon: Icons.directions_car_filled_outlined,
+            label: 'Unit',
+            value: unitName,
+          ),
+          _SourceSummaryRow(
+            icon: Icons.layers_outlined,
+            label: 'Panel',
+            value: panelName.isNotEmpty ? panelName : '-',
+          ),
+          _SourceSummaryRow(
+            icon: Icons.assignment_outlined,
+            label: 'Jobdesc',
+            value: jobDescription.isNotEmpty ? jobDescription : '-',
+            maxLines: 2,
+          ),
+          _SourceSummaryRow(
+            icon: Icons.person_outline,
+            label: 'PIC',
+            value: picName.isNotEmpty ? picName : '-',
+          ),
+          _SourceSummaryRow(
+            icon: Icons.schedule_outlined,
+            label: 'Jam',
+            value: '$startTime - $finishTime',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceSummaryRow extends StatelessWidget {
+  const _SourceSummaryRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.maxLines = 1,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: AppColors.gold),
+          SizedBox(width: 8),
+          SizedBox(
+            width: 58,
+            child: Text(
+              label,
+              style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+            ),
+          ),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: maxLines,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _FormSection extends StatelessWidget {
   const _FormSection({required this.title, required this.child});

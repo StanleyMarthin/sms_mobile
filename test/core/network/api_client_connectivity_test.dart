@@ -128,4 +128,46 @@ void main() {
     expect(storage.values[SessionManager.keyTempToken], 'temp-token');
     expect(storage.values[SessionManager.keyDeviceId], 'device-1');
   });
+
+  test(
+    'feature 403 and 404 responses do not clear logged in session',
+    () async {
+      for (final statusCode in [403, 404]) {
+        final storage = _MemoryStorage();
+        final session = SessionManager(storage: storage);
+        await session.login(
+          token: 'token-$statusCode',
+          refreshToken: 'refresh-$statusCode',
+          userId: 'user-$statusCode',
+          employeeId: 'EMP-$statusCode',
+          fullName: 'Operator',
+          role: 'operator',
+          divisionName: 'Interior',
+          jabatan: 'Operator',
+          divisionId: 1,
+          permissions: const [],
+        );
+        final client = ApiClient(
+          sessionManager: session,
+          dio: Dio()
+            ..httpClientAdapter = _Adapter({
+              'success': false,
+              'message': 'Feature validation failed.',
+              'errorCode': statusCode == 403
+                  ? 'ERR_CORE_NOT_V2_ELIGIBLE'
+                  : 'ERR_COUNTDOWN_NOT_FOUND',
+            }, statusCode),
+        );
+
+        try {
+          await client.get('https://api.test/job-plan/feature-error');
+        } on DioException {
+          // Expected feature-level failure. It must not be treated as logout.
+        }
+
+        expect(session.token, 'token-$statusCode');
+        expect(storage.values[SessionManager.keyToken], 'token-$statusCode');
+      }
+    },
+  );
 }

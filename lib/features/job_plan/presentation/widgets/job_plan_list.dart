@@ -236,6 +236,7 @@ class _JobPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = JobPlanStateMapper.approvalLabel(plan.approvalState);
+    final planId = plan.operationalPlanId;
     return Card(
       child: ListTile(
         title: Text(plan.unitName),
@@ -246,7 +247,19 @@ class _JobPlanCard extends StatelessWidget {
           'Status: $status',
         ),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/job-plan/${plan.id}'),
+        onTap: () {
+          if (planId.isEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Detail rencana belum siap. Tarik untuk refresh daftar.',
+                ),
+              ),
+            );
+            return;
+          }
+          context.push('/job-plan/$planId');
+        },
       ),
     );
   }

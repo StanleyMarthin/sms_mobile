@@ -112,6 +112,14 @@ class JobPlan {
 
   String get id => planId;
 
+  bool get hasOperationalPlanId => operationalPlanId.isNotEmpty;
+
+  String get operationalPlanId {
+    final value = planId.trim();
+    if (value.isEmpty || value.toLowerCase() == 'pending') return '';
+    return value;
+  }
+
   String get resolvedSourceId {
     final explicit = sourceId?.trim() ?? '';
     if (explicit.isNotEmpty) return explicit;

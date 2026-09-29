@@ -117,5 +117,36 @@ void main() {
       expect(exhausted, isEmpty);
       expect(partial.single.allocatedHours, 3);
     });
+
+    test('compares available countdown capacity by displayed minutes', () {
+      const target = 1 + (39 / 60);
+      const availableWithFloatDrift = 1.649999;
+
+      expect(
+        JobPlanAllocationHelper.exceedsAvailableByMinute(
+          targetHours: target,
+          availableHours: availableWithFloatDrift,
+        ),
+        isFalse,
+      );
+
+      final allocations = JobPlanAllocationHelper.allocateSequential(
+        taskDate: DateTime(2026, 9, 28),
+        sessionStartTime: const TimeOfDay(hour: 8, minute: 0),
+        totalSessionHours: target,
+        jobs: const [
+          JobPlanAllocationTarget(
+            jobId: 'countdown-a',
+            availablePlanHours: availableWithFloatDrift,
+          ),
+        ],
+      );
+
+      expect(allocations.single.allocatedHours, target);
+      expect(
+        allocations.single.finishTime,
+        const TimeOfDay(hour: 9, minute: 39),
+      );
+    });
   });
 }

@@ -98,4 +98,18 @@ void main() {
       expect(find.text('START'), findsNothing);
     },
   );
+
+  testWidgets('JobPlanDetailPage shows refresh guidance for pending id', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: JobPlanDetailPage(planId: 'pending')),
+    );
+    await tester.pump();
+
+    expect(
+      find.text('Detail rencana belum tersedia. Kembali lalu refresh daftar.'),
+      findsOneWidget,
+    );
+  });
 }

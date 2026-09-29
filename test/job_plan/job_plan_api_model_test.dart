@@ -50,6 +50,39 @@ void main() {
     expect(plan.version, 12);
   });
 
+  test(
+    'JobPlanApiModel accepts operational id aliases from mobile backend',
+    () {
+      final plan = JobPlanApiModel.fromJson({
+        'jobPlanId': 'PLAN-ALIAS-1',
+        'coreId': 'core-1',
+        'unitId': 'unit-1',
+        'unitName': 'MB 220S',
+        'panelName': 'Dashboard Wood Trim',
+        'countdownName': 'Restore Dashboard Wood',
+      }).toEntity();
+
+      expect(plan.id, 'PLAN-ALIAS-1');
+      expect(plan.operationalPlanId, 'PLAN-ALIAS-1');
+      expect(plan.hasOperationalPlanId, isTrue);
+    },
+  );
+
+  test('JobPlan operational id rejects pending placeholder', () {
+    final plan = JobPlanApiModel.fromJson({
+      'planId': 'pending',
+      'coreId': 'core-1',
+      'unitId': 'unit-1',
+      'unitName': 'MB 220S',
+      'panelName': 'Dashboard Wood Trim',
+      'countdownName': 'Restore Dashboard Wood',
+    }).toEntity();
+
+    expect(plan.id, 'pending');
+    expect(plan.operationalPlanId, isEmpty);
+    expect(plan.hasOperationalPlanId, isFalse);
+  });
+
   test('CommandMetadata carries command id and expected version only', () {
     const metadata = CommandMetadata(
       commandId: 'mobile-approval-1',

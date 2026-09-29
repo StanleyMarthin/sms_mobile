@@ -25,6 +25,26 @@ void main() {
       },
     );
 
+    test('normalizes job type choices with backend ids', () {
+      final choices = JobPlanJobTypeHelper.normalizeJobTypeChoices([
+        {'id': 'JOB-1', 'job_name': 'Pasang Dashboard'},
+        {'jobTypeId': 'JOB-2', 'name': 'Jahit Jok'},
+        {'job_type_id': 'JOB-3', 'jobName': 'Poles Panel'},
+        {'id': 'JOB-4', 'name': 'Pasang Dashboard'},
+      ]);
+
+      expect(choices.map((item) => item.id), ['JOB-1', 'JOB-2', 'JOB-3']);
+      expect(choices.map((item) => item.name), [
+        'Pasang Dashboard',
+        'Jahit Jok',
+        'Poles Panel',
+      ]);
+      expect(
+        JobPlanJobTypeHelper.findChoiceByName(choices, 'jahit jok')?.id,
+        'JOB-2',
+      );
+    });
+
     test(
       'loads additional job types with the selected division filter',
       () async {

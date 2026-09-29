@@ -138,6 +138,34 @@ void main() {
                 verifiedMinutes: 600,
                 unverifiedMinutes: 120,
               ),
+              JobPlan(
+                planId: 'plan-2',
+                coreId: 'core-2',
+                carId: 'unit-1',
+                sourceType: 'COUNTDOWN',
+                sourceRefId: 'core-2',
+                unitName: 'MB220S',
+                panelName: 'No Pending Panel',
+                assignedDivision: 'Interior',
+                assignedUserId: 'emp-1',
+                assignedTo: 'Budi',
+                description: 'Not started',
+                targetHours: 4,
+                workDate: '2026-09-15',
+                startTime: '13:00',
+                finishTime: '17:00',
+                isOvertime: false,
+                deadline: '2026-09-15',
+                status: 'APPROVED',
+                note: '',
+                approvalState: 'APPROVED',
+                executionState: 'NOT_STARTED',
+                ledgerState: 'MATERIALIZED',
+                version: 1,
+                accumulatedMinutes: 0,
+                verifiedMinutes: 0,
+                unverifiedMinutes: 0,
+              ),
             ],
           ),
         ),
@@ -147,6 +175,7 @@ void main() {
       expect(find.text('Worked: 12 jam'), findsOneWidget);
       expect(find.text('Verified: 10 jam'), findsOneWidget);
       expect(find.text('Pending: 2 jam'), findsOneWidget);
+      expect(find.text('No Pending Panel'), findsNothing);
       expect(find.text('VERIFY'), findsOneWidget);
     },
   );

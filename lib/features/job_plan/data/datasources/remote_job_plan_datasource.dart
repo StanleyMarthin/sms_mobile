@@ -149,7 +149,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // Returns { items: [...], count: N }
   @override
   Future<List<Map<String, dynamic>>> getPlans() async {
-    final response = await apiClient.get(
+    final merged = <String, Map<String, dynamic>>{};
+
+    final legacyResponse = await apiClient.get(
       ApiEndpoints.jobPlans,
       queryParameters: {
         'userId': sessionManager.employeeId ?? '',
@@ -159,23 +161,53 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         'offset': 0,
       },
     );
-    // ApiClient._parseResponse already unwraps data['data']
-    final payload = response.data;
-    List<dynamic> items = [];
-    if (payload is Map<String, dynamic>) {
-      items = payload['items'] as List<dynamic>? ?? [];
-    } else if (payload is List<dynamic>) {
-      items = payload;
-    }
+    final legacyPayload = legacyResponse.data;
+    final legacyItems = legacyPayload is Map<String, dynamic>
+        ? (legacyPayload['items'] as List<dynamic>? ?? [])
+        : legacyPayload is List<dynamic>
+        ? legacyPayload
+        : <dynamic>[];
 
-    final merged = <String, Map<String, dynamic>>{};
-    for (final item in items.whereType<Map<String, dynamic>>()) {
-      final id = '${item['planId'] ?? ''}';
+    for (final item in legacyItems.whereType<Map<String, dynamic>>()) {
+      final normalizedItem = Map<String, dynamic>.from(item);
+      final id = '${normalizedItem['planId'] ?? ''}';
       if (id.isEmpty) continue;
       if (_statusOverrides.containsKey(id)) {
-        item['status'] = _statusOverrides[id];
+        normalizedItem['status'] = _statusOverrides[id];
       }
-      merged[id] = item;
+      merged[id] = normalizedItem;
+    }
+
+    try {
+      final v2Response = await apiClient.get(
+        ApiEndpoints.jobPlansV2,
+        queryParameters: {
+          'userId': sessionManager.employeeId ?? '',
+          'view': 'browse',
+          'page': 1,
+          'limit': 200,
+          if (sessionManager.divisionId != null)
+            'divisionId': '${sessionManager.divisionId}',
+        },
+      );
+      final v2Payload = v2Response.data;
+      final v2Items = v2Payload is Map<String, dynamic>
+          ? (v2Payload['items'] as List<dynamic>? ?? [])
+          : v2Payload is List<dynamic>
+          ? v2Payload
+          : <dynamic>[];
+
+      for (final item in v2Items.whereType<Map<String, dynamic>>()) {
+        final normalizedItem = _v2PlanAsLegacy(item);
+        final id = '${normalizedItem['planId'] ?? ''}';
+        if (id.isEmpty) continue;
+        if (_statusOverrides.containsKey(id)) {
+          normalizedItem['status'] = _statusOverrides[id];
+        }
+        merged[id] = normalizedItem;
+      }
+    } catch (_) {
+      // Legacy endpoint remains the fallback while V2 is rolled out.
     }
 
     final normalized = merged.values.map(_normalizePlan).toList();
@@ -943,6 +975,60 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   }
 
   // ─── Response normalization ─────────────────────────────────────
+  Map<String, dynamic> _v2PlanAsLegacy(Map<String, dynamic> item) {
+    final plannedStartMinute = _intValue(
+      item['plannedStartMinute'] ?? item['startMinute'],
+    );
+    final plannedWorkMinutes = _intValue(
+      item['plannedWorkMinutes'] ?? item['durationMinutes'],
+    );
+    final startTime = plannedStartMinute == null
+        ? (item['startTime'] ?? item['targetStartHours'])
+        : _minutesToClock(plannedStartMinute);
+    final finishTime = plannedStartMinute == null || plannedWorkMinutes == null
+        ? (item['finishTime'] ?? item['targetFinishHours'])
+        : _minutesToClock(plannedStartMinute + plannedWorkMinutes);
+
+    return {
+      'planId': item['planId'] ?? item['plan_id'] ?? '',
+      'coreId': item['coreId'] ?? item['core_id'] ?? '',
+      'carId': item['carId'] ?? item['car_id'] ?? item['unitId'] ?? '',
+      'sourceType': item['sourceType'] ?? item['source_type'] ?? 'COUNTDOWN',
+      'sourceRefId': item['sourceRefId'] ?? item['source_ref_id'] ?? '',
+      'unitName': item['unitName'] ?? item['unit_name'] ?? '-',
+      'panelName': item['panelName'] ?? item['panel_name'] ?? '-',
+      'divisionName': item['divisionName'] ?? item['division_name'] ?? '',
+      'assignedUserId':
+          item['employeeId'] ?? item['employee_id'] ?? item['assignedUserId'],
+      'assignedUserName':
+          item['employeeName'] ??
+          item['employee_name'] ??
+          item['assignedUserName'],
+      'jobdescription':
+          item['jobDescription'] ??
+          item['jobdescription'] ??
+          item['description'] ??
+          item['countdownName'] ??
+          '',
+      'targetHours': plannedWorkMinutes == null
+          ? (item['targetHours'] ?? item['dailyTargetHours'])
+          : plannedWorkMinutes / 60,
+      'taskDate': item['taskDate'] ?? item['task_date'] ?? item['workDate'],
+      'startTime': startTime,
+      'finishTime': finishTime,
+      'isOvertime': item['isOvertime'] ?? item['is_overtime'] ?? false,
+      'deadlineDate':
+          item['deadlineDate'] ?? item['deadline_date'] ?? item['deadline'],
+      'status':
+          item['status'] ??
+          item['approvalState'] ??
+          item['approval_state'] ??
+          item['planStatus'] ??
+          'PLAN',
+      'note': item['note'] ?? item['remarks'] ?? '',
+    };
+  }
+
   Map<String, dynamic> _normalizePlan(Map<String, dynamic> item) {
     final assignedUserId = '${item['assignedUserId'] ?? ''}';
     final assignedTo =
@@ -972,7 +1058,8 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'assignedDivision': assignedDivision,
       'assignedUserId': assignedUserId,
       'assignedTo': assignedTo,
-      'description': '${item['jobdescription'] ?? ''}',
+      'description':
+          '${item['jobdescription'] ?? item['jobDescription'] ?? item['description'] ?? ''}',
       'targetHours': dailyTarget,
       'workDate': taskDate,
       'startTime': startTime,
@@ -1106,8 +1193,22 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
 
   String _secondsToTime(double seconds) {
     final totalMinutes = (seconds / 60).round();
-    final h = '${(totalMinutes ~/ 60) % 24}'.padLeft(2, '0');
-    final m = '${totalMinutes % 60}'.padLeft(2, '0');
+    return _minutesToClock(totalMinutes);
+  }
+
+  int? _intValue(Object? value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.round();
+    final raw = '$value'.trim();
+    if (raw.isEmpty || raw.toLowerCase() == 'null') return null;
+    return int.tryParse(raw);
+  }
+
+  String _minutesToClock(int minutes) {
+    final normalizedMinutes = minutes % (24 * 60);
+    final h = '${normalizedMinutes ~/ 60}'.padLeft(2, '0');
+    final m = '${normalizedMinutes % 60}'.padLeft(2, '0');
     return '$h:$m';
   }
 

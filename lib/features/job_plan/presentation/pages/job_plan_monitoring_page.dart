@@ -43,7 +43,7 @@ class _JobPlanMonitoringPageState extends State<JobPlanMonitoringPage> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final plans = snapshot.data!;
+        final plans = snapshot.data!.where(_isMonitorable).toList();
         if (plans.isEmpty) {
           return const Center(child: Text('Tidak ada monitoring'));
         }
@@ -91,6 +91,14 @@ class _JobPlanMonitoringPageState extends State<JobPlanMonitoringPage> {
         });
       }
     }
+  }
+
+  bool _isMonitorable(JobPlan plan) {
+    final executionState = (plan.executionState ?? '').toUpperCase();
+    return plan.unverifiedMinutes > 0 ||
+        executionState == 'RUNNING' ||
+        executionState == 'HOLD' ||
+        executionState == 'FINISHED_PENDING_VALIDATION';
   }
 }
 
