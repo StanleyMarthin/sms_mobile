@@ -37,10 +37,18 @@ class _CaptureAdapter implements HttpClientAdapter {
   ) async {
     request = options;
     requests.add(options);
+    final isApprovalMutation =
+        options.method == 'PUT' && options.path.contains('/sm/job-plans/v2/');
     return ResponseBody.fromString(
       jsonEncode({
         'success': true,
-        'data': {'planId': 'plan-v2-1', 'coreId': 'core-1'},
+        'data': isApprovalMutation
+            ? {
+                'planId': 'plan-v2-1',
+                'version': 2,
+                'approvalState': 'DIVISION_REVIEW',
+              }
+            : {'planId': 'plan-v2-1', 'coreId': 'core-1', 'version': 1},
       }),
       200,
       headers: {
@@ -148,20 +156,30 @@ void main() {
         ],
       );
 
-      final payload = adapter.request!.data as Map<String, dynamic>;
+      final createPayload = adapter.requests[0].data as Map<String, dynamic>;
+      final submitPayload = adapter.requests[1].data as Map<String, dynamic>;
       expect(createdIds, ['plan-v2-1']);
-      expect(adapter.requests, hasLength(1));
-      expect(adapter.request!.method, 'POST');
-      expect(adapter.request!.path.endsWith('/sm/job-plans/v2'), isTrue);
-      expect(payload['action'], isNull);
-      expect(payload['userId'], 'KD-1');
-      expect(payload['coreId'], 'core-1');
-      expect(payload['employeeId'], 'emp-1');
-      expect(payload['plannedStartMinute'], 480);
-      expect(payload['plannedWorkMinutes'], 99);
-      expect(payload['jobDescription'], 'Repair');
-      expect(payload['note'], 'Repair part');
-      expect(payload['commandId'], 'mobile-submit-KD-1-draft-1');
+      expect(adapter.requests, hasLength(2));
+      expect(adapter.requests[0].method, 'POST');
+      expect(adapter.requests[0].path.endsWith('/sm/job-plans/v2'), isTrue);
+      expect(createPayload['action'], isNull);
+      expect(createPayload['userId'], 'KD-1');
+      expect(createPayload['coreId'], 'core-1');
+      expect(createPayload['employeeId'], 'emp-1');
+      expect(createPayload['plannedStartMinute'], 480);
+      expect(createPayload['plannedWorkMinutes'], 99);
+      expect(createPayload['jobDescription'], 'Repair');
+      expect(createPayload['note'], 'Repair part');
+      expect(createPayload['commandId'], 'mobile-create-KD-1-draft-1');
+      expect(adapter.requests[1].method, 'PUT');
+      expect(
+        adapter.requests[1].path.endsWith('/sm/job-plans/v2/plan-v2-1'),
+        isTrue,
+      );
+      expect(submitPayload['action'], 'submit');
+      expect(submitPayload['userId'], 'KD-1');
+      expect(submitPayload['expectedVersion'], 1);
+      expect(submitPayload['commandId'], 'mobile-submit-KD-1-draft-1');
     },
   );
 

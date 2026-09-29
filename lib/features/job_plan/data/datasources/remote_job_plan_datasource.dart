@@ -133,15 +133,19 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     return sourceType == 'COUNTDOWN' && coreId.isNotEmpty;
   }
 
-  String _draftCommandId(String userId, Map<String, dynamic> item) {
+  String _draftCommandId(
+    String userId,
+    Map<String, dynamic> item,
+    String action,
+  ) {
     final draftId = '${item['draftItemId'] ?? ''}'.trim();
-    if (draftId.isNotEmpty) return 'mobile-submit-$userId-$draftId';
+    if (draftId.isNotEmpty) return 'mobile-$action-$userId-$draftId';
     final coreId = '${item['coreId'] ?? item['core_id'] ?? ''}'.trim();
     final employeeId = '${item['assignedUserId'] ?? item['employeeId'] ?? ''}'
         .trim();
     final taskDate = '${item['taskDate'] ?? item['workDate'] ?? ''}'.trim();
     final startTime = '${item['startTime'] ?? ''}'.trim();
-    return 'mobile-submit-$userId-$coreId-$employeeId-$taskDate-$startTime';
+    return 'mobile-$action-$userId-$coreId-$employeeId-$taskDate-$startTime';
   }
 
   int _clockToMinutes(Object? value) {
@@ -733,7 +737,7 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
           'plannedWorkMinutes': _draftWorkMinutes(item),
           'jobDescription': _itemJobDescription(item),
           'note': item['note']?.toString(),
-          'commandId': _draftCommandId(userId, item),
+          'commandId': _draftCommandId(userId, item, 'create'),
           'isOvertime': _toBool(item['isOvertime'] ?? item['is_overtime']),
         },
       );
@@ -743,7 +747,22 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
         final planId = data is Map<String, dynamic>
             ? data['planId'] ?? data['plan_id']
             : payload['planId'] ?? payload['plan_id'];
-        if (planId != null) createdIds.add(planId.toString());
+        final version = _intValue(
+          data is Map<String, dynamic> ? data['version'] : payload['version'],
+        );
+        if (planId != null) {
+          final planIdText = planId.toString();
+          await apiClient.put(
+            ApiEndpoints.jobPlanV2(planIdText),
+            data: {
+              'action': 'submit',
+              'userId': userId,
+              'commandId': _draftCommandId(userId, item, 'submit'),
+              'expectedVersion': version ?? 1,
+            },
+          );
+          createdIds.add(planIdText);
+        }
       }
     }
 
