@@ -41,6 +41,7 @@ class JobPlan {
     this.approvalState,
     this.executionState,
     this.ledgerState,
+    this.createdBy,
     this.version = 0,
     this.readSource,
     this.readOnly = false,
@@ -92,6 +93,7 @@ class JobPlan {
   final String? approvalState;
   final String? executionState;
   final String? ledgerState;
+  final String? createdBy;
   final int version;
   final String? readSource;
   final bool readOnly;

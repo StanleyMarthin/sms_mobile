@@ -778,6 +778,7 @@ class _JobPlanPageState extends State<JobPlanPage>
     ]);
 
     final canReview = _canReviewApprovalStatus(_session, plan.status);
+    final canRestoreRejected = _isRejectedOwner(plan);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -891,6 +892,96 @@ class _JobPlanPageState extends State<JobPlanPage>
                         label: 'Source Ref',
                         value: sourceRefId,
                       ),
+
+                    // ── Action buttons untuk pengaju saat plan ditolak ──
+                    if (canRestoreRejected) ...[
+                      SizedBox(height: 24),
+                      Divider(color: AppColors.border),
+                      SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: isActing
+                                  ? null
+                                  : () async {
+                                      setLocalState(() => isActing = true);
+                                      try {
+                                        await _restoreRejectedPlanToDraft(plan);
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                        if (mounted) {
+                                          AppNotification.showSuccess(
+                                            context,
+                                            'Plan dikembalikan ke draft.',
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (ctx.mounted) {
+                                          setLocalState(() => isActing = false);
+                                        }
+                                        if (mounted) {
+                                          AppNotification.showError(
+                                            context,
+                                            friendlyMessage(
+                                              e,
+                                              fallback:
+                                                  'Gagal mengembalikan plan ke draft.',
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: Icon(Icons.edit_outlined, size: 16),
+                              label: Text('Edit'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.gold,
+                                foregroundColor: Colors.black,
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: isActing
+                                  ? null
+                                  : () async {
+                                      setLocalState(() => isActing = true);
+                                      try {
+                                        await _deleteRejectedPlan(plan);
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                        if (mounted) {
+                                          AppNotification.showSuccess(
+                                            context,
+                                            'Plan rejected dihapus.',
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (ctx.mounted) {
+                                          setLocalState(() => isActing = false);
+                                        }
+                                        if (mounted) {
+                                          AppNotification.showError(
+                                            context,
+                                            friendlyMessage(
+                                              e,
+                                              fallback:
+                                                  'Gagal menghapus plan rejected.',
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                              icon: Icon(Icons.delete_outline, size: 16),
+                              label: Text('Hapus'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.statusLocked,
+                                foregroundColor: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
 
                     // ── Action buttons (hanya jika role bisa review) ──
                     if (canReview) ...[
@@ -1097,6 +1188,94 @@ class _JobPlanPageState extends State<JobPlanPage>
     if (s == 'WO') return 'Work Order';
     if (s == 'COUNTDOWN') return 'Jobdesc';
     return sourceType;
+  }
+
+  bool _isRejectedOwner(JobPlan plan) {
+    final actor = (_session.employeeId ?? '').trim();
+    final creator = (plan.createdBy ?? '').trim();
+    return plan.status.toUpperCase() == 'REJECTED' &&
+        actor.isNotEmpty &&
+        creator.isNotEmpty &&
+        actor == creator;
+  }
+
+  Map<String, dynamic> _draftFromRejectedPlan(JobPlan plan) {
+    final sourceType = plan.coreId.trim().isNotEmpty
+        ? 'COUNTDOWN'
+        : (plan.sourceType.trim().isNotEmpty ? plan.sourceType : 'ADDITIONAL');
+    return {
+      'draftItemId': 'rejected_${plan.planId}',
+      'fromRejectedPlan': true,
+      'rejectedPlanId': plan.planId,
+      'coreId': plan.coreId,
+      'carId': plan.carId,
+      'divisionId': plan.divisionId ?? plan.assignedDivision,
+      'panelId': _jobPlanInt(plan.panelId),
+      'panelCustomNote': plan.panelCustomNote,
+      'sourceType': sourceType,
+      'assignedUserId': plan.resolvedEmployeeId,
+      'assignedUserName': plan.resolvedEmployeeName,
+      'taskDate': plan.resolvedTaskDate,
+      'jobDescription': plan.description,
+      'note': plan.note,
+      'targetHours': plan.durationMinutes != null
+          ? plan.durationMinutes! / 60
+          : plan.targetHours,
+      'startTime': plan.startTime,
+      'finishTime': plan.finishTime,
+      'isOvertime': plan.isOvertime,
+      'unitName': plan.unitName,
+      'panelName': plan.panelName,
+    };
+  }
+
+  Future<void> _restoreRejectedPlanToDraft(JobPlan plan) async {
+    final uid = _session.employeeId ?? '';
+    if (uid.isEmpty) return;
+    final existingDraft = await _repository.getDraft(userId: uid);
+    final existingItems = (existingDraft?['items'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(Map<String, dynamic>.from)
+        .toList();
+    existingItems.removeWhere(
+      (item) => item['rejectedPlanId']?.toString() == plan.planId,
+    );
+    existingItems.add(_draftFromRejectedPlan(plan));
+    await _repository.saveDraft(
+      userId: uid,
+      items: existingItems,
+      sourceType: 'COUNTDOWN',
+      replaceItems: true,
+      note: existingDraft?['note']?.toString(),
+    );
+    await _repository.mutateApproval(
+      planId: plan.planId,
+      action: 'cancel',
+      metadata: CommandMetadata(
+        commandId:
+            'mobile-cancel-rejected-${plan.planId}-${DateTime.now().millisecondsSinceEpoch}',
+        expectedVersion: plan.version <= 0 ? 1 : plan.version,
+      ),
+      rejectReason: 'Dipindahkan kembali ke draft oleh pengaju',
+    );
+    _triggerRefresh();
+    if (_tabController.length > 1) {
+      _tabController.animateTo(1);
+    }
+  }
+
+  Future<void> _deleteRejectedPlan(JobPlan plan) async {
+    await _repository.mutateApproval(
+      planId: plan.planId,
+      action: 'cancel',
+      metadata: CommandMetadata(
+        commandId:
+            'mobile-delete-rejected-${plan.planId}-${DateTime.now().millisecondsSinceEpoch}',
+        expectedVersion: plan.version <= 0 ? 1 : plan.version,
+      ),
+      rejectReason: 'Dihapus oleh pengaju',
+    );
+    _triggerRefresh();
   }
 
   void _showCreateSourceSheet() {

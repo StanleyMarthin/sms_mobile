@@ -89,6 +89,7 @@ class JobPlanApiModel {
       approvalState: _string(['approvalState', 'approval_state']),
       executionState: _string(['executionState', 'execution_state']),
       ledgerState: _string(['ledgerState', 'ledger_state']),
+      createdBy: _string(['createdBy', 'created_by']),
       version: _int('version') ?? 0,
       readSource: _string(['source']),
       readOnly: _bool('readOnly', 'read_only'),
