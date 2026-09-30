@@ -482,17 +482,31 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       carId: (item['carId'] ?? item['car_id'] ?? '').toString(),
       sourceType: (item['sourceType'] ?? item['source_type'] ?? 'ADDITIONAL')
           .toString(),
+      sourceId: (item['sourceId'] ?? item['source_id'] ?? item['coreId'] ?? '')
+          .toString(),
       sourceRefId: (item['sourceRefId'] ?? item['source_ref_id'] ?? '')
           .toString(),
       unitName: (item['unitName'] ?? item['unit_name'] ?? '').toString(),
       panelName: (item['panelName'] ?? item['panel_name'] ?? '').toString(),
+      panelId: (item['panelId'] ?? item['panel_id'] ?? '').toString(),
+      unitId: (item['unitId'] ?? item['unit_id'] ?? item['carId'] ?? '')
+          .toString(),
+      divisionId: (item['divisionId'] ?? item['division_id'] ?? '').toString(),
+      countdownName: (item['countdownName'] ?? item['countdown_name'] ?? '')
+          .toString(),
       assignedDivision:
-          (item['assignedDivision'] ?? item['assigned_division'] ?? '')
+          (item['assignedDivision'] ??
+                  item['assigned_division'] ??
+                  item['divisionName'] ??
+                  item['division_name'] ??
+                  '')
               .toString(),
       assignedUserId: (item['assignedUserId'] ?? item['assigned_user_id'] ?? '')
           .toString(),
       assignedTo:
           (item['assignedUserName'] ??
+                  item['employeeName'] ??
+                  item['employee_name'] ??
                   item['assignedTo'] ??
                   item['assigned_to'] ??
                   '')
@@ -520,6 +534,18 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
                   '')
               .toString(),
       status: _normalizeApprovalStatus((item['status'] ?? '').toString()),
+      approvalState: (item['approvalState'] ?? item['approval_state'] ?? '')
+          .toString(),
+      executionState: (item['executionState'] ?? item['execution_state'] ?? '')
+          .toString(),
+      ledgerState: (item['ledgerState'] ?? item['ledger_state'] ?? '')
+          .toString(),
+      createdBy: (item['createdBy'] ?? item['created_by'] ?? '').toString(),
+      version: _parseInt(item['version']),
+      readSource: (item['source'] ?? '').toString(),
+      readOnly:
+          (item['readOnly'] ?? item['read_only'] ?? false) == true ||
+          (item['readOnly'] ?? item['read_only'] ?? 0) == 1,
       note: (item['note'] ?? '').toString(),
       panelCustomNote:
           item['panelCustomNote']?.toString() ??
@@ -570,6 +596,11 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
       'PENDING_ADVISOR' ||
       'PENDING_ADVISOR_APPROVAL' ||
       'MENUNGGU ADV' => 'PENDING_ADV',
+      'DIVISION_REVIEW' => 'PENDING_ADV',
+      'UNIT_REVIEW' => 'PENDING_KP',
+      'MANAGEMENT_REVIEW' => 'PENDING_MP',
+      'APPROVED' => 'PLAN',
+      'CANCELLED' => 'CANCEL',
       final s => s,
     };
   }
@@ -614,6 +645,11 @@ class JobPlanRepositoryImpl implements JobPlanRepository {
     if (value <= 24) return value;
     if (value <= 24 * 60) return value / 60;
     return value / 3600;
+  }
+
+  int _parseInt(Object? value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   String _addHours(String startTime, double hours) {

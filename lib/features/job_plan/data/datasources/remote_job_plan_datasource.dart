@@ -80,6 +80,14 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   String _itemJobDescription(Map<String, dynamic> item) =>
       (item['jobDescription'] ?? item['jobdescription'] ?? '').toString();
 
+  String _firstText(Iterable<Object?> values) {
+    for (final value in values) {
+      final text = value?.toString().trim() ?? '';
+      if (text.isNotEmpty && text.toLowerCase() != 'null') return text;
+    }
+    return '';
+  }
+
   Map<String, dynamic> _normalizeDropdownJobType(Map<String, dynamic> item) {
     final normalized = Map<String, dynamic>.from(item);
     final name =
@@ -201,6 +209,132 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     };
   }
 
+  List<Map<String, dynamic>> _itemsFromPayload(Object? payload) {
+    final data = payload is Map<String, dynamic> ? payload['data'] : null;
+    final source = data is Map<String, dynamic> ? data : payload;
+    final rawItems = source is Map<String, dynamic>
+        ? (source['items'] as List<dynamic>? ?? <dynamic>[])
+        : source is List<dynamic>
+        ? source
+        : <dynamic>[];
+    return rawItems.whereType<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchV2ApprovalQueue({
+    String? divisionId,
+    String? unitId,
+    String? taskDate,
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    final response = await apiClient.get(
+      ApiEndpoints.jobPlansV2,
+      queryParameters: {
+        'userId': sessionManager.employeeId ?? '',
+        'view': 'approval_queue',
+        'page': (offset ~/ limit) + 1,
+        'limit': limit,
+        if ((unitId ?? '').isNotEmpty) 'unitId': unitId,
+        if ((divisionId ?? '').isNotEmpty) 'divisionId': divisionId,
+        if ((taskDate ?? '').isNotEmpty) 'date': taskDate,
+      },
+    );
+    return _itemsFromPayload(response.data).map(_v2PlanAsLegacy).toList();
+  }
+
+  List<Map<String, dynamic>> _mergeApprovalPlans(
+    List<Map<String, dynamic>> legacyItems,
+    List<Map<String, dynamic>> v2Items,
+  ) {
+    final merged = <String, Map<String, dynamic>>{};
+    for (final item in legacyItems) {
+      final plan = item.containsKey('planId')
+          ? _normalizePlan(item)
+          : Map<String, dynamic>.from(item);
+      final id = '${plan['planId'] ?? plan['id'] ?? ''}'.trim();
+      if (id.isNotEmpty) merged[id] = plan;
+    }
+    for (final item in v2Items) {
+      final plan = _normalizePlan(item);
+      final id = '${plan['planId'] ?? plan['id'] ?? ''}'.trim();
+      if (id.isNotEmpty) merged[id] = plan;
+    }
+    return merged.values.toList();
+  }
+
+  List<Map<String, dynamic>> _v2ApprovalUnits(
+    List<Map<String, dynamic>> plans,
+  ) {
+    final byUnit = <String, Map<String, dynamic>>{};
+    for (final plan in plans) {
+      final id = '${plan['carId'] ?? plan['car_id'] ?? plan['unitId'] ?? ''}'
+          .trim();
+      if (id.isEmpty) continue;
+      byUnit.putIfAbsent(id, () {
+        final name =
+            '${plan['unitName'] ?? plan['unit_name'] ?? plan['name'] ?? id}'
+                .trim();
+        return {
+          'id': id,
+          'unitId': id,
+          'name': name.isEmpty ? id : name,
+          'unitName': name.isEmpty ? id : name,
+          'unit_name': name.isEmpty ? id : name,
+        };
+      });
+    }
+    return byUnit.values.toList();
+  }
+
+  List<Map<String, dynamic>> _v2ApprovalDivisions(
+    List<Map<String, dynamic>> plans,
+  ) {
+    final byDivision = <String, Map<String, dynamic>>{};
+    for (final plan in plans) {
+      final id =
+          '${plan['divisionId'] ?? plan['division_id'] ?? plan['assignedDivision'] ?? ''}'
+              .trim();
+      if (id.isEmpty) continue;
+      byDivision.putIfAbsent(id, () {
+        final sessionDivisionId = sessionManager.divisionId?.toString();
+        final roleDivision = RegExp(
+          r'divisi\s+(.+)$',
+          caseSensitive: false,
+        ).firstMatch(sessionManager.roleLabel)?.group(1);
+        final fallbackName = sessionDivisionId == id
+            ? _firstText([sessionManager.divisionName, roleDivision])
+            : '';
+        final backendName = _firstText([
+          plan['divisionName'],
+          plan['division_name'],
+        ]);
+        final name = _firstText([fallbackName, backendName]);
+        return {
+          'id': id,
+          'divisionId': id,
+          'name': name.isEmpty ? 'Divisi $id' : name,
+          'divisionName': name.isEmpty ? 'Divisi $id' : name,
+        };
+      });
+    }
+    return byDivision.values.toList();
+  }
+
+  List<Map<String, dynamic>> _mergeNavigationItems(
+    List<Map<String, dynamic>> legacyItems,
+    List<Map<String, dynamic>> v2Items,
+  ) {
+    final merged = <String, Map<String, dynamic>>{};
+    for (final item in [...legacyItems, ...v2Items]) {
+      final id =
+          '${item['id'] ?? item['unitId'] ?? item['divisionId'] ?? item['name'] ?? ''}'
+              .trim();
+      if (id.isEmpty) continue;
+      merged[id] = Map<String, dynamic>.from(item);
+    }
+    return merged.values.toList();
+  }
+
   // ─── GET /sm/job-plans  (action=queue, default) ──────────────────
   // Returns { items: [...], count: N }
   @override
@@ -285,30 +419,41 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     int limit = 100,
     int offset = 0,
   }) async {
-    final response = await apiClient.get(
-      ApiEndpoints.jobPlans,
-      queryParameters: {
-        'action': 'approval_queue',
-        'userId': sessionManager.employeeId ?? '',
-        if (divisionId != null) 'divisionId': divisionId,
-        if (unitId != null) 'unitId': unitId,
-        if (taskDate != null) 'taskDate': taskDate,
-        'limit': limit,
-        'offset': offset,
-      },
-    );
-    final payload = response.data;
-    final rawItems = payload is Map<String, dynamic>
-        ? (payload['items'] as List<dynamic>? ?? [])
-        : payload is List<dynamic>
-        ? payload
-        : <dynamic>[];
+    Object? legacyError;
+    var legacyItems = <Map<String, dynamic>>[];
+    try {
+      final response = await apiClient.get(
+        ApiEndpoints.jobPlans,
+        queryParameters: {
+          'action': 'approval_queue',
+          'userId': sessionManager.employeeId ?? '',
+          if (divisionId != null) 'divisionId': divisionId,
+          if (unitId != null) 'unitId': unitId,
+          if (taskDate != null) 'taskDate': taskDate,
+          'limit': limit,
+          'offset': offset,
+        },
+      );
+      legacyItems = _itemsFromPayload(response.data);
+    } catch (error) {
+      legacyError = error;
+    }
 
-    final items = rawItems.whereType<Map<String, dynamic>>().map((item) {
-      if (item.containsKey('planId')) return _normalizePlan(item);
-      return Map<String, dynamic>.from(item);
-    }).toList();
-    return items;
+    var v2Items = <Map<String, dynamic>>[];
+    try {
+      v2Items = await _fetchV2ApprovalQueue(
+        divisionId: divisionId,
+        unitId: unitId,
+        taskDate: taskDate,
+        limit: limit,
+        offset: offset,
+      );
+    } catch (_) {
+      // Legacy endpoint remains the fallback while V2 approval queue is rolled out.
+    }
+
+    if (legacyError != null && v2Items.isEmpty) throw legacyError;
+    return _mergeApprovalPlans(legacyItems, v2Items);
   }
 
   @override
@@ -319,23 +464,62 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
     int limit = 100,
     int offset = 0,
   }) async {
-    final response = await apiClient.get(
-      ApiEndpoints.jobPlans,
-      queryParameters: {
-        'action': 'approval_queue',
-        'userId': sessionManager.employeeId ?? '',
-        if (divisionId != null) 'divisionId': divisionId,
-        if (unitId != null) 'unitId': unitId,
-        if (taskDate != null) 'taskDate': taskDate,
-        'limit': limit,
-        'offset': offset,
-      },
-    );
-    final payload = response.data;
-    if (payload is Map<String, dynamic>) {
-      return payload; // contains 'type' ('divisions'/'units'/'plans') and 'items'
+    Object? legacyError;
+    var legacyRaw = <String, dynamic>{};
+    try {
+      final response = await apiClient.get(
+        ApiEndpoints.jobPlans,
+        queryParameters: {
+          'action': 'approval_queue',
+          'userId': sessionManager.employeeId ?? '',
+          if (divisionId != null) 'divisionId': divisionId,
+          if (unitId != null) 'unitId': unitId,
+          if (taskDate != null) 'taskDate': taskDate,
+          'limit': limit,
+          'offset': offset,
+        },
+      );
+      final payload = response.data;
+      if (payload is Map<String, dynamic>) {
+        legacyRaw = Map<String, dynamic>.from(payload);
+      }
+    } catch (error) {
+      legacyError = error;
     }
-    return {'type': 'plans', 'items': []};
+
+    var v2Plans = <Map<String, dynamic>>[];
+    try {
+      v2Plans = await _fetchV2ApprovalQueue(
+        unitId: unitId,
+        divisionId: divisionId,
+        taskDate: taskDate,
+        limit: 200,
+      );
+    } catch (_) {
+      // Legacy endpoint remains the fallback while V2 approval queue is rolled out.
+    }
+
+    if (legacyError != null && v2Plans.isEmpty) throw legacyError;
+
+    final type = divisionId != null
+        ? 'plans'
+        : unitId != null
+        ? 'divisions'
+        : 'units';
+    final legacyItems = _itemsFromPayload(legacyRaw);
+    final v2Items = type == 'units'
+        ? _v2ApprovalUnits(v2Plans)
+        : type == 'divisions'
+        ? _v2ApprovalDivisions(v2Plans)
+        : v2Plans;
+
+    return {
+      ...legacyRaw,
+      'type': legacyRaw['type'] ?? type,
+      'items': type == 'plans'
+          ? _mergeApprovalPlans(legacyItems, v2Items)
+          : _mergeNavigationItems(legacyItems, v2Items),
+    };
   }
 
   // ─── GET /sm/job-plans?action=browse ────────────────────────────
@@ -1088,15 +1272,26 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
   // ─── Response normalization ─────────────────────────────────────
   Map<String, dynamic> _v2PlanAsLegacy(Map<String, dynamic> item) {
     final plannedStartMinute = _intValue(
-      item['plannedStartMinute'] ?? item['startMinute'],
+      item['plannedStartMinute'] ??
+          item['planned_start_minute'] ??
+          item['startMinute'] ??
+          item['start_minute'],
     );
     final plannedWorkMinutes = _intValue(
-      item['plannedWorkMinutes'] ?? item['durationMinutes'],
+      item['plannedWorkMinutes'] ??
+          item['planned_work_minutes'] ??
+          item['durationMinutes'] ??
+          item['duration_minutes'],
     );
     final startTime = plannedStartMinute == null
         ? (item['startTime'] ?? item['targetStartHours'])
         : _minutesToClock(plannedStartMinute);
-    final finishTime = plannedStartMinute == null || plannedWorkMinutes == null
+    final finishMinute = _intValue(
+      item['plannedFinishMinute'] ?? item['planned_finish_minute'],
+    );
+    final finishTime = finishMinute != null
+        ? _minutesToClock(finishMinute)
+        : plannedStartMinute == null || plannedWorkMinutes == null
         ? (item['finishTime'] ?? item['targetFinishHours'])
         : _minutesToClock(plannedStartMinute + plannedWorkMinutes);
 
@@ -1104,10 +1299,18 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'planId': item['planId'] ?? item['plan_id'] ?? '',
       'coreId': item['coreId'] ?? item['core_id'] ?? '',
       'carId': item['carId'] ?? item['car_id'] ?? item['unitId'] ?? '',
+      'unitId':
+          item['unitId'] ??
+          item['unit_id'] ??
+          item['carId'] ??
+          item['car_id'] ??
+          '',
+      'divisionId': item['divisionId'] ?? item['division_id'] ?? '',
+      'panelId': item['panelId'] ?? item['panel_id'] ?? '',
       'sourceType': item['sourceType'] ?? item['source_type'] ?? 'COUNTDOWN',
       'sourceRefId': item['sourceRefId'] ?? item['source_ref_id'] ?? '',
-      'unitName': item['unitName'] ?? item['unit_name'] ?? '-',
-      'panelName': item['panelName'] ?? item['panel_name'] ?? '-',
+      'unitName': item['unitName'] ?? item['unit_name'] ?? '',
+      'panelName': item['panelName'] ?? item['panel_name'] ?? '',
       'divisionName': item['divisionName'] ?? item['division_name'] ?? '',
       'assignedUserId':
           item['employeeId'] ?? item['employee_id'] ?? item['assignedUserId'],
@@ -1136,6 +1339,13 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
           item['approval_state'] ??
           item['planStatus'] ??
           'PLAN',
+      'approvalState': item['approvalState'] ?? item['approval_state'],
+      'executionState': item['executionState'] ?? item['execution_state'],
+      'ledgerState': item['ledgerState'] ?? item['ledger_state'],
+      'createdBy': item['createdBy'] ?? item['created_by'],
+      'version': item['version'],
+      'source': item['source'],
+      'readOnly': item['readOnly'] ?? item['read_only'] ?? false,
       'note': item['note'] ?? item['remarks'] ?? '',
     };
   }
@@ -1162,6 +1372,9 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'planId': '${item['planId'] ?? ''}',
       'coreId': '${item['coreId'] ?? ''}',
       'carId': '${item['carId'] ?? ''}',
+      'unitId': '${item['unitId'] ?? item['carId'] ?? ''}',
+      'divisionId': '${item['divisionId'] ?? item['division_id'] ?? ''}',
+      'panelId': '${item['panelId'] ?? item['panel_id'] ?? ''}',
       'sourceType': '${item['sourceType'] ?? 'ADDITIONAL'}',
       'sourceRefId': '${item['sourceRefId'] ?? ''}',
       'unitName': '${item['unitName'] ?? item['unit_name'] ?? '-'}',
@@ -1180,6 +1393,15 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
           ? taskDate
           : _toDate(item['deadlineDate']),
       'status': normalizedStatus,
+      'approvalState':
+          '${item['approvalState'] ?? item['approval_state'] ?? ''}',
+      'executionState':
+          '${item['executionState'] ?? item['execution_state'] ?? ''}',
+      'ledgerState': '${item['ledgerState'] ?? item['ledger_state'] ?? ''}',
+      'createdBy': '${item['createdBy'] ?? item['created_by'] ?? ''}',
+      'version': _intValue(item['version']) ?? 0,
+      'source': '${item['source'] ?? ''}',
+      'readOnly': _toBool(item['readOnly'] ?? item['read_only']),
       'note': _resolveNote(
         note: item['note']?.toString(),
         jobDescription:
@@ -1213,6 +1435,11 @@ class RemoteJobPlanDataSource implements JobPlanDataSource {
       'PENDING_KEPALA_PROJECT' ||
       'PENDING_KP_APPROVAL' => 'PENDING_KP',
       'PENDING_ADVISOR' || 'PENDING_ADVISOR_APPROVAL' => 'PENDING_ADV',
+      'DIVISION_REVIEW' => 'PENDING_ADV',
+      'UNIT_REVIEW' => 'PENDING_KP',
+      'MANAGEMENT_REVIEW' => 'PENDING_MP',
+      'APPROVED' => 'PLAN',
+      'CANCELLED' => 'CANCEL',
       final s => s,
     };
   }

@@ -61,6 +61,64 @@ class _CaptureAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+class _ApprovalQueueAdapter implements HttpClientAdapter {
+  final requests = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<List<int>>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    requests.add(options);
+    final isV2 = options.path.endsWith('/sm/job-plans/v2');
+    final items = isV2
+        ? [
+            {
+              'planId': 'plan-v2-approval-1',
+              'coreId': 'core-1',
+              'carId': 'car-1',
+              'unitName': 'JAGUAR XK120',
+              'panelId': 7,
+              'panelName': 'SPAREPART',
+              'divisionId': 12,
+              'employeeId': 'SM-11.004',
+              'employeeName': 'AGUS RUSMAWAN',
+              'taskDate': '2026-09-29',
+              'planned_start_minute': 480,
+              'planned_work_minutes': 99,
+              'approvalState': 'DIVISION_REVIEW',
+              'executionState': 'NOT_STARTED',
+              'ledgerState': 'UNMATERIALIZED',
+              'jobdescription': 'REPAIR',
+              'note': 'REPAIR part',
+              'createdBy': 'KD-1',
+              'version': 2,
+              'source': 'V2_REDIS',
+            },
+          ]
+        : <Map<String, dynamic>>[];
+    final type = options.queryParameters['unitId'] == null
+        ? 'units'
+        : options.queryParameters['divisionId'] == null
+        ? 'divisions'
+        : 'plans';
+    return ResponseBody.fromString(
+      jsonEncode({
+        'success': true,
+        'data': {'items': items, 'type': type, 'count': items.length},
+      }),
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   test(
     'createCountdownPlan posts Countdown-owned command to operational endpoint',
@@ -209,5 +267,51 @@ void main() {
     await dataSource.getOperationalPlan('plan-1');
 
     expect(adapter.request!.queryParameters['userId'], 'KD-1');
+  });
+
+  test('approval queue includes submitted V2 draft for tracking', () async {
+    final adapter = _ApprovalQueueAdapter();
+    final session = SessionManager(storage: _MemoryStorage());
+    await session.login(
+      token: 'token',
+      refreshToken: 'refresh',
+      userId: 'KD-1',
+      employeeId: 'KD-1',
+      fullName: 'KD',
+      role: 'kd',
+      divisionName: 'INTERIOR',
+      jabatan: 'KD',
+      divisionId: 12,
+      permissions: const [],
+    );
+    final dataSource = RemoteJobPlanDataSource(
+      apiClient: ApiClient(
+        sessionManager: session,
+        dio: Dio()..httpClientAdapter = adapter,
+      ),
+      sessionManager: session,
+    );
+
+    final units = await dataSource.getApprovalRaw(taskDate: '2026-09-29');
+    final divisions = await dataSource.getApprovalRaw(
+      unitId: 'car-1',
+      taskDate: '2026-09-29',
+    );
+    final plans = await dataSource.getApprovalQueue(
+      unitId: 'car-1',
+      divisionId: '12',
+      taskDate: '2026-09-29',
+    );
+
+    expect((units['items'] as List).single['unitName'], 'JAGUAR XK120');
+    expect((divisions['items'] as List).single['divisionName'], 'INTERIOR');
+    expect(plans.single['planId'], 'plan-v2-approval-1');
+    expect(plans.single['status'], 'PENDING_ADV');
+    expect(plans.single['startTime'], '08:00');
+    expect(plans.single['finishTime'], '09:39');
+    expect(plans.single['targetHours'], closeTo(1.65, 0.001));
+    expect(plans.single['approvalState'], 'DIVISION_REVIEW');
+    expect(plans.single['createdBy'], 'KD-1');
+    expect(plans.single['version'], 2);
   });
 }

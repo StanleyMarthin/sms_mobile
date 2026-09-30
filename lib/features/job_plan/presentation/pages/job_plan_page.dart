@@ -52,6 +52,65 @@ String? _pickNullableJobPlanText(Iterable<Object?> values) {
   return value.isEmpty ? null : value;
 }
 
+bool _isTechnicalDivisionLabel(Object? value) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty) return true;
+  if (RegExp(r'^\d+$').hasMatch(text)) return true;
+  return RegExp(r'^Divisi\s+\d+$', caseSensitive: false).hasMatch(text);
+}
+
+bool _isEmployeeIdLabel(Object? value) {
+  final text = value?.toString().trim() ?? '';
+  return RegExp(r'^SM-\d', caseSensitive: false).hasMatch(text);
+}
+
+String _humanizeJobPlanLabel(Object? value, [String fallback = '-']) {
+  final raw = _pickJobPlanText([value]);
+  if (raw.isEmpty) return fallback;
+  var text = raw.replaceAll(RegExp(r'[_-]+'), ' ').trim();
+  text = text.replaceAllMapped(
+    RegExp(r'\b([A-Z]{3,})(XK\d+)\b'),
+    (match) => '${match.group(1)} ${match.group(2)}',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'\bMR([A-Z])'),
+    (match) => 'Mr. ${match.group(1)}',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'([a-zA-Z])(\d)'),
+    (match) => '${match.group(1)} ${match.group(2)}',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'(\d)([a-zA-Z])'),
+    (match) => '${match.group(1)} ${match.group(2)}',
+  );
+  text = text.replaceAllMapped(
+    RegExp(r'\bXK\s+(\d+)\b'),
+    (match) => 'XK${match.group(1)}',
+  );
+  text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return text.isEmpty ? fallback : text;
+}
+
+String _jobPlanPersonLabel(Iterable<Object?> values, [String fallback = '-']) {
+  final raw = _pickJobPlanText(values);
+  if (raw.isEmpty) return fallback;
+  if (RegExp(r'^SM-\d', caseSensitive: false).hasMatch(raw)) {
+    return raw;
+  }
+  return _humanizeJobPlanLabel(raw, fallback);
+}
+
+String _sessionDivisionLabel(SessionManager session) {
+  final explicit = _pickJobPlanText([session.divisionName]);
+  if (explicit.isNotEmpty) return explicit;
+  final match = RegExp(
+    r'divisi\s+(.+)$',
+    caseSensitive: false,
+  ).firstMatch(session.roleLabel);
+  return match?.group(1)?.trim() ?? '';
+}
+
 int? _jobPlanInt(Object? value) => switch (value) {
   final num n => n.toInt(),
   final String s => int.tryParse(s),
@@ -702,6 +761,13 @@ class _JobPlanPageState extends State<JobPlanPage>
     if (mounted) _refreshNotifier.value++;
   }
 
+  void _showApprovalTab() {
+    _triggerRefresh();
+    if (_tabController.index != 0) {
+      _tabController.animateTo(0);
+    }
+  }
+
   // Browse state
   DateTime _browseDate = DateTime.now();
 
@@ -737,22 +803,34 @@ class _JobPlanPageState extends State<JobPlanPage>
 
   Future<void> _showApprovalPlanDetail(JobPlan plan) async {
     final raw = _findApprovalPlanRaw(plan.planId) ?? <String, dynamic>{};
-    final detailUnit = _pickJobPlanText([plan.unitName, raw['unit_name']], '-');
-    final detailPanel = _pickJobPlanText([
-      plan.panelName,
-      raw['panelSectionName'],
-      raw['panelSection'],
-    ], '-');
-    final detailDivision = _pickJobPlanText([
-      plan.assignedDivision,
-      raw['divisionName'],
-      raw['division_id'],
-    ], '-');
+    final detailUnit = _humanizeJobPlanLabel(
+      _pickJobPlanText([plan.unitName, raw['unitName'], raw['unit_name']]),
+      'Unit belum tersedia',
+    );
+    final detailPanel = _humanizeJobPlanLabel(
+      _pickJobPlanText([
+        plan.panelName,
+        raw['panelName'],
+        raw['panel_name'],
+        raw['panelSectionName'],
+        raw['panelSection'],
+      ]),
+      'Panel belum tersedia',
+    );
+    final detailDivision = _humanizeJobPlanLabel(
+      _pickJobPlanText([
+        plan.assignedDivision,
+        raw['divisionName'],
+        raw['division_name'],
+        raw['division_id'],
+      ]),
+      'Divisi belum tersedia',
+    );
     final detailDescription = _pickJobPlanText([
       plan.description,
       raw['jobdescription'],
       raw['description'],
-    ], '-');
+    ], 'PIC belum tersedia');
     final detailNote = _pickJobPlanText([
       plan.note,
       raw['catatan'],
@@ -770,12 +848,21 @@ class _JobPlanPageState extends State<JobPlanPage>
       raw['remainingHoursAlias'],
       plan.remainingHoursAlias,
     ]);
-    final sourceRefId = _pickNullableJobPlanText([plan.sourceRefId]);
     final panelSection = _pickNullableJobPlanText([
       raw['panelSectionName'],
       raw['panelSection'],
       plan.panelCustomNote,
     ]);
+    final detailPic = _jobPlanPersonLabel([
+      plan.employeeName,
+      plan.assignedTo,
+      plan.assignedUserId,
+    ], '-');
+    final detailStart = _pickJobPlanText([plan.startTime], '');
+    final detailFinish = _pickJobPlanText([plan.finishTime], '');
+    final detailSchedule = detailStart.isNotEmpty && detailFinish.isNotEmpty
+        ? '$detailStart - $detailFinish'
+        : '-';
 
     final canReview = _canReviewApprovalStatus(_session, plan.status);
     final canRestoreRejected = _isRejectedOwner(plan);
@@ -843,13 +930,45 @@ class _JobPlanPageState extends State<JobPlanPage>
                         ),
                       ],
                     ),
-                    SizedBox(height: 16),
-                    // Fields
-                    _ApprovalDetailField(
-                      label: 'Pelaksana',
-                      value: _pickJobPlanText([plan.assignedTo], '-'),
+                    SizedBox(height: 18),
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            detailUnit,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            detailDescription,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.gold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    _ApprovalDetailField(label: 'Unit', value: detailUnit),
+                    SizedBox(height: 18),
+                    _ApprovalDetailSectionTitle('Rencana Kerja'),
+                    _ApprovalDetailField(label: 'Pelaksana', value: detailPic),
+                    _ApprovalDetailField(
+                      label: 'Divisi',
+                      value: detailDivision,
+                    ),
                     _ApprovalDetailField(label: 'Panel', value: detailPanel),
                     if (panelSection != null)
                       _ApprovalDetailField(
@@ -857,17 +976,12 @@ class _JobPlanPageState extends State<JobPlanPage>
                         value: panelSection,
                       ),
                     _ApprovalDetailField(
-                      label: 'Divisi',
-                      value: detailDivision,
-                    ),
-                    _ApprovalDetailField(
                       label: 'Tanggal Kerja',
                       value: _pickJobPlanText([plan.workDate], '-'),
                     ),
                     _ApprovalDetailField(
                       label: 'Jam Kerja',
-                      value:
-                          '${_pickJobPlanText([plan.startTime], '-')} - ${_pickJobPlanText([plan.finishTime], '-')}',
+                      value: detailSchedule,
                     ),
                     _ApprovalDetailField(
                       label: 'Target Jam',
@@ -878,6 +992,8 @@ class _JobPlanPageState extends State<JobPlanPage>
                         label: 'Sisa Countdown',
                         value: remainingHoursLabel,
                       ),
+                    SizedBox(height: 6),
+                    _ApprovalDetailSectionTitle('Instruksi'),
                     _ApprovalDetailField(
                       label: 'Jobdesc',
                       value: detailDescription,
@@ -887,12 +1003,6 @@ class _JobPlanPageState extends State<JobPlanPage>
                         label: 'Instruksi / SPOK',
                         value: detailNote,
                       ),
-                    if (sourceRefId != null)
-                      _ApprovalDetailField(
-                        label: 'Source Ref',
-                        value: sourceRefId,
-                      ),
-
                     // ── Action buttons untuk pengaju saat plan ditolak ──
                     if (canRestoreRejected) ...[
                       SizedBox(height: 24),
@@ -1438,6 +1548,7 @@ class _JobPlanPageState extends State<JobPlanPage>
               initialDate: _browseDate,
               refreshNotifier: _refreshNotifier,
               onRefresh: _triggerRefresh,
+              onDraftSubmitted: _showApprovalTab,
               onParamsChanged: (date, divId, carId) {
                 setState(() {
                   _browseDate = date;
@@ -4812,6 +4923,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
   List<Map<String, dynamic>> _unitItems = [];
   List<Map<String, dynamic>> _divisionItems = [];
   List<JobPlan> _planItems = [];
+  Map<String, String> _employeeNamesById = {};
   final Set<String> _selectedIds = {};
 
   int get _level {
@@ -4878,18 +4990,74 @@ class _ApprovalTabState extends State<_ApprovalTab> {
       taskDate: _dateStr,
     );
     if (!mounted) return;
-    result.fold(
-      (failure) {
+    await result.fold(
+      (failure) async {
         setState(() => _isLoading = false);
         AppNotification.showError(
           context,
           friendlyMessage(failure, fallback: 'Gagal memuat data'),
         );
       },
-      (plans) => setState(() {
-        _planItems = plans;
-        _isLoading = false;
-      }),
+      (plans) async {
+        final employeeNames = await _loadApprovalEmployeeNames();
+        if (!mounted) return;
+        setState(() {
+          _employeeNamesById = employeeNames;
+          _planItems = plans.map(_hydrateApprovalPlan).toList();
+          _isLoading = false;
+        });
+      },
+    );
+  }
+
+  Future<Map<String, String>> _loadApprovalEmployeeNames() async {
+    try {
+      final options = await _repo.getOptions(
+        unitId: _selUnit?['id']?.toString() ?? _selUnit?['unitId']?.toString(),
+        divisionId:
+            _selDivision?['id']?.toString() ??
+            _selDivision?['divisionId']?.toString(),
+      );
+      return {
+        for (final employee in options.employees)
+          if (employee.id.trim().isNotEmpty && employee.label.trim().isNotEmpty)
+            employee.id.trim(): employee.label.trim(),
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  JobPlan _hydrateApprovalPlan(JobPlan plan) {
+    final unitName = _pickJobPlanText([plan.unitName, _unitName(_selUnit)]);
+    final parentDivisionName = _divisionName(_selDivision);
+    final planDivisionName = _pickJobPlanText([plan.assignedDivision]);
+    final divisionName = _isTechnicalDivisionLabel(planDivisionName)
+        ? parentDivisionName
+        : planDivisionName;
+    final employeeName = _employeeNamesById[plan.resolvedEmployeeId.trim()];
+    final assignedTo = _pickJobPlanText([
+      employeeName,
+      if (!_isEmployeeIdLabel(plan.assignedTo)) plan.assignedTo,
+    ]);
+    final unitId = _pickJobPlanText([
+      plan.unitId,
+      plan.carId,
+      _selUnit?['unitId'],
+      _selUnit?['id'],
+    ]);
+    final divisionId = _pickJobPlanText([
+      plan.divisionId,
+      _selDivision?['divisionId'],
+      _selDivision?['id'],
+    ]);
+    return plan.copyWith(
+      unitName: unitName.isEmpty ? null : unitName,
+      assignedDivision: divisionName.isEmpty ? null : divisionName,
+      assignedTo: assignedTo.isEmpty ? null : assignedTo,
+      employeeName: employeeName,
+      unitId: unitId.isEmpty ? null : unitId,
+      divisionId: divisionId.isEmpty ? null : divisionId,
     );
   }
 
@@ -5117,7 +5285,7 @@ class _ApprovalTabState extends State<_ApprovalTab> {
               padding: EdgeInsets.fromLTRB(16, 4, 16, 80),
               itemCount: _planItems.length,
               itemBuilder: (_, index) {
-                final plan = _planItems[index];
+                final plan = _hydrateApprovalPlan(_planItems[index]);
                 final canSelect = _canReviewApprovalStatus(
                   _session,
                   plan.status,
@@ -5160,12 +5328,29 @@ class _ApprovalTabState extends State<_ApprovalTab> {
     );
   }
 
-  String _unitName(Map<String, dynamic>? unit) =>
-      (unit?['name'] ?? unit?['unitName'] ?? unit?['unit_name'] ?? '-')
-          .toString();
+  String _unitName(Map<String, dynamic>? unit) => _humanizeJobPlanLabel(
+    unit?['name'] ?? unit?['unitName'] ?? unit?['unit_name'],
+  );
 
-  String _divisionName(Map<String, dynamic>? division) =>
-      (division?['name'] ?? division?['divisionName'] ?? '-').toString();
+  String _divisionName(Map<String, dynamic>? division) {
+    final id = _pickJobPlanText([division?['id'], division?['divisionId']]);
+    final sessionDivisionId = _session.divisionId?.toString();
+    final sessionDivisionName = _sessionDivisionLabel(_session);
+    final raw = _pickJobPlanText([
+      division?['name'],
+      division?['divisionName'],
+      if (id == sessionDivisionId) sessionDivisionName,
+    ]);
+    if (raw.isEmpty) {
+      return sessionDivisionName.isNotEmpty ? sessionDivisionName : '-';
+    }
+    if (RegExp(r'^Divisi\s+\d+$', caseSensitive: false).hasMatch(raw) &&
+        id == sessionDivisionId &&
+        sessionDivisionName.isNotEmpty) {
+      return sessionDivisionName;
+    }
+    return _humanizeJobPlanLabel(raw);
+  }
 }
 
 class _NavDrillCard extends StatelessWidget {
@@ -5293,6 +5478,27 @@ class _ApprovalPlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canSelect = onSelectionChanged != null;
+    final unit = _humanizeJobPlanLabel(plan.unitName, 'Unit belum tersedia');
+    final panel = _pickNullableJobPlanText([
+      _humanizeJobPlanLabel(plan.panelName, ''),
+    ]);
+    final jobdesc = _pickJobPlanText([
+      plan.description,
+    ], 'Jobdesc belum tersedia');
+    final instruction = _pickNullableJobPlanText([plan.note]);
+    final pic = _jobPlanPersonLabel([
+      plan.employeeName,
+      plan.assignedTo,
+      plan.assignedUserId,
+    ], 'PIC belum tersedia');
+    final start = _pickJobPlanText([plan.startTime], '');
+    final finish = _pickJobPlanText([plan.finishTime], '');
+    final schedule = start.isNotEmpty && finish.isNotEmpty
+        ? '$start - $finish'
+        : '';
+    final duration =
+        plan.targetHoursAlias ??
+        (plan.targetHours > 0 ? _formatHours(plan.targetHours) : '');
     return Container(
       margin: EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -5306,93 +5512,159 @@ class _ApprovalPlanCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Row(
+          padding: EdgeInsets.fromLTRB(12, 12, 12, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (canSelect)
-                Checkbox(
-                  value: isSelected,
-                  activeColor: AppColors.gold,
-                  onChanged: onSelectionChanged,
-                ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      plan.unitName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.gold,
-                      ),
-                    ),
-                    SizedBox(height: 2),
-                    Text(
-                      plan.description,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.person_outline,
-                          size: 12,
-                          color: AppColors.textMuted,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (canSelect)
+                    Padding(
+                      padding: EdgeInsets.only(right: 8),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Checkbox(
+                          value: isSelected,
+                          activeColor: AppColors.gold,
+                          onChanged: onSelectionChanged,
                         ),
-                        SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            plan.assignedTo,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textMuted,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          unit,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: 6),
+                        Text(
+                          jobdesc,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.gold,
+                            fontWeight: FontWeight.w800,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    plan.targetHoursAlias ?? _formatHours(plan.targetHours),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
                   ),
-                  if (plan.remainingHoursAlias != null &&
-                      plan.remainingHoursAlias!.isNotEmpty) ...[
-                    SizedBox(height: 2),
-                    Text(
-                      'Sisa: ${plan.remainingHoursAlias}',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                  SizedBox(height: 4),
+                  SizedBox(width: 8),
                   _StatusChip(status: plan.status),
+                ],
+              ),
+              if (panel != null || instruction != null) ...[
+                SizedBox(height: 10),
+                if (panel != null)
+                  _ApprovalCardLine(
+                    icon: Icons.view_in_ar_rounded,
+                    text: panel,
+                  ),
+                if (instruction != null)
+                  _ApprovalCardLine(
+                    icon: Icons.notes_rounded,
+                    text: instruction,
+                    maxLines: 2,
+                  ),
+              ],
+              SizedBox(height: 10),
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  _ApprovalCardMeta(icon: Icons.person_outline, text: pic),
+                  if (schedule.isNotEmpty)
+                    _ApprovalCardMeta(
+                      icon: Icons.schedule_rounded,
+                      text: schedule,
+                    ),
+                  if (duration.isNotEmpty)
+                    _ApprovalCardMeta(
+                      icon: Icons.timer_outlined,
+                      text: duration,
+                    ),
                 ],
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ApprovalCardLine extends StatelessWidget {
+  const _ApprovalCardLine({
+    required this.icon,
+    required this.text,
+    this.maxLines = 1,
+  });
+
+  final IconData icon;
+  final String text;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 14, color: AppColors.textMuted),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              maxLines: maxLines,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ApprovalCardMeta extends StatelessWidget {
+  const _ApprovalCardMeta({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: AppColors.textMuted),
+        SizedBox(width: 4),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 180),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textMuted,
+              fontWeight: FontWeight.w600,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -5490,6 +5762,27 @@ class _ApprovalMetaChip extends StatelessWidget {
   }
 }
 
+class _ApprovalDetailSectionTitle extends StatelessWidget {
+  const _ApprovalDetailSectionTitle(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 10),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          color: AppColors.gold,
+        ),
+      ),
+    );
+  }
+}
+
 class _ApprovalDetailField extends StatelessWidget {
   const _ApprovalDetailField({required this.label, required this.value});
   final String label;
@@ -5527,11 +5820,13 @@ class _BrowseTab extends StatefulWidget {
     required this.onParamsChanged,
     required this.refreshNotifier,
     required this.onRefresh,
+    required this.onDraftSubmitted,
   });
   final DateTime initialDate;
   final void Function(DateTime, String?, String?) onParamsChanged;
   final ValueNotifier<int> refreshNotifier;
   final VoidCallback onRefresh;
+  final VoidCallback onDraftSubmitted;
 
   @override
   State<_BrowseTab> createState() => _BrowseTabState();
@@ -5829,7 +6124,7 @@ class _BrowseTabState extends State<_BrowseTab> {
             context,
             'Draft berhasil dikirim ke antrean.',
           );
-          widget.onRefresh();
+          widget.onDraftSubmitted();
         }
       } else {
         if (mounted) {
